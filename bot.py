@@ -18,7 +18,8 @@ from neonize.events import MessageEv, ConnectedEv
 from logger import log_incoming_message
 from state_manager import init_state, STATE_IDLE
 from general_commands import handle_general_commands
-from clip_mode import handle_clip_mode
+from heatmap_mode import handle_heatmap_mode
+from download_mode import handle_download_mode
 
 logging.basicConfig(level=logging.INFO)
 
@@ -28,10 +29,11 @@ client = NewClient("bot_session.sqlite3")
 HELP_MESSAGE = (
     "🤖 *YT Clipper Bot*\n\n"
     "Available Modes & Commands:\n"
-    "🔸 `!clip` - Enter Video Clipping Mode\n"
-    "🔸 `!mode` - Check your current mode\n"
-    "🔸 `!exit` - Exit the current mode and return to General Menu\n\n"
-    "Please select a mode to begin."
+    "🔸 `heatmap` - Enter Heatmap Mode to find top clips\n"
+    "🔸 `download` - Enter Download Mode to download clips\n"
+    "🔸 `mode` - Check your current mode\n"
+    "🔸 `exit` - Exit the current mode and return to General Menu\n\n"
+    "Please select a command to begin."
 )
 
 # List Nomor yang Diizinkan (Whitelist)
@@ -91,10 +93,16 @@ def on_message(client: NewClient, ev: MessageEv):
     state_obj = init_state(sender_jid)
     current_state = state_obj["state"]
 
-    # 3. Lempar sisa pesan ke mode klip (State Machine)
-    is_clip_mode = handle_clip_mode(client, ev, text, text_lower, sender_jid, current_state)
-    if is_clip_mode:
-        return # Berhenti jika sudah ditangani oleh clip_mode
+    # 3. Lempar sisa pesan ke mode spesifik (State Machine)
+    # Cek apakah sedang di Heatmap Mode
+    if 1 <= current_state <= 6:
+        if handle_heatmap_mode(client, ev, text, text_lower, sender_jid, current_state):
+            return
+            
+    # Cek apakah sedang di Download Mode
+    if 7 <= current_state <= 8:
+        if handle_download_mode(client, ev, text, text_lower, sender_jid, current_state):
+            return
         
     # 4. Jika pesan tidak ditangkap oleh siapapun dan user sedang IDLE, tampilkan HELP MENU
     if current_state == STATE_IDLE:

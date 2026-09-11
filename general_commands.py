@@ -1,6 +1,6 @@
 # general_commands.py
 
-from state_manager import clear_state, STATE_IDLE
+from state_manager import user_states, clear_state, STATE_IDLE, STATE_HEATMAP_URL, STATE_DOWNLOAD_URL
 
 def handle_general_commands(client, ev, text_lower, sender_jid, current_state):
     """
@@ -8,8 +8,8 @@ def handle_general_commands(client, ev, text_lower, sender_jid, current_state):
     Mengembalikan True jika perintah berhasil ditangani (sehingga bot.py tidak lanjut ke bawah).
     """
     
-    # 1. PRIORITAS TERTINGGI: !exit (Mencegah stuck)
-    if text_lower == "!exit":
+    # 1. PRIORITAS TERTINGGI: exit (Mencegah stuck)
+    if text_lower == "exit":
         if current_state == STATE_IDLE:
             client.reply_message("You are already in the General Menu.", ev)
         else:
@@ -17,13 +17,31 @@ def handle_general_commands(client, ev, text_lower, sender_jid, current_state):
             client.reply_message("Exited current mode. Memory cleared. Returned to General Menu.", ev)
         return True
         
-    # 2. Perintah !mode
-    if text_lower == "!mode":
+    if text_lower == "heatmap":
+        user_states[sender_jid]["state"] = STATE_HEATMAP_URL
+        client.reply_message("Entering Heatmap Mode.\nPlease paste your YouTube link:", ev)
+        return True
+        
+    if text_lower == "download":
+        user_states[sender_jid]["state"] = STATE_DOWNLOAD_URL
+        client.reply_message("Entering Download Mode.\nPlease paste your YouTube link:", ev)
+        return True
+
+    # 2. Perintah mode
+    if text_lower == "mode":
         if current_state == STATE_IDLE:
-            mode_text = "General Menu (IDLE)"
+            menu = (
+                "🤖 *yt-clipper Bot Menu*\n\n"
+                "Commands:\n"
+                "🔹 *heatmap* - Generate heatmap from a YouTube video\n"
+                "🔹 *download* - Download a specific clip using heatmap data\n"
+                "🔹 *ping* - Check bot status\n"
+                "🔹 *exit* - Cancel current operation"
+            )
+            client.reply_message(menu, ev)
         else:
-            mode_text = "Clip Mode"
-        client.reply_message(f"ℹ️ Your current mode is: *{mode_text}*", ev)
+            # Tampilkan state
+            client.reply_message(f"ℹ️ Your current state is: *{current_state}*", ev)
         return True
         
     # 3. Perintah dasar ping
