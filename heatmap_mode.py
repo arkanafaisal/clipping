@@ -75,8 +75,7 @@ def handle_heatmap_mode(client, ev, text, text_lower, sender_jid, current_state)
             client.send_message(ev.Info.MessageSource.Chat, error_msg)
             return True
 
-        client.send_message(ev.Info.MessageSource.Chat, "⏳ Processing heatmap data. Please wait...")
-        
+
         # Async processing
         def process_heatmap_async():
             try:

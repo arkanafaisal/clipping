@@ -79,6 +79,17 @@ def process_message(client: NewClient, ev: MessageEv):
     # 1. Catat ke terminal menggunakan module logger
     log_incoming_message(sender_jid, text)
     
+    # --- REPLY DETECTOR ---
+    quoted_text = ""
+    if ev.Message.extendedTextMessage and ev.Message.extendedTextMessage.contextInfo and ev.Message.extendedTextMessage.contextInfo.quotedMessage:
+        quoted_msg = ev.Message.extendedTextMessage.contextInfo.quotedMessage
+        quoted_text = quoted_msg.conversation or (quoted_msg.extendedTextMessage.text if quoted_msg.extendedTextMessage else "")
+        
+    if text.isdigit() and quoted_text and "🔗 https://" in quoted_text:
+        from reply_handler import handle_reply_download
+        if handle_reply_download(client, ev, text, quoted_text, sender_jid):
+            return
+            
     # Inisialisasi state user
     state_obj = init_state(sender_jid)
     current_state = state_obj["state"]
