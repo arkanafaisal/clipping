@@ -93,8 +93,6 @@ def handle_clip_mode(client, ev, text, text_lower, sender_jid, current_state):
         
     elif current_state == STATE_WAITING_CONFIRM:
         if text_lower in ["y", "ya", "yes", "ok"]:
-            client.reply_message("🔍 Fetching heatmap data from YouTube... Please wait.", ev)
-            
             url = user_states[sender_jid]["url"]
             count = int(user_states[sender_jid]["count"])
             offset = int(user_states[sender_jid]["offset"])
@@ -134,7 +132,7 @@ def handle_clip_mode(client, ev, text, text_lower, sender_jid, current_state):
                     end_str = format_time(c['end_time'])
                     msg += f"{c['display_rank']}. {start_str} - {end_str} ({c['value']:.3f} point)\n"
                 
-                msg += "\nDownloading the first clip (Rank 1)... Please wait."
+                # Kirim daftar heatmap (terpisah agar mudah di-copy)
                 client.reply_message(msg, ev)
                 
                 # Setup cache untuk next clip
@@ -143,8 +141,9 @@ def handle_clip_mode(client, ev, text, text_lower, sender_jid, current_state):
                 user_states[sender_jid]["current_clip_index"] = 0
                 user_states[sender_jid]["state"] = STATE_WAITING_NEXT_CLIP
                 
-                # Langsung jalankan perintah "next" untuk klip pertama
-                return handle_clip_mode(client, ev, "next", "next", sender_jid, STATE_WAITING_NEXT_CLIP)
+                # Kirim pesan pertanyaan secara terpisah
+                client.reply_message("Download the first clip? (yes/no)", ev)
+                return True
                 
             except Exception as e:
                 user_states[sender_jid]["state"] = STATE_WAITING_URL
@@ -186,8 +185,7 @@ def handle_clip_mode(client, ev, text, text_lower, sender_jid, current_state):
                 os.makedirs(output_dir)
                 
             # Info sedang memproses
-            if idx > 0: # Klip pertama sudah diberi tahu di blok konfirmasi
-                client.reply_message(f"⏳ Downloading Clip {idx+1}/{len(clips)} (Rank {clip['rank']}). This may take a few seconds...", ev)
+            client.reply_message(f"⏳ Downloading Clip {idx+1}/{len(clips)} (Rank {clip['rank']}). This may take a few seconds...", ev)
             
             # Download
             filepath = download_single_clip(url, output_dir, clip, idx, len(clips))
