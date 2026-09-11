@@ -39,10 +39,20 @@ def get_top_clips(video_url, num_clips=10, offset=0):
         
         processed_clips = []
         for rank, moment in enumerate(top_moments, start=1):
-            start_time = max(0, moment['start_time'] - offset)
-            # Batasi end_time agar tidak melebihi durasi video jika memungkinkan
-            # Tapi karena durasi video tidak selalu pasti, kita tambah offset sesuai permintaan
-            end_time = moment['end_time'] + offset
+            original_start = moment['start_time']
+            original_end = moment['end_time']
+            
+            start_time = original_start - offset
+            end_time = original_end + offset
+            
+            # Validasi jika offset negatif menyebabkan durasi terbalik / negatif
+            if end_time <= start_time:
+                # Sisakan setidaknya 2 detik di tengah
+                mid = (original_start + original_end) / 2
+                start_time = max(0, int(mid - 1))
+                end_time = start_time + 2
+            else:
+                start_time = max(0, start_time)
             
             start_str = format_time(start_time)
             end_str = format_time(end_time)

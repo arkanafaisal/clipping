@@ -35,14 +35,18 @@ def handle_heatmap_request(client, ev, text, sender_jid):
                 error_msg = f"❌ Missing or invalid value for {arg}. Example: {arg} 10"
                 break
         elif arg in ("--offset", "-o"):
-            if idx + 1 < len(parts) and parts[idx+1].isdigit():
-                offset = int(parts[idx+1])
-                if not (0 <= offset <= 30):
-                    error_msg = "❌ Invalid offset! Please enter a number between 0 and 30."
+            if idx + 1 < len(parts):
+                try:
+                    offset = int(parts[idx+1])
+                    if not (-30 <= offset <= 30):
+                        error_msg = "❌ Invalid offset! Please enter a number between -30 and 30."
+                        break
+                    idx += 2
+                except ValueError:
+                    error_msg = f"❌ Missing or invalid value for {arg}. Example: {arg} 5 or {arg} -5"
                     break
-                idx += 2
             else:
-                error_msg = f"❌ Missing or invalid value for {arg}. Example: {arg} 5"
+                error_msg = f"❌ Missing or invalid value for {arg}. Example: {arg} 5 or {arg} -5"
                 break
         elif arg in ("--views", "-v", "-s"):
             sort_by_point = True
