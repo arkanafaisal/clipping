@@ -34,6 +34,15 @@ HELP_MESSAGE = (
     "Please select a mode to begin."
 )
 
+# List Nomor yang Diizinkan (Whitelist)
+# Isi dengan format kode negara tanpa '+', misalnya "6281234567890"
+# Jika list ini kosong ([]), maka SEMUA orang diizinkan mengakses bot.
+ALLOWED_NUMBERS = [
+    # "6281234567890",
+    "40901258817536", #6285791572090
+    "65446929793277"
+]
+
 @client.event(ConnectedEv)
 def on_connected(client: NewClient, ev: ConnectedEv):
     print("\n=====================================================")
@@ -44,8 +53,20 @@ def on_connected(client: NewClient, ev: ConnectedEv):
 @client.event(MessageEv)
 def on_message(client: NewClient, ev: MessageEv):
     # Dapatkan pengirim unik
-    sender_jid = str(ev.Info.MessageSource.Sender)
+    sender_jid_obj = ev.Info.MessageSource.Sender
+    sender_number = getattr(sender_jid_obj, 'User', str(sender_jid_obj).split('@')[0])
+    sender_jid = f"{sender_number}@s.whatsapp.net"
     
+    # --- DEBUGGING JID ---
+    print(f"[DEBUG] Raw Sender Object: {sender_jid_obj}")
+    print(f"[DEBUG] Extracted Number: '{sender_number}'")
+    
+    # --- AUTHORIZATION CHECK ---
+    if ALLOWED_NUMBERS and sender_number not in ALLOWED_NUMBERS:
+        print(f"[BLOCKED] Pesan dari {sender_number} diabaikan karena tidak ada di ALLOWED_NUMBERS.")
+        # Jika daftar ALLOWED_NUMBERS ada isinya, dan pengirim tidak ada di daftar, abaikan pesannya.
+        return
+        
     text = ev.Message.conversation or ev.Message.extendedTextMessage.text
     if not text:
         return
