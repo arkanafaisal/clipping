@@ -17,7 +17,7 @@ def format_time(seconds):
         return f"{hours:02d}:{mins:02d}:{secs:02d}"
     return f"{mins:02d}:{secs:02d}"
 
-def get_top_clips(video_url, num_clips=10):
+def get_top_clips(video_url, num_clips=10, offset=0):
     """
     Mengambil data heatmap dari video YouTube dan mengembalikan list of raw clips.
     """
@@ -37,22 +37,44 @@ def get_top_clips(video_url, num_clips=10):
         print(f"{len(top_moments)} Rekomendasi Klip (Original Data Heatmap):")
         print("-" * 65)
         
+        processed_clips = []
         for rank, moment in enumerate(top_moments, start=1):
-            start_time = moment['start_time']
-            end_time = moment['end_time']
+            start_time = max(0, moment['start_time'] - offset)
+            # Batasi end_time agar tidak melebihi durasi video jika memungkinkan
+            # Tapi karena durasi video tidak selalu pasti, kita tambah offset sesuai permintaan
+            end_time = moment['end_time'] + offset
             
             start_str = format_time(start_time)
             end_str = format_time(end_time)
             
             print(f"Peringkat {rank}: {start_str} - {end_str} (Durasi: {end_time - start_time:.0f} detik) | Skor Puncak: {moment['value']:.3f}")
             
-        return top_moments
+            processed_clips.append({
+                'rank': rank,
+                'start_time': start_time,
+                'end_time': end_time,
+                'duration': end_time - start_time,
+                'value': moment['value']
+            })
+            
+        return processed_clips, info.get('title')
 
     except Exception as e:
         print(f"Terjadi kesalahan: {e}")
-        return []
+        return [], ""
 
 if __name__ == "__main__":
-    # Variabel raw_clips ini berisi data mentah list of dictionary 
-    # yang siap digunakan untuk step selanjutnya (download dsb)
-    raw_clips = get_top_clips(VIDEO_URL, num_clips=10)
+    print("--- YT Clipper - Heatmap Extractor ---")
+    
+    input_url = input("Masukkan URL YouTube: ").strip()
+    if not input_url:
+        input_url = VIDEO_URL
+        
+    input_num = input("Masukkan jumlah klip: ").strip()
+    num_clips = int(input_num) if input_num.isdigit() else 10
+    
+    input_offset = input("Masukkan detik offset awal & akhir: ").strip()
+    offset = int(input_offset) if input_offset.isdigit() else 0
+    
+    print("\nMemproses video...")
+    raw_clips, video_title = get_top_clips(input_url, num_clips=num_clips, offset=offset)
