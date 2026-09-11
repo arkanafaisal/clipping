@@ -6,6 +6,7 @@ STATE_IDLE = "IDLE"
 STATE_WAITING_URL = "WAITING_URL"
 STATE_WAITING_COUNT = "WAITING_COUNT"
 STATE_WAITING_OFFSET = "WAITING_OFFSET"
+STATE_WAITING_CONFIRM = "WAITING_CONFIRM"
 
 def init_state(sender_jid):
     """Membaca state atau membuat baru jika belum ada."""
