@@ -18,16 +18,7 @@ def handle_download_mode(client, ev, text, text_lower, sender_jid, current_state
     if current_state == STATE_IDLE:
         return False
 
-    if current_state == STATE_DOWNLOAD_URL:
-        if " " in text or not text.startswith("https://") or not ("youtube.com" in text or "youtu.be" in text):
-            client.reply_message("❌ Invalid YouTube Link! It must start with 'https://' and contain no spaces.\nPlease send the link again:", ev)
-            return True
-        user_states[sender_jid]["url"] = text
-        user_states[sender_jid]["state"] = STATE_DOWNLOAD_CLIP_DATA
-        client.reply_message("Please paste the ENTIRE heatmap result you want to download from:", ev)
-        return True
-
-    elif current_state == STATE_DOWNLOAD_CLIP_DATA:
+    if current_state == STATE_DOWNLOAD_CLIP_DATA:
         if text.strip().isdigit():
             if "clips" not in user_states[sender_jid]:
                 client.reply_message("❌ I don't have any heatmap data in memory right now. Please paste the FULL heatmap text first:", ev)
@@ -54,7 +45,7 @@ def handle_download_mode(client, ev, text, text_lower, sender_jid, current_state
             def sanitize_filename(name):
                 return re.sub(r'[\\/*?:"<>|]', "", name).strip()
             safe_title = sanitize_filename(title) if title else "YouTube_Clips"
-            output_dir = os.path.join(os.getcwd(), safe_title)
+            output_dir = os.path.join(os.getcwd(), "output", safe_title)
             if not os.path.exists(output_dir):
                 os.makedirs(output_dir)
                 
@@ -108,13 +99,19 @@ def handle_download_mode(client, ev, text, text_lower, sender_jid, current_state
                     return int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
                 return 0
                 
+            url_match = re.search(r'🔗\s*(https?://[^\s]+)', text)
+            if url_match:
+                user_states[sender_jid]["url"] = url_match.group(1)
+            else:
+                client.reply_message("❌ Could not find a YouTube URL in your message. Make sure to paste the full heatmap result including the 🔗 link.", ev)
+                return True
+                
             for line in lines:
-                match = re.search(r'(\d+)\.\s+(\d{2}:\d{2}(?::\d{2})?)\s*-\s*(\d{2}:\d{2}(?::\d{2})?)\s*\(([\d.]+)\s*point\)', line)
+                match = re.search(r'(\d+)\.\s+(\d{2}:\d{2}(?::\d{2})?)\s*-\s*(\d{2}:\d{2}(?::\d{2})?)', line)
                 if match:
                     rank_num = int(match.group(1))
                     start_str = match.group(2)
                     end_str = match.group(3)
-                    point = float(match.group(4))
                     
                     start_sec = parse_time(start_str)
                     end_sec = parse_time(end_str)
@@ -125,7 +122,7 @@ def handle_download_mode(client, ev, text, text_lower, sender_jid, current_state
                         "start_time": start_sec,
                         "end_time": end_sec,
                         "duration": end_sec - start_sec,
-                        "value": point
+                        "value": 0
                     })
                     
             if parsed_clips:
@@ -138,7 +135,7 @@ def handle_download_mode(client, ev, text, text_lower, sender_jid, current_state
                     
                 client.reply_message(f"✅ Successfully parsed {len(parsed_clips)} clips from the text!\n\nWhich clip number do you want to download? (e.g., type 1)", ev)
             else:
-                client.reply_message("❌ Could not parse any clips from your message. Make sure you paste the exact format from the heatmap result (e.g., '1. 00:10 - 00:20 (0.500 point)').", ev)
+                client.reply_message("❌ Could not parse any clips from your message. Make sure you paste the exact format from the heatmap result (e.g., '1. 00:10 - 00:20').", ev)
             return True
 
     return False

@@ -32,33 +32,16 @@ def format_time_filename(seconds):
     return f"{hours:02d}.{mins:02d}.{secs:02d}"
 
 def get_output_filename(folder, rank, start_time, end_time, base_ext='.mp4'):
-    base_prefix = f"Part {rank}"
     start_str = format_time_filename(start_time)
     end_str = format_time_filename(end_time)
-    time_suffix = f"[{start_str} - {end_str}]"
+    time_suffix = f"{start_str} - {end_str}"
     
-    # Cari semua file yang merupakan Part {rank}
-    existing_files = glob.glob(os.path.join(folder, f"{base_prefix}*.mp4"))
+    existing_files = glob.glob(os.path.join(folder, f"*{time_suffix}*.mp4"))
     
-    # Cek apakah persis ada yang detiknya sama
-    for f in existing_files:
-        if time_suffix in f:
-            return os.path.basename(f), True # Menandakan file persis sudah ada
-            
-    # Jika tidak ada yang detiknya persis sama, cari versi tertinggi
-    version = 1
     if existing_files:
-        max_ver = 1
-        for f in existing_files:
-            match = re.search(r'_ver(\d+)', f)
-            if match:
-                max_ver = max(max_ver, int(match.group(1)))
-        version = max_ver + 1
-        
-    if version == 1:
-        return f"{base_prefix} {time_suffix}{base_ext}", False
-    else:
-        return f"{base_prefix}_ver{version} {time_suffix}{base_ext}", False
+        return os.path.basename(existing_files[0]), True
+            
+    return f"{time_suffix}{base_ext}", False
 
 def download_single_clip(video_url, output_dir, clip, i=0, total_clips=1):
     """
@@ -120,7 +103,7 @@ def download_clips(video_url, video_title, clips, batch_size=5, sleep_time=10):
     print(f"\nMemulai pengunduhan {total_clips} klip...")
     
     safe_title = sanitize_filename(video_title) if video_title else "YouTube_Clips"
-    output_dir = os.path.join(os.getcwd(), safe_title)
+    output_dir = os.path.join(os.getcwd(), "output", safe_title)
     
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)

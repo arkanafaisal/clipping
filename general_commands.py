@@ -23,8 +23,9 @@ def handle_general_commands(client, ev, text_lower, sender_jid, current_state):
         return True
         
     if text_lower == "download":
-        user_states[sender_jid]["state"] = STATE_DOWNLOAD_URL
-        client.reply_message("Entering Download Mode.\nPlease paste your YouTube link:", ev)
+        from state_manager import STATE_DOWNLOAD_CLIP_DATA
+        user_states[sender_jid]["state"] = STATE_DOWNLOAD_CLIP_DATA
+        client.reply_message("Entering Download Mode.\nPlease paste the ENTIRE heatmap result", ev)
         return True
 
     # 2. Perintah mode
