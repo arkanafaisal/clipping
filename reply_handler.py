@@ -2,6 +2,8 @@ import re
 import os
 import threading
 from downloader import download_single_clip, get_output_filename
+from neonize.proto.waE2E.WAWebProtobufsE2E_pb2 import Message, VideoMessage, ContextInfo
+
 def parse_time_to_seconds(time_str):
     parts = time_str.split(":")
     if len(parts) == 3:
@@ -71,7 +73,6 @@ def handle_reply_download(client, ev, text, quoted_text, sender_jid):
         
         if filepath and os.path.exists(filepath):
             try:
-                from neonize.proto.waE2E.WAWebProtobufsE2E_pb2 import Message, VideoMessage, ContextInfo
                 with open(filepath, 'rb') as f:
                     buff = f.read()
                 
