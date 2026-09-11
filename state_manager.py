@@ -6,6 +6,7 @@ STATE_IDLE = "IDLE"
 STATE_WAITING_URL = "WAITING_URL"
 STATE_WAITING_COUNT = "WAITING_COUNT"
 STATE_WAITING_OFFSET = "WAITING_OFFSET"
+STATE_WAITING_SORT = "WAITING_SORT"
 STATE_WAITING_CONFIRM = "WAITING_CONFIRM"
 
 def init_state(sender_jid):
@@ -15,7 +16,8 @@ def init_state(sender_jid):
             "state": STATE_IDLE,
             "url": "",
             "count": "",
-            "offset": ""
+            "offset": "",
+            "sort_by_point": True
         }
     return user_states[sender_jid]
 
@@ -25,5 +27,6 @@ def clear_state(sender_jid):
         "state": STATE_IDLE,
         "url": "",
         "count": "",
-        "offset": ""
+        "offset": "",
+        "sort_by_point": True
     }

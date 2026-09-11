@@ -4,6 +4,7 @@ from state_manager import (
     STATE_WAITING_URL, 
     STATE_WAITING_COUNT, 
     STATE_WAITING_OFFSET,
+    STATE_WAITING_SORT,
     STATE_WAITING_CONFIRM
 )
 from heatmap import get_top_clips
@@ -55,18 +56,34 @@ def handle_clip_mode(client, ev, text, text_lower, sender_jid, current_state):
             return True
             
         user_states[sender_jid]["offset"] = text
+        user_states[sender_jid]["state"] = STATE_WAITING_SORT
+        
+        client.reply_message("✅ Offset received. Do you want to sort the results by points? (If *no*, they will be sorted chronologically by time)\nPlease type *yes* or *no*:", ev)
+        return True
+        
+    elif current_state == STATE_WAITING_SORT:
+        if text_lower in ["y", "ya", "yes", "ok"]:
+            user_states[sender_jid]["sort_by_point"] = True
+        elif text_lower in ["n", "no", "tidak", "batal"]:
+            user_states[sender_jid]["sort_by_point"] = False
+        else:
+            client.reply_message("❌ Please type *yes* or *no*:", ev)
+            return True
+            
         user_states[sender_jid]["state"] = STATE_WAITING_CONFIRM
         
         # Kirim rangkuman untuk meminta persetujuan
         url = user_states[sender_jid]["url"]
         count = user_states[sender_jid]["count"]
         offset = user_states[sender_jid]["offset"]
+        sort_pref = "By Points" if user_states[sender_jid]["sort_by_point"] else "Chronological (By Time)"
         
         summary = (
             "✅ *Input Summary*:\n"
             f"🔗 URL: {url}\n"
             f"✂️ Clips: {count}\n"
-            f"⏱️ Offset: {offset}s\n\n"
+            f"⏱️ Offset: {offset}s\n"
+            f"🔄 Sorting: {sort_pref}\n\n"
             "Do you want to proceed and fetch the Heatmap data for this video? (Type *yes* or *no*)"
         )
         client.reply_message(summary, ev)
@@ -98,10 +115,22 @@ def handle_clip_mode(client, ev, text, text_lower, sender_jid, current_state):
                     s = int(seconds % 60)
                     return f"{h:02d}:{m:02d}:{s:02d}"
                 
+                # Jika user memilih sort_by_point = False, urutkan ulang clips secara kronologis (berdasarkan waktu)
+                if not user_states[sender_jid]["sort_by_point"]:
+                    clips.sort(key=lambda x: x['start_time'])
+                    
+                # Format ulang rank jika sudah diurutkan kronologis agar visual rank-nya sesuai urutan waktu
+                for idx, c in enumerate(clips, start=1):
+                    if not user_states[sender_jid]["sort_by_point"]:
+                        # Tampilkan urutan waktu sebagai nomor biasa, atau biarkan rank aslinya terlihat
+                        c['display_rank'] = idx
+                    else:
+                        c['display_rank'] = c['rank']
+                        
                 for c in clips:
                     start_str = format_time(c['start_time'])
                     end_str = format_time(c['end_time'])
-                    msg += f"{c['rank']}. {start_str} - {end_str} ({c['score']:.3f} point)\n"
+                    msg += f"{c['display_rank']}. {start_str} - {end_str} ({c['score']:.3f} point)\n"
                 msg += "\n(Process stopped here as requested. Returned to General Menu.)"
                 
                 client.reply_message(msg, ev)
