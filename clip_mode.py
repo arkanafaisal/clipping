@@ -28,25 +28,23 @@ def handle_clip_mode(client, ev, text, text_lower, sender_jid, current_state):
     # --- LOGIKA TANYA JAWAB (STATE MACHINE) ---
     
     if current_state == STATE_WAITING_URL:
-        # Validasi: URL harus HTTPS, YouTube, dan tidak ada spasi
         if " " in text or not text.startswith("https://") or not ("youtube.com" in text or "youtu.be" in text):
             client.reply_message("❌ Invalid YouTube Link! It must start with 'https://' and contain no spaces.\nPlease send the link again:", ev)
             return True
             
         user_states[sender_jid]["url"] = text
         user_states[sender_jid]["state"] = STATE_WAITING_COUNT
-        client.reply_message("✅ YouTube Link received. How many top clips do you want to extract? (Max: 25)", ev)
+        client.reply_message("How many clips?", ev)
         return True
         
     elif current_state == STATE_WAITING_COUNT:
-        # Validasi: Harus angka, maksimal 25
         if not text.isdigit() or not (1 <= int(text) <= 25):
             client.reply_message("❌ Invalid count! Please enter a number between 1 and 25:", ev)
             return True
             
         user_states[sender_jid]["count"] = text
         user_states[sender_jid]["state"] = STATE_WAITING_OFFSET
-        client.reply_message("✅ Clip count received. What is the desired padding offset in seconds? (Max: 30)", ev)
+        client.reply_message("How much offset in seconds?", ev)
         return True
         
     elif current_state == STATE_WAITING_OFFSET:
@@ -58,7 +56,7 @@ def handle_clip_mode(client, ev, text, text_lower, sender_jid, current_state):
         user_states[sender_jid]["offset"] = text
         user_states[sender_jid]["state"] = STATE_WAITING_SORT
         
-        client.reply_message("✅ Offset received. Do you want to sort the results by points? (If *no*, they will be sorted chronologically by time)\nPlease type *yes* or *no*:", ev)
+        client.reply_message("Sort by total views? (yes/no)", ev)
         return True
         
     elif current_state == STATE_WAITING_SORT:
@@ -84,7 +82,7 @@ def handle_clip_mode(client, ev, text, text_lower, sender_jid, current_state):
             f"✂️ Clips: {count}\n"
             f"⏱️ Offset: {offset}s\n"
             f"🔄 Sorting: {sort_pref}\n\n"
-            "Do you want to proceed and fetch the Heatmap data for this video? (Type *yes* or *no*)"
+            "Proceed? (yes/no)"
         )
         client.reply_message(summary, ev)
         return True
@@ -130,7 +128,7 @@ def handle_clip_mode(client, ev, text, text_lower, sender_jid, current_state):
                 for c in clips:
                     start_str = format_time(c['start_time'])
                     end_str = format_time(c['end_time'])
-                    msg += f"{c['display_rank']}. {start_str} - {end_str} ({c['score']:.3f} point)\n"
+                    msg += f"{c['display_rank']}. {start_str} - {end_str} ({c['value']:.3f} point)\n"
                 msg += "\n(Process stopped here as requested. Returned to General Menu.)"
                 
                 client.reply_message(msg, ev)
