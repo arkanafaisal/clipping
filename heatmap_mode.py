@@ -2,11 +2,11 @@ from state_manager import (
     user_states,
     clear_state,
     STATE_IDLE, 
-    STATE_HEATMAP_URL,
-    STATE_HEATMAP_PARAMS
+    STATE_HEATMAP_URL
 )
 from heatmap import get_top_clips
 import os
+import threading
 
 def handle_heatmap_mode(client, ev, text, text_lower, sender_jid, current_state):
     """
@@ -18,84 +18,76 @@ def handle_heatmap_mode(client, ev, text, text_lower, sender_jid, current_state)
         return False
         
     if current_state == STATE_HEATMAP_URL:
-        if " " in text or not text.startswith("https://") or not ("youtube.com" in text or "youtu.be" in text):
-            client.send_message(ev.Info.MessageSource.Chat, "❌ Invalid YouTube Link! It must start with 'https://' and contain no spaces.\nPlease send the link again:")
+        parts = text.split()
+        if not parts:
             return True
             
-        user_states[sender_jid]["url"] = text
-        user_states[sender_jid]["state"] = STATE_HEATMAP_PARAMS
-        client.send_message(
-            ev.Info.MessageSource.Chat,
-            "Silakan masukkan parameter Heatmap (dipisah spasi):\n"
-            "`<Jumlah_Klip> <Offset> <Sort(y/n)>`\n\n"
-            "*Contoh:*\n"
-            "10 5 y"
-        )
-        
-        # Async check
-        import threading
-        def check_url_async():
-            clips, title = get_top_clips(text, 1, 0)
-            if not clips:
-                # Reset state to URL if verification fails
-                user_states[sender_jid]["state"] = STATE_HEATMAP_URL
-                client.send_message(
-                    ev.Info.MessageSource.Chat, 
-                    "❌ *INTERRUPT:* Failed to fetch heatmap for the previous link. The video might be blocked, private, or has no heatmap data.\n\nPlease send a different YouTube Link:"
-                )
-        
-        threading.Thread(target=check_url_async, daemon=True).start()
-        
-        return True
-        
-    elif current_state == STATE_HEATMAP_PARAMS:
-        parts = text.split()
-        
-        if len(parts) != 3:
+        url = parts[0]
+        if not url.startswith("https://") or not ("youtube.com" in url or "youtu.be" in url):
             client.send_message(
                 ev.Info.MessageSource.Chat, 
-                "❌ *Format Salah!*\n\n"
-                "Format yang benar dipisah dengan spasi:\n"
-                "`<Jumlah_Klip> <Offset> <Sort(y/n)>`\n\n"
-                "*Contoh:*\n"
-                "10 5 y"
+                "❌ Invalid YouTube Link! It must start with 'https://' and contain no spaces.\n\n"
+                "*Contoh Input:*\n"
+                "https://youtu.be/xxx --clip 10 --offset 5 --views"
             )
             return True
             
-        count_str, offset_str, sort_str = parts
-        url = user_states[sender_jid]["url"]
+        user_states[sender_jid]["url"] = url
+            
+        # Defaults
+        count = 10
+        offset = 0
+        sort_by_point = False
         
-        if not count_str.isdigit() or not (1 <= int(count_str) <= 50):
-            client.send_message(ev.Info.MessageSource.Chat, "❌ Invalid count! Please enter a number between 1 and 50.")
-            return True
-            
-        if not offset_str.isdigit() or not (0 <= int(offset_str) <= 30):
-            client.send_message(ev.Info.MessageSource.Chat, "❌ Invalid offset! Please enter a number between 0 and 30.")
-            return True
-            
-        sort_lower = sort_str.lower()
-        if sort_lower in ["y", "ya", "yes", "ok"]:
-            sort_by_point = True
-        elif sort_lower in ["n", "no", "tidak", "batal"]:
-            sort_by_point = False
-        else:
-            client.send_message(ev.Info.MessageSource.Chat, "❌ Invalid sort value! Please type 'y' or 'n'.")
+        # Parse arguments manually
+        idx = 1
+        error_msg = ""
+        while idx < len(parts):
+            arg = parts[idx]
+            if arg in ("--clip", "-c"):
+                if idx + 1 < len(parts) and parts[idx+1].isdigit():
+                    count = int(parts[idx+1])
+                    if not (1 <= count <= 50):
+                        error_msg = "❌ Invalid count! Please enter a number between 1 and 50."
+                        break
+                    idx += 2
+                else:
+                    error_msg = f"❌ Missing or invalid value for {arg}. Example: {arg} 10"
+                    break
+            elif arg in ("--offset", "-o"):
+                if idx + 1 < len(parts) and parts[idx+1].isdigit():
+                    offset = int(parts[idx+1])
+                    if not (0 <= offset <= 30):
+                        error_msg = "❌ Invalid offset! Please enter a number between 0 and 30."
+                        break
+                    idx += 2
+                else:
+                    error_msg = f"❌ Missing or invalid value for {arg}. Example: {arg} 5"
+                    break
+            elif arg in ("--views", "-v", "-s"):
+                sort_by_point = True
+                idx += 1
+            else:
+                error_msg = f"❌ Unknown parameter: {arg}\nAvailable params: --clip/-c <num>, --offset/-o <num>, --views/-v/-s"
+                break
+                
+        if error_msg:
+            client.send_message(ev.Info.MessageSource.Chat, error_msg)
             return True
 
         client.send_message(ev.Info.MessageSource.Chat, "⏳ Processing heatmap data. Please wait...")
         
         # Async processing
-        import threading
         def process_heatmap_async():
             try:
-                clips, title = get_top_clips(url, int(count_str), int(offset_str))
+                clips, title = get_top_clips(url, count, offset)
                 
                 if not clips:
                     # Reset state to URL if verification fails
                     user_states[sender_jid]["state"] = STATE_HEATMAP_URL
                     client.send_message(
                         ev.Info.MessageSource.Chat, 
-                        "❌ *INTERRUPT:* Failed to fetch heatmap for the previous link. The video might be blocked, private, or has no heatmap data.\n\nPlease send a different YouTube Link:"
+                        "❌ Failed to fetch heatmap data for the link. The video might be blocked, private, or has no heatmap.\n\nPlease send a different YouTube Link:"
                     )
                     return
                 
