@@ -1,6 +1,7 @@
 import os
 import sys
 import logging
+import threading
 
 # [BUGFIX] Monkeypatch for Python 3.10 to support neonize's 'Self' import
 import typing
@@ -52,8 +53,7 @@ def on_connected(client: NewClient, ev: ConnectedEv):
     print("Waiting for incoming messages...")
     print("=====================================================\n")
 
-@client.event(MessageEv)
-def on_message(client: NewClient, ev: MessageEv):
+def process_message(client: NewClient, ev: MessageEv):
     # Dapatkan pengirim unik
     sender_jid_obj = ev.Info.MessageSource.Sender
     sender_number = getattr(sender_jid_obj, 'User', str(sender_jid_obj).split('@')[0])
@@ -108,6 +108,13 @@ def on_message(client: NewClient, ev: MessageEv):
     if current_state == STATE_IDLE:
         client.reply_message(HELP_MESSAGE, ev)
         return
+
+@client.event(MessageEv)
+def on_message(client: NewClient, ev: MessageEv):
+    # Spawn a thread for every incoming message
+    thread = threading.Thread(target=process_message, args=(client, ev))
+    thread.daemon = True
+    thread.start()
 
 if __name__ == "__main__":
     print("Starting WhatsApp Bot...")
