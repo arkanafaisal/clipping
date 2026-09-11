@@ -1,55 +1,40 @@
-# general_commands.py
-
-from state_manager import user_states, clear_state, STATE_IDLE, STATE_HEATMAP_URL, STATE_DOWNLOAD_URL
+from state_manager import user_states, clear_state, STATE_IDLE, STATE_CLIP_MODE
 
 def handle_general_commands(client, ev, text_lower, sender_jid, current_state):
     """
-    Menangani perintah global (override) dengan prioritas tertinggi.
-    Mengembalikan True jika perintah berhasil ditangani (sehingga bot.py tidak lanjut ke bawah).
+    Menangani perintah global seperti clip, exit, mode.
+    Mengembalikan True jika diproses, False jika bukan perintah global.
     """
     
-    # 1. PRIORITAS TERTINGGI: exit (Mencegah stuck)
     if text_lower == "exit":
         if current_state == STATE_IDLE:
-            client.reply_message("You are already in the General Menu.", ev)
+            client.send_message(ev.Info.MessageSource.Chat, "Anda sedang tidak berada di dalam mode apapun.")
         else:
             clear_state(sender_jid)
-            client.reply_message("Exited current mode. Memory cleared. Returned to General Menu.", ev)
+            client.send_message(ev.Info.MessageSource.Chat, "🚪 Keluar dari mode. Anda kembali ke Menu Utama.")
         return True
         
-    if text_lower == "heatmap":
-        user_states[sender_jid]["state"] = STATE_HEATMAP_URL
-        client.reply_message("Entering Heatmap Mode.", ev)
-        client.send_message(ev.Info.MessageSource.Chat, "Please paste your YouTube link:")
-        return True
-        
-    if text_lower == "download":
-        from state_manager import STATE_DOWNLOAD_CLIP_DATA
-        user_states[sender_jid]["state"] = STATE_DOWNLOAD_CLIP_DATA
-        client.reply_message("Entering Download Mode.", ev)
-        client.send_message(ev.Info.MessageSource.Chat, "Please paste the ENTIRE heatmap result")
-        return True
-
-    # 2. Perintah mode
     if text_lower == "mode":
         if current_state == STATE_IDLE:
-            menu = (
-                "🤖 *yt-clipper Bot Menu*\n\n"
-                "Commands:\n"
-                "🔹 *heatmap* - Generate heatmap from a YouTube video\n"
-                "🔹 *download* - Download a specific clip using heatmap data\n"
-                "🔹 *ping* - Check bot status\n"
-                "🔹 *exit* - Cancel current operation"
-            )
-            client.reply_message(menu, ev)
+            msg = "Current Mode: IDLE (Ketik clip untuk masuk)"
+        elif current_state == STATE_CLIP_MODE:
+            msg = "Current Mode: CLIP MODE (Kirim link YouTube atau reply untuk download)"
         else:
-            # Tampilkan state
-            client.reply_message(f"ℹ️ Your current state is: *{current_state}*", ev)
+            msg = f"Current Mode: UNKNOWN ({current_state})"
+        client.send_message(ev.Info.MessageSource.Chat, msg)
         return True
         
-    # 3. Perintah dasar ping
-    if text_lower == "ping":
-        client.reply_message("Pong! Bot is responding.", ev)
+    if text_lower == "clip":
+        if current_state == STATE_CLIP_MODE:
+            client.send_message(ev.Info.MessageSource.Chat, "Anda sudah berada di dalam Clip Mode.")
+        else:
+            user_states[sender_jid]["state"] = STATE_CLIP_MODE
+            client.send_message(
+                ev.Info.MessageSource.Chat, 
+                "*Clip Mode Aktif*, Ketik `exit` untuk keluar.\n\n"
+                "Silakan kirimkan link YouTube untuk mendapatkan daftar klip,\n"
+                "atau *reply* hasil daftarnya dengan angka untuk mengunduh klip tersebut.\n\n"
+            )
         return True
         
     return False

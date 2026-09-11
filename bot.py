@@ -17,21 +17,18 @@ from neonize.events import MessageEv, ConnectedEv
 
 # Import Modules yang telah direfactor
 from logger import log_incoming_message
-from state_manager import init_state, STATE_IDLE
+from state_manager import init_state, STATE_IDLE, STATE_CLIP_MODE
 from general_commands import handle_general_commands
-from heatmap_mode import handle_heatmap_mode
-from download_mode import handle_download_mode
+from clip_mode import handle_clip_mode
 
 logging.basicConfig(level=logging.INFO)
-
 client = NewClient("bot_session.sqlite3")
 
 # Help message text
 HELP_MESSAGE = (
     "🤖 *YT Clipper Bot*\n\n"
     "Available Modes & Commands:\n"
-    "🔸 `heatmap` - Enter Heatmap Mode to find top clips\n"
-    "🔸 `download` - Enter Download Mode to download clips\n"
+    "🔸 `clip` - Enter Clip Mode to find and download top clips\n"
     "🔸 `mode` - Check your current mode\n"
     "🔸 `exit` - Exit the current mode and return to General Menu\n\n"
     "Please select a command to begin."
@@ -79,23 +76,17 @@ def process_message(client: NewClient, ev: MessageEv):
     # 1. Catat ke terminal menggunakan module logger
     log_incoming_message(sender_jid, text)
     
-    # --- REPLY DETECTOR ---
+    # --- REPLY EXTRACTOR ---
     quoted_text = ""
     if ev.Message.extendedTextMessage and ev.Message.extendedTextMessage.contextInfo and ev.Message.extendedTextMessage.contextInfo.quotedMessage:
         quoted_msg = ev.Message.extendedTextMessage.contextInfo.quotedMessage
         quoted_text = quoted_msg.conversation or (quoted_msg.extendedTextMessage.text if quoted_msg.extendedTextMessage else "")
         
-    if text.isdigit() and quoted_text and "🔗 https://" in quoted_text:
-        from reply_handler import handle_reply_download
-        if handle_reply_download(client, ev, text, quoted_text, sender_jid):
-            return
-            
     # Inisialisasi state user
     state_obj = init_state(sender_jid)
     current_state = state_obj["state"]
     
     # 2. Tangani Perintah Umum (Overrides) terlebih dahulu
-    # Ini menjamin !exit dieksekusi lebih dulu daripada validasi input apapun.
     is_general = handle_general_commands(client, ev, text_lower, sender_jid, current_state)
     if is_general:
         return # Berhenti jika sudah ditangani oleh general command
@@ -103,18 +94,12 @@ def process_message(client: NewClient, ev: MessageEv):
     # Perbarui current state jaga-jaga kalau diubah oleh general_commands
     state_obj = init_state(sender_jid)
     current_state = state_obj["state"]
-
-    # 3. Lempar sisa pesan ke mode spesifik (State Machine)
-    # Cek apakah sedang di Heatmap Mode
-    if 1 <= current_state <= 6:
-        if handle_heatmap_mode(client, ev, text, text_lower, sender_jid, current_state):
+    
+    # 3. Lempar sisa pesan ke mode spesifik (Clip Mode)
+    if current_state == STATE_CLIP_MODE:
+        if handle_clip_mode(client, ev, text, text_lower, quoted_text, sender_jid):
             return
             
-    # Cek apakah sedang di Download Mode
-    if 7 <= current_state <= 8:
-        if handle_download_mode(client, ev, text, text_lower, sender_jid, current_state):
-            return
-        
     # 4. Jika pesan tidak ditangkap oleh siapapun dan user sedang IDLE, tampilkan HELP MENU
     if current_state == STATE_IDLE:
         client.reply_message(HELP_MESSAGE, ev)

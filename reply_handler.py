@@ -50,7 +50,6 @@ def handle_reply_download(client, ev, text, quoted_text, sender_jid):
         'end_time': end_time
     }
     
-    client.send_message(ev.Info.MessageSource.Chat, f"⏳ Memulai unduhan Klip {clip_num} ({start_str} - {end_str})...")
     
     def download_async():
         def sanitize_filename(name):
@@ -63,31 +62,16 @@ def handle_reply_download(client, ev, text, quoted_text, sender_jid):
             
         filename, exists = get_output_filename(output_dir, int(clip_num), start_time, end_time)
         
+        if not exists:
+            client.send_message(ev.Info.MessageSource.Chat, f"⏳ Downloading clip {clip_num} ({start_str} - {end_str})...")
+        
         # Eksekusi download single clip (synchronous di dalam thread ini)
         filepath = download_single_clip(url, output_dir, selected_clip, int(clip_num)-1, int(clip_num))
         
+        
         if filepath and os.path.exists(filepath):
-            def format_time_str(seconds):
-                h = int(seconds // 3600)
-                m = int((seconds % 3600) // 60)
-                s = int(seconds % 60)
-                return f"{h:02d}:{m:02d}:{s:02d}"
-                
-            start_fmt = format_time_str(start_time)
-            end_fmt = format_time_str(end_time)
-            msg = (
-                f"✅ *Download Selesai!*\n\n"
-                f"🎬 *{title}*\n"
-                f"⏱️ {start_fmt} - {end_fmt}\n"
-                f"📎 *Klip ke-{clip_num}*\n\n"
-                f"Selesai! Kamu bisa me-reply angka klip lainnya jika mau."
-            )
-            client.send_message(ev.Info.MessageSource.Chat, msg)
-            
-            # Send file (Warning: large files might fail on WhatsApp depending on limits)
             try:
                 from neonize.proto.waE2E.WAWebProtobufsE2E_pb2 import Message, VideoMessage, ContextInfo
-                client.send_message(ev.Info.MessageSource.Chat, "Mengirim file video...")
                 with open(filepath, 'rb') as f:
                     buff = f.read()
                 
@@ -97,7 +81,6 @@ def handle_reply_download(client, ev, text, quoted_text, sender_jid):
                 msg_proto = Message(
                     videoMessage=VideoMessage(
                         URL=upload.url,
-                        caption=f"{start_fmt} - {end_fmt}",
                         seconds=duration,
                         directPath=upload.DirectPath,
                         fileEncSHA256=upload.FileEncSHA256,
@@ -114,7 +97,7 @@ def handle_reply_download(client, ev, text, quoted_text, sender_jid):
                     
                 client.send_message(ev.Info.MessageSource.Chat, msg_proto)
             except Exception as e:
-                client.send_message(ev.Info.MessageSource.Chat, f"❌ Gagal mengirim file video ke WhatsApp (mungkin terlalu besar): {str(e)}")
+                client.send_message(ev.Info.MessageSource.Chat, f"❌ Failed to send video: {str(e)}")
         else:
             client.send_message(ev.Info.MessageSource.Chat, f"❌ Download failed for Clip {clip_num}.")
             
