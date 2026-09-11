@@ -5,7 +5,7 @@ from state_manager import (
     STATE_DOWNLOAD_URL,
     STATE_DOWNLOAD_CLIP_DATA
 )
-from downloader import download_single_clip
+from downloader import download_single_clip, get_output_filename
 import os
 import re
 
@@ -49,12 +49,24 @@ def handle_download_mode(client, ev, text, text_lower, sender_jid, current_state
             if not os.path.exists(output_dir):
                 os.makedirs(output_dir)
                 
-            client.reply_message(f"⏳ Downloading Clip {clip_num}. This may take a few seconds...", ev)
+            filename, exists = get_output_filename(output_dir, selected_clip.get('rank', 1), selected_clip['start_time'], selected_clip['end_time'])
             
+            if not exists:
+                client.reply_message("⏳ Please wait...", ev)
+                
             filepath = download_single_clip(url, output_dir, selected_clip, clip_idx, len(clips))
             
             if filepath and os.path.exists(filepath):
-                caption = f"🎬 {title}\n⭐ Rank {selected_clip.get('rank', '?')}"
+                def format_time_str(seconds):
+                    h = int(seconds // 3600)
+                    m = int((seconds % 3600) // 60)
+                    s = int(seconds % 60)
+                    return f"{h:02d}:{m:02d}:{s:02d}"
+                    
+                start_str = format_time_str(selected_clip['start_time'])
+                end_str = format_time_str(selected_clip['end_time'])
+                caption = f"{start_str} - {end_str}"
+                
                 try:
                     from neonize.proto.waE2E.WAWebProtobufsE2E_pb2 import Message, VideoMessage, ContextInfo
                     with open(filepath, "rb") as f:
@@ -78,7 +90,7 @@ def handle_download_mode(client, ev, text, text_lower, sender_jid, current_state
                         msg.videoMessage.contextInfo.MergeFrom(client._make_quoted_message(ev))
                     client.send_message(ev.Info.MessageSource.Chat, msg)
                     
-                    client.reply_message("✅ Video sent! You can type another clip number to download, or *exit* to stop.", ev)
+                    client.reply_message("Type another clip number:", ev)
                 except Exception as e:
                     import traceback
                     print("[ERROR SENDING VIDEO]\n", traceback.format_exc())

@@ -43,6 +43,39 @@ def get_output_filename(folder, rank, start_time, end_time, base_ext='.mp4'):
             
     return f"{time_suffix}{base_ext}", False
 
+def download_preview_clip(video_url, clip, temp_dir):
+    start_time = clip['start_time']
+    end_time = clip['end_time']
+    
+    filename = f"preview_{int(time.time())}_{start_time}_{end_time}.mp4"
+    filepath = os.path.join(temp_dir, filename)
+    
+    ydl_opts = {
+        'format': 'worstvideo[ext=mp4]+worstaudio[ext=m4a]/worst[ext=mp4]/worst',
+        'outtmpl': filepath,
+        'download_ranges': download_range_func(None, [(start_time, end_time)]),
+        'force_keyframes_at_cuts': True,
+        'external_downloader_args': {
+            'ffmpeg_i': [
+                '-reconnect', '1', 
+                '-reconnect_streamed', '1', 
+                '-reconnect_delay_max', '5'
+            ],
+            'ffmpeg': ['-loglevel', 'warning']
+        },
+        'quiet': True,
+        'no_warnings': True,
+    }
+    
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([video_url])
+        if os.path.exists(filepath):
+            return filepath
+    except Exception as e:
+        print(f"[GAGAL PREVIEW] {e}")
+    return None
+
 def download_single_clip(video_url, output_dir, clip, i=0, total_clips=1):
     """
     Mengunduh satu klip dan mengembalikan absolute path dari file yang diunduh (atau diskip).
