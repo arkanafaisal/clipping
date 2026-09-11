@@ -97,62 +97,14 @@ def handle_heatmap_mode(client, ev, text, text_lower, sender_jid, current_state)
             
             client.send_message(ev.Info.MessageSource.Chat, msg)
             
-            # Send Preview
-            top_clip = None
-            for r in range(1, len(clips) + 1):
-                c = next((x for x in clips if x['rank'] == r), None)
-                if c and c['start_time'] > 0:
-                    top_clip = c
-                    break
-            if not top_clip:
-                top_clip = next((c for c in clips if c['rank'] == 1), clips[0])
-            temp_dir = tempfile.gettempdir()
-            preview_path = download_preview_clip(url, top_clip, temp_dir)
+            # Auto switch to Download Mode
+            from state_manager import STATE_DOWNLOAD_CLIP_DATA
+            user_states[sender_jid]["state"] = STATE_DOWNLOAD_CLIP_DATA
+            user_states[sender_jid]["clips"] = clips
+            user_states[sender_jid]["video_title"] = title
             
-            if preview_path and os.path.exists(preview_path):
-                try:
-                    from neonize.proto.waE2E.WAWebProtobufsE2E_pb2 import Message, VideoMessage, ContextInfo
-                    with open(preview_path, "rb") as f:
-                        buff = f.read()
-                    upload = client.upload(buff)
-                    v_msg = Message(
-                        videoMessage=VideoMessage(
-                            URL=upload.url,
-                            caption="Preview",
-                            seconds=int(top_clip['end_time'] - top_clip['start_time']),
-                            directPath=upload.DirectPath,
-                            fileEncSHA256=upload.FileEncSHA256,
-                            fileLength=upload.FileLength,
-                            fileSHA256=upload.FileSHA256,
-                            mediaKey=upload.MediaKey,
-                            mimetype="video/mp4",
-                            contextInfo=ContextInfo()
-                        )
-                    )
-                    if ev.Message:
-                        v_msg.videoMessage.contextInfo.MergeFrom(client._make_quoted_message(ev))
-                    client.send_message(ev.Info.MessageSource.Chat, v_msg)
-                except Exception as ex:
-                    print("[GAGAL SEND PREVIEW]", ex)
-                finally:
-                    # Hapus file sementara
-                    try:
-                        os.remove(preview_path)
-                    except:
-                        pass
-            else:
-                client.send_message(ev.Info.MessageSource.Chat, "❌ Failed to download preview.")
-                
-            # Restart Loop Heatmap Mode
-            user_states[sender_jid]["state"] = STATE_HEATMAP_URL
-            user_states[sender_jid]["url"] = ""
-            user_states[sender_jid]["count"] = ""
-            user_states[sender_jid]["offset"] = ""
-            user_states[sender_jid]["clips"] = []
-            user_states[sender_jid]["video_title"] = ""
-            
-            client.send_message(ev.Info.MessageSource.Chat, "Heatmap data generated! Use the *download* command to download.")
-            client.send_message(ev.Info.MessageSource.Chat, "Please paste your YouTube link:")
+            client.reply_message("Entering Download Mode.", ev)
+            client.send_message(ev.Info.MessageSource.Chat, "Type the clip number to download:")
             return True
             
         except Exception as e:
