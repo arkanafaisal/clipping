@@ -5,9 +5,13 @@ from state_manager import (
     STATE_WAITING_COUNT, 
     STATE_WAITING_OFFSET,
     STATE_WAITING_SORT,
-    STATE_WAITING_CONFIRM
+    STATE_WAITING_CONFIRM,
+    STATE_WAITING_NEXT_CLIP
 )
 from heatmap import get_top_clips
+from downloader import download_single_clip
+import os
+import re
 
 def handle_clip_mode(client, ev, text, text_lower, sender_jid, current_state):
     """
@@ -129,15 +133,18 @@ def handle_clip_mode(client, ev, text, text_lower, sender_jid, current_state):
                     start_str = format_time(c['start_time'])
                     end_str = format_time(c['end_time'])
                     msg += f"{c['display_rank']}. {start_str} - {end_str} ({c['value']:.3f} point)\n"
-                msg += "\n(Process stopped here as requested. Returned to General Menu.)"
                 
+                msg += "\nDownloading the first clip (Rank 1)... Please wait."
                 client.reply_message(msg, ev)
                 
-                # Selesai, kembali ke idle
-                user_states[sender_jid]["state"] = STATE_IDLE
-                user_states[sender_jid]["url"] = ""
-                user_states[sender_jid]["count"] = ""
-                user_states[sender_jid]["offset"] = ""
+                # Setup cache untuk next clip
+                user_states[sender_jid]["clips"] = clips
+                user_states[sender_jid]["video_title"] = title
+                user_states[sender_jid]["current_clip_index"] = 0
+                user_states[sender_jid]["state"] = STATE_WAITING_NEXT_CLIP
+                
+                # Langsung jalankan perintah "next" untuk klip pertama
+                return handle_clip_mode(client, ev, "next", "next", sender_jid, STATE_WAITING_NEXT_CLIP)
                 
             except Exception as e:
                 user_states[sender_jid]["state"] = STATE_WAITING_URL
@@ -146,15 +153,98 @@ def handle_clip_mode(client, ev, text, text_lower, sender_jid, current_state):
             return True
             
         elif text_lower in ["n", "no", "batal"]:
-            user_states[sender_jid]["state"] = STATE_IDLE
-            user_states[sender_jid]["url"] = ""
-            user_states[sender_jid]["count"] = ""
-            user_states[sender_jid]["offset"] = ""
+            from state_manager import clear_state
+            clear_state(sender_jid)
             client.reply_message("Process cancelled. Returned to General Menu.", ev)
             return True
             
         else:
             client.reply_message("Please type *yes* or *no*.", ev)
+            return True
+            
+    elif current_state == STATE_WAITING_NEXT_CLIP:
+        if text_lower in ["next", "lanjut", "y", "yes"]:
+            idx = user_states[sender_jid]["current_clip_index"]
+            clips = user_states[sender_jid]["clips"]
+            
+            if idx >= len(clips):
+                client.reply_message("✅ All clips have been downloaded and sent. Returned to General Menu.", ev)
+                from state_manager import clear_state
+                clear_state(sender_jid)
+                return True
+                
+            clip = clips[idx]
+            url = user_states[sender_jid]["url"]
+            title = user_states[sender_jid]["video_title"]
+            
+            # Buat safe folder
+            def sanitize_filename(name):
+                return re.sub(r'[\\/*?:"<>|]', "", name).strip()
+            safe_title = sanitize_filename(title) if title else "YouTube_Clips"
+            output_dir = os.path.join(os.getcwd(), safe_title)
+            if not os.path.exists(output_dir):
+                os.makedirs(output_dir)
+                
+            # Info sedang memproses
+            if idx > 0: # Klip pertama sudah diberi tahu di blok konfirmasi
+                client.reply_message(f"⏳ Downloading Clip {idx+1}/{len(clips)} (Rank {clip['rank']}). This may take a few seconds...", ev)
+            
+            # Download
+            filepath = download_single_clip(url, output_dir, clip, idx, len(clips))
+            
+            if filepath and os.path.exists(filepath):
+                # Kirim videonya ke user
+                caption = f"🎬 {title}\n⭐ Rank {clip['rank']}"
+                try:
+                    from neonize.proto.waE2E.WAWebProtobufsE2E_pb2 import Message, VideoMessage, ContextInfo
+                    
+                    with open(filepath, "rb") as f:
+                        buff = f.read()
+                        
+                    upload = client.upload(buff)
+                    
+                    msg = Message(
+                        videoMessage=VideoMessage(
+                            URL=upload.url,
+                            caption=caption,
+                            seconds=int(clip['duration']),
+                            directPath=upload.DirectPath,
+                            fileEncSHA256=upload.FileEncSHA256,
+                            fileLength=upload.FileLength,
+                            fileSHA256=upload.FileSHA256,
+                            mediaKey=upload.MediaKey,
+                            mimetype="video/mp4",
+                            contextInfo=ContextInfo()
+                        )
+                    )
+                    
+                    if ev.Message:
+                        msg.videoMessage.contextInfo.MergeFrom(client._make_quoted_message(ev))
+                        
+                    client.send_message(ev.Info.MessageSource.Chat, msg)
+                    
+                except Exception as e:
+                    import traceback
+                    tb = traceback.format_exc()
+                    print("[ERROR SENDING VIDEO]\n", tb)
+                    client.reply_message(f"❌ Failed to send video: {str(e)}", ev)
+                    return True
+                
+                user_states[sender_jid]["current_clip_index"] += 1
+                
+                if user_states[sender_jid]["current_clip_index"] < len(clips):
+                    client.reply_message("✅ Video sent! Type *next* for the next clip, or *!exit* to stop.", ev)
+                else:
+                    client.reply_message("✅ All clips have been sent! Returned to General Menu.", ev)
+                    from state_manager import clear_state
+                    clear_state(sender_jid)
+            else:
+                client.reply_message("❌ Failed to download this clip. Type *next* to try the next clip, or *!exit* to stop.", ev)
+                user_states[sender_jid]["current_clip_index"] += 1
+                
+            return True
+        else:
+            client.reply_message("Type *next* to download the next clip, or *!exit* to stop.", ev)
             return True
             
     return False

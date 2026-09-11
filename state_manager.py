@@ -8,6 +8,7 @@ STATE_WAITING_COUNT = "WAITING_COUNT"
 STATE_WAITING_OFFSET = "WAITING_OFFSET"
 STATE_WAITING_SORT = "WAITING_SORT"
 STATE_WAITING_CONFIRM = "WAITING_CONFIRM"
+STATE_WAITING_NEXT_CLIP = "WAITING_NEXT_CLIP"
 
 def init_state(sender_jid):
     """Membaca state atau membuat baru jika belum ada."""
@@ -17,7 +18,10 @@ def init_state(sender_jid):
             "url": "",
             "count": "",
             "offset": "",
-            "sort_by_point": True
+            "sort_by_point": True,
+            "clips": [],
+            "video_title": "",
+            "current_clip_index": 0
         }
     return user_states[sender_jid]
 
@@ -28,5 +32,8 @@ def clear_state(sender_jid):
         "url": "",
         "count": "",
         "offset": "",
-        "sort_by_point": True
+        "sort_by_point": True,
+        "clips": [],
+        "video_title": "",
+        "current_clip_index": 0
     }
