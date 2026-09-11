@@ -23,32 +23,32 @@ def handle_heatmap_mode(client, ev, text, text_lower, sender_jid, current_state)
         
     if current_state == STATE_HEATMAP_URL:
         if " " in text or not text.startswith("https://") or not ("youtube.com" in text or "youtu.be" in text):
-            client.reply_message("❌ Invalid YouTube Link! It must start with 'https://' and contain no spaces.\nPlease send the link again:", ev)
+            client.send_message(ev.Info.MessageSource.Chat, "❌ Invalid YouTube Link! It must start with 'https://' and contain no spaces.\nPlease send the link again:")
             return True
             
         user_states[sender_jid]["url"] = text
         user_states[sender_jid]["state"] = STATE_HEATMAP_COUNT
-        client.reply_message("How many clips?", ev)
+        client.send_message(ev.Info.MessageSource.Chat, "How many clips?")
         return True
         
     elif current_state == STATE_HEATMAP_COUNT:
         if not text.isdigit() or not (1 <= int(text) <= 25):
-            client.reply_message("❌ Invalid count! Please enter a number between 1 and 25:", ev)
+            client.send_message(ev.Info.MessageSource.Chat, "❌ Invalid count! Please enter a number between 1 and 25:")
             return True
             
         user_states[sender_jid]["count"] = text
         user_states[sender_jid]["state"] = STATE_HEATMAP_OFFSET
-        client.reply_message("How much offset in seconds?", ev)
+        client.send_message(ev.Info.MessageSource.Chat, "How much offset in seconds?")
         return True
         
     elif current_state == STATE_HEATMAP_OFFSET:
         if not text.isdigit() or not (0 <= int(text) <= 30):
-            client.reply_message("❌ Invalid offset! Please enter a number between 0 and 30:", ev)
+            client.send_message(ev.Info.MessageSource.Chat, "❌ Invalid offset! Please enter a number between 0 and 30:")
             return True
             
         user_states[sender_jid]["offset"] = text
         user_states[sender_jid]["state"] = STATE_HEATMAP_SORT
-        client.reply_message("Sort by total views? (yes/no)", ev)
+        client.send_message(ev.Info.MessageSource.Chat, "Sort by total views? (yes/no)")
         return True
         
     elif current_state == STATE_HEATMAP_SORT:
@@ -57,7 +57,7 @@ def handle_heatmap_mode(client, ev, text, text_lower, sender_jid, current_state)
         elif text_lower in ["n", "no", "tidak", "batal"]:
             user_states[sender_jid]["sort_by_point"] = False
         else:
-            client.reply_message("❌ Please type *yes* or *no*:", ev)
+            client.send_message(ev.Info.MessageSource.Chat, "❌ Please type *yes* or *no*:")
             return True
             
         # Langsung proses heatmap (tanpa input confirm)
@@ -70,7 +70,7 @@ def handle_heatmap_mode(client, ev, text, text_lower, sender_jid, current_state)
             
             if not clips:
                 user_states[sender_jid]["state"] = STATE_HEATMAP_URL
-                client.reply_message("❌ Failed to find heatmap data.\nPlease provide a different YouTube Link:", ev)
+                client.send_message(ev.Info.MessageSource.Chat, "❌ Failed to find heatmap data.\nPlease provide a different YouTube Link:")
                 return True
             
             msg = f"🔗 {url}\n🎬 *{title}*\n\n"
@@ -95,7 +95,7 @@ def handle_heatmap_mode(client, ev, text, text_lower, sender_jid, current_state)
                 end_str = format_time(c['end_time'])
                 msg += f"{c['display_rank']}. {start_str} - {end_str}\n"
             
-            client.reply_message(msg, ev)
+            client.send_message(ev.Info.MessageSource.Chat, msg)
             
             # Send Preview
             top_clip = None
@@ -141,7 +141,7 @@ def handle_heatmap_mode(client, ev, text, text_lower, sender_jid, current_state)
                     except:
                         pass
             else:
-                client.reply_message("❌ Failed to download preview.", ev)
+                client.send_message(ev.Info.MessageSource.Chat, "❌ Failed to download preview.")
                 
             # Restart Loop Heatmap Mode
             user_states[sender_jid]["state"] = STATE_HEATMAP_URL
@@ -151,13 +151,13 @@ def handle_heatmap_mode(client, ev, text, text_lower, sender_jid, current_state)
             user_states[sender_jid]["clips"] = []
             user_states[sender_jid]["video_title"] = ""
             
-            client.reply_message("Heatmap data generated! Use the *download* command to download.", ev)
-            client.reply_message("Please paste your YouTube link:", ev)
+            client.send_message(ev.Info.MessageSource.Chat, "Heatmap data generated! Use the *download* command to download.")
+            client.send_message(ev.Info.MessageSource.Chat, "Please paste your YouTube link:")
             return True
             
         except Exception as e:
             user_states[sender_jid]["state"] = STATE_HEATMAP_URL
-            client.reply_message(f"❌ An error occurred: {str(e)}\nPlease provide a different YouTube Link:", ev)
+            client.send_message(ev.Info.MessageSource.Chat, f"❌ An error occurred: {str(e)}\nPlease provide a different YouTube Link:")
         return True
             
     return False

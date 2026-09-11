@@ -21,7 +21,7 @@ def handle_download_mode(client, ev, text, text_lower, sender_jid, current_state
     if current_state == STATE_DOWNLOAD_CLIP_DATA:
         if text.strip().isdigit():
             if "clips" not in user_states[sender_jid]:
-                client.reply_message("❌ I don't have any heatmap data in memory right now. Please paste the FULL heatmap text first:", ev)
+                client.send_message(ev.Info.MessageSource.Chat, "❌ I don't have any heatmap data in memory right now. Please paste the FULL heatmap text first:")
                 return True
                 
             clip_num = int(text.strip())
@@ -36,7 +36,7 @@ def handle_download_mode(client, ev, text, text_lower, sender_jid, current_state
                     break
             
             if not selected_clip:
-                client.reply_message(f"❌ Could not find clip number {clip_num}. Please enter a valid number from the list.", ev)
+                client.send_message(ev.Info.MessageSource.Chat, f"❌ Could not find clip number {clip_num}. Please enter a valid number from the list.")
                 return True
                 
             url = user_states[sender_jid]["url"]
@@ -52,7 +52,7 @@ def handle_download_mode(client, ev, text, text_lower, sender_jid, current_state
             filename, exists = get_output_filename(output_dir, selected_clip.get('rank', 1), selected_clip['start_time'], selected_clip['end_time'])
             
             if not exists:
-                client.reply_message("⏳ Please wait...", ev)
+                client.send_message(ev.Info.MessageSource.Chat, "⏳ Please wait...")
                 
             filepath = download_single_clip(url, output_dir, selected_clip, clip_idx, len(clips))
             
@@ -90,13 +90,13 @@ def handle_download_mode(client, ev, text, text_lower, sender_jid, current_state
                         msg.videoMessage.contextInfo.MergeFrom(client._make_quoted_message(ev))
                     client.send_message(ev.Info.MessageSource.Chat, msg)
                     
-                    client.reply_message("Type another clip number:", ev)
+                    client.send_message(ev.Info.MessageSource.Chat, "Type another clip number:")
                 except Exception as e:
                     import traceback
                     print("[ERROR SENDING VIDEO]\n", traceback.format_exc())
-                    client.reply_message(f"❌ Failed to send video: {str(e)}", ev)
+                    client.send_message(ev.Info.MessageSource.Chat, f"❌ Failed to send video: {str(e)}")
             else:
-                client.reply_message("❌ Failed to download this clip. You can try another number, or *exit* to stop.", ev)
+                client.send_message(ev.Info.MessageSource.Chat, "❌ Failed to download this clip. You can try another number, or *exit* to stop.")
             return True
             
         else:
@@ -115,7 +115,7 @@ def handle_download_mode(client, ev, text, text_lower, sender_jid, current_state
             if url_match:
                 user_states[sender_jid]["url"] = url_match.group(1)
             else:
-                client.reply_message("❌ Could not find a YouTube URL in your message. Make sure to paste the full heatmap result including the 🔗 link.", ev)
+                client.send_message(ev.Info.MessageSource.Chat, "❌ Could not find a YouTube URL in your message. Make sure to paste the full heatmap result including the 🔗 link.")
                 return True
                 
             for line in lines:
@@ -145,9 +145,9 @@ def handle_download_mode(client, ev, text, text_lower, sender_jid, current_state
                 else:
                     user_states[sender_jid]["video_title"] = "YouTube_Clips"
                     
-                client.reply_message(f"✅ Successfully parsed {len(parsed_clips)} clips from the text!\n\nWhich clip number do you want to download? (e.g., type 1)", ev)
+                client.send_message(ev.Info.MessageSource.Chat, f"✅ Successfully parsed {len(parsed_clips)} clips from the text!\n\nWhich clip number do you want to download? (e.g., type 1)")
             else:
-                client.reply_message("❌ Could not parse any clips from your message. Make sure you paste the exact format from the heatmap result (e.g., '1. 00:10 - 00:20').", ev)
+                client.send_message(ev.Info.MessageSource.Chat, "❌ Could not parse any clips from your message. Make sure you paste the exact format from the heatmap result (e.g., '1. 00:10 - 00:20').")
             return True
 
     return False
