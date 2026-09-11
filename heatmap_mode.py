@@ -29,11 +29,28 @@ def handle_heatmap_mode(client, ev, text, text_lower, sender_jid, current_state)
         user_states[sender_jid]["url"] = text
         user_states[sender_jid]["state"] = STATE_HEATMAP_COUNT
         client.send_message(ev.Info.MessageSource.Chat, "How many clips?")
+        
+        # Check if the video has a heatmap or is blocked (asynchronous)
+        import threading
+        def check_url_async():
+            clips, title = get_top_clips(text, 1, 0)
+            if not clips:
+                # Reset state to URL if verification fails
+                user_states[sender_jid]["state"] = STATE_HEATMAP_URL
+                client.send_message(
+                    ev.Info.MessageSource.Chat, 
+                    "❌ *INTERRUPT:* Failed to fetch heatmap for the previous link. The video might be blocked, private, or has no heatmap data.\n\nPlease send a different YouTube Link:"
+                )
+        
+        threading.Thread(target=check_url_async, daemon=True).start()
+        
         return True
+            
+
         
     elif current_state == STATE_HEATMAP_COUNT:
-        if not text.isdigit() or not (1 <= int(text) <= 25):
-            client.send_message(ev.Info.MessageSource.Chat, "❌ Invalid count! Please enter a number between 1 and 25:")
+        if not text.isdigit() or not (1 <= int(text) <= 50):
+            client.send_message(ev.Info.MessageSource.Chat, "❌ Invalid count! Please enter a number between 1 and 50:")
             return True
             
         user_states[sender_jid]["count"] = text

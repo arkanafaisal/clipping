@@ -28,7 +28,7 @@ def get_top_clips(video_url, num_clips=10, offset=0):
 
         if not heatmap:
             print("Heatmap tidak ditemukan. Video ini mungkin belum memiliki data 'Most Replayed'.")
-            return []
+            return [], ""
             
         # Urutkan berdasarkan intensitas tertinggi
         top_moments = sorted(heatmap, key=lambda x: x.get('value', 0), reverse=True)[:num_clips]
