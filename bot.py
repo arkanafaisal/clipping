@@ -14,18 +14,15 @@ if not hasattr(typing, 'Self'):
 from neonize.client import NewClient
 from neonize.events import MessageEv, ConnectedEv
 
+# Import Modules yang telah direfactor
+from logger import log_incoming_message
+from state_manager import init_state, STATE_IDLE
+from general_commands import handle_general_commands
+from clip_mode import handle_clip_mode
+
 logging.basicConfig(level=logging.INFO)
 
 client = NewClient("bot_session.sqlite3")
-
-# In-Memory map to keep track of user states
-user_states = {}
-
-# State Definitions
-STATE_IDLE = "IDLE"
-STATE_WAITING_URL = "WAITING_URL"
-STATE_WAITING_COUNT = "WAITING_COUNT"
-STATE_WAITING_OFFSET = "WAITING_OFFSET"
 
 # Help message text
 HELP_MESSAGE = (
@@ -33,7 +30,7 @@ HELP_MESSAGE = (
     "Available Modes & Commands:\n"
     "🔸 `!clip` - Enter Video Clipping Mode\n"
     "🔸 `!mode` - Check your current mode\n"
-    "🔸 `!exit` - Exit the current mode and return to IDLE\n\n"
+    "🔸 `!exit` - Exit the current mode and return to General Menu\n\n"
     "Please select a mode to begin."
 )
 
@@ -46,7 +43,7 @@ def on_connected(client: NewClient, ev: ConnectedEv):
 
 @client.event(MessageEv)
 def on_message(client: NewClient, ev: MessageEv):
-    # Get the sender's unique JID
+    # Dapatkan pengirim unik
     sender_jid = str(ev.Info.MessageSource.Sender)
     
     text = ev.Message.conversation or ev.Message.extendedTextMessage.text
@@ -56,102 +53,31 @@ def on_message(client: NewClient, ev: MessageEv):
     text = text.strip()
     text_lower = text.lower()
     
-    # Log incoming message to the terminal
-    print(f"[Incoming] From: {sender_jid} | Message: {text}")
+    # 1. Catat ke terminal menggunakan module logger
+    log_incoming_message(sender_jid, text)
     
-    if text_lower == "ping":
-        client.reply_message("Pong! Bot is responding.", ev)
-        return
-
-    # Initialize user state if it's their first time interacting
-    if sender_jid not in user_states:
-        user_states[sender_jid] = {
-            "state": STATE_IDLE,
-            "url": "",
-            "count": "",
-            "offset": ""
-        }
-        
-    current_state = user_states[sender_jid]["state"]
+    # Inisialisasi state user
+    state_obj = init_state(sender_jid)
+    current_state = state_obj["state"]
     
-    # --- 1. HIGHEST PRIORITY GLOBAL OVERRIDES ---
-    if text_lower == "!mode":
-        if current_state == STATE_IDLE:
-            mode_text = "General Menu (IDLE)"
-        else:
-            mode_text = "Clip Mode"
-        client.reply_message(f"ℹ️ Your current mode is: *{mode_text}*", ev)
-        return
+    # 2. Tangani Perintah Umum (Overrides) terlebih dahulu
+    # Ini menjamin !exit dieksekusi lebih dulu daripada validasi input apapun.
+    is_general = handle_general_commands(client, ev, text_lower, sender_jid, current_state)
+    if is_general:
+        return # Berhenti jika sudah ditangani oleh general command
         
-    if text_lower == "!exit":
-        if current_state == STATE_IDLE:
-            client.reply_message("You are already in the General Menu.", ev)
-        else:
-            user_states[sender_jid]["state"] = STATE_IDLE
-            client.reply_message("Exited current mode. Returned to General Menu.", ev)
-        return
+    # Perbarui current state jaga-jaga kalau diubah oleh general_commands
+    state_obj = init_state(sender_jid)
+    current_state = state_obj["state"]
 
-    # --- 2. COMMAND TRIGGERS ---
-    if text_lower == "!clip":
-        user_states[sender_jid] = {
-            "state": STATE_WAITING_URL,
-            "url": "",
-            "count": "",
-            "offset": ""
-        }
-        client.reply_message("✂️ Entering Clip Mode!\nPlease paste your YouTube Link:", ev)
-        return
-
-    # --- 3. STATE MACHINE LOGIC ---
+    # 3. Lempar sisa pesan ke mode klip (State Machine)
+    is_clip_mode = handle_clip_mode(client, ev, text, text_lower, sender_jid, current_state)
+    if is_clip_mode:
+        return # Berhenti jika sudah ditangani oleh clip_mode
+        
+    # 4. Jika pesan tidak ditangkap oleh siapapun dan user sedang IDLE, tampilkan HELP MENU
     if current_state == STATE_IDLE:
-        # If user types anything while IDLE, show the help menu
         client.reply_message(HELP_MESSAGE, ev)
-        return
-        
-    elif current_state == STATE_WAITING_URL:
-        # Validasi: URL harus HTTPS, YouTube, dan tidak ada spasi
-        if " " in text or not text.startswith("https://") or not ("youtube.com" in text or "youtu.be" in text):
-            client.reply_message("❌ Invalid YouTube Link! It must start with 'https://' and contain no spaces.\nPlease send the link again:", ev)
-            return
-            
-        user_states[sender_jid]["url"] = text
-        user_states[sender_jid]["state"] = STATE_WAITING_COUNT
-        client.reply_message("✅ YouTube Link received. How many top clips do you want to extract? (Max: 25)", ev)
-        return
-        
-    elif current_state == STATE_WAITING_COUNT:
-        # Validasi: Harus angka, maksimal 25
-        if not text.isdigit() or not (1 <= int(text) <= 25):
-            client.reply_message("❌ Invalid count! Please enter a number between 1 and 25:", ev)
-            return
-            
-        user_states[sender_jid]["count"] = text
-        user_states[sender_jid]["state"] = STATE_WAITING_OFFSET
-        client.reply_message("✅ Clip count received. What is the desired padding offset in seconds? (Max: 30)", ev)
-        return
-        
-    elif current_state == STATE_WAITING_OFFSET:
-        # Validasi: Harus angka, maksimal 30
-        if not text.isdigit() or not (0 <= int(text) <= 30):
-            client.reply_message("❌ Invalid offset! Please enter a number between 0 and 30:", ev)
-            return
-            
-        user_states[sender_jid]["offset"] = text
-        user_states[sender_jid]["state"] = STATE_IDLE
-        
-        # Send a final summary (MOCK)
-        url = user_states[sender_jid]["url"]
-        count = user_states[sender_jid]["count"]
-        offset = user_states[sender_jid]["offset"]
-        
-        summary = (
-            "✅ *Input Summary (Simulation)*:\n"
-            f"🔗 URL: {url}\n"
-            f"✂️ Clips: {count}\n"
-            f"⏱️ Offset: {offset}s\n\n"
-            "(Process stopped here for mockup purposes. Returned to General Menu.)"
-        )
-        client.reply_message(summary, ev)
         return
 
 if __name__ == "__main__":
