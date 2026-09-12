@@ -1,6 +1,7 @@
 import re
 from reply_handler import handle_reply_download
 from heatmap_handler import handle_heatmap_request
+from edit_handler import handle_edit_command
 
 def handle_clip_mode(client, ev, text, text_lower, quoted_text, sender_jid):
     """
@@ -28,7 +29,12 @@ def handle_clip_mode(client, ev, text, text_lower, quoted_text, sender_jid):
         if handle_heatmap_request(client, ev, text, sender_jid):
             return True
             
-    # 3. Jika bukan keduanya, berikan panduan mode clip
+    # 4. Cek apakah ini perintah edit video
+    if text_lower.startswith("!edit"):
+        if handle_edit_command(client, ev, text_lower, sender_jid):
+            return True
+            
+    # 5. Jika bukan semuanya, berikan panduan mode clip
     client.send_message(
         ev.Info.MessageSource.Chat,
         "❌ Perintah tidak dikenali dalam *Clip Mode*.\n\n"

@@ -2,6 +2,9 @@ __pycache__/
 log.txt
 
 
-output/
 note.md
+
+
+output/
 bot_session.sqlite3
+clip_history.json

@@ -96,7 +96,16 @@ def handle_reply_download(client, ev, text, quoted_text, sender_jid):
                 if ev.Message:
                     msg_proto.videoMessage.contextInfo.MergeFrom(client._make_quoted_message(ev))
                     
-                client.send_message(ev.Info.MessageSource.Chat, msg_proto)
+                # [MODIFIED] Tambahkan caption minimalis (hanya waktu)
+                msg_proto.videoMessage.caption = f"{start_str} - {end_str}"
+                    
+                response = client.send_message(ev.Info.MessageSource.Chat, msg_proto)
+                
+                # [NEW] Tangkap ID pesan (StanzaID) dan simpan ke history
+                if response and hasattr(response, 'ID'):
+                    from history_manager import save_clip_history
+                    save_clip_history(response.ID, url, start_time, end_time, filepath)
+                    
             except Exception as e:
                 client.send_message(ev.Info.MessageSource.Chat, f"❌ Failed to send video: {str(e)}")
         else:
