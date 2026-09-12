@@ -10,10 +10,14 @@ import glob
 # Hal ini untuk mencegah yt-dlp menyimpan cache 'ffmpeg = False' saat ia digunakan di file lain (seperti heatmap.py).
 ffmpeg_src = imageio_ffmpeg.get_ffmpeg_exe()
 ffmpeg_dir = os.path.dirname(ffmpeg_src)
-ffmpeg_exe = os.path.join(ffmpeg_dir, 'ffmpeg.exe')
+ffmpeg_target_name = 'ffmpeg.exe' if os.name == 'nt' else 'ffmpeg'
+ffmpeg_exe = os.path.join(ffmpeg_dir, ffmpeg_target_name)
 
 if not os.path.exists(ffmpeg_exe):
     shutil.copyfile(ffmpeg_src, ffmpeg_exe)
+    # Ensure it's executable on Linux
+    if os.name != 'nt':
+        os.chmod(ffmpeg_exe, 0o755)
     
 if ffmpeg_dir not in os.environ['PATH']:
     os.environ['PATH'] = ffmpeg_dir + os.pathsep + os.environ.get('PATH', '')
