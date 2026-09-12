@@ -1,7 +1,7 @@
 import re
 from reply_handler import handle_reply_download
 from heatmap_handler import handle_heatmap_request
-from edit_handler import handle_edit_command
+from edit_handler import handle_edit_command, handle_subtitle_command
 
 def handle_clip_mode(client, ev, text, text_lower, quoted_text, sender_jid):
     """
@@ -34,7 +34,12 @@ def handle_clip_mode(client, ev, text, text_lower, quoted_text, sender_jid):
         if handle_edit_command(client, ev, text_lower, sender_jid):
             return True
             
-    # 5. Jika bukan semuanya, berikan panduan mode clip
+    # 5. Cek perintah transkrip subtitle (!subtitle / !caption)
+    if text_lower.startswith("!subtitle"):
+        if handle_subtitle_command(client, ev, text, sender_jid):
+            return True
+            
+    # 6. Jika bukan semuanya, berikan panduan mode clip
     client.send_message(
         ev.Info.MessageSource.Chat,
         "❌ Perintah tidak dikenali dalam *Clip Mode*.\n\n"

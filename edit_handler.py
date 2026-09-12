@@ -234,3 +234,39 @@ def handle_edit_command(client, ev, text, sender_jid):
 
     threading.Thread(target=process_edit, daemon=True).start()
     return True
+
+def handle_subtitle_command(client, ev, text, sender_jid):
+    if not (text.lower().startswith("!subtitle") or text.lower().startswith("!caption")):
+        return False
+        
+    context_info = ev.Message.extendedTextMessage.contextInfo
+    if not context_info:
+        client.send_message(ev.Info.MessageSource.Chat, "❌ Mohon balas (reply) pesan video klip yang ingin diekstrak subtitle-nya.")
+        return True
+        
+    stanza_id = getattr(context_info, 'stanzaId', getattr(context_info, 'stanzaID', None))
+    if not stanza_id:
+        client.send_message(ev.Info.MessageSource.Chat, "❌ Mohon balas (reply) pesan video klip dari bot.")
+        return True
+
+    from history_manager import get_clip_history
+    history = get_clip_history(stanza_id)
+    if not history:
+        client.send_message(ev.Info.MessageSource.Chat, "❌ Video ini sudah kedaluwarsa dari database (di atas 1 jam) atau bukan klip dari bot.")
+        return True
+
+    url = history["url"]
+    start_time = history["start"]
+    end_time = history["end"]
+
+    def process_subtitle():
+        client.send_message(ev.Info.MessageSource.Chat, "⏳ Mengekstrak transkrip dari YouTube...")
+        from subtitle_handler import extract_subtitle
+        text_result, err = extract_subtitle(url, start_time, end_time)
+        if err:
+            client.send_message(ev.Info.MessageSource.Chat, err)
+        else:
+            client.send_message(ev.Info.MessageSource.Chat, f"📝 *Transkrip*\n\n{text_result}")
+
+    threading.Thread(target=process_subtitle, daemon=True).start()
+    return True
