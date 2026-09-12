@@ -1,6 +1,6 @@
 module.exports = {
   apps: [{
-    name: "yt-clipper",
+    name: "clipping",
     script: "bot.py",
     interpreter: "python3",
     // Menangkap log secara real-time
