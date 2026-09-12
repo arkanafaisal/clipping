@@ -19,8 +19,10 @@ if not os.path.exists(ffmpeg_exe):
     if os.name != 'nt':
         os.chmod(ffmpeg_exe, 0o755)
     
-if ffmpeg_dir not in os.environ['PATH']:
-    os.environ['PATH'] = ffmpeg_dir + os.pathsep + os.environ.get('PATH', '')
+# Hanya injeksi ke PATH jika ffmpeg bawaan sistem tidak ditemukan
+import shutil as sys_shutil
+if not sys_shutil.which('ffmpeg') and ffmpeg_dir not in os.environ['PATH']:
+    os.environ['PATH'] = os.environ.get('PATH', '') + os.pathsep + ffmpeg_dir
 
 import yt_dlp
 from yt_dlp.utils import download_range_func
