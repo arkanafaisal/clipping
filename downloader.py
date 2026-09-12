@@ -61,7 +61,7 @@ def download_preview_clip(video_url, clip, temp_dir):
                 '-reconnect_streamed', '1', 
                 '-reconnect_delay_max', '5'
             ],
-            'ffmpeg': ['-loglevel', 'warning']
+            'ffmpeg': ['-c:v', 'libx264', '-preset', 'ultrafast', '-loglevel', 'warning']
         },
         'quiet': True,
         'no_warnings': True,
@@ -108,7 +108,7 @@ def download_single_clip(video_url, output_dir, clip, i=0, total_clips=1):
                 '-reconnect_streamed', '1', 
                 '-reconnect_delay_max', '5'
             ],
-            'ffmpeg': ['-loglevel', 'warning']
+            'ffmpeg': ['-c:v', 'libx264', '-preset', 'ultrafast', '-loglevel', 'warning']
         },
         'quiet': False,
         'no_warnings': True,
