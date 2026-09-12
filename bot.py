@@ -2,6 +2,10 @@ import os
 import sys
 import logging
 import threading
+import time
+
+# Waktu bot mulai dinyalakan (dalam epoch seconds)
+BOT_START_TIME = int(time.time())
 
 # [BUGFIX] Monkeypatch for Python 3.10 to support neonize's 'Self' import
 import typing
@@ -56,10 +60,19 @@ def process_message(client: NewClient, ev: MessageEv):
     sender_number = getattr(sender_jid_obj, 'User', str(sender_jid_obj).split('@')[0])
     sender_jid = f"{sender_number}@s.whatsapp.net"
     
-    # --- DEBUGGING JID ---
-    print(f"[DEBUG] Raw Sender Object: {sender_jid_obj}")
-    print(f"[DEBUG] Extracted Number: '{sender_number}'")
+
+    # --- IGNORE HISTORICAL/OLD MESSAGES ---
+    # Coba ambil timestamp dari neonize
+    msg_time = getattr(ev.Info, 'Timestamp', 0) / 1000
     
+
+    if msg_time:    
+        if msg_time <= BOT_START_TIME:
+            return
+    else:
+        if time.time() - BOT_START_TIME < 30:
+            return
+            
     # --- AUTHORIZATION CHECK ---
     if ALLOWED_NUMBERS and sender_number not in ALLOWED_NUMBERS:
         print(f"[BLOCKED] Pesan dari {sender_number} diabaikan karena tidak ada di ALLOWED_NUMBERS.")
