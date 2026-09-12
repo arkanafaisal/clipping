@@ -1,3 +1,4 @@
+import os
 import yt_dlp
 
 # Ganti dengan link video YouTube target
@@ -7,6 +8,12 @@ ydl_opts = {
     'quiet': True,
     'no_warnings': True,
 }
+
+cookie_path = os.path.join(os.getcwd(), 'cookies.txt')
+if os.path.exists(cookie_path):
+    ydl_opts['cookiefile'] = cookie_path
+    
+ydl_opts['extractor_args'] = {'youtube': {'player_client': ['ios', 'android']}}
 
 def format_time(seconds):
     hours = int(seconds // 3600)

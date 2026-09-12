@@ -25,6 +25,7 @@ from state_manager import init_state, STATE_IDLE, STATE_CLIP_MODE
 from general_commands import handle_general_commands
 from clip_mode import handle_clip_mode
 from cleanup import start_cleanup_thread
+from downloader import check_youtube_auth
 
 logging.basicConfig(level=logging.INFO)
 client = NewClient("bot_session.sqlite3")
@@ -130,5 +131,8 @@ if __name__ == "__main__":
     print("Starting WhatsApp Bot...")
     # Jalankan auto-destroy daemon: mengecek folder 'output' tiap 5 menit, hapus file yg usianya lebih dari 1 jam (3600 detik)
     start_cleanup_thread(output_dir="output", max_age_seconds=3600, check_interval=300)
+    
+    # Mengecek auth YouTube sebelum bot standby
+    check_youtube_auth()
     
     client.connect()

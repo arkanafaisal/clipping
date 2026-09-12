@@ -30,6 +30,18 @@ from yt_dlp.utils import download_range_func
 def sanitize_filename(name):
     return re.sub(r'[\\/*?:"<>|]', "", name).strip()
 
+def add_cookies(ydl_opts):
+    cookie_path = os.path.join(os.getcwd(), 'cookies.txt')
+    if os.path.exists(cookie_path):
+        ydl_opts['cookiefile'] = cookie_path
+        
+    # Bypass PO Token / "The page needs to be reloaded"
+    if 'extractor_args' not in ydl_opts:
+        ydl_opts['extractor_args'] = {}
+    ydl_opts['extractor_args']['youtube'] = {'player_client': ['ios', 'android']}
+    
+    return ydl_opts
+
 def format_time_filename(seconds):
     hours = int(seconds // 3600)
     mins = int((seconds % 3600) // 60)
@@ -72,6 +84,7 @@ def download_preview_clip(video_url, clip, temp_dir):
         'quiet': True,
         'no_warnings': True,
     }
+    ydl_opts = add_cookies(ydl_opts)
     
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -119,6 +132,7 @@ def download_single_clip(video_url, output_dir, clip, i=0, total_clips=1):
         'quiet': False,
         'no_warnings': True,
     }
+    ydl_opts = add_cookies(ydl_opts)
     
     download_start_time = time.time()
     try:
@@ -158,3 +172,54 @@ def download_clips(video_url, video_title, clips, batch_size=5, sleep_time=10):
             time.sleep(sleep_time)
 
     print("\n[SELESAI] Semua proses pengunduhan selesai!")
+
+def check_youtube_auth():
+    print("\n=====================================================")
+    print("🛡️ Mengecek Status Autentikasi YouTube...")
+    cookie_path = os.path.join(os.getcwd(), 'cookies.txt')
+    
+    if not os.path.exists(cookie_path):
+        print("❌ File cookies.txt TIDAK ditemukan.")
+        print("⚠️ Bot berjalan pada mode Non-Login (Sangat rawan terblokir Anti-Bot YouTube).")
+        print("=====================================================\n")
+        return False
+
+    print("✅ File cookies.txt ditemukan. Memvalidasi isi...")
+    try:
+        with open(cookie_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+            if '.youtube.com' not in content:
+                print("❌ Isi cookies.txt tidak valid (tidak mendeteksi sesi untuk .youtube.com).")
+                print("⚠️ Pastikan Anda mengekspor cookies saat berada di halaman YouTube.")
+                print("=====================================================\n")
+                return False
+    except Exception as e:
+        print(f"❌ Gagal membaca file cookies.txt: {e}")
+        return False
+
+    print("⏳ Mencoba simulasi koneksi ke YouTube...")
+    ydl_opts = {
+        'cookiefile': cookie_path,
+        'quiet': True,
+        'no_warnings': True,
+        'extract_flat': True,
+        'skip_download': True,
+        'extractor_args': {'youtube': {'player_client': ['ios', 'android']}}
+    }
+    
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            # Menggunakan ytsearch agar tidak perlu parsing format video yang berat
+            ydl.extract_info("ytsearch1:test", download=False)
+            print("✅ Autentikasi SUKSES! YouTube menerima Cookies Anda.")
+            print("🛡️ Anda bebas dari blokir Anti-Bot!")
+            print("=====================================================\n")
+            return True
+    except Exception as e:
+        err_msg = str(e).lower()
+        if "sign in to confirm" in err_msg or "bot" in err_msg or "cookies" in err_msg:
+            print("❌ Autentikasi GAGAL! Cookies mungkin sudah kedaluwarsa, tidak punya akses, atau IP terblokir keras.")
+        else:
+            print(f"⚠️ Koneksi bermasalah: {e}")
+        print("=====================================================\n")
+        return False
