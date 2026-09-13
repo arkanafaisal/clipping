@@ -1,7 +1,7 @@
 import os
 import yt_dlp
 import requests
-from downloader import format_time_filename
+from utils.downloader import format_time_filename
 
 def extract_subtitle(video_url, start_time, end_time, lang='id'):
     print(f"\n[SUBTITLE] Mengekstrak transkrip dari {video_url} ({start_time} - {end_time})")

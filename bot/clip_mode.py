@@ -1,7 +1,7 @@
 import re
-from reply_handler import handle_reply_download
-from heatmap_handler import handle_heatmap_request
-from edit_handler import handle_edit_command, handle_subtitle_command
+from bot.reply_handler import handle_reply_download
+from bot.heatmap_handler import handle_heatmap_request
+from bot.edit_handler import handle_edit_command, handle_subtitle_command
 
 def handle_clip_mode(client, ev, text, text_lower, quoted_text, sender_jid):
     """

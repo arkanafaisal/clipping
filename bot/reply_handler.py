@@ -1,7 +1,7 @@
 import re
 import os
 import threading
-from downloader import download_single_clip, get_output_filename
+from utils.downloader import download_single_clip, get_output_filename
 from neonize.proto.waE2E.WAWebProtobufsE2E_pb2 import Message, VideoMessage, ContextInfo
 
 def parse_time_to_seconds(time_str):
@@ -103,7 +103,7 @@ def handle_reply_download(client, ev, text, quoted_text, sender_jid):
                 
                 # [NEW] Tangkap ID pesan (StanzaID) dan simpan ke history
                 if response and hasattr(response, 'ID'):
-                    from history_manager import save_clip_history
+                    from bot.history_manager import save_clip_history
                     save_clip_history(response.ID, url, start_time, end_time, filepath)
                     
             except Exception as e:

@@ -1,4 +1,4 @@
-from heatmap import get_top_clips
+from utils.heatmap import get_top_clips
 import os
 import threading
 

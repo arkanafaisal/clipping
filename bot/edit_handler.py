@@ -4,9 +4,9 @@ import threading
 import subprocess
 import time
 import shutil
-from history_manager import get_clip_history, save_clip_history, find_existing_clip
-from reply_handler import parse_time_to_seconds
-from downloader import download_single_clip, format_time_filename
+from bot.history_manager import get_clip_history, save_clip_history, find_existing_clip
+from bot.reply_handler import parse_time_to_seconds
+from utils.downloader import download_single_clip, format_time_filename
 from neonize.proto.waE2E.WAWebProtobufsE2E_pb2 import Message, VideoMessage, ContextInfo
 
 def parse_time_with_sign(time_str):
@@ -249,7 +249,7 @@ def handle_subtitle_command(client, ev, text, sender_jid):
         client.send_message(ev.Info.MessageSource.Chat, "❌ Mohon balas (reply) pesan video klip dari bot.")
         return True
 
-    from history_manager import get_clip_history
+    from bot.history_manager import get_clip_history
     history = get_clip_history(stanza_id)
     if not history:
         client.send_message(ev.Info.MessageSource.Chat, "❌ Video ini sudah kedaluwarsa dari database (di atas 1 jam) atau bukan klip dari bot.")

@@ -1,4 +1,4 @@
-from state_manager import user_states, clear_state, STATE_IDLE, STATE_CLIP_MODE
+from bot.state_manager import user_states, clear_state, STATE_IDLE, STATE_CLIP_MODE
 
 def handle_general_commands(client, ev, text_lower, sender_jid, current_state):
     """

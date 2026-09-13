@@ -20,12 +20,12 @@ from neonize.client import NewClient
 from neonize.events import MessageEv, ConnectedEv
 
 # Import Modules yang telah direfactor
-from logger import log_incoming_message
-from state_manager import init_state, STATE_IDLE, STATE_CLIP_MODE
-from general_commands import handle_general_commands
-from clip_mode import handle_clip_mode
-from cleanup import start_cleanup_thread
-from downloader import check_youtube_auth
+from utils.logger import log_incoming_message
+from bot.state_manager import init_state, STATE_IDLE, STATE_CLIP_MODE
+from bot.general_commands import handle_general_commands
+from bot.clip_mode import handle_clip_mode
+from utils.cleanup import start_cleanup_thread
+from utils.downloader import check_youtube_auth
 
 logging.basicConfig(level=logging.INFO)
 client = NewClient("bot_session.sqlite3")

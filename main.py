@@ -1,5 +1,5 @@
-from heatmap import get_top_clips, VIDEO_URL
-from downloader import download_clips
+from utils.heatmap import get_top_clips, VIDEO_URL
+from utils.downloader import download_clips
 
 def main():
     print("=== Aplikasi YT Clipper Automatis ===")
