@@ -1,6 +1,8 @@
 import os
 import yt_dlp
 
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 # Ganti dengan link video YouTube target
 VIDEO_URL = "https://youtu.be/t6h8Uae2Q_E"
 ydl_opts = {
@@ -9,7 +11,7 @@ ydl_opts = {
     'no_warnings': True,
 }
 
-cookie_path = os.path.join(os.getcwd(), 'cookies.txt')
+cookie_path = os.path.join(BASE_DIR, 'cookies.txt')
 if os.path.exists(cookie_path):
     ydl_opts['cookiefile'] = cookie_path
     

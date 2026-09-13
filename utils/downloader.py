@@ -31,7 +31,8 @@ def sanitize_filename(name):
     return re.sub(r'[\\/*?:"<>|]', "", name).strip()
 
 def add_cookies(ydl_opts):
-    cookie_path = os.path.join(os.getcwd(), 'cookies.txt')
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    cookie_path = os.path.join(base_dir, 'cookies.txt')
     if os.path.exists(cookie_path):
         ydl_opts['cookiefile'] = cookie_path
         
@@ -176,7 +177,8 @@ def download_clips(video_url, video_title, clips, batch_size=5, sleep_time=10):
 def check_youtube_auth():
     print("\n=====================================================")
     print("🛡️ Mengecek Status Autentikasi YouTube...")
-    cookie_path = os.path.join(os.getcwd(), 'cookies.txt')
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    cookie_path = os.path.join(base_dir, 'cookies.txt')
     
     if not os.path.exists(cookie_path):
         print("❌ File cookies.txt TIDAK ditemukan.")

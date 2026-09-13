@@ -1,7 +1,10 @@
 import { useEffect, useState, useRef } from 'react';
 import FeedItemStream from './FeedItemStream';
-import { fetchStreamUrl } from '../services/api';
+import { fetchStreamUrl, fetchHeatmap } from '../services/api';
 import { Play, Pause, Rewind, FastForward, ChevronLeft, ChevronRight } from 'lucide-react';
+
+const VIDEO_ID = "e7uVibGgVuM"; // Hardcoded for development
+const DRAFT_KEY = `clips_draft_${VIDEO_ID}`;
 
 // Helper Format Waktu
 function formatTime(seconds) {
@@ -17,21 +20,28 @@ function formatTime(seconds) {
   return `${pad(m)}:${pad(s)}.${pad(ms)}`;
 }
 
+// Tombol UI
+const AdjustButton = ({ icon: Icon, number, onClick, label }) => (
+  <button 
+    onClick={onClick}
+    className="relative flex justify-center items-center text-white/80 hover:text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] transition-transform hover:scale-110 active:scale-95 flex-shrink-0"
+    title={label}
+  >
+    <Icon size={44} strokeWidth={1.5} />
+    <span className="absolute text-[14px] font-bold" style={{ marginTop: '2px' }}>{number}</span>
+  </button>
+);
+
 export default function Feed() {
-  const [clips, setClips] = useState([
-    { id: 1, videoId: "e7uVibGgVuM", start: 30, end: 60 },
-    { id: 2, videoId: "e7uVibGgVuM", start: 60, end: 90 },
-    { id: 3, videoId: "e7uVibGgVuM", start: 90, end: 120 },
-    { id: 4, videoId: "e7uVibGgVuM", start: 120, end: 150 },
-    { id: 5, videoId: "e7uVibGgVuM", start: 150, end: 180 },
-  ]);
+  const [clips, setClips] = useState([]);
 
   const [globalStreamUrl, setGlobalStreamUrl] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [loadingText, setLoadingText] = useState("Memeriksa draft lokal...");
 
   // State untuk UI Global
-  const [activeClipId, setActiveClipId] = useState(1);
+  const [activeClipId, setActiveClipId] = useState(1); // Default sementara
   const [activeProgress, setActiveProgress] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
 
@@ -39,29 +49,84 @@ export default function Feed() {
   const videoRefs = useRef({});
 
   useEffect(() => {
-    // Kita mengambil videoId dari klip pertama karena semua klip berasal dari video yang sama
-    const videoId = clips[0]?.videoId;
-    if (!videoId) return;
-
     let mounted = true;
-    fetchStreamUrl(videoId)
-      .then(url => {
-        if (mounted) {
-          setGlobalStreamUrl(url);
-          setLoading(false);
+
+    async function initData() {
+      try {
+        let loadedClips = [];
+        
+        // 1. Cek Local Storage
+        const savedDraft = localStorage.getItem(DRAFT_KEY);
+        if (savedDraft) {
+          setLoadingText("Memuat draft potongan klip Anda...");
+          loadedClips = JSON.parse(savedDraft);
+          if (mounted) setClips(loadedClips);
+        } else {
+          // 2. Jika kosong, fetch dari API Heatmap
+          setLoadingText("Mengekstrak Heatmap AI (Bisa memakan waktu belasan detik)...");
+          const heatmapData = await fetchHeatmap(VIDEO_ID, 5, 5); // numClips=5, offset=5
+          loadedClips = heatmapData.clips;
+          if (mounted) {
+            setClips(loadedClips);
+            localStorage.setItem(DRAFT_KEY, JSON.stringify(loadedClips));
+          }
         }
-      })
-      .catch(err => {
+        
+        // 3. Fetch Stream URL
+        if (loadedClips.length > 0) {
+          setLoadingText("Mengekstrak Stream URL untuk pemutaran...");
+          const url = await fetchStreamUrl(VIDEO_ID);
+          if (mounted) {
+            setGlobalStreamUrl(url);
+            setActiveClipId(loadedClips[0].id); // Set aktif ke klip pertama
+            setLoading(false);
+          }
+        } else {
+          throw new Error("Tidak ada klip yang ditemukan dari heatmap.");
+        }
+
+      } catch (err) {
         if (mounted) {
           setError(err.message);
           setLoading(false);
         }
-      });
+      }
+    }
 
-    return () => {
-      mounted = false;
-    };
-  }, []); // Run once on mount
+    initData();
+
+    return () => { mounted = false; };
+  }, []);
+
+  // Sinkronisasi otomatis ke Local Storage saat klip di-edit
+  useEffect(() => {
+    if (clips.length > 0) {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(clips));
+    }
+  }, [clips]);
+
+  const updateClipStart = (seconds) => {
+    setClips(prev => prev.map(c => {
+      if (c.id === activeClipId) {
+        let newStart = c.start + seconds;
+        if (newStart < 0) newStart = 0;
+        if (newStart >= c.end) newStart = c.end - 1; // Jangan melebihi End
+        return { ...c, start: newStart };
+      }
+      return c;
+    }));
+  };
+
+  const updateClipEnd = (seconds) => {
+    setClips(prev => prev.map(c => {
+      if (c.id === activeClipId) {
+        let newEnd = c.end + seconds;
+        if (newEnd <= c.start) newEnd = c.start + 1; // Jangan mendahului Start
+        return { ...c, end: newEnd };
+      }
+      return c;
+    }));
+  };
 
   const togglePlayGlobal = () => {
     const currentVideo = videoRefs.current[activeClipId];
