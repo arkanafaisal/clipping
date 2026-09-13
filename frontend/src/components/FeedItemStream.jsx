@@ -1,9 +1,29 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, forwardRef, useImperativeHandle } from 'react';
 
-export default function FeedItemStream({ streamUrl, startTime, endTime }) {
+const FeedItemStream = forwardRef(({ id, streamUrl, startTime, endTime, onVisible, onProgress, onPlayStateChange }, ref) => {
   const containerRef = useRef(null);
   const videoRef = useRef(null);
   const [isVisible, setIsVisible] = useState(false);
+
+  // Expose imperative methods to parent (Feed.jsx)
+  useImperativeHandle(ref, () => ({
+    play: () => {
+      if (videoRef.current) videoRef.current.play().catch(e => console.log(e));
+    },
+    pause: () => {
+      if (videoRef.current) videoRef.current.pause();
+    },
+    skip: (seconds) => {
+      if (!videoRef.current) return;
+      let newTime = videoRef.current.currentTime + seconds;
+      
+      // Jaga agar skip tidak keluar dari rentang klip
+      if (startTime !== undefined && newTime < startTime) newTime = startTime;
+      if (endTime !== undefined && newTime > endTime) newTime = endTime;
+      
+      videoRef.current.currentTime = newTime;
+    }
+  }));
 
   // Intersection Observer for auto-play/pause
   useEffect(() => {
@@ -11,6 +31,9 @@ export default function FeedItemStream({ streamUrl, startTime, endTime }) {
       (entries) => {
         entries.forEach((entry) => {
           setIsVisible(entry.isIntersecting);
+          if (entry.isIntersecting) {
+            onVisible(id);
+          }
         });
       },
       {
@@ -27,7 +50,7 @@ export default function FeedItemStream({ streamUrl, startTime, endTime }) {
         observer.unobserve(containerRef.current);
       }
     };
-  }, []);
+  }, [id, onVisible]);
 
   // Memutar atau menjeda video berdasarkan posisi scroll (isVisible)
   useEffect(() => {
@@ -40,10 +63,26 @@ export default function FeedItemStream({ streamUrl, startTime, endTime }) {
     }
   }, [isVisible, streamUrl]);
 
-  // Handle looping logic between startTime and endTime
+  // Handle looping logic between startTime and endTime & progress bar
   const handleTimeUpdate = () => {
-    if (videoRef.current && endTime) {
-      if (videoRef.current.currentTime >= endTime) {
+    if (!videoRef.current) return;
+    
+    const current = videoRef.current.currentTime;
+    
+    if (endTime && startTime !== undefined) {
+      // Kalkulasi Progress Bar
+      const duration = endTime - startTime;
+      const currentRel = current - startTime;
+      let pct = (currentRel / duration) * 100;
+      if (pct < 0) pct = 0;
+      if (pct > 100) pct = 100;
+      
+      if (isVisible) {
+        onProgress(pct);
+      }
+
+      // Looping
+      if (current >= endTime) {
         videoRef.current.currentTime = startTime || 0;
         videoRef.current.play().catch(e => console.log("Play interrupted:", e));
       }
@@ -53,16 +92,6 @@ export default function FeedItemStream({ streamUrl, startTime, endTime }) {
   const handleLoadedMetadata = () => {
     if (videoRef.current && startTime) {
       videoRef.current.currentTime = startTime;
-    }
-  };
-
-  const togglePlay = () => {
-    if (videoRef.current) {
-      if (videoRef.current.paused) {
-        videoRef.current.play();
-      } else {
-        videoRef.current.pause();
-      }
     }
   };
 
@@ -76,14 +105,12 @@ export default function FeedItemStream({ streamUrl, startTime, endTime }) {
           playsInline
           onTimeUpdate={handleTimeUpdate}
           onLoadedMetadata={handleLoadedMetadata}
+          onPlay={() => { if (isVisible && onPlayStateChange) onPlayStateChange(true) }}
+          onPause={() => { if (isVisible && onPlayStateChange) onPlayStateChange(false) }}
         />
       )}
-      
-      {/* Invisible overlay captures clicks to play/pause natively */}
-      <div 
-        className="absolute inset-0 z-10 cursor-pointer"
-        onClick={togglePlay}
-      ></div>
     </div>
   )
-}
+});
+
+export default FeedItemStream;
