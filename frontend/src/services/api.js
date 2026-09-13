@@ -43,11 +43,11 @@ export async function fetchStreamUrl(videoId) {
  * Fetches the heatmap data for a given YouTube video ID.
  * 
  * @param {string} videoId - The YouTube Video ID
- * @param {number} numClips - The number of clips to fetch (default 5)
+ * @param {number} numClips - The number of clips to fetch (default 100)
  * @param {number} offset - The offset in seconds (default 5)
  * @returns {Promise<object>} The title and array of clips
  */
-export async function fetchHeatmap(videoId, numClips = 5, offset = 5) {
+export async function fetchHeatmap(videoId, numClips = 100, offset = 5) {
   try {
     const response = await fetch(`${API_BASE_URL}/heatmap/${videoId}?num_clips=${numClips}&offset=${offset}`, {
       method: 'GET',

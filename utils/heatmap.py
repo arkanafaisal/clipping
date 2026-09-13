@@ -70,6 +70,7 @@ def get_top_clips(video_url, num_clips=10, offset=0):
             
             processed_clips.append({
                 'rank': rank,
+                'original_start': original_start,
                 'start_time': start_time,
                 'end_time': end_time,
                 'duration': end_time - start_time,

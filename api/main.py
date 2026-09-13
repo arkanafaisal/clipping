@@ -56,7 +56,8 @@ def get_heatmap(video_id: str, num_clips: int = 5, offset: int = 5):
         formatted_clips = []
         for clip in clips:
             formatted_clips.append({
-                "id": clip["rank"],
+                "id": f"clip_{clip['original_start']}",
+                "rank": clip["rank"],
                 "videoId": video_id,
                 "start": clip["start_time"],
                 "end": clip["end_time"]

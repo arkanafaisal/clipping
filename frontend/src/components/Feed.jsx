@@ -34,7 +34,8 @@ const AdjustButton = ({ icon: Icon, number, onClick, label }) => (
 
 export default function Feed() {
   const [clips, setClips] = useState([]);
-
+  const [visibleCount, setVisibleCount] = useState(25); // Menampilkan 25 klip
+  
   const [globalStreamUrl, setGlobalStreamUrl] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -64,7 +65,7 @@ export default function Feed() {
         } else {
           // 2. Jika kosong, fetch dari API Heatmap
           setLoadingText("Mengekstrak Heatmap AI (Bisa memakan waktu belasan detik)...");
-          const heatmapData = await fetchHeatmap(VIDEO_ID, 5, 5); // numClips=5, offset=5
+          const heatmapData = await fetchHeatmap(VIDEO_ID, 100, 0); // Meminta 100 klip secara eksplisit, offset 0
           loadedClips = heatmapData.clips;
           if (mounted) {
             setClips(loadedClips);
@@ -78,7 +79,9 @@ export default function Feed() {
           const url = await fetchStreamUrl(VIDEO_ID);
           if (mounted) {
             setGlobalStreamUrl(url);
-            setActiveClipId(loadedClips[0].id); // Set aktif ke klip pertama
+            // Set klip aktif ke klip pertama berdasarkan urutan waktu (kronologis) dari yang terlihat
+            const initialVisible = [...loadedClips].slice(0, 25).sort((a, b) => a.start - b.start);
+            setActiveClipId(initialVisible[0].id); 
             setLoading(false);
           }
         } else {
@@ -156,6 +159,9 @@ export default function Feed() {
 
   const activeClip = clips.find(c => c.id === activeClipId) || clips[0];
 
+  // Memotong (slice) N klip teratas berdasarkan popularitas, lalu mengurutkannya (sort) berdasarkan waktu
+  const visibleClips = [...clips].slice(0, visibleCount).sort((a, b) => a.start - b.start);
+
   return (
     <div className="relative w-full h-[100dvh] bg-black overflow-hidden">
 
@@ -197,7 +203,7 @@ export default function Feed() {
 
       {/* FEED SCROLL CONTAINER */}
       <div className="h-[100dvh] w-full overflow-y-scroll snap-y snap-mandatory bg-black scroll-smooth hide-scrollbar">
-        {clips.map(clip => (
+        {visibleClips.map(clip => (
           <FeedItemStream
             key={clip.id}
             id={clip.id}
