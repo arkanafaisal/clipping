@@ -1,8 +1,10 @@
 import { useRef, useEffect, useState, forwardRef, useImperativeHandle } from 'react';
+import Hls from 'hls.js';
 
 const FeedItemStream = forwardRef(({ id, streamUrl, startTime, endTime, onVisible, onProgress, onPlayStateChange }, ref) => {
   const containerRef = useRef(null);
   const videoRef = useRef(null);
+  const hlsRef = useRef(null);
   const [isVisible, setIsVisible] = useState(false);
 
   // Expose imperative methods to parent (Feed.jsx)
@@ -52,11 +54,44 @@ const FeedItemStream = forwardRef(({ id, streamUrl, startTime, endTime, onVisibl
     };
   }, [id, onVisible]);
 
+  // HLS & Source Management
+  useEffect(() => {
+    if (!videoRef.current || !streamUrl) return;
+
+    // Bersihkan HLS lama jika ada
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+
+    if (streamUrl.includes('.m3u8') || streamUrl.includes('.mpd')) {
+      if (Hls.isSupported()) {
+        const hls = new Hls({ startPosition: startTime || -1 });
+        hls.loadSource(streamUrl);
+        hls.attachMedia(videoRef.current);
+        hlsRef.current = hls;
+      } else if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
+        // Native support (Safari)
+        videoRef.current.src = streamUrl;
+      }
+    } else {
+      // Direct MP4
+      videoRef.current.src = streamUrl;
+    }
+
+    return () => {
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+    };
+  }, [streamUrl, startTime]);
+
   // Memutar atau menjeda video berdasarkan posisi scroll (isVisible)
   useEffect(() => {
     if (videoRef.current) {
       if (isVisible && streamUrl) {
-        videoRef.current.play().catch(e => console.log("Autoplay blocked (klik layar 1x untuk mengizinkan suara):", e));
+        videoRef.current.play().catch(e => console.log("Play failed (klik layar):", e));
       } else {
         videoRef.current.pause();
       }
@@ -100,7 +135,6 @@ const FeedItemStream = forwardRef(({ id, streamUrl, startTime, endTime, onVisibl
       {streamUrl && (
         <video 
           ref={videoRef}
-          src={streamUrl}
           className="w-full h-full object-contain pointer-events-none"
           playsInline
           onTimeUpdate={handleTimeUpdate}
