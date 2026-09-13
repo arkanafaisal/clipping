@@ -1,11 +1,9 @@
-import { useRef, useEffect, useState, forwardRef, useImperativeHandle } from 'react';
+import { useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
 import Hls from 'hls.js';
 
-const FeedItemStream = forwardRef(({ id, streamUrl, startTime, endTime, onVisible, onProgress, onPlayStateChange }, ref) => {
-  const containerRef = useRef(null);
+const FeedItemStream = forwardRef(({ streamUrl, startTime, endTime, onProgress, onPlayStateChange }, ref) => {
   const videoRef = useRef(null);
   const hlsRef = useRef(null);
-  const [isVisible, setIsVisible] = useState(false);
 
   // Expose imperative methods to parent (Feed.jsx)
   useImperativeHandle(ref, () => ({
@@ -26,33 +24,6 @@ const FeedItemStream = forwardRef(({ id, streamUrl, startTime, endTime, onVisibl
       videoRef.current.currentTime = newTime;
     }
   }));
-
-  // Intersection Observer for auto-play/pause
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          setIsVisible(entry.isIntersecting);
-          if (entry.isIntersecting) {
-            onVisible(id);
-          }
-        });
-      },
-      {
-        threshold: 0.6, // Trigger when 60% of the item is visible
-      }
-    );
-
-    if (containerRef.current) {
-      observer.observe(containerRef.current);
-    }
-
-    return () => {
-      if (containerRef.current) {
-        observer.unobserve(containerRef.current);
-      }
-    };
-  }, [id, onVisible]);
 
   // HLS & Source Management
   useEffect(() => {
@@ -85,18 +56,7 @@ const FeedItemStream = forwardRef(({ id, streamUrl, startTime, endTime, onVisibl
         hlsRef.current = null;
       }
     };
-  }, [streamUrl, startTime]);
-
-  // Memutar atau menjeda video berdasarkan posisi scroll (isVisible)
-  useEffect(() => {
-    if (videoRef.current) {
-      if (isVisible && streamUrl) {
-        videoRef.current.play().catch(e => console.log("Play failed (klik layar):", e));
-      } else {
-        videoRef.current.pause();
-      }
-    }
-  }, [isVisible, streamUrl]);
+  }, [streamUrl, startTime]); // Include startTime so when user changes clip, HLS re-attaches if needed
 
   // Handle looping logic between startTime and endTime & progress bar
   const handleTimeUpdate = () => {
@@ -112,9 +72,7 @@ const FeedItemStream = forwardRef(({ id, streamUrl, startTime, endTime, onVisibl
       if (pct < 0) pct = 0;
       if (pct > 100) pct = 100;
       
-      if (isVisible) {
-        onProgress(pct);
-      }
+      onProgress(pct);
 
       // Looping
       if (current >= endTime) {
@@ -125,13 +83,14 @@ const FeedItemStream = forwardRef(({ id, streamUrl, startTime, endTime, onVisibl
   };
 
   const handleLoadedMetadata = () => {
-    if (videoRef.current && startTime) {
+    if (videoRef.current && startTime !== undefined) {
       videoRef.current.currentTime = startTime;
+      videoRef.current.play().catch(e => console.log("Autoplay failed:", e));
     }
   };
 
   return (
-    <div ref={containerRef} className="w-full h-[100dvh] snap-start bg-black flex justify-center items-center relative">
+    <div className="w-full h-full bg-black flex justify-center items-center relative overflow-hidden">
       {streamUrl && (
         <video 
           ref={videoRef}
@@ -139,8 +98,8 @@ const FeedItemStream = forwardRef(({ id, streamUrl, startTime, endTime, onVisibl
           playsInline
           onTimeUpdate={handleTimeUpdate}
           onLoadedMetadata={handleLoadedMetadata}
-          onPlay={() => { if (isVisible && onPlayStateChange) onPlayStateChange(true) }}
-          onPause={() => { if (isVisible && onPlayStateChange) onPlayStateChange(false) }}
+          onPlay={() => { if (onPlayStateChange) onPlayStateChange(true) }}
+          onPause={() => { if (onPlayStateChange) onPlayStateChange(false) }}
         />
       )}
     </div>
