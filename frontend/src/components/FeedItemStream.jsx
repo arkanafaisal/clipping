@@ -25,11 +25,10 @@ const FeedItemStream = forwardRef(({ streamUrl, startTime, endTime, onProgress, 
     }
   }));
 
-  // HLS & Source Management
+  // HLS & Source Management (HANYA dijalankan saat URL Stream berubah)
   useEffect(() => {
     if (!videoRef.current || !streamUrl) return;
 
-    // Bersihkan HLS lama jika ada
     if (hlsRef.current) {
       hlsRef.current.destroy();
       hlsRef.current = null;
@@ -42,11 +41,9 @@ const FeedItemStream = forwardRef(({ streamUrl, startTime, endTime, onProgress, 
         hls.attachMedia(videoRef.current);
         hlsRef.current = hls;
       } else if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
-        // Native support (Safari)
         videoRef.current.src = streamUrl;
       }
     } else {
-      // Direct MP4
       videoRef.current.src = streamUrl;
     }
 
@@ -56,7 +53,16 @@ const FeedItemStream = forwardRef(({ streamUrl, startTime, endTime, onProgress, 
         hlsRef.current = null;
       }
     };
-  }, [streamUrl, startTime]); // Include startTime so when user changes clip, HLS re-attaches if needed
+  }, [streamUrl]); // Dihapus: startTime dari dependency!
+
+  // Menangani lompatan (seek) ketika klip berganti atau waktu start dimodifikasi (Crop/Extend)
+  useEffect(() => {
+    if (videoRef.current && startTime !== undefined) {
+      // Kita langsung lompat ke startTime baru tanpa me-reload/mendownload ulang videonya
+      videoRef.current.currentTime = startTime;
+      videoRef.current.play().catch(e => console.log("Autoplay failed:", e));
+    }
+  }, [startTime]);
 
   // Handle looping logic between startTime and endTime & progress bar
   const handleTimeUpdate = () => {
