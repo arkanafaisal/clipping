@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import FeedItemStream from './FeedItemStream';
 import { fetchStreamUrl, fetchHeatmap } from '../services/api';
-import { Play, Pause, Rewind, FastForward, ChevronLeft, ChevronRight, ArrowLeft, CheckCircle2, XCircle, RotateCcw } from 'lucide-react';
+import { Play, Pause, Rewind, FastForward, ChevronLeft, ChevronRight, CheckCircle2, RotateCcw, Download } from 'lucide-react';
 
 // Helper Format Waktu
 function formatTime(seconds) {
@@ -15,12 +15,23 @@ function formatTime(seconds) {
   return `${pad(h)}:${pad(m)}:${pad(s)}`;
 }
 
-export default function Feed({ videoId, initialCount = 25, onBack }) {
+function formatTimeWithMs(seconds) {
+  if (seconds === undefined || seconds === null) return '00:00:00.000';
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  const ms = Math.floor((seconds % 1) * 1000);
+
+  const pad = (num, len = 2) => num.toString().padStart(len, '0');
+  return `${pad(h)}:${pad(m)}:${pad(s)}.${pad(ms, 3)}`;
+}
+
+export default function Feed({ videoId, initialCount = 25 }) {
   const DRAFT_KEY = `clips_draft_${videoId}`;
 
   const [clips, setClips] = useState([]);
-  const [visibleCount, setVisibleCount] = useState(initialCount); 
-  
+  const [visibleCount, setVisibleCount] = useState(initialCount);
+
   const [globalStreamUrl, setGlobalStreamUrl] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -40,7 +51,7 @@ export default function Feed({ videoId, initialCount = 25, onBack }) {
     async function initData() {
       try {
         let loadedClips = [];
-        
+
         // 1. Cek Local Storage
         const savedDraft = localStorage.getItem(DRAFT_KEY);
         if (savedDraft) {
@@ -52,11 +63,11 @@ export default function Feed({ videoId, initialCount = 25, onBack }) {
           setLoadingText("Mengekstrak Heatmap AI (Bisa memakan waktu belasan detik)...");
           const heatmapData = await fetchHeatmap(videoId, 100, 0); // Meminta 100 klip secara eksplisit, offset 0
           loadedClips = heatmapData.clips.map(c => ({ ...c, status: 'none' })); // Tambah status
-          
+
           if (mounted) {
             setClips(loadedClips);
             localStorage.setItem(DRAFT_KEY, JSON.stringify(loadedClips));
-            
+
             // Simpan info workshop ke Dashboard
             const savedWorkshops = JSON.parse(localStorage.getItem('workshops_list') || '[]');
             const existingIndex = savedWorkshops.findIndex(w => w.videoId === videoId);
@@ -66,7 +77,7 @@ export default function Feed({ videoId, initialCount = 25, onBack }) {
               count: initialCount,
               lastUpdated: Date.now()
             };
-            
+
             if (existingIndex >= 0) {
               savedWorkshops[existingIndex] = workshopData;
             } else {
@@ -75,7 +86,7 @@ export default function Feed({ videoId, initialCount = 25, onBack }) {
             localStorage.setItem('workshops_list', JSON.stringify(savedWorkshops));
           }
         }
-        
+
         // 3. Fetch Stream URL
         if (loadedClips.length > 0) {
           setLoadingText("Mengekstrak Stream URL untuk pemutaran...");
@@ -84,7 +95,7 @@ export default function Feed({ videoId, initialCount = 25, onBack }) {
             setGlobalStreamUrl(url);
             // Set klip aktif ke klip pertama berdasarkan urutan waktu (kronologis) dari yang terlihat
             const initialVisible = [...loadedClips].slice(0, initialCount).sort((a, b) => a.start - b.start);
-            setActiveClipId(initialVisible[0].id); 
+            setActiveClipId(initialVisible[0].id);
             setLoading(false);
           }
         } else {
@@ -144,6 +155,23 @@ export default function Feed({ videoId, initialCount = 25, onBack }) {
     }));
   };
 
+
+
+  const handleSendToWhatsApp = () => {
+    const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+    const command = `!download --url ${videoUrl} --s ${formatTimeWithMs(activeClip.start)} --e ${formatTimeWithMs(activeClip.end)}`;
+    const encodedCommand = encodeURIComponent(command);
+
+    // Konstanta nomor bot, silakan diisi nanti misal: "6281234567890"
+    // Jika kosong, wa.me akan meminta user memilih kontak
+    const BOT_NUMBER = "6285742923730";
+    const waUrl = BOT_NUMBER
+      ? `https://wa.me/${BOT_NUMBER}?text=${encodedCommand}`
+      : `https://wa.me/?text=${encodedCommand}`;
+
+    window.open(waUrl, '_blank');
+  };
+
   const togglePlayGlobal = () => {
     if (videoRef.current) {
       if (isPlaying) {
@@ -168,34 +196,41 @@ export default function Feed({ videoId, initialCount = 25, onBack }) {
     return <div className="h-[100dvh] w-full bg-black flex justify-center items-center text-red-500">Gagal memuat video: {error}</div>;
   }
 
-  const activeClip = clips.find(c => c.id === activeClipId) || clips[0];
+  const activeClip = clips.find(c => c.id === activeClipId) || clips[0] || { start: 0, end: 0, status: 'none' };
   const visibleClips = [...clips].slice(0, visibleCount).sort((a, b) => a.start - b.start);
 
   return (
     <div className="flex flex-col w-full h-[100dvh] bg-neutral-950 overflow-hidden font-sans">
-      
+
       {/* 1. TOP CONTROLS (Status, Extend, Crop) */}
       <div className="shrink-0 bg-neutral-900 border-b border-white/10 flex flex-col z-30 shadow-md">
-        
+
         {/* Time Range & Status Marking Row */}
-        <div className="flex justify-between items-center py-2.5 px-4 bg-black border-b border-white/5">
-          <div className="font-mono text-sm font-bold tracking-widest text-white/90">
+        <div className="flex flex-row justify-between items-center py-2.5 px-4 bg-black border-b border-white/5 min-h-[44px]">
+
+          {/* KIRI: Tombol Kirim ke WA Bot */}
+          <button 
+            onClick={handleSendToWhatsApp} 
+            className="flex items-center justify-center p-2 rounded-lg bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors"
+            title="Kirim Perintah ke Bot WhatsApp"
+          >
+            <Download size={18} />
+          </button>
+
+          {/* TENGAH: Rentang Waktu */}
+          <div className="font-mono text-sm font-bold tracking-widest text-white/90 whitespace-nowrap px-2">
             {formatTime(activeClip.start)} - {formatTime(activeClip.end)}
           </div>
-          <div className="flex items-center gap-3">
-             <button 
-               onClick={() => updateClipStatus('done')} 
-               className={`flex items-center justify-center p-2 rounded-lg transition-colors ${activeClip.status === 'done' ? 'bg-emerald-600 text-white shadow-[0_0_15px_rgba(16,185,129,0.4)]' : 'bg-white/5 text-emerald-400 hover:bg-emerald-600/20'}`}
-              >
-               <CheckCircle2 size={18} />
-             </button>
-             <button 
-               onClick={() => updateClipStatus('skip')} 
-               className={`flex items-center justify-center p-2 rounded-lg transition-colors ${activeClip.status === 'skip' ? 'bg-rose-600 text-white shadow-[0_0_15px_rgba(225,29,72,0.4)]' : 'bg-white/5 text-rose-400 hover:bg-rose-600/20'}`}
-              >
-               <XCircle size={18} />
-             </button>
-          </div>
+
+          {/* KANAN: Tombol Tandai Selesai */}
+          <button
+            onClick={() => updateClipStatus('done')}
+            className={`flex items-center justify-center p-2 rounded-lg transition-colors ${activeClip.status === 'done' ? 'bg-emerald-600 text-white shadow-[0_0_15px_rgba(16,185,129,0.4)]' : 'bg-white/5 text-emerald-400 hover:bg-emerald-600/20'}`}
+            title="Tandai Selesai"
+          >
+            <CheckCircle2 size={18} />
+          </button>
+
         </div>
 
         {/* Extend Row */}
@@ -227,14 +262,14 @@ export default function Feed({ videoId, initialCount = 25, onBack }) {
 
       {/* 2. VIDEO PLAYER (flex-1 mengisi sisa layar, object-contain di dalam komponen akan memusatkan video) */}
       <div className="flex-1 w-full bg-black relative z-20">
-         <FeedItemStream
-            ref={videoRef}
-            streamUrl={globalStreamUrl}
-            startTime={activeClip.start}
-            endTime={activeClip.end}
-            onProgress={(pct) => setActiveProgress(pct)}
-            onPlayStateChange={(playing) => setIsPlaying(playing)}
-          />
+        <FeedItemStream
+          ref={videoRef}
+          streamUrl={globalStreamUrl}
+          startTime={activeClip.start}
+          endTime={activeClip.end}
+          onProgress={(pct) => setActiveProgress(pct)}
+          onPlayStateChange={(playing) => setIsPlaying(playing)}
+        />
       </div>
 
       {/* 3. BOTTOM PLAYBACK (Fixed) */}
@@ -252,8 +287,8 @@ export default function Feed({ videoId, initialCount = 25, onBack }) {
           <button onClick={() => triggerSkip(-10)} className="text-white/40 hover:text-white transition-colors active:scale-90"><Rewind size={22} /></button>
           <button onClick={() => triggerSkip(-3)} className="text-white/40 hover:text-white transition-colors active:scale-90"><ChevronLeft size={28} /></button>
 
-          <button 
-            onClick={togglePlayGlobal} 
+          <button
+            onClick={togglePlayGlobal}
             className="flex justify-center items-center w-12 h-12 text-black bg-white rounded-full hover:bg-gray-200 transition-colors active:scale-95 shadow-[0_0_15px_rgba(255,255,255,0.4)] mx-2"
           >
             {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" className="ml-1" />}
@@ -266,13 +301,12 @@ export default function Feed({ videoId, initialCount = 25, onBack }) {
 
       {/* 4. CLIP GRID MENU (Fixed di posisi paling bawah, scroll horizontal) */}
       <div className="shrink-0 w-full bg-black border-t border-white/10 flex flex-col justify-center overflow-hidden z-30 shadow-[0_-10px_20px_rgba(0,0,0,0.5)]">
-        <div className="overflow-x-auto hide-scrollbar w-full px-4 py-3">
+        <div className="overflow-x-auto hide-scrollbar w-full px-4 py-3 border-b border-white/5">
           <div className="grid grid-rows-2 grid-flow-col gap-3 min-w-max h-max">
             {visibleClips.map((clip, idx) => {
               let statusClasses = "bg-neutral-900 border-white/10 text-white/70";
               if (clip.status === 'done') statusClasses = "bg-emerald-900/60 border-emerald-500/50 text-emerald-100 shadow-[0_0_10px_rgba(16,185,129,0.2)]";
-              if (clip.status === 'skip') statusClasses = "bg-rose-900/60 border-rose-500/50 text-rose-100 shadow-[0_0_10px_rgba(244,63,94,0.2)]";
-              
+
               const isActive = activeClipId === clip.id;
               if (isActive) statusClasses += " ring-2 ring-white scale-105 z-10 font-bold";
 

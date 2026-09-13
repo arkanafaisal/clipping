@@ -102,7 +102,7 @@ def process_message(client: NewClient, ev: MessageEv):
     current_state = state_obj["state"]
     
     # 2. Tangani Perintah Umum (Overrides) terlebih dahulu
-    is_general = handle_general_commands(client, ev, text_lower, sender_jid, current_state)
+    is_general = handle_general_commands(client, ev, text, text_lower, sender_jid, current_state)
     if is_general:
         return # Berhenti jika sudah ditangani oleh general command
         

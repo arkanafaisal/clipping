@@ -71,3 +71,33 @@ export async function fetchHeatmap(videoId, numClips = 100, offset = 5) {
     throw error;
   }
 }
+
+/**
+ * Downloads a specific clip by sending a request to the backend.
+ * 
+ * @param {string} videoId 
+ * @param {number} start 
+ * @param {number} end 
+ */
+export async function downloadClip(videoId, start, end) {
+  const url = `${API_BASE_URL}/download_clip/${videoId}?start=${start}&end=${end}`;
+  
+  const response = await fetch(url, {
+    method: 'GET'
+  });
+
+  if (!response.ok) {
+    throw new Error(`Gagal mendownload klip (Status: ${response.status})`);
+  }
+  
+  // Convert response to blob for seamless download
+  const blob = await response.blob();
+  const downloadUrl = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = downloadUrl;
+  a.download = `${videoId}_clip_${Math.floor(start)}s_to_${Math.floor(end)}s.mp4`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(downloadUrl);
+}

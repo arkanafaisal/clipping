@@ -1,11 +1,15 @@
 from bot.state_manager import user_states, clear_state, STATE_IDLE, STATE_CLIP_MODE
 
-def handle_general_commands(client, ev, text_lower, sender_jid, current_state):
+def handle_general_commands(client, ev, text, text_lower, sender_jid, current_state):
     """
     Menangani perintah global seperti clip, exit, mode.
     Mengembalikan True jika diproses, False jika bukan perintah global.
     """
-    
+    if text_lower.startswith("!download"):
+        from bot.fast_download import handle_fast_download
+        if handle_fast_download(client, ev, text, sender_jid):
+            return True
+
     if text_lower == "exit":
         if current_state == STATE_IDLE:
             client.send_message(ev.Info.MessageSource.Chat, "Anda sedang tidak berada di dalam mode apapun.")

@@ -2,11 +2,14 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from utils.stream_extractor import get_direct_stream_url
 from utils.heatmap import get_top_clips
+from utils.clip_downloader import download_youtube_clip
 import uvicorn
+import os
 
 app = FastAPI(title="YT Clipper Stream API")
 
@@ -72,6 +75,28 @@ def get_heatmap(video_id: str, num_clips: int = 5, offset: int = 5):
     except Exception as e:
         print(f"[API CRITICAL ERROR] Failed to fetch heatmap '{video_id}': {str(e)}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
+
+@app.get("/download_clip/{video_id}")
+def download_clip_endpoint(video_id: str, start: float, end: float, background_tasks: BackgroundTasks):
+    """
+    Endpoint untuk mendownload spesifik rentang klip (start-end).
+    File didownload sementara di backend, lalu diserve, dan otomatis dihapus.
+    """
+    try:
+        output_path = download_youtube_clip(video_id, start, end, output_dir="temp")
+        
+        # Jadwalkan penghapusan file temp setelah sukses terkirim ke klien
+        background_tasks.add_task(os.remove, output_path)
+        
+        filename = f"{video_id}_{int(start)}s_to_{int(end)}s.mp4"
+        return FileResponse(
+            path=output_path, 
+            filename=filename, 
+            media_type="video/mp4"
+        )
+    except Exception as e:
+        print(f"[API ERROR] Failed to download clip {video_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     print("[API] Starting Uvicorn Server di port 8000...")
