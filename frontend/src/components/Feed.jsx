@@ -1,10 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import FeedItemStream from './FeedItemStream';
 import { fetchStreamUrl, fetchHeatmap } from '../services/api';
-import { Play, Pause, Rewind, FastForward, ChevronLeft, ChevronRight } from 'lucide-react';
-
-const VIDEO_ID = "e7uVibGgVuM"; // Hardcoded for development
-const DRAFT_KEY = `clips_draft_${VIDEO_ID}`;
+import { Play, Pause, Rewind, FastForward, ChevronLeft, ChevronRight, ArrowLeft } from 'lucide-react';
 
 // Helper Format Waktu
 function formatTime(seconds) {
@@ -32,9 +29,11 @@ const AdjustButton = ({ icon: Icon, number, onClick, label }) => (
   </button>
 );
 
-export default function Feed() {
+export default function Feed({ videoId, initialCount = 25, onBack }) {
+  const DRAFT_KEY = `clips_draft_${videoId}`;
+
   const [clips, setClips] = useState([]);
-  const [visibleCount, setVisibleCount] = useState(25); // Menampilkan 25 klip
+  const [visibleCount, setVisibleCount] = useState(initialCount); 
   
   const [globalStreamUrl, setGlobalStreamUrl] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -65,18 +64,36 @@ export default function Feed() {
         } else {
           // 2. Jika kosong, fetch dari API Heatmap
           setLoadingText("Mengekstrak Heatmap AI (Bisa memakan waktu belasan detik)...");
-          const heatmapData = await fetchHeatmap(VIDEO_ID, 100, 0); // Meminta 100 klip secara eksplisit, offset 0
+          const heatmapData = await fetchHeatmap(videoId, 100, 0); // Meminta 100 klip secara eksplisit, offset 0
           loadedClips = heatmapData.clips;
+          
           if (mounted) {
             setClips(loadedClips);
             localStorage.setItem(DRAFT_KEY, JSON.stringify(loadedClips));
+            
+            // Simpan info workshop ke Dashboard
+            const savedWorkshops = JSON.parse(localStorage.getItem('workshops_list') || '[]');
+            const existingIndex = savedWorkshops.findIndex(w => w.videoId === videoId);
+            const workshopData = {
+              videoId,
+              title: heatmapData.title,
+              count: initialCount,
+              lastUpdated: Date.now()
+            };
+            
+            if (existingIndex >= 0) {
+              savedWorkshops[existingIndex] = workshopData;
+            } else {
+              savedWorkshops.push(workshopData);
+            }
+            localStorage.setItem('workshops_list', JSON.stringify(savedWorkshops));
           }
         }
         
         // 3. Fetch Stream URL
         if (loadedClips.length > 0) {
           setLoadingText("Mengekstrak Stream URL untuk pemutaran...");
-          const url = await fetchStreamUrl(VIDEO_ID);
+          const url = await fetchStreamUrl(videoId);
           if (mounted) {
             setGlobalStreamUrl(url);
             // Set klip aktif ke klip pertama berdasarkan urutan waktu (kronologis) dari yang terlihat
@@ -168,9 +185,16 @@ export default function Feed() {
       {/* GLOBAL TOP NAV (Simetris 3 Lapis) */}
       <div className="absolute top-0 left-0 w-full z-50 flex flex-col pointer-events-none">
 
-        {/* Lapis 1: TIME RANGE */}
-        <div className="bg-black/90 text-white text-center py-2 font-mono text-sm tracking-wider border-b border-white/10 shadow-xl pointer-events-auto">
-          {formatTime(activeClip.start)} - {formatTime(activeClip.end)}
+        {/* Lapis 1: TIME RANGE & BACK BUTTON */}
+        <div className="relative bg-black/90 text-white text-center py-2 font-mono text-sm tracking-wider border-b border-white/10 shadow-xl pointer-events-auto flex items-center justify-center">
+          <button 
+            onClick={onBack}
+            className="absolute left-2 top-1/2 -translate-y-1/2 p-2 hover:bg-white/10 rounded-full transition-colors active:scale-95"
+            title="Kembali ke Dashboard"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <span>{formatTime(activeClip.start)} - {formatTime(activeClip.end)}</span>
         </div>
 
         {/* Lapis 2: EXTEND ROW (Hijau) */}
@@ -234,7 +258,10 @@ export default function Feed() {
           <button onClick={() => triggerSkip(-10)} className="text-white/60 hover:text-white transition-colors active:scale-90"><Rewind size={24} /></button>
           <button onClick={() => triggerSkip(-3)} className="text-white/60 hover:text-white transition-colors active:scale-90"><ChevronLeft size={32} /></button>
 
-          <button onClick={togglePlayGlobal} className="text-black bg-white p-3 rounded-full hover:bg-gray-200 transition-colors active:scale-95 shadow-[0_0_15px_rgba(255,255,255,0.4)] mx-2">
+          <button 
+            onClick={togglePlayGlobal} 
+            className="flex justify-center items-center w-14 h-14 text-black bg-white rounded-full hover:bg-gray-200 transition-colors active:scale-95 shadow-[0_0_15px_rgba(255,255,255,0.4)] mx-2"
+          >
             {isPlaying ? <Pause size={28} fill="currentColor" /> : <Play size={28} fill="currentColor" className="ml-1" />}
           </button>
 
