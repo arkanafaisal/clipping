@@ -139,6 +139,29 @@ def download_single_clip(video_url, output_dir, clip, i=0, total_clips=1):
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([video_url])
+            
+        # Post-Processing: Force Portrait 9:16 Padding using FFmpeg
+        if os.path.exists(filepath):
+            import subprocess
+            temp_filepath = filepath + ".temp.mp4"
+            print(f"Menyematkan dinding hitam (Auto-Padding) ke format Shorts (1080x1920)...")
+            ffmpeg_cmd = [
+                ffmpeg_exe, '-y', '-i', filepath, 
+                '-c:v', 'libx264', '-preset', 'ultrafast', 
+                '-vf', 'scale=1080:-2,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black', 
+                '-c:a', 'copy', temp_filepath
+            ]
+            try:
+                subprocess.run(ffmpeg_cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                if os.path.exists(temp_filepath):
+                    import shutil
+                    shutil.move(temp_filepath, filepath)
+                    print(f"Klip berhasil diformat menjadi Portrait Shorts!")
+            except subprocess.CalledProcessError as e:
+                print(f"Peringatan: Gagal melakukan Auto-Padding pada klip {rank}: {e}")
+                if os.path.exists(temp_filepath):
+                    os.remove(temp_filepath)
+
         elapsed_time = time.time() - download_start_time
         print(f"[SUKSES] Klip Peringkat {rank} berhasil diunduh! (waktu proses: {elapsed_time:.1f} detik)")
         return filepath
