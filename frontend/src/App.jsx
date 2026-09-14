@@ -32,12 +32,20 @@ function App() {
   };
 
   return (
-    <div className="w-full min-h-[100dvh] bg-black">
-      {!currentVideoId ? (
-        <Dashboard onOpenWorkshop={handleOpenWorkshop} />
-      ) : (
-        <Feed videoId={currentVideoId} initialCount={currentCount} />
-      )}
+    <div className={`w-full bg-black flex justify-center overflow-x-hidden text-white font-sans ${currentVideoId ? 'h-[100dvh] overflow-hidden' : 'min-h-[100dvh]'}`}>
+      <div 
+        className={`w-full bg-neutral-950 relative flex flex-col ${
+          currentVideoId 
+            ? "max-w-[420px] h-[100dvh] shadow-[0_0_50px_rgba(0,0,0,0.8)] border-x border-white/5 overflow-hidden" 
+            : "min-h-[100dvh]"
+        }`}
+      >
+        {currentVideoId ? (
+          <Feed videoId={currentVideoId} initialCount={currentCount} />
+        ) : (
+          <Dashboard onOpenWorkshop={handleOpenWorkshop} />
+        )}
+      </div>
     </div>
   );
 }
