@@ -2,10 +2,11 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+import requests
 from utils.stream_extractor import get_direct_stream_url
 from utils.heatmap import get_top_clips
 from utils.clip_downloader import download_youtube_clip
@@ -43,6 +44,40 @@ def get_stream(video_id: str):
     except Exception as e:
         print(f"[API CRITICAL ERROR] Failed to process video '{video_id}': {str(e)}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
+
+@app.get("/api/proxy_stream")
+def proxy_stream(url: str, request: Request):
+    """
+    Endpoint proxy untuk membypass pemblokiran CORS / User-Agent dari YouTube
+    hanya untuk video yang bermasalah. Mendukung Range request.
+    """
+    headers = {}
+    range_header = request.headers.get("Range")
+    if range_header:
+        headers["Range"] = range_header
+        
+    try:
+        # Stream=True agar tidak memuat seluruh video ke memori
+        req = requests.get(url, headers=headers, stream=True, timeout=10)
+        
+        def iterfile():
+            for chunk in req.iter_content(chunk_size=1024 * 1024):  # 1MB chunks
+                if chunk:
+                    yield chunk
+
+        response_headers = {
+            k: v for k, v in req.headers.items() 
+            if k.lower() in ("content-type", "content-length", "content-range", "accept-ranges")
+        }
+
+        return StreamingResponse(
+            iterfile(), 
+            status_code=req.status_code, 
+            headers=response_headers
+        )
+    except Exception as e:
+        print(f"[API ERROR] Proxy stream failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to proxy stream")
 
 @app.get("/api/heatmap/{video_id}")
 def get_heatmap(video_id: str, num_clips: int = 5, offset: int = 5):

@@ -1,9 +1,15 @@
-import { useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
+import { useRef, useEffect, forwardRef, useImperativeHandle, useState } from 'react';
 import Hls from 'hls.js';
 
 const FeedItemStream = forwardRef(({ streamUrl, startTime, endTime, onProgress, onPlayStateChange }, ref) => {
   const videoRef = useRef(null);
   const hlsRef = useRef(null);
+  const [activeUrl, setActiveUrl] = useState(streamUrl);
+
+  // Jika parent memberikan streamUrl baru, reset activeUrl
+  useEffect(() => {
+    setActiveUrl(streamUrl);
+  }, [streamUrl]);
 
   // Expose imperative methods to parent (Feed.jsx)
   useImperativeHandle(ref, () => ({
@@ -25,26 +31,43 @@ const FeedItemStream = forwardRef(({ streamUrl, startTime, endTime, onProgress, 
     }
   }));
 
-  // HLS & Source Management (HANYA dijalankan saat URL Stream berubah)
+  // HLS & Source Management (HANYA dijalankan saat activeUrl berubah)
   useEffect(() => {
-    if (!videoRef.current || !streamUrl) return;
+    if (!videoRef.current || !activeUrl) return;
 
     if (hlsRef.current) {
       hlsRef.current.destroy();
       hlsRef.current = null;
     }
 
-    if (streamUrl.includes('.m3u8') || streamUrl.includes('.mpd')) {
+    const handleError = () => {
+      // Jika URL saat ini bukan proxy, coba fallback ke proxy
+      if (activeUrl && !activeUrl.includes('/api/proxy_stream')) {
+        console.warn("Direct stream failed (CORS/403). Falling back to FastAPI proxy...");
+        setActiveUrl(`/api/proxy_stream?url=${encodeURIComponent(activeUrl)}`);
+      }
+    };
+
+    if (activeUrl.includes('.m3u8') || activeUrl.includes('.mpd')) {
       if (Hls.isSupported()) {
         const hls = new Hls({ startPosition: startTime || -1 });
-        hls.loadSource(streamUrl);
+        hls.loadSource(activeUrl);
         hls.attachMedia(videoRef.current);
+        
+        hls.on(Hls.Events.ERROR, function (event, data) {
+          if (data.fatal) {
+            handleError();
+          }
+        });
+        
         hlsRef.current = hls;
       } else if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
-        videoRef.current.src = streamUrl;
+        videoRef.current.src = activeUrl;
+        videoRef.current.onerror = handleError;
       }
     } else {
-      videoRef.current.src = streamUrl;
+      videoRef.current.src = activeUrl;
+      videoRef.current.onerror = handleError;
     }
 
     return () => {
@@ -52,8 +75,11 @@ const FeedItemStream = forwardRef(({ streamUrl, startTime, endTime, onProgress, 
         hlsRef.current.destroy();
         hlsRef.current = null;
       }
+      if (videoRef.current) {
+        videoRef.current.onerror = null;
+      }
     };
-  }, [streamUrl]); // Dihapus: startTime dari dependency!
+  }, [activeUrl]); // Dihapus: startTime dari dependency!
 
   // Menangani lompatan (seek) ketika klip berganti atau waktu start dimodifikasi (Crop/Extend)
   useEffect(() => {

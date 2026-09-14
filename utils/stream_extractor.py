@@ -8,7 +8,7 @@ def get_direct_stream_url(video_id: str) -> str:
     url = f"https://www.youtube.com/watch?v={video_id}"
     
     ydl_opts = {
-        'format': 'best',
+        'format': 'best[ext=mp4]/best',
         'quiet': True,
         'skip_download': True,
         'extract_flat': False
