@@ -56,13 +56,14 @@ export default function Feed({ videoId, initialCount = 25 }) {
         const savedDraft = localStorage.getItem(DRAFT_KEY);
         if (savedDraft) {
           setLoadingText("Memuat draft potongan klip Anda...");
-          loadedClips = JSON.parse(savedDraft);
+          // Amankan data lama yang mungkin belum punya rank dengan fallback idx + 1
+          loadedClips = JSON.parse(savedDraft).map((c, idx) => ({ ...c, rank: c.rank || idx + 1 }));
           if (mounted) setClips(loadedClips);
         } else {
           // 2. Jika kosong, fetch dari API Heatmap
           setLoadingText("Mengekstrak Heatmap AI (Bisa memakan waktu belasan detik)...");
           const heatmapData = await fetchHeatmap(videoId, 100, 0); // Meminta 100 klip secara eksplisit, offset 0
-          loadedClips = heatmapData.clips.map(c => ({ ...c, status: 'none' })); // Tambah status
+          loadedClips = heatmapData.clips.map((c, idx) => ({ ...c, status: 'none', rank: idx + 1 })); // Tambah status dan rank
 
           if (mounted) {
             setClips(loadedClips);
@@ -316,6 +317,11 @@ export default function Feed({ videoId, initialCount = 25 }) {
                   onClick={() => setActiveClipId(clip.id)}
                   className={`w-[85px] relative flex flex-col items-center justify-center py-2.5 px-1 rounded-xl border transition-all duration-200 hover:brightness-125 active:scale-95 ${statusClasses}`}
                 >
+                  {/* Badge Peringkat Popularitas */}
+                  <div className="absolute -top-1.5 -right-1.5 bg-rose-600/90 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-[0_2px_5px_rgba(0,0,0,0.5)] z-20 flex items-center justify-center border border-white/20">
+                    #{clip.rank}
+                  </div>
+
                   <span className="text-[10px] uppercase tracking-wider mb-1 opacity-60">Klip {idx + 1}</span>
                   <span className="text-[11px] font-mono leading-none">{formatTime(clip.start)}</span>
                 </button>
