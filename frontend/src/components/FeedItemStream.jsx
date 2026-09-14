@@ -1,7 +1,7 @@
 import { useRef, useEffect, forwardRef, useImperativeHandle, useState } from 'react';
 import Hls from 'hls.js';
 
-const FeedItemStream = forwardRef(({ streamUrl, startTime, endTime, onProgress, onPlayStateChange }, ref) => {
+const FeedItemStream = forwardRef(({ clipId, streamUrl, startTime, endTime, onProgress, onPlayStateChange }, ref) => {
   const videoRef = useRef(null);
   const hlsRef = useRef(null);
   const [activeUrl, setActiveUrl] = useState(streamUrl);
@@ -28,10 +28,13 @@ const FeedItemStream = forwardRef(({ streamUrl, startTime, endTime, onProgress, 
       if (endTime !== undefined && newTime > endTime) newTime = endTime;
       
       videoRef.current.currentTime = newTime;
+      forceUpdateProgress(newTime);
     },
     seekTo: (time) => {
       if (videoRef.current) {
         videoRef.current.currentTime = time;
+        forceUpdateProgress(time);
+        videoRef.current.play().catch(e => console.log(e));
       }
     }
   }));
@@ -84,7 +87,7 @@ const FeedItemStream = forwardRef(({ streamUrl, startTime, endTime, onProgress, 
         videoRef.current.onerror = null;
       }
     };
-  }, [activeUrl]); // Dihapus: startTime dari dependency!
+  }, [activeUrl]);
 
   // Fungsi untuk mengkalkulasi ulang progress secara manual
   const forceUpdateProgress = (forcedCurrentTime) => {
@@ -94,28 +97,18 @@ const FeedItemStream = forwardRef(({ streamUrl, startTime, endTime, onProgress, 
       let pct = ((forcedCurrentTime - startTime) / duration) * 100;
       if (pct < 0) pct = 0;
       if (pct > 100) pct = 100;
-      onProgress(pct);
+      if (onProgress) onProgress(pct);
     }
   };
 
-  // Menangani lompatan (seek) ketika klip berganti atau waktu start dimodifikasi (Crop/Extend)
+  // Menangani ganti klip (jump ke start saat clipId berubah)
   useEffect(() => {
     if (videoRef.current && startTime !== undefined) {
       videoRef.current.currentTime = startTime;
       forceUpdateProgress(startTime); // Langsung update UI bar
       videoRef.current.play().catch(e => console.log("Autoplay failed:", e));
     }
-  }, [startTime]);
-
-  // Menangani lompatan (seek) khusus saat batas akhir waktu (End) dimodifikasi
-  useEffect(() => {
-    if (videoRef.current && endTime !== undefined && startTime !== undefined) {
-      const skipTarget = Math.max(startTime, endTime - 3);
-      videoRef.current.currentTime = skipTarget;
-      forceUpdateProgress(skipTarget); // Langsung update UI bar
-      videoRef.current.play().catch(e => console.log("Autoplay failed:", e));
-    }
-  }, [endTime]);
+  }, [clipId]);
 
   // Handle looping logic between startTime and endTime & progress bar
   const handleTimeUpdate = () => {

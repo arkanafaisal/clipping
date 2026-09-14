@@ -20,9 +20,24 @@ export default function Dashboard({ onOpenWorkshop }) {
   useEffect(() => {
     const saved = localStorage.getItem('workshops_list');
     if (saved) {
-      setWorkshops(JSON.parse(saved));
+      const parsed = JSON.parse(saved);
+      // Sort descending based on lastUpdated (if missing, assume 0)
+      parsed.sort((a, b) => (b.lastUpdated || 0) - (a.lastUpdated || 0));
+      setWorkshops(parsed);
     }
   }, []);
+
+  const updateLastSeenAndOpen = (videoId, count) => {
+    // Update lastUpdated di local storage
+    const saved = JSON.parse(localStorage.getItem('workshops_list') || '[]');
+    const existingIndex = saved.findIndex(w => w.videoId === videoId);
+    if (existingIndex >= 0) {
+      saved[existingIndex].lastUpdated = Date.now();
+      localStorage.setItem('workshops_list', JSON.stringify(saved));
+    }
+    // Teruskan ke App.jsx
+    onOpenWorkshop(videoId, count);
+  };
 
   const extractVideoId = (url) => {
     // Regex standar industri untuk mencakup semua format YouTube (termasuk shorts dan live)
@@ -55,11 +70,11 @@ export default function Dashboard({ onOpenWorkshop }) {
     const exists = workshops.find(w => w.videoId === videoId);
     if (exists) {
       // Jika sudah ada, buka workshop tersebut dan perbarui jumlah klipnya
-      onOpenWorkshop(videoId, countInput);
+      updateLastSeenAndOpen(videoId, countInput);
       return;
     }
 
-    // Jika baru, lempar ke App router
+    // Jika baru, lempar ke App router (nanti Feed.jsx yang akan menambahkannya ke workshops_list)
     onOpenWorkshop(videoId, countInput);
   };
 
@@ -177,7 +192,7 @@ export default function Dashboard({ onOpenWorkshop }) {
               {workshops.map((ws) => (
                 <div
                   key={ws.videoId}
-                  onClick={() => onOpenWorkshop(ws.videoId, ws.count || 25)}
+                  onClick={() => updateLastSeenAndOpen(ws.videoId, ws.count || 25)}
                   className="group relative bg-neutral-900/60 border border-white/10 rounded-2xl overflow-hidden hover:bg-neutral-800/80 hover:border-white/20 transition-all cursor-pointer shadow-lg hover:shadow-2xl hover:-translate-y-1.5"
                 >
                   {/* Thumbnail Container */}

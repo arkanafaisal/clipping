@@ -128,23 +128,26 @@ export default function Feed({ videoId, initialCount = 25 }) {
     }
   }, [clips]);
 
-  const updateClipStart = (seconds) => {
+  const updateClipStart = (delta) => {
     setClips(prev => prev.map(c => {
       if (c.id === activeClipId) {
-        let newStart = c.start + seconds;
-        if (newStart < 0) newStart = 0;
-        if (newStart >= c.end) newStart = c.end - 1; // Jangan melebihi End
+        const newStart = Math.max(0, Math.min(c.start + delta, c.end - 1));
+        if (videoRef.current) {
+          videoRef.current.seekTo(newStart);
+        }
         return { ...c, start: newStart };
       }
       return c;
     }));
   };
 
-  const updateClipEnd = (seconds) => {
+  const updateClipEnd = (delta) => {
     setClips(prev => prev.map(c => {
       if (c.id === activeClipId) {
-        let newEnd = c.end + seconds;
-        if (newEnd <= c.start) newEnd = c.start + 1; // Jangan mendahului Start
+        const newEnd = Math.max(c.start + 1, c.end + delta);
+        if (videoRef.current) {
+          videoRef.current.seekTo(Math.max(c.start, newEnd - 3));
+        }
         return { ...c, end: newEnd };
       }
       return c;
@@ -329,6 +332,7 @@ export default function Feed({ videoId, initialCount = 25 }) {
       <div className="flex-1 w-full bg-black relative z-20">
         <FeedItemStream
           ref={videoRef}
+          clipId={activeClipId}
           streamUrl={globalStreamUrl}
           startTime={activeClip.start}
           endTime={activeClip.end}
