@@ -12,7 +12,7 @@ module.exports = {
       max_memory_restart: "2G"
     },
     {
-      name: "yt-clipper-bot",
+      name: "clip-bot",
       script: "bot/main.py",
       interpreter: "python",
       env: {
