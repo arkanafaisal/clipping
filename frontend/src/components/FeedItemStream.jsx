@@ -28,6 +28,11 @@ const FeedItemStream = forwardRef(({ streamUrl, startTime, endTime, onProgress, 
       if (endTime !== undefined && newTime > endTime) newTime = endTime;
       
       videoRef.current.currentTime = newTime;
+    },
+    seekTo: (time) => {
+      if (videoRef.current) {
+        videoRef.current.currentTime = time;
+      }
     }
   }));
 
@@ -81,14 +86,36 @@ const FeedItemStream = forwardRef(({ streamUrl, startTime, endTime, onProgress, 
     };
   }, [activeUrl]); // Dihapus: startTime dari dependency!
 
+  // Fungsi untuk mengkalkulasi ulang progress secara manual
+  const forceUpdateProgress = (forcedCurrentTime) => {
+    if (endTime && startTime !== undefined) {
+      const duration = endTime - startTime;
+      if (duration <= 0) return;
+      let pct = ((forcedCurrentTime - startTime) / duration) * 100;
+      if (pct < 0) pct = 0;
+      if (pct > 100) pct = 100;
+      onProgress(pct);
+    }
+  };
+
   // Menangani lompatan (seek) ketika klip berganti atau waktu start dimodifikasi (Crop/Extend)
   useEffect(() => {
     if (videoRef.current && startTime !== undefined) {
-      // Kita langsung lompat ke startTime baru tanpa me-reload/mendownload ulang videonya
       videoRef.current.currentTime = startTime;
+      forceUpdateProgress(startTime); // Langsung update UI bar
       videoRef.current.play().catch(e => console.log("Autoplay failed:", e));
     }
   }, [startTime]);
+
+  // Menangani lompatan (seek) khusus saat batas akhir waktu (End) dimodifikasi
+  useEffect(() => {
+    if (videoRef.current && endTime !== undefined && startTime !== undefined) {
+      const skipTarget = Math.max(startTime, endTime - 3);
+      videoRef.current.currentTime = skipTarget;
+      forceUpdateProgress(skipTarget); // Langsung update UI bar
+      videoRef.current.play().catch(e => console.log("Autoplay failed:", e));
+    }
+  }, [endTime]);
 
   // Handle looping logic between startTime and endTime & progress bar
   const handleTimeUpdate = () => {
@@ -98,13 +125,7 @@ const FeedItemStream = forwardRef(({ streamUrl, startTime, endTime, onProgress, 
     
     if (endTime && startTime !== undefined) {
       // Kalkulasi Progress Bar
-      const duration = endTime - startTime;
-      const currentRel = current - startTime;
-      let pct = (currentRel / duration) * 100;
-      if (pct < 0) pct = 0;
-      if (pct > 100) pct = 100;
-      
-      onProgress(pct);
+      forceUpdateProgress(current);
 
       // Looping
       if (current >= endTime) {

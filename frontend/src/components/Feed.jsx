@@ -44,6 +44,11 @@ export default function Feed({ videoId, initialCount = 25 }) {
 
   // Menyimpan referensi video tunggal
   const videoRef = useRef(null);
+  
+  // Drag progress state
+  const progressBarRef = useRef(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragProgress, setDragProgress] = useState(0);
 
   useEffect(() => {
     let mounted = true;
@@ -189,6 +194,39 @@ export default function Feed({ videoId, initialCount = 25 }) {
     }
   };
 
+  const activeClip = clips.find(c => c.id === activeClipId) || clips[0] || { start: 0, end: 0, status: 'none' };
+
+  useEffect(() => {
+    const handlePointerMove = (e) => {
+      if (isDragging) {
+        updateDrag(e);
+      }
+    };
+
+    const handlePointerUp = (e) => {
+      if (isDragging) {
+        setIsDragging(false);
+        const newPct = updateDrag(e);
+        const duration = activeClip.end - activeClip.start;
+        const targetTime = activeClip.start + (newPct / 100) * duration;
+        if (videoRef.current && videoRef.current.seekTo) {
+          videoRef.current.seekTo(targetTime);
+          videoRef.current.play(); // Auto resume after drag
+        }
+      }
+    };
+
+    if (isDragging) {
+      window.addEventListener('pointermove', handlePointerMove);
+      window.addEventListener('pointerup', handlePointerUp);
+    }
+
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+    };
+  }, [isDragging, activeClip]);
+
   if (loading) {
     return <div className="h-[100dvh] w-full bg-black flex justify-center items-center text-white">{loadingText}</div>;
   }
@@ -197,8 +235,33 @@ export default function Feed({ videoId, initialCount = 25 }) {
     return <div className="h-[100dvh] w-full bg-black flex justify-center items-center text-red-500">Gagal memuat video: {error}</div>;
   }
 
-  const activeClip = clips.find(c => c.id === activeClipId) || clips[0] || { start: 0, end: 0, status: 'none' };
   const visibleClips = [...clips].slice(0, visibleCount).sort((a, b) => a.start - b.start);
+
+  const formatRelativeTime = (seconds) => {
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
+
+  const updateDrag = (e) => {
+    if (progressBarRef.current) {
+      const rect = progressBarRef.current.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      let pct = (x / rect.width) * 100;
+      if (pct < 0) pct = 0;
+      if (pct > 100) pct = 100;
+      setDragProgress(pct);
+      return pct;
+    }
+    return 0;
+  };
+
+  const handlePointerDown = (e) => {
+    setIsDragging(true);
+    updateDrag(e);
+    // Optional: Pause video while dragging for smoother UX
+    if (videoRef.current && isPlaying) videoRef.current.pause();
+  };
 
   return (
     <div className="flex flex-col w-full h-[100dvh] bg-neutral-950 overflow-hidden font-sans">
@@ -275,12 +338,28 @@ export default function Feed({ videoId, initialCount = 25 }) {
 
       {/* 3. BOTTOM PLAYBACK (Fixed) */}
       <div className="shrink-0 flex flex-col bg-neutral-950 border-t border-white/5 z-20 shadow-[0_-5px_20px_rgba(0,0,0,0.5)]">
-        {/* PROGRESS BAR - With subtle outline to distinguish from video background */}
-        <div className="w-full h-[6px] bg-white/10 border-y border-white/10">
+        {/* PROGRESS BAR - Interaktif & Draggable */}
+        <div 
+          className="w-full h-[6px] bg-white/10 border-y border-white/10 relative cursor-pointer group touch-none"
+          ref={progressBarRef}
+          onPointerDown={handlePointerDown}
+        >
+          {/* Track Bar (Garis Merah) */}
           <div
-            className="h-full bg-red-600 shadow-[0_0_10px_rgba(220,38,38,0.8)] transition-all duration-100 ease-linear"
-            style={{ width: `${activeProgress}%` }}
+            className={`h-full bg-red-600 shadow-[0_0_10px_rgba(220,38,38,0.8)] transition-all ${isDragging ? 'duration-0' : 'duration-100 ease-linear'}`}
+            style={{ width: `${isDragging ? dragProgress : activeProgress}%` }}
           ></div>
+
+          {/* Draggable Knob (Lingkaran Ujung) */}
+          <div 
+             className={`absolute top-1/2 -translate-y-1/2 -ml-2 w-4 h-4 bg-red-600 rounded-full shadow-[0_0_10px_rgba(220,38,38,1)] transition-all flex items-center justify-center ${isDragging ? 'duration-0 scale-125 opacity-100' : 'duration-100 ease-linear opacity-0 group-hover:opacity-100'}`}
+             style={{ left: `${isDragging ? dragProgress : activeProgress}%` }}
+          >
+             {/* Tooltip Waktu Relatif (Hanya muncul saat di-drag atau disentuh/hover) */}
+             <div className={`absolute bottom-6 bg-black text-white text-[10px] font-mono px-2 py-1 rounded shadow-lg pointer-events-none whitespace-nowrap transition-opacity border border-white/20 ${isDragging ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+               {formatRelativeTime( (isDragging ? dragProgress : activeProgress) / 100 * (activeClip.end - activeClip.start) )}
+             </div>
+          </div>
         </div>
 
         {/* PLAYBACK CONTROLS */}
