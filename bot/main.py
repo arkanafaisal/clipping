@@ -4,6 +4,9 @@ import logging
 import threading
 import time
 
+# Tambahkan root directory ke sys.path agar bisa import utils
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 # Waktu bot mulai dinyalakan (dalam epoch seconds)
 BOT_START_TIME = int(time.time())
 

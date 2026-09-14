@@ -5,6 +5,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from utils.stream_extractor import get_direct_stream_url
 from utils.heatmap import get_top_clips
 from utils.clip_downloader import download_youtube_clip
@@ -22,7 +23,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.get("/stream/{video_id}")
+@app.get("/api/stream/{video_id}")
 def get_stream(video_id: str):
     """
     Endpoint untuk mendapatkan direct stream URL dari video YouTube
@@ -43,7 +44,7 @@ def get_stream(video_id: str):
         print(f"[API CRITICAL ERROR] Failed to process video '{video_id}': {str(e)}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
-@app.get("/heatmap/{video_id}")
+@app.get("/api/heatmap/{video_id}")
 def get_heatmap(video_id: str, num_clips: int = 5, offset: int = 5):
     """
     Endpoint untuk mendapatkan daftar klip berdasarkan heatmap (most replayed)
@@ -76,7 +77,7 @@ def get_heatmap(video_id: str, num_clips: int = 5, offset: int = 5):
         print(f"[API CRITICAL ERROR] Failed to fetch heatmap '{video_id}': {str(e)}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
-@app.get("/download_clip/{video_id}")
+@app.get("/api/download_clip/{video_id}")
 def download_clip_endpoint(video_id: str, start: float, end: float, background_tasks: BackgroundTasks):
     """
     Endpoint untuk mendownload spesifik rentang klip (start-end).
@@ -98,6 +99,15 @@ def download_clip_endpoint(video_id: str, start: float, end: float, background_t
         print(f"[API ERROR] Failed to download clip {video_id}: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+# Setup path untuk dist frontend
+FRONTEND_DIST_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend", "dist")
+
+# Mount folder statis (pastikan diletakkan paling bawah agar tidak menimpa endpoint API)
+if os.path.exists(FRONTEND_DIST_DIR):
+    app.mount("/", StaticFiles(directory=FRONTEND_DIST_DIR, html=True), name="frontend")
+else:
+    print(f"[WARNING] Frontend dist folder not found at {FRONTEND_DIST_DIR}. Make sure to build the React app first.")
+
 if __name__ == "__main__":
-    print("[API] Starting Uvicorn Server di port 8000...")
-    uvicorn.run("api.main:app", host="0.0.0.0", port=8000, reload=True)
+    print("[API] Starting Uvicorn Server di port 3006...")
+    uvicorn.run("api.main:app", host="0.0.0.0", port=3006, reload=True)

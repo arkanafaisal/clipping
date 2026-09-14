@@ -1,5 +1,8 @@
-// Secara otomatis menggunakan IP/Host yang sedang diakses (misal: 192.168.x.x jika di HP)
-const API_BASE_URL = `http://${window.location.hostname}:8000`;
+// Secara otomatis menggunakan IP/Host yang sedang diakses
+// Saat production (diserve oleh FastAPI), gunakan relative path agar mengikuti reverse proxy / port
+const API_BASE_URL = import.meta.env.PROD 
+  ? '/api' 
+  : `http://${window.location.hostname}:3006/api`;
 
 /**
  * Fetches the direct stream URL for a given YouTube video ID.

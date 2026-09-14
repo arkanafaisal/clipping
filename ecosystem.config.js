@@ -1,21 +1,28 @@
 module.exports = {
-  apps: [{
-    name: "clipping",
-    script: "bot.py",
-    interpreter: "python3",
-    // Menangkap log secara real-time
-    env: {
-      PYTHONUNBUFFERED: "1"
+  apps: [
+    {
+      name: "clip-api",
+      script: "python",
+      args: "-m uvicorn api.main:app --host 0.0.0.0 --port 3006",
+      env: {
+        PYTHONUNBUFFERED: "1"
+      },
+      autorestart: true,
+      watch: false,
+      max_memory_restart: "2G"
     },
-    // Auto-restart jika script crash atau terhenti
-    autorestart: true,
-    // Batas memori maksimal sebelum pm2 me-restart bot secara paksa
-    // Karena VPS Anda punya RAM 8GB, kita berikan ruang kosong yang luas hingga 6GB
-    max_memory_restart: "6G",
-    // Tidak me-restart saat ada file yang berubah (agar aman saat ffmpeg men-download video)
-    watch: false,
-    // Restart logic jika terjadi error beruntun
-    max_restarts: 10,
-    restart_delay: 5000 // Jeda 5 detik sebelum mencoba menyalakan ulang
-  }]
+    {
+      name: "yt-clipper-bot",
+      script: "bot/main.py",
+      interpreter: "python",
+      env: {
+        PYTHONUNBUFFERED: "1"
+      },
+      autorestart: true,
+      max_memory_restart: "6G",
+      watch: false,
+      max_restarts: 10,
+      restart_delay: 5000
+    }
+  ]
 };
