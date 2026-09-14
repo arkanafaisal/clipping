@@ -205,8 +205,9 @@ export default function Feed({ videoId, initialCount = 25 }) {
 
     const handlePointerUp = (e) => {
       if (isDragging) {
-        setIsDragging(false);
         const newPct = updateDrag(e);
+        setActiveProgress(newPct); // Optimistic UI update agar bar tidak lompat balik
+        setIsDragging(false);
         const duration = activeClip.end - activeClip.start;
         const targetTime = activeClip.start + (newPct / 100) * duration;
         if (videoRef.current && videoRef.current.seekTo) {
