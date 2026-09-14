@@ -4,7 +4,7 @@ import Dashboard from './components/Dashboard';
 
 function App() {
   const [currentVideoId, setCurrentVideoId] = useState(null);
-  const [currentCount, setCurrentCount] = useState(25);
+  const [currentCount, setCurrentCount] = useState(50);
 
   useEffect(() => {
     const handlePopState = (event) => {
@@ -18,15 +18,15 @@ function App() {
 
     // Saat load awal, pastikan state browser sinkron dengan URL kosong
     window.history.replaceState({ videoId: null }, '', window.location.pathname);
-    
+
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   const handleOpenWorkshop = (videoId, count) => {
     setCurrentVideoId(videoId);
-    if(count) setCurrentCount(count);
-    
+    if (count) setCurrentCount(count);
+
     // Push ke history agar tombol Back native browser / HP bisa kembali ke Dashboard
     window.history.pushState({ videoId, count }, '', `?v=${videoId}`);
   };

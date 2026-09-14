@@ -159,7 +159,7 @@ export default function Feed({ videoId, initialCount = 25 }) {
 
   const handleSendToWhatsApp = () => {
     const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
-    const command = `!download --url ${videoUrl} --s ${formatTimeWithMs(activeClip.start)} --e ${formatTimeWithMs(activeClip.end)}`;
+    const command = `!download ${videoUrl}\n${formatTimeWithMs(activeClip.start)} - ${formatTimeWithMs(activeClip.end)}`;
     const encodedCommand = encodeURIComponent(command);
 
     // Konstanta nomor bot, silakan diisi nanti misal: "6281234567890"

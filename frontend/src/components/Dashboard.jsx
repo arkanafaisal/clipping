@@ -1,10 +1,20 @@
 import { useState, useEffect } from 'react';
-import { Play, Plus, Trash2 } from 'lucide-react';
+import { Play, Plus, Trash2, MessageCircle } from 'lucide-react';
+
+function formatTimeWithMs(seconds) {
+  if (seconds === undefined || seconds === null) return '00:00:00.000';
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  const ms = Math.floor((seconds % 1) * 1000);
+  const pad = (num, len = 2) => num.toString().padStart(len, '0');
+  return `${pad(h)}:${pad(m)}:${pad(s)}.${pad(ms, 3)}`;
+}
 
 export default function Dashboard({ onOpenWorkshop }) {
   const [workshops, setWorkshops] = useState([]);
   const [urlInput, setUrlInput] = useState('');
-  const [countInput, setCountInput] = useState(25);
+  const [countInput, setCountInput] = useState(50);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -61,6 +71,44 @@ export default function Dashboard({ onOpenWorkshop }) {
       setWorkshops(newWorkshops);
       localStorage.setItem('workshops_list', JSON.stringify(newWorkshops));
       localStorage.removeItem(`clips_draft_${videoId}`);
+    }
+  };
+
+  const handleBulkWA = (videoId, e) => {
+    e.stopPropagation();
+
+    const stored = localStorage.getItem(`clips_draft_${videoId}`);
+    if (!stored) {
+      alert("Tidak ada draft klip untuk video ini.");
+      return;
+    }
+
+    try {
+      const clips = JSON.parse(stored);
+      const doneClips = clips
+        .filter(c => c.status === 'done')
+        .sort((a, b) => a.start - b.start);
+
+      if (doneClips.length === 0) {
+        alert("Tidak ada klip yang ditandai Selesai (Hijau) pada video ini.");
+        return;
+      }
+
+      const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+      let command = `!download ${videoUrl}\n`;
+
+      doneClips.forEach(c => {
+        command += `${formatTimeWithMs(c.start)} - ${formatTimeWithMs(c.end)}\n`;
+      });
+
+      const encodedCommand = encodeURIComponent(command.trim());
+      const BOT_NUMBER = "6285742923730";
+      const waUrl = BOT_NUMBER ? `https://wa.me/${BOT_NUMBER}?text=${encodedCommand}` : `https://wa.me/?text=${encodedCommand}`;
+
+      window.open(waUrl, '_blank');
+    } catch (err) {
+      console.error(err);
+      alert("Gagal membaca draft klip.");
     }
   };
 
@@ -158,11 +206,18 @@ export default function Dashboard({ onOpenWorkshop }) {
                     <div className="flex justify-between items-center mt-auto">
                       <div className="inline-flex items-center gap-1.5 bg-black/50 px-2.5 py-1 rounded-md border border-white/5">
                         <span className="text-[11px] font-bold uppercase tracking-wider text-white/40">KLIP</span>
-                        <span className="text-sm font-black text-emerald-400">{ws.count || 25}</span>
+                        <span className="text-sm font-black text-emerald-400">{ws.count || 50}</span>
                       </div>
 
                       {/* Actions */}
                       <div className="flex gap-2">
+                        <button
+                          onClick={(e) => handleBulkWA(ws.videoId, e)}
+                          className="p-2 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-300 rounded-md transition-colors"
+                          title="Kirim Semua Klip Selesai ke WA"
+                        >
+                          <MessageCircle size={18} />
+                        </button>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
