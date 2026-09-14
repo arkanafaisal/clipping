@@ -374,8 +374,8 @@ export default function Feed({ videoId, initialCount = 25 }) {
             {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" className="ml-1" />}
           </button>
 
-          <button onClick={() => triggerSkip(3)} className="text-white/40 hover:text-white transition-colors active:scale-90"><ChevronRight size={28} /></button>
-          <button onClick={() => triggerSkip(10)} className="text-white/40 hover:text-white transition-colors active:scale-90"><FastForward size={22} /></button>
+          <button onClick={() => triggerSkip(5)} className="text-white/40 hover:text-white transition-colors active:scale-90"><ChevronRight size={28} /></button>
+          <button onClick={() => triggerSkip(15)} className="text-white/40 hover:text-white transition-colors active:scale-90"><FastForward size={22} /></button>
         </div>
       </div>
 
