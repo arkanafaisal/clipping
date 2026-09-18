@@ -30,17 +30,21 @@ from yt_dlp.utils import download_range_func
 def sanitize_filename(name):
     return re.sub(r'[\\/*?:"<>|]', "", name).strip()
 
-def add_cookies(ydl_opts):
+def add_cookies(ydl_opts, client_type='web'):
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     cookie_path = os.path.join(base_dir, 'cookies.txt')
     if os.path.exists(cookie_path):
         ydl_opts['cookiefile'] = cookie_path
         
-    # Bypass PO Token / "The page needs to be reloaded"
-    if 'extractor_args' not in ydl_opts:
-        ydl_opts['extractor_args'] = {}
-    ydl_opts['extractor_args']['youtube'] = {'player_client': ['ios', 'android']}
-    
+    if client_type == 'ios':
+        # Bypass PO Token secara paksa dengan iOS (Mentok 360p karena SABR)
+        if 'extractor_args' not in ydl_opts:
+            ydl_opts['extractor_args'] = {}
+        ydl_opts['extractor_args']['youtube'] = {'player_client': ['ios', 'android']}
+    else:
+        # Gunakan Default yt-dlp (Bisa dapat HD 720/1080p dengan cookies)
+        pass
+        
     return ydl_opts
 
 def format_time_filename(seconds):
@@ -150,12 +154,14 @@ def download_single_clip(video_url, output_dir, clip, i=0, total_clips=1, force_
     print(f"Menyimpan ke: {filepath}")
     
     ydl_opts = {
-        'format': '22/18/bestvideo[ext=mp4][height<=720]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+        'format': 'bestvideo+bestaudio/best',
         'outtmpl': filepath,
         'download_ranges': download_range_func(None, [(start_time, end_time)]),
         'force_keyframes_at_cuts': True,
         'external_downloader_args': {
             'ffmpeg_i': [
+                '-user_agent', 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/604.1',
+                '-headers', 'Origin: https://www.youtube.com\r\nReferer: https://www.youtube.com/\r\n',
                 '-reconnect', '1', 
                 '-reconnect_streamed', '1', 
                 '-reconnect_delay_max', '5'
@@ -164,37 +170,146 @@ def download_single_clip(video_url, output_dir, clip, i=0, total_clips=1, force_
         },
         'quiet': False,
         'no_warnings': True,
+        'merge_output_format': 'mp4'
     }
+    
+    # 1. Coba Mode Anonim (Tanpa Cookies) - Bebas PO Token, Target Prime HD
+    ydl_opts_anon = ydl_opts.copy() # Asli, tanpa cookies
     
     download_start_time = time.time()
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([video_url])
-    except Exception as e:
-        err_msg = str(e).lower()
-        if "sign in to confirm" in err_msg or "bot" in err_msg or "cookies" in err_msg or "po token" in err_msg:
-            print(f"⚠️ Terblokir Anti-Bot YouTube! Mengulang unduhan Klip {rank} dengan penyamaran Mobile...")
-            print(f"Catatan: Penyamaran ini mungkin menyebabkan kualitas turun ke 360p.")
-            ydl_opts_fallback = ydl_opts.copy()
-            ydl_opts_fallback = add_cookies(ydl_opts_fallback)
+        with yt_dlp.YoutubeDL(ydl_opts_anon) as ydl_anon:
+            ydl_anon.download([video_url])
+    except Exception as e_anon:
+        print(f"⚠️ Mode Anonim gagal (Mungkin video Age-Restricted/Terblokir IP): {e_anon}")
+        print(f"Mencoba Mode Cookies (Web) demi mempertahankan Kualitas Prime...")
+        
+        # 2. Coba gunakan Web Client + Cookies
+        ydl_opts_main = add_cookies(ydl_opts.copy(), client_type='web')
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts_main) as ydl:
+                ydl.download([video_url])
+        except Exception as e:
+            print(f"⚠️ Mode Cookies gagal: {e}")
+            print(f"Mencoba jalur darurat penyamaran iOS (Kualitas terpaksa mentok di 360p)...")
+            
+            # 3. Coba iOS + Cookies (Pasti tembus tapi 360p karena SABR)
+            ydl_opts_ios = add_cookies(ydl_opts.copy(), client_type='ios')
             try:
-                with yt_dlp.YoutubeDL(ydl_opts_fallback) as ydl_fallback:
-                    ydl_fallback.download([video_url])
-            except Exception as e_fallback:
+                with yt_dlp.YoutubeDL(ydl_opts_ios) as ydl_ios:
+                    ydl_ios.download([video_url])
+            except Exception as e_ios:
                 elapsed_time = time.time() - download_start_time
-                print(f"[GAGAL] Gagal mengunduh Klip Peringkat {rank} (Mode Mobile gagal) setelah {elapsed_time:.1f} detik: {e_fallback}")
+                print(f"[GAGAL] Semua metode pengunduhan Klip Peringkat {rank} gagal setelah {elapsed_time:.1f} detik: {e_ios}")
                 return None
-        else:
-            elapsed_time = time.time() - download_start_time
-            print(f"[GAGAL] Gagal mengunduh Klip Peringkat {rank} setelah {elapsed_time:.1f} detik: {e}")
-            return None
-        # Post-Processing: Force Portrait 9:16 Padding using FFmpeg
-        if force_portrait and os.path.exists(filepath):
-            filepath = apply_portrait_padding(filepath, rank, ffmpeg_exe)
+            
+    # Post-Processing: Force Portrait 9:16 Padding using FFmpeg
+    if force_portrait and os.path.exists(filepath):
+        filepath = apply_portrait_padding(filepath, rank, ffmpeg_exe)
 
-        elapsed_time = time.time() - download_start_time
-        print(f"[SUKSES] Klip Peringkat {rank} berhasil diunduh! (waktu proses: {elapsed_time:.1f} detik)")
-        return filepath
+    elapsed_time = time.time() - download_start_time
+    print(f"[SUKSES] Klip Peringkat {rank} berhasil diunduh! (waktu proses: {elapsed_time:.1f} detik)")
+    return filepath
+
+def download_full_video_and_cut(video_url, output_dir, clips, force_portrait=False):
+    import subprocess
+    import tempfile
+    
+    # Generate temporary full video path
+    full_video_path = os.path.join(output_dir, "Full_Video_Temp.mp4")
+    
+    print(f"\n[SAFE MODE] Men-download video utuh untuk meminimalkan rate-limit...")
+    
+    # Konfigurasi yt-dlp untuk download full video
+    ydl_opts = {
+        'format': 'bestvideo+bestaudio/best',
+        'outtmpl': full_video_path,
+        'quiet': False,
+        'no_warnings': True,
+        'merge_output_format': 'mp4'
+    }
+    
+    ydl_opts_anon = ydl_opts.copy()
+    ffmpeg_exe = os.getenv('FFMPEG_BINARY', 'ffmpeg')
+    
+    if not os.path.exists(full_video_path):
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts_anon) as ydl_anon:
+                ydl_anon.download([video_url])
+        except Exception as e_anon:
+            print(f"⚠️ Mode Anonim gagal: {e_anon}")
+            print(f"Mencoba Mode Cookies (Web) demi mempertahankan Kualitas Prime...")
+            
+            ydl_opts_main = add_cookies(ydl_opts.copy(), client_type='web')
+            try:
+                with yt_dlp.YoutubeDL(ydl_opts_main) as ydl:
+                    ydl.download([video_url])
+            except Exception as e:
+                print(f"⚠️ Mode Cookies gagal: {e}")
+                print(f"Mencoba jalur darurat penyamaran iOS (Mentok 360p)...")
+                
+                ydl_opts_ios = add_cookies(ydl_opts.copy(), client_type='ios')
+                try:
+                    with yt_dlp.YoutubeDL(ydl_opts_ios) as ydl_ios:
+                        ydl_ios.download([video_url])
+                except Exception as e_ios:
+                    print(f"[GAGAL] Semua metode mengunduh video utuh gagal: {e_ios}")
+                    return []
+                
+    if not os.path.exists(full_video_path):
+        print(f"[GAGAL] Video utuh tidak ditemukan setelah proses pengunduhan.")
+        return []
+        
+    print(f"[SUKSES] Video utuh berhasil diunduh. Memulai pemotongan offline...")
+    
+    results = []
+    for i, clip in enumerate(clips):
+        rank = clip['rank']
+        start_time = clip['start_time']
+        end_time = clip['end_time']
+        
+        filename, exists = get_output_filename(output_dir, rank, start_time, end_time)
+        filepath = os.path.join(output_dir, filename)
+        
+        if exists:
+            print(f"[{i+1}/{len(clips)}] Melewati Klip Peringkat {rank} (sudah ada)")
+            if force_portrait:
+                filepath = apply_portrait_padding(filepath, rank, ffmpeg_exe)
+            results.append(filepath)
+            continue
+            
+        print(f"[{i+1}/{len(clips)}] Memotong Klip Peringkat {rank} secara offline...")
+        
+        # Extract clip from full video
+        # We must re-encode (ultrafast) to ensure precise cutting and H.264 consistency
+        ffmpeg_cmd = [
+            ffmpeg_exe, '-y',
+            '-ss', str(start_time),
+            '-to', str(end_time),
+            '-i', full_video_path,
+            '-c:v', 'libx264', '-preset', 'ultrafast',
+            '-c:a', 'aac',
+            filepath
+        ]
+        
+        try:
+            subprocess.run(ffmpeg_cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            if force_portrait and os.path.exists(filepath):
+                filepath = apply_portrait_padding(filepath, rank, ffmpeg_exe)
+            results.append(filepath)
+            print(f"[SUKSES] Klip Peringkat {rank} berhasil dipotong!")
+        except Exception as e:
+            print(f"[GAGAL] Gagal memotong klip {rank}: {e}")
+            results.append(None)
+            
+    # Clean up full video
+    try:
+        os.remove(full_video_path)
+        print("[INFO] Video utuh sementara telah dihapus untuk menghemat ruang.")
+    except Exception as e:
+        print(f"[PERINGATAN] Gagal menghapus video utuh sementara: {e}")
+        
+    return results
 
 def download_clips(video_url, video_title, clips, batch_size=5, sleep_time=10):
     """

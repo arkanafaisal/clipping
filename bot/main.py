@@ -84,7 +84,24 @@ def process_message(client: NewClient, ev: MessageEv):
         # Jika daftar ALLOWED_NUMBERS ada isinya, dan pengirim tidak ada di daftar, abaikan pesannya.
         return
         
-    text = ev.Message.conversation or ev.Message.extendedTextMessage.text
+    # --- DOCUMENT HANDLER (Update Cookies) ---
+    if ev.Message.documentMessage:
+        doc = ev.Message.documentMessage
+        filename = getattr(doc, 'fileName', '')
+        if filename.lower() == 'cookies.txt':
+            try:
+                client.send_message(ev.Info.MessageSource.Chat, "⏳ Memperbarui cookies.txt...")
+                data = client.download_any(ev.Message)
+                base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                cookie_path = os.path.join(base_dir, 'cookies.txt')
+                with open(cookie_path, 'wb') as f:
+                    f.write(data)
+                client.send_message(ev.Info.MessageSource.Chat, "✅ File cookies.txt berhasil diperbarui! IP/Sesi telah di-reset.")
+            except Exception as e:
+                client.send_message(ev.Info.MessageSource.Chat, f"❌ Gagal memperbarui cookies: {e}")
+            return
+            
+    text = ev.Message.conversation or (ev.Message.extendedTextMessage.text if ev.Message.extendedTextMessage else "")
     if not text:
         return
 

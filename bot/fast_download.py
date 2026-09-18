@@ -36,6 +36,7 @@ def handle_fast_download(client, ev, text, sender_jid):
     
     force_portrait = bool(re.search(r'--portrait|-p\b', text, re.IGNORECASE))
     combine_all = bool(re.search(r'--all|-a\b', text, re.IGNORECASE))
+    safe_mode = bool(re.search(r'--safe|-s\b', text, re.IGNORECASE))
     
     # Cari semua rentang waktu
     ranges = re.findall(r"([\d:.]+)\s*-\s*([\d:.]+)", text)
@@ -49,25 +50,39 @@ def handle_fast_download(client, ev, text, sender_jid):
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
             
-        client.send_message(ev.Info.MessageSource.Chat, f"⏳ Memproses {len(ranges)} klip Fast Download...")
-        
-        downloaded_landscape_clips = []
-        total_duration = 0
-        
+        ranges_list = []
         for idx, (start_str_raw, end_str_raw) in enumerate(ranges):
             start_time = parse_time_with_ms(start_str_raw.strip())
             end_time = parse_time_with_ms(end_str_raw.strip())
-            
-            start_str = format_time(int(start_time))
-            end_str = format_time(int(end_time))
-            
-            selected_clip = {
+            ranges_list.append({
                 'rank': idx + 1,
                 'start_time': start_time,
-                'end_time': end_time
-            }
+                'end_time': end_time,
+                'start_str': format_time(int(start_time)),
+                'end_str': format_time(int(end_time))
+            })
             
-            filepath = download_single_clip(url, output_dir, selected_clip, idx, len(ranges), force_portrait)
+        downloaded_landscape_clips = []
+        total_duration = 0
+        
+        if safe_mode:
+            client.send_message(ev.Info.MessageSource.Chat, f"⏳ [SAFE MODE] Memproses {len(ranges_list)} klip. Men-download video utuh 1x (Bebas Limit)...")
+            from utils.downloader import download_full_video_and_cut
+            safe_results = download_full_video_and_cut(url, output_dir, ranges_list, force_portrait)
+        else:
+            client.send_message(ev.Info.MessageSource.Chat, f"⏳ Memproses {len(ranges_list)} klip Fast Download...")
+            
+        for idx, clip in enumerate(ranges_list):
+            start_time = clip['start_time']
+            end_time = clip['end_time']
+            start_str = clip['start_str']
+            end_str = clip['end_str']
+            
+            if safe_mode:
+                filepath = safe_results[idx] if safe_results and idx < len(safe_results) else None
+            else:
+                from utils.downloader import download_single_clip
+                filepath = download_single_clip(url, output_dir, clip, idx, len(ranges_list), force_portrait)
             
             if filepath and os.path.exists(filepath):
                 landscape_path = filepath.replace(".portrait.mp4", ".mp4")
