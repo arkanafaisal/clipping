@@ -14,7 +14,7 @@ function formatTimeWithMs(seconds) {
 export default function Dashboard({ onOpenWorkshop }) {
   const [workshops, setWorkshops] = useState([]);
   const [urlInput, setUrlInput] = useState('');
-  const [countInput, setCountInput] = useState(50);
+  const [countInput, setCountInput] = useState('50'); // Jadikan string sementara untuk mempermudah pengetikan
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -66,16 +66,36 @@ export default function Dashboard({ onOpenWorkshop }) {
       return;
     }
 
+    const finalCount = parseInt(countInput, 10) || 50;
+
     // Check if exists
     const exists = workshops.find(w => w.videoId === videoId);
     if (exists) {
       // Jika sudah ada, buka workshop tersebut dan perbarui jumlah klipnya
-      updateLastSeenAndOpen(videoId, countInput);
+      updateLastSeenAndOpen(videoId, finalCount);
       return;
     }
 
     // Jika baru, lempar ke App router (nanti Feed.jsx yang akan menambahkannya ke workshops_list)
-    onOpenWorkshop(videoId, countInput);
+    onOpenWorkshop(videoId, finalCount);
+  };
+
+  const handleEditCount = (videoId, currentCount, e) => {
+    e.stopPropagation();
+    const input = window.prompt("Masukkan jumlah klip baru untuk ditampilkan (maks 100):", currentCount);
+    if (input !== null) {
+      const newCount = parseInt(input, 10);
+      if (!isNaN(newCount) && newCount > 0) {
+        const newWorkshops = workshops.map(w => {
+          if (w.videoId === videoId) return { ...w, count: newCount };
+          return w;
+        });
+        setWorkshops(newWorkshops);
+        localStorage.setItem('workshops_list', JSON.stringify(newWorkshops));
+      } else {
+        alert("Jumlah klip tidak valid.");
+      }
+    }
   };
 
   const handleDelete = (videoId, e) => {
@@ -158,7 +178,7 @@ export default function Dashboard({ onOpenWorkshop }) {
                 min="1"
                 max="100"
                 value={countInput}
-                onChange={(e) => setCountInput(parseInt(e.target.value) || 25)}
+                onChange={(e) => setCountInput(e.target.value)}
                 className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-red-500/70 transition-all"
               />
             </div>
@@ -189,65 +209,86 @@ export default function Dashboard({ onOpenWorkshop }) {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {workshops.map((ws) => (
-                <div
-                  key={ws.videoId}
-                  onClick={() => updateLastSeenAndOpen(ws.videoId, ws.count || 25)}
-                  className="group relative bg-neutral-900/60 border border-white/10 rounded-2xl overflow-hidden hover:bg-neutral-800/80 hover:border-white/20 transition-all cursor-pointer shadow-lg hover:shadow-2xl hover:-translate-y-1.5"
-                >
-                  {/* Thumbnail Container */}
-                  <div className="relative aspect-video w-full bg-black overflow-hidden border-b border-white/10">
-                    <img
-                      src={`https://img.youtube.com/vi/${ws.videoId}/mqdefault.jpg`}
-                      alt={ws.title || "YouTube Thumbnail"}
-                      className="w-full h-full object-cover opacity-80 group-hover:opacity-100 group-hover:scale-105 transition-all duration-500"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/10 to-transparent"></div>
-
-                    {/* Play Overlay */}
-                    <div className="absolute inset-0 flex justify-center items-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                      <div className="bg-red-600/90 p-4 rounded-full shadow-[0_0_30px_rgba(220,38,38,0.6)] backdrop-blur-sm transform scale-90 group-hover:scale-100 transition-transform">
-                        <Play fill="white" size={24} />
+              {workshops.map((ws) => {
+                let doneCount = 0;
+                const stored = localStorage.getItem(`clips_draft_${ws.videoId}`);
+                if (stored) {
+                  try {
+                    const clips = JSON.parse(stored);
+                    doneCount = clips.filter(c => c.status === 'done').length;
+                  } catch (e) {}
+                }
+                
+                return (
+                  <div
+                    key={ws.videoId}
+                    onClick={() => updateLastSeenAndOpen(ws.videoId, ws.count || 50)}
+                    className="group relative bg-neutral-900/60 border border-white/10 rounded-2xl overflow-hidden hover:bg-neutral-800/80 hover:border-white/20 transition-all cursor-pointer shadow-lg hover:shadow-2xl hover:-translate-y-1.5"
+                  >
+                    {/* Thumbnail Container */}
+                    <div className="relative aspect-video w-full bg-black overflow-hidden border-b border-white/10">
+                      <img
+                        src={`https://img.youtube.com/vi/${ws.videoId}/mqdefault.jpg`}
+                        alt={ws.title || "YouTube Thumbnail"}
+                        className="w-full h-full object-cover opacity-80 group-hover:opacity-100 group-hover:scale-105 transition-all duration-500"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/10 to-transparent"></div>
+  
+                      {/* Play Overlay */}
+                      <div className="absolute inset-0 flex justify-center items-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                        <div className="bg-red-600/90 p-4 rounded-full shadow-[0_0_30px_rgba(220,38,38,0.6)] backdrop-blur-sm transform scale-90 group-hover:scale-100 transition-transform">
+                          <Play fill="white" size={24} />
+                        </div>
+                      </div>
+                    </div>
+  
+                    {/* Card Content */}
+                    <div className="p-5 flex flex-col justify-between min-h-[110px]">
+                      <h3 className="text-white font-bold text-sm md:text-base leading-snug line-clamp-2 mb-3 group-hover:text-red-400 transition-colors">
+                        {ws.title || `Video ID: ${ws.videoId}`}
+                      </h3>
+  
+                      <div className="flex justify-between items-center mt-auto">
+                        <div className="flex gap-2">
+                          <div
+                            onClick={(e) => handleEditCount(ws.videoId, ws.count || 50, e)} 
+                            className="inline-flex items-center gap-1.5 bg-black/50 px-2.5 py-1 rounded-md border border-white/5 cursor-pointer hover:bg-white/10 transition-colors"
+                            title="Edit Jumlah Klip"
+                          >
+                            <span className="text-[11px] font-bold uppercase tracking-wider text-white/40">KLIP</span>
+                            <span className="text-sm font-black text-emerald-400">{ws.count || 50}</span>
+                          </div>
+                          <div className="inline-flex items-center gap-1.5 bg-black/50 px-2.5 py-1 rounded-md border border-white/5" title="Selesai Ditandai">
+                            <span className="text-sm font-black text-blue-400">{doneCount}</span>
+                            <span className="text-[11px] font-bold uppercase tracking-wider text-white/40">DONE</span>
+                          </div>
+                        </div>
+  
+                        {/* Actions */}
+                        <div className="flex gap-2">
+                          <button
+                            onClick={(e) => handleBulkWA(ws.videoId, e)}
+                            className="p-2 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-300 rounded-md transition-colors"
+                            title="Kirim Semua Klip Selesai ke WA"
+                          >
+                            <MessageCircle size={18} />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDelete(ws.videoId, e);
+                            }}
+                            className="p-2 bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 rounded-md transition-colors"
+                            title="Hapus Draft"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
-
-                  {/* Card Content */}
-                  <div className="p-5 flex flex-col justify-between min-h-[110px]">
-                    <h3 className="text-white font-bold text-sm md:text-base leading-snug line-clamp-2 mb-3 group-hover:text-red-400 transition-colors">
-                      {ws.title || `Video ID: ${ws.videoId}`}
-                    </h3>
-
-                    <div className="flex justify-between items-center mt-auto">
-                      <div className="inline-flex items-center gap-1.5 bg-black/50 px-2.5 py-1 rounded-md border border-white/5">
-                        <span className="text-[11px] font-bold uppercase tracking-wider text-white/40">KLIP</span>
-                        <span className="text-sm font-black text-emerald-400">{ws.count || 50}</span>
-                      </div>
-
-                      {/* Actions */}
-                      <div className="flex gap-2">
-                        <button
-                          onClick={(e) => handleBulkWA(ws.videoId, e)}
-                          className="p-2 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-300 rounded-md transition-colors"
-                          title="Kirim Semua Klip Selesai ke WA"
-                        >
-                          <MessageCircle size={18} />
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDelete(ws.videoId, e);
-                          }}
-                          className="p-2 bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 rounded-md transition-colors"
-                          title="Hapus Draft"
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
