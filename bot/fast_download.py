@@ -36,7 +36,7 @@ def handle_fast_download(client, ev, text, sender_jid):
     
     force_portrait = bool(re.search(r'--portrait|-p\b', text, re.IGNORECASE))
     combine_all = bool(re.search(r'--all|-a\b', text, re.IGNORECASE))
-    safe_mode = bool(re.search(r'--safe|-s\b', text, re.IGNORECASE))
+    safe_mode = True # Selalu dipaksa True (Download full lalu cut offline)
     
     # Cari semua rentang waktu
     ranges = re.findall(r"([\d:.]+)\s*-\s*([\d:.]+)", text)
@@ -66,11 +66,11 @@ def handle_fast_download(client, ev, text, sender_jid):
         total_duration = 0
         
         if safe_mode:
-            client.send_message(ev.Info.MessageSource.Chat, f"⏳ [SAFE MODE] Memproses {len(ranges_list)} klip. Men-download video utuh 1x (Bebas Limit)...")
+            client.send_message(ev.Info.MessageSource.Chat, f"⏳ Memproses {len(ranges_list)} klip. Mengunduh video utuh untuk pemotongan offline (Bebas Limit)...")
             from utils.downloader import download_full_video_and_cut
             safe_results = download_full_video_and_cut(url, output_dir, ranges_list, force_portrait)
         else:
-            client.send_message(ev.Info.MessageSource.Chat, f"⏳ Memproses {len(ranges_list)} klip Fast Download...")
+            pass # Kode tidak akan ke sini lagi
             
         for idx, clip in enumerate(ranges_list):
             start_time = clip['start_time']
@@ -78,11 +78,7 @@ def handle_fast_download(client, ev, text, sender_jid):
             start_str = clip['start_str']
             end_str = clip['end_str']
             
-            if safe_mode:
-                filepath = safe_results[idx] if safe_results and idx < len(safe_results) else None
-            else:
-                from utils.downloader import download_single_clip
-                filepath = download_single_clip(url, output_dir, clip, idx, len(ranges_list), force_portrait)
+            filepath = safe_results[idx] if safe_results and idx < len(safe_results) else None
             
             if filepath and os.path.exists(filepath):
                 landscape_path = filepath.replace(".portrait.mp4", ".mp4")
@@ -118,11 +114,7 @@ def handle_fast_download(client, ev, text, sender_jid):
                         
                     response = client.send_message(ev.Info.MessageSource.Chat, msg_proto)
                     
-                    # Simpan ke history
-                    if response and hasattr(response, 'ID'):
-                        from bot.history_manager import save_clip_history
-                        save_clip_history(response.ID, url, start_time, end_time, filepath)
-                        
+
                     # Hapus file portrait setelah dikirim agar tidak memenuhi disk
                     if force_portrait and filepath.endswith(".portrait.mp4"):
                         if os.path.exists(filepath):

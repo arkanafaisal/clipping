@@ -27,12 +27,7 @@ def run_cleanup_daemon(output_dir="output", max_age_seconds=3600, check_interval
         except Exception as e:
             print(f"[CLEANUP] Error in cleanup daemon: {e}")
             
-        try:
-            from bot.history_manager import clean_old_history
-            clean_old_history(max_age_seconds)
-        except Exception as e:
-            print(f"[CLEANUP] Error cleaning history json: {e}")
-            
+
         time.sleep(check_interval)
 
 def start_cleanup_thread(output_dir="output", max_age_seconds=3600, check_interval=300):

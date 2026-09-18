@@ -10,6 +10,13 @@ def handle_heatmap_request(client, ev, text, sender_jid):
     if not parts:
         return False
         
+    # Hapus command utama jika ada (misal !heatmap)
+    if parts[0].lower().startswith("!heatmap"):
+        parts = parts[1:]
+        
+    if not parts:
+        return False
+        
     url = parts[0]
     if not url.startswith("https://") or not ("youtube.com" in url or "youtu.be" in url):
         return False

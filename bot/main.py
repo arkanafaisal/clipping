@@ -24,11 +24,10 @@ from neonize.events import MessageEv, ConnectedEv
 
 # Import Modules yang telah direfactor
 from utils.logger import log_incoming_message
-from bot.state_manager import init_state, STATE_IDLE, STATE_CLIP_MODE
-from bot.general_commands import handle_general_commands
-from bot.clip_mode import handle_clip_mode
 from utils.cleanup import start_cleanup_thread
 from utils.downloader import check_youtube_auth
+from bot.fast_download import handle_fast_download
+from bot.heatmap_handler import handle_heatmap_request
 
 logging.basicConfig(level=logging.INFO)
 client = NewClient("bot_session.sqlite3")
@@ -36,11 +35,10 @@ client = NewClient("bot_session.sqlite3")
 # Help message text
 HELP_MESSAGE = (
     "🤖 *YT Clipper Bot*\n\n"
-    "Available Modes & Commands:\n"
-    "🔸 `clip` - Enter Clip Mode to find and download top clips\n"
-    "🔸 `mode` - Check your current mode\n"
-    "🔸 `exit` - Exit the current mode and return to General Menu\n\n"
-    "Please select a command to begin."
+    "Available Commands:\n"
+    "🔸 `!heatmap <url> [params]` - Find top clips from a video\n"
+    "🔸 `!download <url> <ranges>` - Download clips directly\n"
+    "🔸 `!edit [params]` - Regenerate a heatmap by replying to it\n"
 )
 
 # List Nomor yang Diizinkan (Whitelist)
@@ -117,28 +115,39 @@ def process_message(client: NewClient, ev: MessageEv):
         quoted_msg = ev.Message.extendedTextMessage.contextInfo.quotedMessage
         quoted_text = quoted_msg.conversation or (quoted_msg.extendedTextMessage.text if quoted_msg.extendedTextMessage else "")
         
-    # Inisialisasi state user
-    state_obj = init_state(sender_jid)
-    current_state = state_obj["state"]
+    # --- ROUTING PERINTAH (STATELESS) ---
     
-    # 2. Tangani Perintah Umum (Overrides) terlebih dahulu
-    is_general = handle_general_commands(client, ev, text, text_lower, sender_jid, current_state)
-    if is_general:
-        return # Berhenti jika sudah ditangani oleh general command
-        
-    # Perbarui current state jaga-jaga kalau diubah oleh general_commands
-    state_obj = init_state(sender_jid)
-    current_state = state_obj["state"]
-    
-    # 3. Lempar sisa pesan ke mode spesifik (Clip Mode)
-    if current_state == STATE_CLIP_MODE:
-        if handle_clip_mode(client, ev, text, text_lower, quoted_text, sender_jid):
-            return
-            
-    # 4. Jika pesan tidak ditangkap oleh siapapun dan user sedang IDLE, tampilkan HELP MENU
-    if current_state == STATE_IDLE:
-        client.reply_message(HELP_MESSAGE, ev)
+    # 1. Perintah Heatmap
+    if text_lower.startswith("!heatmap"):
+        handle_heatmap_request(client, ev, text, sender_jid)
         return
+        
+    # 2. Perintah Download
+    if text_lower.startswith("!download"):
+        handle_fast_download(client, ev, text, sender_jid)
+        return
+        
+    # 3. Perintah Edit (Regenerate Heatmap)
+    if text_lower.startswith("!edit") or text_lower.startswith("!modify"):
+        if quoted_text and "🔗 https" in quoted_text and "🎬" in quoted_text:
+            # Ekstrak URL dari pesan yang di-reply
+            import re
+            url_match = re.search(r"🔗\s+(https?://[^\s]+)", quoted_text)
+            if url_match:
+                url = url_match.group(1).strip()
+                # Gabungkan perintah dengan URL dan serahkan ke heatmap_handler
+                params = text.split(' ', 1)[1] if ' ' in text else ""
+                new_text = f"!heatmap {url} {params}".strip()
+                handle_heatmap_request(client, ev, new_text, sender_jid)
+            else:
+                client.send_message(ev.Info.MessageSource.Chat, "❌ Tidak dapat menemukan URL pada pesan yang Anda balas.")
+        else:
+            client.send_message(ev.Info.MessageSource.Chat, "❌ Mohon balas (reply) hasil Heatmap jika ingin mengubah parameternya.")
+        return
+        
+    # 5. Fallback ke Help Message
+    client.reply_message(HELP_MESSAGE, ev)
+    return
 
 @client.event(MessageEv)
 def on_message(client: NewClient, ev: MessageEv):

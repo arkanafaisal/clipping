@@ -131,15 +131,9 @@ def apply_portrait_padding(filepath, rank, ffmpeg_exe):
     return filepath
 
 def download_single_clip(video_url, output_dir, clip, i=0, total_clips=1, force_portrait=False):
-    """
-    Mengunduh satu klip dan mengembalikan absolute path dari file yang diunduh (atau diskip).
-    """
-    rank = clip['rank']
-    start_time = clip['start_time']
-    end_time = clip['end_time']
-    
-    filename, exists = get_output_filename(output_dir, rank, start_time, end_time)
-    filepath = os.path.join(output_dir, filename)
+    # FUNGSI INI SUDAH TIDAK DIPAKAI (DEPRECATED)
+    # Semua download dialihkan ke download_full_video_and_cut
+    return None
     
     start_str_print = format_time_filename(start_time).replace('.', ':')
     end_str_print = format_time_filename(end_time).replace('.', ':')
