@@ -99,6 +99,11 @@ def handle_fast_download(client, ev, text, sender_jid):
                         from bot.history_manager import save_clip_history
                         save_clip_history(response.ID, url, start_time, end_time, filepath)
                         
+                    # Hapus file portrait setelah dikirim agar tidak memenuhi disk
+                    if force_portrait and filepath.endswith(".portrait.mp4"):
+                        if os.path.exists(filepath):
+                            os.remove(filepath)
+                            
                 except Exception as e:
                     client.send_message(ev.Info.MessageSource.Chat, f"❌ Gagal mengirim klip {idx+1}: {str(e)}")
             else:

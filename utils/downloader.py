@@ -96,6 +96,36 @@ def download_preview_clip(video_url, clip, temp_dir):
         print(f"[GAGAL PREVIEW] {e}")
     return None
 
+def apply_portrait_padding(filepath, rank, ffmpeg_exe):
+    import subprocess
+    import shutil
+    import os
+    
+    portrait_filepath = filepath.replace(".mp4", ".portrait.mp4")
+    if os.path.exists(portrait_filepath):
+        return portrait_filepath
+        
+    temp_filepath = filepath + ".temp.mp4"
+    print(f"Menyematkan dinding hitam (Auto-Padding) ke format Shorts (1080x1920)...")
+    ffmpeg_cmd = [
+        ffmpeg_exe, '-y', '-i', filepath, 
+        '-c:v', 'libx264', '-preset', 'ultrafast', 
+        '-vf', 'scale=1080:-2,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black', 
+        '-c:a', 'copy', temp_filepath
+    ]
+    try:
+        subprocess.run(ffmpeg_cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if os.path.exists(temp_filepath):
+            shutil.move(temp_filepath, portrait_filepath)
+            print(f"Klip berhasil diformat menjadi Portrait Shorts! (Landscape asli tetap aman)")
+            return portrait_filepath
+    except subprocess.CalledProcessError as e:
+        print(f"Peringatan: Gagal melakukan Auto-Padding pada klip {rank}: {e}")
+        if os.path.exists(temp_filepath):
+            os.remove(temp_filepath)
+            
+    return filepath
+
 def download_single_clip(video_url, output_dir, clip, i=0, total_clips=1, force_portrait=False):
     """
     Mengunduh satu klip dan mengembalikan absolute path dari file yang diunduh (atau diskip).
@@ -112,6 +142,8 @@ def download_single_clip(video_url, output_dir, clip, i=0, total_clips=1, force_
     
     if exists:
         print(f"\n[{i+1}/{total_clips}] Melewati Klip Peringkat {rank} (Klip dengan waktu yang sama persis sudah ada di folder)")
+        if force_portrait:
+            filepath = apply_portrait_padding(filepath, rank, ffmpeg_exe)
         return filepath
         
     print(f"\n[{i+1}/{total_clips}] Mengunduh Klip Peringkat {rank} ({start_str_print} - {end_str_print})")
@@ -156,28 +188,9 @@ def download_single_clip(video_url, output_dir, clip, i=0, total_clips=1, force_
             elapsed_time = time.time() - download_start_time
             print(f"[GAGAL] Gagal mengunduh Klip Peringkat {rank} setelah {elapsed_time:.1f} detik: {e}")
             return None
-            
         # Post-Processing: Force Portrait 9:16 Padding using FFmpeg
         if force_portrait and os.path.exists(filepath):
-            import subprocess
-            temp_filepath = filepath + ".temp.mp4"
-            print(f"Menyematkan dinding hitam (Auto-Padding) ke format Shorts (1080x1920)...")
-            ffmpeg_cmd = [
-                ffmpeg_exe, '-y', '-i', filepath, 
-                '-c:v', 'libx264', '-preset', 'ultrafast', 
-                '-vf', 'scale=1080:-2,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black', 
-                '-c:a', 'copy', temp_filepath
-            ]
-            try:
-                subprocess.run(ffmpeg_cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                if os.path.exists(temp_filepath):
-                    import shutil
-                    shutil.move(temp_filepath, filepath)
-                    print(f"Klip berhasil diformat menjadi Portrait Shorts!")
-            except subprocess.CalledProcessError as e:
-                print(f"Peringatan: Gagal melakukan Auto-Padding pada klip {rank}: {e}")
-                if os.path.exists(temp_filepath):
-                    os.remove(temp_filepath)
+            filepath = apply_portrait_padding(filepath, rank, ffmpeg_exe)
 
         elapsed_time = time.time() - download_start_time
         print(f"[SUKSES] Klip Peringkat {rank} berhasil diunduh! (waktu proses: {elapsed_time:.1f} detik)")
