@@ -9,14 +9,17 @@ SCOPES = ['https://www.googleapis.com/auth/drive.file']
 def upload_to_gdrive(filepath, filename=None):
     """
     Mengunggah file ke Google Drive utama pengguna.
-    Mengembalikan webViewLink jika berhasil, atau None jika gagal.
     """
+    import os
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    token_path = os.path.join(base_dir, 'token.json')
+    
     creds = None
-    if os.path.exists('token.json'):
-        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+    if os.path.exists(token_path):
+        creds = Credentials.from_authorized_user_file(token_path, SCOPES)
         
     if not creds or not creds.valid:
-        print("❌ ERROR GDrive: token.json tidak ditemukan atau tidak valid.")
+        print(f"❌ ERROR GDrive: token.json tidak ditemukan atau tidak valid di path: {token_path}")
         print("Silakan jalankan 'python auth_gdrive.py' di terminal server terlebih dahulu.")
         return None
 
