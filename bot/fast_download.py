@@ -34,6 +34,8 @@ def handle_fast_download(client, ev, text, sender_jid):
         
     url = url_match.group(1).strip()
     
+    force_portrait = bool(re.search(r'--portrait|-p\b', text, re.IGNORECASE))
+    
     # Cari semua rentang waktu
     ranges = re.findall(r"([\d:.]+)\s*-\s*([\d:.]+)", text)
     if not ranges:
@@ -61,7 +63,7 @@ def handle_fast_download(client, ev, text, sender_jid):
                 'end_time': end_time
             }
             
-            filepath = download_single_clip(url, output_dir, selected_clip, idx, len(ranges))
+            filepath = download_single_clip(url, output_dir, selected_clip, idx, len(ranges), force_portrait)
             
             if filepath and os.path.exists(filepath):
                 try:

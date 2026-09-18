@@ -96,7 +96,7 @@ def download_preview_clip(video_url, clip, temp_dir):
         print(f"[GAGAL PREVIEW] {e}")
     return None
 
-def download_single_clip(video_url, output_dir, clip, i=0, total_clips=1):
+def download_single_clip(video_url, output_dir, clip, i=0, total_clips=1, force_portrait=False):
     """
     Mengunduh satu klip dan mengembalikan absolute path dari file yang diunduh (atau diskip).
     """
@@ -133,7 +133,6 @@ def download_single_clip(video_url, output_dir, clip, i=0, total_clips=1):
         'quiet': False,
         'no_warnings': True,
     }
-    ydl_opts = add_cookies(ydl_opts)
     
     download_start_time = time.time()
     try:
@@ -141,7 +140,7 @@ def download_single_clip(video_url, output_dir, clip, i=0, total_clips=1):
             ydl.download([video_url])
             
         # Post-Processing: Force Portrait 9:16 Padding using FFmpeg
-        if os.path.exists(filepath):
+        if force_portrait and os.path.exists(filepath):
             import subprocess
             temp_filepath = filepath + ".temp.mp4"
             print(f"Menyematkan dinding hitam (Auto-Padding) ke format Shorts (1080x1920)...")
