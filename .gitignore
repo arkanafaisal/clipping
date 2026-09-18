@@ -9,3 +9,5 @@ output/
 bot_session.sqlite3
 cookies.txt
 clip_history.json
+token.json
+credentials.json

@@ -162,32 +162,42 @@ def handle_fast_download(client, ev, text, sender_jid):
                     with open(combined_filepath, 'rb') as f:
                         buff = f.read()
                     
-                    upload = client.upload(buff)
-                    
-                    msg_proto = Message(
-                        videoMessage=VideoMessage(
-                            URL=upload.url,
-                            seconds=int(total_duration),
-                            directPath=upload.DirectPath,
-                            fileEncSHA256=upload.FileEncSHA256,
-                            fileLength=upload.FileLength,
-                            fileSHA256=upload.FileSHA256,
-                            mediaKey=upload.MediaKey,
-                            mimetype="video/mp4",
-                            contextInfo=ContextInfo()
-                        )
-                    )
-                    if ev.Message:
-                        msg_proto.videoMessage.contextInfo.MergeFrom(client._make_quoted_message(ev))
+                    try:
+                        upload = client.upload(buff)
                         
-                    msg_proto.videoMessage.caption = f"🎬 Full Combined Video ({len(downloaded_landscape_clips)} klip)"
-                    client.send_message(ev.Info.MessageSource.Chat, msg_proto)
+                        msg_proto = Message(
+                            videoMessage=VideoMessage(
+                                URL=upload.url,
+                                seconds=int(total_duration),
+                                directPath=upload.DirectPath,
+                                fileEncSHA256=upload.FileEncSHA256,
+                                fileLength=upload.FileLength,
+                                fileSHA256=upload.FileSHA256,
+                                mediaKey=upload.MediaKey,
+                                mimetype="video/mp4",
+                                contextInfo=ContextInfo()
+                            )
+                        )
+                        if ev.Message:
+                            msg_proto.videoMessage.contextInfo.MergeFrom(client._make_quoted_message(ev))
+                            
+                        msg_proto.videoMessage.caption = f"🎬 Full Combined Video ({len(downloaded_landscape_clips)} klip)"
+                        client.send_message(ev.Info.MessageSource.Chat, msg_proto)
+                        
+                    except Exception as upload_err:
+                        # Fallback ke Google Drive jika 413 / ukuran terlalu besar
+                        client.send_message(ev.Info.MessageSource.Chat, f"⚠️ Video terlalu besar untuk WA. Mengunggah ke Google Drive utama Anda...")
+                        from utils.gdrive import upload_to_gdrive
+                        link = upload_to_gdrive(combined_filepath)
+                        if link:
+                            client.send_message(ev.Info.MessageSource.Chat, f"🎬 Full Combined Video ({len(downloaded_landscape_clips)} klip)\n\n🔗 *Link GDrive:* {link}")
+                        else:
+                            client.send_message(ev.Info.MessageSource.Chat, f"❌ Gagal mengirim video gabungan ke WA maupun GDrive.\nError WA: {str(upload_err)}")
                     
-                    # Bersihkan file sampah gabungan
+                    # Bersihkan file sampah concat text saja (video gabungan dibiarkan untuk cleanup 60 menit)
                     os.remove(concat_txt)
-                    os.remove(combined_filepath)
             except Exception as e:
-                client.send_message(ev.Info.MessageSource.Chat, f"❌ Gagal mengirim video gabungan: {str(e)}")
+                client.send_message(ev.Info.MessageSource.Chat, f"❌ Gagal memproses video gabungan: {str(e)}")
             
     threading.Thread(target=download_async, daemon=True).start()
     return True
