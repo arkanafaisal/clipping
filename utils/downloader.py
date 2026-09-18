@@ -138,6 +138,24 @@ def download_single_clip(video_url, output_dir, clip, i=0, total_clips=1, force_
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([video_url])
+    except Exception as e:
+        err_msg = str(e).lower()
+        if "sign in to confirm" in err_msg or "bot" in err_msg or "cookies" in err_msg or "po token" in err_msg:
+            print(f"⚠️ Terblokir Anti-Bot YouTube! Mengulang unduhan Klip {rank} dengan penyamaran Mobile...")
+            print(f"Catatan: Penyamaran ini mungkin menyebabkan kualitas turun ke 360p.")
+            ydl_opts_fallback = ydl_opts.copy()
+            ydl_opts_fallback = add_cookies(ydl_opts_fallback)
+            try:
+                with yt_dlp.YoutubeDL(ydl_opts_fallback) as ydl_fallback:
+                    ydl_fallback.download([video_url])
+            except Exception as e_fallback:
+                elapsed_time = time.time() - download_start_time
+                print(f"[GAGAL] Gagal mengunduh Klip Peringkat {rank} (Mode Mobile gagal) setelah {elapsed_time:.1f} detik: {e_fallback}")
+                return None
+        else:
+            elapsed_time = time.time() - download_start_time
+            print(f"[GAGAL] Gagal mengunduh Klip Peringkat {rank} setelah {elapsed_time:.1f} detik: {e}")
+            return None
             
         # Post-Processing: Force Portrait 9:16 Padding using FFmpeg
         if force_portrait and os.path.exists(filepath):
@@ -164,10 +182,6 @@ def download_single_clip(video_url, output_dir, clip, i=0, total_clips=1, force_
         elapsed_time = time.time() - download_start_time
         print(f"[SUKSES] Klip Peringkat {rank} berhasil diunduh! (waktu proses: {elapsed_time:.1f} detik)")
         return filepath
-    except Exception as e:
-        elapsed_time = time.time() - download_start_time
-        print(f"[GAGAL] Gagal mengunduh Klip Peringkat {rank} setelah {elapsed_time:.1f} detik: {e}")
-        return None
 
 def download_clips(video_url, video_title, clips, batch_size=5, sleep_time=10):
     """
