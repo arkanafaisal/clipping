@@ -19,9 +19,20 @@ def upload_to_gdrive(filepath, filename=None):
         creds = Credentials.from_authorized_user_file(token_path, SCOPES)
         
     if not creds or not creds.valid:
-        print(f"❌ ERROR GDrive: token.json tidak ditemukan atau tidak valid di path: {token_path}")
-        print("Silakan jalankan 'python auth_gdrive.py' di terminal server terlebih dahulu.")
-        return None
+        if creds and creds.expired and creds.refresh_token:
+            from google.auth.transport.requests import Request
+            try:
+                creds.refresh(Request())
+                # Update token.json dengan token baru
+                with open(token_path, 'w') as token:
+                    token.write(creds.to_json())
+            except Exception as e:
+                print(f"❌ ERROR GDrive: Gagal me-refresh token: {e}")
+                return None
+        else:
+            print(f"❌ ERROR GDrive: token.json tidak ditemukan atau tidak valid di path: {token_path}")
+            print("Silakan jalankan 'python auth_gdrive.py' di terminal server terlebih dahulu.")
+            return None
 
     try:
         # Membangun service Drive API
