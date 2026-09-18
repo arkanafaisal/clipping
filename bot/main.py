@@ -122,8 +122,8 @@ def process_message(client: NewClient, ev: MessageEv):
         handle_heatmap_request(client, ev, text, sender_jid)
         return
         
-    # 2. Perintah Download
-    if text_lower.startswith("!download"):
+    # 2. Perintah Download & Stop
+    if text_lower.startswith("!download") or text_lower.startswith("!stop"):
         handle_fast_download(client, ev, text, sender_jid)
         return
         

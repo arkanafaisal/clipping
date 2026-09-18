@@ -205,58 +205,93 @@ def download_single_clip(video_url, output_dir, clip, i=0, total_clips=1, force_
     print(f"[SUKSES] Klip Peringkat {rank} berhasil diunduh! (waktu proses: {elapsed_time:.1f} detik)")
     return filepath
 
-def download_full_video_and_cut(video_url, output_dir, clips, force_portrait=False):
+def process_clips_generator(video_url, output_dir, clips, force_portrait=False, cancel_check=None):
     import subprocess
     import tempfile
-    # Generate temporary full video path
+    
     full_video_path = os.path.join(output_dir, "Full_Video.mp4")
     
-    print(f"\n[SAFE MODE] Men-download video utuh untuk meminimalkan rate-limit...")
+    # 1. Cek apakah semua klip sudah ada
+    all_exist = True
+    for clip in clips:
+        rank = clip['rank']
+        start_time = clip['start_time']
+        end_time = clip['end_time']
+        filename, exists = get_output_filename(output_dir, rank, start_time, end_time)
+        if not exists:
+            all_exist = False
+            break
+            
+    # 2. Download video utuh jika ada yang kurang
+    if not all_exist:
+        if cancel_check and cancel_check():
+            return
+            
+        print(f"\n[SAFE MODE] Men-download video utuh untuk memotong bagian yang belum ada...")
+        def my_hook(d):
+            if cancel_check and cancel_check():
+                raise Exception("DibatalkanOlehUser")
+                
+        ydl_opts = {
+            'format': 'bestvideo+bestaudio/best',
+            'outtmpl': full_video_path,
+            'quiet': False,
+            'no_warnings': True,
+            'merge_output_format': 'mp4',
+            'progress_hooks': [my_hook]
+        }
+        
+        ydl_opts_anon = ydl_opts.copy()
+        if not os.path.exists(full_video_path):
+            try:
+                with yt_dlp.YoutubeDL(ydl_opts_anon) as ydl_anon:
+                    ydl_anon.download([video_url])
+            except Exception as e_anon:
+                if "DibatalkanOlehUser" in str(e_anon):
+                    print("\n🛑 Download video utuh DIBATALKAN oleh user!")
+                    return
+                print(f"⚠️ Mode Anonim gagal: {e_anon}")
+                print(f"Mencoba Mode Cookies (Web) demi mempertahankan Kualitas Prime...")
+                
+                ydl_opts_main = add_cookies(ydl_opts.copy(), client_type='web')
+                try:
+                    with yt_dlp.YoutubeDL(ydl_opts_main) as ydl:
+                        ydl.download([video_url])
+                except Exception as e:
+                    if "DibatalkanOlehUser" in str(e):
+                        print("\n🛑 Download video utuh DIBATALKAN oleh user!")
+                        return
+                    print(f"⚠️ Mode Cookies gagal: {e}")
+                    print(f"Mencoba jalur darurat penyamaran iOS (Mentok 360p)...")
+                    
+                    ydl_opts_ios = add_cookies(ydl_opts.copy(), client_type='ios')
+                    try:
+                        with yt_dlp.YoutubeDL(ydl_opts_ios) as ydl_ios:
+                            ydl_ios.download([video_url])
+                    except Exception as e_ios:
+                        if "DibatalkanOlehUser" in str(e_ios):
+                            print("\n🛑 Download video utuh DIBATALKAN oleh user!")
+                            return
+                        print(f"[GAGAL] Semua metode mengunduh video utuh gagal: {e_ios}")
+                        return
+                    
+        if not os.path.exists(full_video_path):
+            print(f"[GAGAL] Video utuh tidak ditemukan setelah proses pengunduhan.")
+            return
+            
+        print(f"[SUKSES] Video utuh berhasil diunduh. Memulai pemotongan offline...")
+    else:
+        print("\n[SAFE MODE] Semua klip sudah tersedia secara presisi di server. Melewati pengunduhan video utuh!")
+        full_video_path = None
     
-    # Konfigurasi yt-dlp untuk download full video
-    ydl_opts = {
-        'format': 'bestvideo+bestaudio/best',
-        'outtmpl': full_video_path,
-        'quiet': False,
-        'no_warnings': True,
-        'merge_output_format': 'mp4'
-    }
-    
-    ydl_opts_anon = ydl_opts.copy()
     ffmpeg_exe = os.getenv('FFMPEG_BINARY', 'ffmpeg')
     
-    if not os.path.exists(full_video_path):
-        try:
-            with yt_dlp.YoutubeDL(ydl_opts_anon) as ydl_anon:
-                ydl_anon.download([video_url])
-        except Exception as e_anon:
-            print(f"⚠️ Mode Anonim gagal: {e_anon}")
-            print(f"Mencoba Mode Cookies (Web) demi mempertahankan Kualitas Prime...")
-            
-            ydl_opts_main = add_cookies(ydl_opts.copy(), client_type='web')
-            try:
-                with yt_dlp.YoutubeDL(ydl_opts_main) as ydl:
-                    ydl.download([video_url])
-            except Exception as e:
-                print(f"⚠️ Mode Cookies gagal: {e}")
-                print(f"Mencoba jalur darurat penyamaran iOS (Mentok 360p)...")
-                
-                ydl_opts_ios = add_cookies(ydl_opts.copy(), client_type='ios')
-                try:
-                    with yt_dlp.YoutubeDL(ydl_opts_ios) as ydl_ios:
-                        ydl_ios.download([video_url])
-                except Exception as e_ios:
-                    print(f"[GAGAL] Semua metode mengunduh video utuh gagal: {e_ios}")
-                    return []
-                
-    if not os.path.exists(full_video_path):
-        print(f"[GAGAL] Video utuh tidak ditemukan setelah proses pengunduhan.")
-        return []
-        
-    print(f"[SUKSES] Video utuh berhasil diunduh. Memulai pemotongan offline...")
-    
-    results = []
+    # 3. Looping pemotongan dan Yield
     for i, clip in enumerate(clips):
+        if cancel_check and cancel_check():
+            print(f"\n🛑 Proses dibatalkan oleh user pada klip ke-{i+1}!")
+            break
+            
         rank = clip['rank']
         start_time = clip['start_time']
         end_time = clip['end_time']
@@ -265,16 +300,14 @@ def download_full_video_and_cut(video_url, output_dir, clips, force_portrait=Fal
         filepath = os.path.join(output_dir, filename)
         
         if exists:
-            print(f"[{i+1}/{len(clips)}] Melewati Klip Peringkat {rank} (sudah ada)")
+            print(f"\n[{i+1}/{len(clips)}] Melewati Klip Peringkat {rank} (sudah ada secara presisi)")
             if force_portrait:
                 filepath = apply_portrait_padding(filepath, rank, ffmpeg_exe)
-            results.append(filepath)
+            yield filepath, full_video_path
             continue
             
-        print(f"[{i+1}/{len(clips)}] Memotong Klip Peringkat {rank} secara offline...")
+        print(f"\n[{i+1}/{len(clips)}] Memotong Klip Peringkat {rank} secara offline...")
         
-        # Extract clip from full video
-        # We must re-encode (ultrafast) to ensure precise cutting and H.264 consistency
         ffmpeg_cmd = [
             ffmpeg_exe, '-y',
             '-ss', str(start_time),
@@ -286,17 +319,29 @@ def download_full_video_and_cut(video_url, output_dir, clips, force_portrait=Fal
         ]
         
         try:
-            subprocess.run(ffmpeg_cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            if force_portrait and os.path.exists(filepath):
-                filepath = apply_portrait_padding(filepath, rank, ffmpeg_exe)
-            results.append(filepath)
-            print(f"[SUKSES] Klip Peringkat {rank} berhasil dipotong!")
+            import time
+            process = subprocess.Popen(ffmpeg_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            while process.poll() is None:
+                if cancel_check and cancel_check():
+                    process.terminate()
+                    print(f"\n🛑 Proses FFmpeg dibatalkan secara paksa oleh user!")
+                    if os.path.exists(filepath):
+                        os.remove(filepath)
+                    break
+                time.sleep(0.5)
+                
+            if process.returncode == 0:
+                if force_portrait and os.path.exists(filepath):
+                    filepath = apply_portrait_padding(filepath, rank, ffmpeg_exe)
+                print(f"[SUKSES] Klip Peringkat {rank} berhasil dipotong!")
+                yield filepath, full_video_path
+            else:
+                if not (cancel_check and cancel_check()):
+                    print(f"[GAGAL] Gagal memotong klip {rank}")
+                yield None, full_video_path
         except Exception as e:
             print(f"[GAGAL] Gagal memotong klip {rank}: {e}")
-            results.append(None)
-            
-    # Cleanup ditunda ke bot/fast_download.py sesuai request user
-    return results, full_video_path
+            yield None, full_video_path
 
 def download_clips(video_url, video_title, clips, batch_size=5, sleep_time=10):
     """
