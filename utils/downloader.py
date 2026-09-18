@@ -208,9 +208,8 @@ def download_single_clip(video_url, output_dir, clip, i=0, total_clips=1, force_
 def download_full_video_and_cut(video_url, output_dir, clips, force_portrait=False):
     import subprocess
     import tempfile
-    
     # Generate temporary full video path
-    full_video_path = os.path.join(output_dir, "Full_Video_Temp.mp4")
+    full_video_path = os.path.join(output_dir, "Full_Video.mp4")
     
     print(f"\n[SAFE MODE] Men-download video utuh untuk meminimalkan rate-limit...")
     
@@ -296,14 +295,8 @@ def download_full_video_and_cut(video_url, output_dir, clips, force_portrait=Fal
             print(f"[GAGAL] Gagal memotong klip {rank}: {e}")
             results.append(None)
             
-    # Clean up full video
-    try:
-        os.remove(full_video_path)
-        print("[INFO] Video utuh sementara telah dihapus untuk menghemat ruang.")
-    except Exception as e:
-        print(f"[PERINGATAN] Gagal menghapus video utuh sementara: {e}")
-        
-    return results
+    # Cleanup ditunda ke bot/fast_download.py sesuai request user
+    return results, full_video_path
 
 def download_clips(video_url, video_title, clips, batch_size=5, sleep_time=10):
     """

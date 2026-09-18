@@ -45,8 +45,11 @@ def handle_fast_download(client, ev, text, sender_jid):
         return True
         
     def download_async():
-        title = "Fast_Download"
-        output_dir = os.path.join(os.getcwd(), "output", title)
+        # Ekstrak ID YouTube untuk nama folder
+        video_id_match = re.search(r'(?:v=|\/)([0-9A-Za-z_-]{11})', url)
+        video_id = video_id_match.group(1) if video_id_match else "Unknown_Video"
+        
+        output_dir = os.path.join(os.getcwd(), "output", video_id)
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
             
@@ -68,7 +71,7 @@ def handle_fast_download(client, ev, text, sender_jid):
         if safe_mode:
             client.send_message(ev.Info.MessageSource.Chat, f"⏳ Memproses {len(ranges_list)} klip. Mengunduh video utuh untuk pemotongan offline (Bebas Limit)...")
             from utils.downloader import download_full_video_and_cut
-            safe_results = download_full_video_and_cut(url, output_dir, ranges_list, force_portrait)
+            safe_results, full_video_path = download_full_video_and_cut(url, output_dir, ranges_list, force_portrait)
         else:
             pass # Kode tidak akan ke sini lagi
             
@@ -124,6 +127,14 @@ def handle_fast_download(client, ev, text, sender_jid):
                     client.send_message(ev.Info.MessageSource.Chat, f"❌ Gagal mengirim klip {idx+1}: {str(e)}")
             else:
                 client.send_message(ev.Info.MessageSource.Chat, f"❌ Download gagal untuk klip {idx+1}.")
+                
+        # Hapus Full Video SETELAH semua klip sukses dikirim ke WA (sesuai request user)
+        if safe_mode and full_video_path and os.path.exists(full_video_path):
+            try:
+                os.remove(full_video_path)
+                print(f"[CLEANUP] Full Video dihapus karena semua klip sudah berhasil dikirim.")
+            except Exception as e:
+                print(f"[CLEANUP FAIL] Gagal menghapus Full Video: {e}")
                 
         # Proses penggabungan jika --all diaktifkan
         if combine_all and len(downloaded_landscape_clips) > 1:
