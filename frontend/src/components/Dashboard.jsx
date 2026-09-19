@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Play, Plus, Trash2, MessageCircle } from 'lucide-react';
+import { Play, Plus, Trash2, MessageCircle, Copy, Download } from 'lucide-react';
 
 function formatTimeWithMs(seconds) {
   if (seconds === undefined || seconds === null) return '00:00:00.000';
@@ -49,6 +49,87 @@ export default function Dashboard({ onOpenWorkshop }) {
     if (url.trim().length === 11) return url.trim();
 
     return null;
+  };
+
+  const handleExportWorkshop = (ws, e) => {
+    e.stopPropagation();
+    const videoId = ws.videoId;
+    const draft = localStorage.getItem(`clips_draft_${videoId}`);
+    const heatmap = localStorage.getItem(`heatmap_cache_${videoId}`);
+    
+    const payload = {
+      workshop: ws,
+      draft: draft,
+      heatmap: heatmap
+    };
+    
+    const jsonStr = JSON.stringify(payload);
+    
+    // Fallback untuk akses via IP (HTTP) yang memblokir navigator.clipboard
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(jsonStr)
+        .then(() => alert(`Data Workshop (Video: ${ws.videoId}) berhasil disalin ke clipboard!\n\nPaste teks tersebut di VPS Prod Anda.`))
+        .catch(() => alert('Gagal menyalin ke clipboard. Coba gunakan browser yang mendukung fitur clipboard.'));
+    } else {
+      // Cara tradisional (textarea fallback)
+      const textArea = document.createElement("textarea");
+      textArea.value = jsonStr;
+      
+      // Agar layar tidak melompat ke bawah
+      textArea.style.top = "0";
+      textArea.style.left = "0";
+      textArea.style.position = "fixed";
+
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+
+      try {
+        const successful = document.execCommand('copy');
+        if (successful) {
+          alert(`Data Workshop (Video: ${ws.videoId}) berhasil disalin ke clipboard (Via Fallback)!\n\nPaste teks tersebut di VPS Prod Anda.`);
+        } else {
+          alert('Gagal menyalin otomatis. Anda mungkin harus mengunduh file JSON.');
+        }
+      } catch (err) {
+        alert("Browser Anda menolak fitur Copy. Silakan coba buka via 'localhost' alih-alih IP.");
+      }
+      document.body.removeChild(textArea);
+    }
+  };
+
+  const handleImportWorkshop = () => {
+    const input = window.prompt('Paste data teks Workshop (JSON) yang Anda salin dari Lokal:');
+    if (!input) return;
+    
+    try {
+      const data = JSON.parse(input);
+      if (!data.workshop || !data.workshop.videoId) {
+        throw new Error('Data tidak valid. Harus berisi data workshop.');
+      }
+      
+      const videoId = data.workshop.videoId;
+      
+      // Update workshops_list
+      const saved = JSON.parse(localStorage.getItem('workshops_list') || '[]');
+      const existingIndex = saved.findIndex(w => w.videoId === videoId);
+      if (existingIndex >= 0) {
+        saved[existingIndex] = data.workshop;
+      } else {
+        saved.push(data.workshop);
+      }
+      localStorage.setItem('workshops_list', JSON.stringify(saved));
+      
+      // Update draft and heatmap
+      if (data.draft) localStorage.setItem(`clips_draft_${videoId}`, data.draft);
+      if (data.heatmap) localStorage.setItem(`heatmap_cache_${videoId}`, data.heatmap);
+      
+      alert('Workshop berhasil di-import secara ajaib! Halaman akan dimuat ulang.');
+      window.location.reload();
+    } catch(err) {
+      alert('Gagal! Format data yang Anda paste salah atau terpotong.');
+      console.error(err);
+    }
   };
 
   const handleCreate = (e) => {
@@ -198,9 +279,18 @@ export default function Dashboard({ onOpenWorkshop }) {
 
         {/* WORKSHOP GRID */}
         <div className="space-y-6">
-          <div className="flex items-center gap-3">
-            <h2 className="text-xl font-bold text-white/80">Proyek Tersimpan</h2>
-            <div className="bg-white/10 px-2.5 py-0.5 rounded-full text-xs font-bold text-white/60">{workshops.length}</div>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <h2 className="text-xl font-bold text-white/80">Proyek Tersimpan</h2>
+              <div className="bg-white/10 px-2.5 py-0.5 rounded-full text-xs font-bold text-white/60">{workshops.length}</div>
+            </div>
+            
+            <button 
+              onClick={handleImportWorkshop} 
+              className="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-white/80 px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-lg active:scale-95"
+            >
+              <Download size={14} /> IMPORT WORKSHOP
+            </button>
           </div>
 
           {workshops.length === 0 ? (
@@ -266,6 +356,13 @@ export default function Dashboard({ onOpenWorkshop }) {
   
                         {/* Actions */}
                         <div className="flex gap-2">
+                          <button
+                            onClick={(e) => handleExportWorkshop(ws, e)}
+                            className="p-2 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 hover:text-blue-300 rounded-md transition-colors"
+                            title="Copy Data Workshop (Export)"
+                          >
+                            <Copy size={18} />
+                          </button>
                           <button
                             onClick={(e) => handleBulkWA(ws.videoId, e)}
                             className="p-2 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-300 rounded-md transition-colors"
