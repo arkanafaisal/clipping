@@ -16,6 +16,10 @@ export default function Dashboard({ onOpenWorkshop }) {
   const [urlInput, setUrlInput] = useState('');
   const [countInput, setCountInput] = useState('50'); // Jadikan string sementara untuk mempermudah pengetikan
   const [error, setError] = useState('');
+  
+  // Import Modal State
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importText, setImportText] = useState('');
 
   useEffect(() => {
     const saved = localStorage.getItem('workshops_list');
@@ -99,7 +103,12 @@ export default function Dashboard({ onOpenWorkshop }) {
   };
 
   const handleImportWorkshop = () => {
-    const input = window.prompt('Paste data teks Workshop (JSON) yang Anda salin dari Lokal:');
+    setImportText('');
+    setImportModalOpen(true);
+  };
+
+  const processImport = () => {
+    const input = importText.trim();
     if (!input) return;
     
     try {
@@ -229,8 +238,40 @@ export default function Dashboard({ onOpenWorkshop }) {
   };
 
   return (
-    <div className="w-full min-h-screen bg-neutral-950 p-6 md:p-12 overflow-y-auto hide-scrollbar">
-      <div className="max-w-6xl mx-auto space-y-12">
+    <div className="w-full min-h-screen bg-neutral-950 p-4 md:p-12 overflow-y-auto hide-scrollbar relative">
+      
+      {/* Import Modal */}
+      {importModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-neutral-900 border border-white/10 p-6 rounded-2xl w-full max-w-lg flex flex-col shadow-2xl">
+            <h3 className="text-xl font-bold text-white mb-4">Import Workshop</h3>
+            <p className="text-sm text-white/60 mb-4">Paste data JSON panjang yang telah Anda salin dari PC Lokal di sini.</p>
+            <textarea
+              className="w-full h-48 bg-black/50 border border-white/10 rounded-lg p-3 text-white/80 font-mono text-xs focus:outline-none focus:border-red-500 transition-colors resize-none mb-6"
+              placeholder='{"workshop": {...}, "draft": "[...]", "heatmap": "[...]"}'
+              value={importText}
+              onChange={(e) => setImportText(e.target.value)}
+              autoFocus
+            ></textarea>
+            <div className="flex justify-end gap-3">
+              <button 
+                onClick={() => setImportModalOpen(false)} 
+                className="px-5 py-2.5 rounded-lg text-sm font-bold text-white/50 hover:bg-white/5 transition-colors"
+              >
+                Batal
+              </button>
+              <button 
+                onClick={processImport} 
+                className="px-5 py-2.5 rounded-lg text-sm font-bold bg-blue-600 text-white hover:bg-blue-500 transition-colors"
+              >
+                Simpan & Reload
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="max-w-6xl mx-auto space-y-10 md:space-y-12">
 
         {/* HEADER & FORM */}
         <div className="flex flex-col lg:flex-row gap-8 justify-between items-start lg:items-end">
@@ -279,15 +320,15 @@ export default function Dashboard({ onOpenWorkshop }) {
 
         {/* WORKSHOP GRID */}
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <h2 className="text-xl font-bold text-white/80">Proyek Tersimpan</h2>
+              <h2 className="text-xl md:text-2xl font-bold text-white/80">Proyek Tersimpan</h2>
               <div className="bg-white/10 px-2.5 py-0.5 rounded-full text-xs font-bold text-white/60">{workshops.length}</div>
             </div>
             
             <button 
               onClick={handleImportWorkshop} 
-              className="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-white/80 px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-lg active:scale-95"
+              className="w-full sm:w-auto flex justify-center items-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-white/80 px-4 py-3 sm:py-2 rounded-lg text-xs font-bold transition-all shadow-lg active:scale-95"
             >
               <Download size={14} /> IMPORT WORKSHOP
             </button>
@@ -338,8 +379,8 @@ export default function Dashboard({ onOpenWorkshop }) {
                         {ws.title || `Video ID: ${ws.videoId}`}
                       </h3>
   
-                      <div className="flex justify-between items-center mt-auto">
-                        <div className="flex gap-2">
+                      <div className="flex items-center gap-6 mt-auto overflow-x-auto hide-scrollbar snap-x pb-1">
+                        <div className="flex gap-2 shrink-0 snap-start">
                           <div
                             onClick={(e) => handleEditCount(ws.videoId, ws.count || 50, e)} 
                             className="inline-flex items-center gap-1.5 bg-black/50 px-2.5 py-1 rounded-md border border-white/5 cursor-pointer hover:bg-white/10 transition-colors"
@@ -355,7 +396,7 @@ export default function Dashboard({ onOpenWorkshop }) {
                         </div>
   
                         {/* Actions */}
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 shrink-0 ml-auto snap-end">
                           <button
                             onClick={(e) => handleExportWorkshop(ws, e)}
                             className="p-2 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 hover:text-blue-300 rounded-md transition-colors"
