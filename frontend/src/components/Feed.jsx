@@ -50,6 +50,11 @@ export default function Feed({ videoId, initialCount = 25 }) {
   const [isDragging, setIsDragging] = useState(false);
   const [dragProgress, setDragProgress] = useState(0);
 
+  // Absolute time edit state
+  const [activeTimeEdit, setActiveTimeEdit] = useState(null);
+  const [tempTimeValue, setTempTimeValue] = useState("");
+  const debounceTimerRef = useRef(null);
+
   useEffect(() => {
     let mounted = true;
 
@@ -152,6 +157,42 @@ export default function Feed({ videoId, initialCount = 25 }) {
       }
       return c;
     }));
+  };
+
+  const handleAbsoluteTimeChange = (type, valStr) => {
+    setTempTimeValue(valStr);
+    const value = parseFloat(valStr);
+    
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    
+    debounceTimerRef.current = setTimeout(() => {
+      if (isNaN(value)) return;
+      
+      setClips(prev => {
+        const newClips = prev.map(c => {
+          if (c.id === activeClipId) {
+            const newStart = type === 'start' ? value : c.start;
+            const newEnd = type === 'end' ? value : c.end;
+            return { ...c, start: newStart, end: newEnd };
+          }
+          return c;
+        });
+        localStorage.setItem(DRAFT_KEY, JSON.stringify(newClips));
+        return newClips;
+      });
+
+      // Auto-preview logic
+      if (type === 'end') {
+        const previewTime = Math.max(0, value - 3);
+        if (videoRef.current && videoRef.current.seekTo) {
+          videoRef.current.seekTo(previewTime);
+        }
+      } else if (type === 'start') {
+        if (videoRef.current && videoRef.current.seekTo) {
+          videoRef.current.seekTo(value);
+        }
+      }
+    }, 400); // 400ms debounce
   };
 
   const updateClipStatus = (status) => {
@@ -286,8 +327,48 @@ export default function Feed({ videoId, initialCount = 25 }) {
           </button>
 
           {/* TENGAH: Rentang Waktu */}
-          <div className="font-mono text-sm font-bold tracking-widest text-white/90 whitespace-nowrap px-2">
-            {formatTime(activeClip.start)} - {formatTime(activeClip.end)}
+          <div className="font-mono text-sm font-bold tracking-widest text-white/90 whitespace-nowrap px-2 flex gap-2 items-center justify-center min-w-[200px]">
+            {activeTimeEdit === 'start' ? (
+              <input
+                type="number"
+                step="0.001"
+                className="w-24 bg-neutral-900 border border-emerald-500 rounded px-1.5 py-0.5 text-center text-emerald-400 focus:outline-none"
+                value={tempTimeValue}
+                onChange={(e) => handleAbsoluteTimeChange('start', e.target.value)}
+                onBlur={() => setActiveTimeEdit(null)}
+                autoFocus
+              />
+            ) : (
+              <span 
+                className="cursor-pointer hover:text-emerald-400 transition-colors px-1 border-b border-transparent hover:border-emerald-500/50"
+                onClick={() => { setActiveTimeEdit('start'); setTempTimeValue(activeClip.start.toFixed(3)); }}
+                title="Edit Milidetik Mulai"
+              >
+                {formatTime(activeClip.start)}
+              </span>
+            )}
+            
+            <span className="opacity-50">-</span>
+            
+            {activeTimeEdit === 'end' ? (
+              <input
+                type="number"
+                step="0.001"
+                className="w-24 bg-neutral-900 border border-rose-500 rounded px-1.5 py-0.5 text-center text-rose-400 focus:outline-none"
+                value={tempTimeValue}
+                onChange={(e) => handleAbsoluteTimeChange('end', e.target.value)}
+                onBlur={() => setActiveTimeEdit(null)}
+                autoFocus
+              />
+            ) : (
+              <span 
+                className="cursor-pointer hover:text-rose-400 transition-colors px-1 border-b border-transparent hover:border-rose-500/50"
+                onClick={() => { setActiveTimeEdit('end'); setTempTimeValue(activeClip.end.toFixed(3)); }}
+                title="Edit Milidetik Selesai"
+              >
+                {formatTime(activeClip.end)}
+              </span>
+            )}
           </div>
 
           {/* KANAN: Tombol Tandai Selesai */}
