@@ -75,10 +75,8 @@ def add_cookies(ydl_opts, client_type='web'):
             ydl_opts['extractor_args'] = {}
         ydl_opts['extractor_args']['youtube'] = {'player_client': ['ios', 'android']}
     elif client_type == 'web_no_po':
-        # Web standar tanpa PO Token (Untuk IP bersih)
-        if 'extractor_args' not in ydl_opts:
-            ydl_opts['extractor_args'] = {}
-        ydl_opts['extractor_args']['youtube'] = {'player_client': ['web']}
+        # Mode Cookies Standar: Biarkan yt-dlp menggunakan algoritma 'smart fallback'-nya sendiri
+        pass
     else:
         # Gunakan Klien Web dan injeksikan PO Token hasil Puppeteer
         token_data = get_valid_po_token()
