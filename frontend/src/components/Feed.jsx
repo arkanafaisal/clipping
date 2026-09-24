@@ -16,14 +16,14 @@ function formatTime(seconds) {
 }
 
 function formatTimeWithMs(seconds) {
-  if (seconds === undefined || seconds === null) return '00:00:00.000';
+  if (seconds === undefined || seconds === null) return '00:00:00.00';
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   const s = Math.floor(seconds % 60);
-  const ms = Math.floor((seconds % 1) * 1000);
+  const ms = Math.floor((seconds % 1) * 100);
 
   const pad = (num, len = 2) => num.toString().padStart(len, '0');
-  return `${pad(h)}:${pad(m)}:${pad(s)}.${pad(ms, 3)}`;
+  return `${pad(h)}:${pad(m)}:${pad(s)}.${pad(ms, 2)}`;
 }
 
 export default function Feed({ videoId, initialCount = 25 }) {
@@ -134,46 +134,61 @@ export default function Feed({ videoId, initialCount = 25 }) {
   }, [clips]);
 
   const updateClipStart = (delta) => {
+    const currentClip = clips.find(c => c.id === activeClipId);
+    if (!currentClip) return;
+    
+    const newStart = Math.max(0, Math.min(currentClip.start + delta, currentClip.end - 1));
+    
     setClips(prev => prev.map(c => {
-      if (c.id === activeClipId) {
-        const newStart = Math.max(0, Math.min(c.start + delta, c.end - 1));
-        if (videoRef.current) {
-          videoRef.current.seekTo(newStart);
-        }
-        return { ...c, start: newStart };
-      }
+      if (c.id === activeClipId) return { ...c, start: newStart };
       return c;
     }));
+    
+    if (videoRef.current) {
+        videoRef.current.seekTo(newStart);
+    }
   };
 
   const updateClipEnd = (delta) => {
+    const currentClip = clips.find(c => c.id === activeClipId);
+    if (!currentClip) return;
+
+    const newEnd = Math.max(currentClip.start + 1, currentClip.end + delta);
+    
     setClips(prev => prev.map(c => {
-      if (c.id === activeClipId) {
-        const newEnd = Math.max(c.start + 1, c.end + delta);
-        if (videoRef.current) {
-          videoRef.current.seekTo(Math.max(c.start, newEnd - 3));
-        }
-        return { ...c, end: newEnd };
-      }
+      if (c.id === activeClipId) return { ...c, end: newEnd };
       return c;
     }));
+    
+    if (videoRef.current) {
+        videoRef.current.seekTo(Math.max(0, newEnd - 3));
+    }
   };
 
-  const handleAbsoluteTimeChange = (type, valStr) => {
+  const handleMsTimeChange = (type, valStr) => {
     setTempTimeValue(valStr);
-    const value = parseFloat(valStr);
+    
+    // Agar '6' dievaluasi sebagai '60' (60 centiseconds / 600ms)
+    const msStr = valStr.toString().padEnd(2, '0').slice(0, 2);
+    const msValue = parseInt(msStr, 10);
     
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     
     debounceTimerRef.current = setTimeout(() => {
-      if (isNaN(value)) return;
+      if (isNaN(msValue)) return;
+      
+      const currentClip = clips.find(c => c.id === activeClipId);
+      if (!currentClip) return;
+      
+      let baseSeconds = Math.floor(type === 'start' ? currentClip.start : currentClip.end);
+      // Batasi antara 0 - 99
+      let safeMs = Math.max(0, Math.min(99, msValue));
+      const newFinalValue = baseSeconds + (safeMs / 100);
       
       setClips(prev => {
         const newClips = prev.map(c => {
           if (c.id === activeClipId) {
-            const newStart = type === 'start' ? value : c.start;
-            const newEnd = type === 'end' ? value : c.end;
-            return { ...c, start: newStart, end: newEnd };
+            return { ...c, [type]: newFinalValue };
           }
           return c;
         });
@@ -181,18 +196,16 @@ export default function Feed({ videoId, initialCount = 25 }) {
         return newClips;
       });
 
-      // Auto-preview logic
-      if (type === 'end') {
-        const previewTime = Math.max(0, value - 3);
-        if (videoRef.current && videoRef.current.seekTo) {
-          videoRef.current.seekTo(previewTime);
-        }
-      } else if (type === 'start') {
-        if (videoRef.current && videoRef.current.seekTo) {
-          videoRef.current.seekTo(value);
-        }
+      // Auto-preview logic (dieksekusi langsung tanpa perlu setClips kedua)
+      if (videoRef.current && videoRef.current.seekTo) {
+          if (type === 'end') {
+              const previewTime = Math.max(0, newFinalValue - 3);
+              videoRef.current.seekTo(previewTime);
+          } else if (type === 'start') {
+              videoRef.current.seekTo(newFinalValue);
+          }
       }
-    }, 400); // 400ms debounce
+    }, 1500); // 1.5 detik debounce (sangat hemat limit & cocok untuk ketik manual di HP)
   };
 
   const updateClipStatus = (status) => {
@@ -331,17 +344,22 @@ export default function Feed({ videoId, initialCount = 25 }) {
             {activeTimeEdit === 'start' ? (
               <input
                 type="number"
-                step="0.001"
-                className="w-24 bg-neutral-900 border border-emerald-500 rounded px-1.5 py-0.5 text-center text-emerald-400 focus:outline-none"
+                step="1"
+                min="0"
+                max="99"
+                className="w-16 bg-neutral-900 border border-emerald-500 rounded px-1.5 py-0.5 text-center text-emerald-400 focus:outline-none"
                 value={tempTimeValue}
-                onChange={(e) => handleAbsoluteTimeChange('start', e.target.value)}
+                onChange={(e) => handleMsTimeChange('start', e.target.value)}
                 onBlur={() => setActiveTimeEdit(null)}
                 autoFocus
               />
             ) : (
               <span 
                 className="cursor-pointer hover:text-emerald-400 transition-colors px-1 border-b border-transparent hover:border-emerald-500/50"
-                onClick={() => { setActiveTimeEdit('start'); setTempTimeValue(activeClip.start.toFixed(3)); }}
+                onClick={() => { 
+                    setActiveTimeEdit('start'); 
+                    setTempTimeValue(Math.floor((activeClip.start % 1) * 100).toString().padStart(2, '0')); 
+                }}
                 title="Edit Milidetik Mulai"
               >
                 {formatTime(activeClip.start)}
@@ -353,17 +371,22 @@ export default function Feed({ videoId, initialCount = 25 }) {
             {activeTimeEdit === 'end' ? (
               <input
                 type="number"
-                step="0.001"
-                className="w-24 bg-neutral-900 border border-rose-500 rounded px-1.5 py-0.5 text-center text-rose-400 focus:outline-none"
+                step="1"
+                min="0"
+                max="99"
+                className="w-16 bg-neutral-900 border border-rose-500 rounded px-1.5 py-0.5 text-center text-rose-400 focus:outline-none"
                 value={tempTimeValue}
-                onChange={(e) => handleAbsoluteTimeChange('end', e.target.value)}
+                onChange={(e) => handleMsTimeChange('end', e.target.value)}
                 onBlur={() => setActiveTimeEdit(null)}
                 autoFocus
               />
             ) : (
               <span 
                 className="cursor-pointer hover:text-rose-400 transition-colors px-1 border-b border-transparent hover:border-rose-500/50"
-                onClick={() => { setActiveTimeEdit('end'); setTempTimeValue(activeClip.end.toFixed(3)); }}
+                onClick={() => { 
+                    setActiveTimeEdit('end'); 
+                    setTempTimeValue(Math.floor((activeClip.end % 1) * 100).toString().padStart(2, '0')); 
+                }}
                 title="Edit Milidetik Selesai"
               >
                 {formatTime(activeClip.end)}

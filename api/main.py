@@ -42,6 +42,8 @@ def get_stream(video_id: str):
     except HTTPException:
         raise
     except Exception as e:
+        if "RATE_LIMIT_EXCEEDED" in str(e):
+            raise HTTPException(status_code=429, detail="Too Many Requests to YouTube API. Silakan tunggu beberapa menit.")
         print(f"[API CRITICAL ERROR] Failed to process video '{video_id}': {str(e)}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 

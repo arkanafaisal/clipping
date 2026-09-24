@@ -1,14 +1,16 @@
 __pycache__/
 node_modules
+output/
+
 log.txt
+
+clip_history.json
+bot_session.sqlite3
+gate1_ratelimit.json
+
+cookies.txt
+token.json
+credentials.json
 
 
 note.md
-
-
-output/
-bot_session.sqlite3
-cookies.txt
-clip_history.json
-token.json
-credentials.json

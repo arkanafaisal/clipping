@@ -5,6 +5,35 @@ const FeedItemStream = forwardRef(({ clipId, streamUrl, startTime, endTime, onPr
   const videoRef = useRef(null);
   const hlsRef = useRef(null);
   const [activeUrl, setActiveUrl] = useState(streamUrl);
+  
+  // Rate limiter Gerbang 2 (Manual Strict Sliding Window)
+  // Max 60 request per 60 detik (1 menit)
+  const executeSeek = (time, shouldPlay = false) => {
+      // 1. Cek Limit
+      let history = JSON.parse(localStorage.getItem('gate2_history') || '[]');
+      const now = Date.now();
+      history = history.filter(t => now - t < 60000); // Hapus log yang lebih dari 1 menit lalu
+      
+      if (history.length >= 60) {
+          const waitTime = Math.ceil((60000 - (now - history[0])) / 1000);
+          alert(`🚫 GERBANG 2 LIMIT TERCAPAI! Anda menekan tombol terlalu cepat. Tunggu ${waitTime} detik agar aman dari Error 403 Google CDN.`);
+          return; // Early return (Tolak eksekusi)
+      }
+      
+      // Catat log
+      history.push(now);
+      localStorage.setItem('gate2_history', JSON.stringify(history));
+
+      // 2. Optimistic Update (Langsung gerakkan bar merah di UI)
+      forceUpdateProgress(time);
+
+      // 3. Eksekusi ke Video Player (CDN)
+      if (!videoRef.current) return;
+      videoRef.current.currentTime = time;
+      if (shouldPlay) {
+          videoRef.current.play().catch(e => console.log(e));
+      }
+  };
 
   // Jika parent memberikan streamUrl baru, reset activeUrl
   useEffect(() => {
@@ -21,21 +50,17 @@ const FeedItemStream = forwardRef(({ clipId, streamUrl, startTime, endTime, onPr
     },
     skip: (seconds) => {
       if (!videoRef.current) return;
+      
       let newTime = videoRef.current.currentTime + seconds;
       
       // Jaga agar skip tidak keluar dari rentang klip
       if (startTime !== undefined && newTime < startTime) newTime = startTime;
       if (endTime !== undefined && newTime > endTime) newTime = endTime;
       
-      videoRef.current.currentTime = newTime;
-      forceUpdateProgress(newTime);
+      executeSeek(newTime, false);
     },
     seekTo: (time) => {
-      if (videoRef.current) {
-        videoRef.current.currentTime = time;
-        forceUpdateProgress(time);
-        videoRef.current.play().catch(e => console.log(e));
-      }
+      executeSeek(time, true);
     }
   }));
 
