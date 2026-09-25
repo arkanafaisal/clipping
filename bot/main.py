@@ -25,7 +25,7 @@ from neonize.events import MessageEv, ConnectedEv
 # Import Modules yang telah direfactor
 from utils.logger import log_incoming_message
 from utils.cleanup import start_cleanup_thread
-from utils.downloader import check_youtube_auth
+from utils.youtube_auth import check_youtube_auth
 from bot.fast_download import handle_fast_download
 from bot.heatmap_handler import handle_heatmap_request
 

@@ -1,7 +1,8 @@
 import re
 import os
 import threading
-from utils.downloader import download_single_clip, get_output_filename
+from utils.downloader import download_single_clip
+from utils.file_utils import get_output_filename
 from neonize.proto.waE2E.WAWebProtobufsE2E_pb2 import Message, VideoMessage, ContextInfo
 
 def parse_time_to_seconds(time_str):

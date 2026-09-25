@@ -1,6 +1,6 @@
 import time
 import yt_dlp
-from utils.downloader import add_cookies
+from utils.youtube_auth import add_cookies
 from utils.rate_limiter import gate1_limiter
 
 # Cache in-memory: { "video_id": {"url": "...", "expires_at": timestamp} }

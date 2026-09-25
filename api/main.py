@@ -9,7 +9,6 @@ from fastapi.staticfiles import StaticFiles
 import requests
 from utils.stream_extractor import get_direct_stream_url
 from utils.heatmap import get_top_clips
-from utils.clip_downloader import download_youtube_clip
 import uvicorn
 import os
 
@@ -114,27 +113,7 @@ def get_heatmap(video_id: str, num_clips: int = 5, offset: int = 5):
         print(f"[API CRITICAL ERROR] Failed to fetch heatmap '{video_id}': {str(e)}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
-@app.get("/api/download_clip/{video_id}")
-def download_clip_endpoint(video_id: str, start: float, end: float, background_tasks: BackgroundTasks):
-    """
-    Endpoint untuk mendownload spesifik rentang klip (start-end).
-    File didownload sementara di backend, lalu diserve, dan otomatis dihapus.
-    """
-    try:
-        output_path = download_youtube_clip(video_id, start, end, output_dir="temp")
-        
-        # Jadwalkan penghapusan file temp setelah sukses terkirim ke klien
-        background_tasks.add_task(os.remove, output_path)
-        
-        filename = f"{video_id}_{int(start)}s_to_{int(end)}s.mp4"
-        return FileResponse(
-            path=output_path, 
-            filename=filename, 
-            media_type="video/mp4"
-        )
-    except Exception as e:
-        print(f"[API ERROR] Failed to download clip {video_id}: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+
 
 # Setup path untuk dist frontend
 FRONTEND_DIST_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend", "dist")
