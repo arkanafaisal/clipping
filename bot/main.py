@@ -27,7 +27,6 @@ from utils.logger import log_incoming_message
 from utils.cleanup import start_cleanup_thread
 from utils.youtube_auth import check_youtube_auth
 from bot.fast_download import handle_fast_download
-from bot.heatmap_handler import handle_heatmap_request
 
 logging.basicConfig(level=logging.INFO)
 client = NewClient("bot_session.sqlite3")
@@ -36,9 +35,8 @@ client = NewClient("bot_session.sqlite3")
 HELP_MESSAGE = (
     "🤖 *YT Clipper Bot*\n\n"
     "Available Commands:\n"
-    "🔸 `!heatmap <url> [params]` - Find top clips from a video\n"
     "🔸 `!download <url> <ranges>` - Download clips directly\n"
-    "🔸 `!edit [params]` - Regenerate a heatmap by replying to it\n"
+    "🔸 `!stop <url>` - Stop a running download\n"
 )
 
 # List Nomor yang Diizinkan (Whitelist)
@@ -117,32 +115,9 @@ def process_message(client: NewClient, ev: MessageEv):
         
     # --- ROUTING PERINTAH (STATELESS) ---
     
-    # 1. Perintah Heatmap
-    if text_lower.startswith("!heatmap"):
-        handle_heatmap_request(client, ev, text, sender_jid)
-        return
-        
-    # 2. Perintah Download & Stop
+    # 1. Perintah Download & Stop
     if text_lower.startswith("!download") or text_lower.startswith("!stop"):
         handle_fast_download(client, ev, text, sender_jid)
-        return
-        
-    # 3. Perintah Edit (Regenerate Heatmap)
-    if text_lower.startswith("!edit") or text_lower.startswith("!modify"):
-        if quoted_text and "🔗 https" in quoted_text and "🎬" in quoted_text:
-            # Ekstrak URL dari pesan yang di-reply
-            import re
-            url_match = re.search(r"🔗\s+(https?://[^\s]+)", quoted_text)
-            if url_match:
-                url = url_match.group(1).strip()
-                # Gabungkan perintah dengan URL dan serahkan ke heatmap_handler
-                params = text.split(' ', 1)[1] if ' ' in text else ""
-                new_text = f"!heatmap {url} {params}".strip()
-                handle_heatmap_request(client, ev, new_text, sender_jid)
-            else:
-                client.send_message(ev.Info.MessageSource.Chat, "❌ Tidak dapat menemukan URL pada pesan yang Anda balas.")
-        else:
-            client.send_message(ev.Info.MessageSource.Chat, "❌ Mohon balas (reply) hasil Heatmap jika ingin mengubah parameternya.")
         return
         
     # 5. Fallback ke Help Message
