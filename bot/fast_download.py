@@ -36,13 +36,20 @@ def handle_fast_download(client, ev, text, sender_jid):
             parts = text.split(maxsplit=1)
             if len(parts) > 1:
                 stop_url = parts[1].strip()
-                video_id_match = re.search(r'(?:v=|\/)([0-9A-Za-z_-]{11})', stop_url)
-                if video_id_match:
-                    video_id = video_id_match.group(1)
+                
+                # Ekstrak ID untuk nama folder (YouTube atau GDrive)
+                if "drive.google.com" in stop_url:
+                    gdrive_match = re.search(r'/d/([a-zA-Z0-9_-]+)', stop_url) or re.search(r'id=([a-zA-Z0-9_-]+)', stop_url)
+                    video_id = gdrive_match.group(1) if gdrive_match else None
+                else:
+                    video_id_match = re.search(r'(?:v=|\/)([0-9A-Za-z_-]{11})', stop_url)
+                    video_id = video_id_match.group(1) if video_id_match else None
+                    
+                if video_id:
                     CANCEL_FLAGS[video_id] = True
                     client.send_message(ev.Info.MessageSource.Chat, f"🛑 Menerima perintah untuk menghentikan proses pengunduhan video: {video_id}")
                 else:
-                    client.send_message(ev.Info.MessageSource.Chat, "❌ ID YouTube tidak valid untuk dihentikan.")
+                    client.send_message(ev.Info.MessageSource.Chat, "❌ Link (YouTube/GDrive) tidak valid untuk dihentikan.")
             else:
                 client.send_message(ev.Info.MessageSource.Chat, "❌ Format salah. Gunakan: !stop <link_youtube>")
             return True
