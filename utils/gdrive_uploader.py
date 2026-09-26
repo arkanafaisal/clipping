@@ -71,10 +71,22 @@ def upload_video_to_gdrive(file_path: str, video_id: str) -> str:
     )
     
     response = None
+    retries = 0
     while response is None:
-        status, response = request.next_chunk()
-        if status:
-            print(f"\r[GDRIVE] Mengupload... {int(status.progress() * 100)}%", end='', flush=True)
+        try:
+            # Menggunakan num_retries bawaan google-api + try-except blokir manual
+            status, response = request.next_chunk(num_retries=3)
+            if status:
+                print(f"\r[GDRIVE] Mengupload... {int(status.progress() * 100)}%", end='', flush=True)
+            retries = 0
+        except Exception as e:
+            retries += 1
+            if retries > 15:
+                print(f"\n[GDRIVE ERROR] Gagal upload secara permanen setelah 15x percobaan: {e}")
+                raise e
+            import time
+            print(f"\n[GDRIVE] Koneksi terputus ({e}). Melanjutkan upload dari titik terakhir ({retries}/15)...", end='', flush=True)
+            time.sleep(5)
             
     print("\n[GDRIVE] Upload selesai, memproses link...")
     file = response
