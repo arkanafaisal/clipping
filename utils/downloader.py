@@ -194,6 +194,7 @@ def download_full_video_robust(video_url, full_video_path, cancel_check=None, ex
         'socket_timeout': 60
     }
     
+    # Tahap 1: Mode Anonim (Tanpa Cookies)
     ydl_opts_anon = ydl_opts.copy()
     try:
         with yt_dlp.YoutubeDL(ydl_opts_anon) as ydl_anon:
@@ -206,7 +207,7 @@ def download_full_video_robust(video_url, full_video_path, cancel_check=None, ex
         print(f"⚠️ Mode Anonim gagal: {e_anon}")
         print(f"Mencoba Mode Cookies (Web) standar...")
         
-        # Coba Mode Cookies Web (Tanpa PO Token dulu)
+        # Tahap 2: Mode Cookies Web (Standar - Prime Quality)
         ydl_opts_main = add_cookies(ydl_opts.copy(), client_type='web_no_po')
         try:
             with yt_dlp.YoutubeDL(ydl_opts_main) as ydl:
@@ -216,34 +217,8 @@ def download_full_video_robust(video_url, full_video_path, cancel_check=None, ex
             if "DibatalkanOlehUser" in str(e):
                 print("\n🛑 Download video utuh DIBATALKAN oleh user!")
                 return False
-            print(f"⚠️ Mode Cookies Web (Standar) gagal: {e}")
-            print(f"Mencoba Mode Cookies Web dengan PO Token (Puppeteer)...")
-            
-            # Coba Mode Cookies Web (DENGAN PO Token)
-            ydl_opts_po = add_cookies(ydl_opts.copy(), client_type='web')
-            try:
-                with yt_dlp.YoutubeDL(ydl_opts_po) as ydl_po:
-                    ydl_po.download([video_url])
-                return True
-            except Exception as e_po:
-                if "DibatalkanOlehUser" in str(e_po):
-                    print("\n🛑 Download video utuh DIBATALKAN oleh user!")
-                    return False
-                print(f"⚠️ Mode Cookies Web (PO Token) gagal: {e_po}")
-                print(f"Mencoba jalur darurat penyamaran iOS (Mentok 360p)...")
-                
-                # Coba Jalur Darurat iOS
-                ydl_opts_ios = add_cookies(ydl_opts.copy(), client_type='ios')
-                try:
-                    with yt_dlp.YoutubeDL(ydl_opts_ios) as ydl_ios:
-                        ydl_ios.download([video_url])
-                    return True
-                except Exception as e_ios:
-                    if "DibatalkanOlehUser" in str(e_ios):
-                        print("\n🛑 Download video utuh DIBATALKAN oleh user!")
-                        return False
-                    print(f"[GAGAL] Semua metode pengunduhan gagal: {e_ios}")
-                    return False
+            print(f"[GAGAL] Semua metode pengunduhan Prime gagal: {e}")
+            return False
 
 def process_clips_generator(video_url, output_dir, clips, force_portrait=False, cancel_check=None):
     import subprocess
