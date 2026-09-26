@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Play, Plus, Trash2, MessageCircle, Copy, Download } from 'lucide-react';
+import { Play, Plus, Trash2, MessageCircle, Copy, Download, DownloadCloud } from 'lucide-react';
+import { API_BASE_URL } from '../services/api';
 
 function formatTimeWithMs(seconds) {
   if (seconds === undefined || seconds === null) return '00:00:00.00';
@@ -29,6 +30,20 @@ export default function Dashboard({ onOpenWorkshop }) {
       parsed.sort((a, b) => (b.lastUpdated || 0) - (a.lastUpdated || 0));
       setWorkshops(parsed);
     }
+    
+    // Check active download tasks on load
+    fetch(`${API_BASE_URL.replace('/api', '')}/api/download-to-gdrive/active-tasks`)
+      .then(res => res.json())
+      .then(data => {
+        const downloading = {};
+        for (const [vid, info] of Object.entries(data)) {
+          if (info.status === 'downloading' || info.status === 'uploading') {
+            downloading[vid] = info.status;
+          }
+        }
+        setDownloadingWorkshops(downloading);
+      })
+      .catch(err => console.error("Failed to fetch active tasks", err));
   }, []);
 
   const updateLastSeenAndOpen = (videoId, count) => {
@@ -53,6 +68,36 @@ export default function Dashboard({ onOpenWorkshop }) {
     if (url.trim().length === 11) return url.trim();
 
     return null;
+  };
+
+  const [downloadingWorkshops, setDownloadingWorkshops] = useState({});
+
+  const handleDownloadToDrive = async (videoId, e) => {
+    e.stopPropagation();
+    
+    // Optimistic UI update
+    setDownloadingWorkshops(prev => ({...prev, [videoId]: 'starting'}));
+    
+    try {
+      const response = await fetch(`${API_BASE_URL.replace('/api', '')}/api/download-to-gdrive`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ video_id: videoId })
+      });
+      
+      const data = await response.json();
+      
+      if (data.status === 'done' && data.link) {
+        setDownloadingWorkshops(prev => ({...prev, [videoId]: null}));
+        alert(`Video sudah ada di Google Drive!\nLink: ${data.link}`);
+      } else {
+        alert("Proses download & upload ke GDrive sedang berjalan di background.\nSilakan pantau progressnya di terminal/CMD (tidak ada polling agar performa stabil). Anda bisa mereload halaman nanti untuk melihat status terbarunya.");
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Gagal menghubungi API untuk download.");
+      setDownloadingWorkshops(prev => ({...prev, [videoId]: null}));
+    }
   };
 
   const handleExportWorkshop = (ws, e) => {
@@ -397,6 +442,18 @@ export default function Dashboard({ onOpenWorkshop }) {
   
                         {/* Actions */}
                         <div className="flex gap-2 shrink-0 ml-auto snap-end">
+                          <button
+                            onClick={(e) => handleDownloadToDrive(ws.videoId, e)}
+                            className="p-2 bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 hover:text-purple-300 rounded-md transition-colors relative"
+                            title="Download via Lokal & Upload ke Google Drive"
+                            disabled={!!downloadingWorkshops[ws.videoId]}
+                          >
+                            {downloadingWorkshops[ws.videoId] ? (
+                              <div className="w-[18px] h-[18px] animate-spin border-2 border-purple-400 border-t-transparent rounded-full"></div>
+                            ) : (
+                              <DownloadCloud size={18} />
+                            )}
+                          </button>
                           <button
                             onClick={(e) => handleExportWorkshop(ws, e)}
                             className="p-2 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 hover:text-blue-300 rounded-md transition-colors"

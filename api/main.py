@@ -9,8 +9,17 @@ from fastapi.staticfiles import StaticFiles
 import requests
 from utils.stream_extractor import get_direct_stream_url
 from utils.heatmap import get_top_clips
+from pydantic import BaseModel
 import uvicorn
 import os
+import threading
+import time
+
+# Dictionary untuk menyimpan status progress download/upload
+gdrive_upload_tasks = {}
+
+class GDriveDownloadRequest(BaseModel):
+    video_id: str
 
 app = FastAPI(title="YT Clipper Stream API")
 
@@ -45,6 +54,82 @@ def get_stream(video_id: str):
             raise HTTPException(status_code=429, detail="Too Many Requests to YouTube API. Silakan tunggu beberapa menit.")
         print(f"[API CRITICAL ERROR] Failed to process video '{video_id}': {str(e)}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
+
+def background_download_and_upload(video_id: str):
+    import yt_dlp
+    from utils.gdrive_uploader import upload_video_to_gdrive
+    from utils.youtube_auth import add_cookies
+    
+    gdrive_upload_tasks[video_id] = {"status": "downloading", "link": None, "error": None}
+    
+    try:
+        output_dir = os.path.join(os.getcwd(), "output", video_id)
+        os.makedirs(output_dir, exist_ok=True)
+        file_path = os.path.join(output_dir, "Full_Video.mp4")
+        
+        if not os.path.exists(file_path):
+            video_url = f"https://www.youtube.com/watch?v={video_id}"
+            
+            def yt_progress_hook(d):
+                if d['status'] == 'downloading':
+                    percent = d.get('_percent_str', 'N/A')
+                    eta = d.get('_eta_str', 'N/A')
+                    print(f"\r[YTDLP LOKAL] Mendownload: {percent} | ETA: {eta}", end='', flush=True)
+                elif d['status'] == 'finished':
+                    print("\n[YTDLP LOKAL] Download selesai, memproses file...")
+                    
+            from utils.downloader import download_full_video_robust
+            print(f"[LOKAL API] Memulai download video {video_id} dengan metode tangguh (4-Tahap)...")
+            success = download_full_video_robust(video_url, file_path, extra_hooks=[yt_progress_hook])
+            if not success:
+                raise Exception("Semua metode download gagal.")
+                
+        gdrive_upload_tasks[video_id]["status"] = "uploading"
+        print(f"[LOKAL API] Mengupload {video_id} ke GDrive...")
+        link = upload_video_to_gdrive(file_path, video_id)
+        
+        gdrive_upload_tasks[video_id]["status"] = "done"
+        gdrive_upload_tasks[video_id]["link"] = link
+        
+    except Exception as e:
+        print(f"[LOKAL API ERROR] {e}")
+        gdrive_upload_tasks[video_id]["status"] = "error"
+        gdrive_upload_tasks[video_id]["error"] = str(e)
+
+@app.post("/api/download-to-gdrive")
+def download_to_gdrive(req: GDriveDownloadRequest, background_tasks: BackgroundTasks):
+    video_id = req.video_id
+    
+    # Cek apakah sudah ada di tasks
+    if video_id in gdrive_upload_tasks:
+        task = gdrive_upload_tasks[video_id]
+        if task["status"] in ["downloading", "uploading", "done"]:
+            return task
+            
+    # Quick check GDrive existence directly without downloading
+    from utils.gdrive_uploader import get_gdrive_service
+    try:
+        service = get_gdrive_service()
+        file_name = f"{video_id}.mp4"
+        query = f"name='{file_name}' and trashed=false"
+        results = service.files().list(q=query, fields="files(id, webViewLink)").execute()
+        items = results.get('files', [])
+        if items:
+            link = items[0]['webViewLink']
+            gdrive_upload_tasks[video_id] = {"status": "done", "link": link, "error": None}
+            return gdrive_upload_tasks[video_id]
+    except Exception as e:
+        print("GDrive check error:", e)
+
+    # Kalau belum ada, kita jalankan di background
+    background_tasks.add_task(background_download_and_upload, video_id)
+    gdrive_upload_tasks[video_id] = {"status": "starting", "link": None, "error": None}
+    
+    return gdrive_upload_tasks[video_id]
+
+@app.get("/api/download-to-gdrive/active-tasks")
+def get_active_gdrive_tasks():
+    return gdrive_upload_tasks
 
 @app.get("/api/proxy_stream")
 def proxy_stream(url: str, request: Request):

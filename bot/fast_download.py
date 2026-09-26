@@ -62,9 +62,14 @@ def handle_fast_download(client, ev, text, sender_jid):
         return True
         
     def download_async():
-        # Ekstrak ID YouTube untuk nama folder
-        video_id_match = re.search(r'(?:v=|\/)([0-9A-Za-z_-]{11})', url)
-        video_id = video_id_match.group(1) if video_id_match else "Unknown_Video"
+        # Ekstrak ID untuk nama folder (YouTube atau GDrive)
+        if "drive.google.com" in url:
+            import time
+            gdrive_match = re.search(r'/d/([a-zA-Z0-9_-]+)', url) or re.search(r'id=([a-zA-Z0-9_-]+)', url)
+            video_id = gdrive_match.group(1) if gdrive_match else f"gdrive_{int(time.time())}"
+        else:
+            video_id_match = re.search(r'(?:v=|\/)([0-9A-Za-z_-]{11})', url)
+            video_id = video_id_match.group(1) if video_id_match else "Unknown_Video"
         
         output_dir = os.path.join(os.getcwd(), "output", video_id)
         if not os.path.exists(output_dir):

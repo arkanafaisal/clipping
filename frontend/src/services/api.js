@@ -1,6 +1,6 @@
 // Secara otomatis menggunakan IP/Host yang sedang diakses
 // Saat production (diserve oleh FastAPI), gunakan relative path agar mengikuti reverse proxy / port
-const API_BASE_URL = import.meta.env.PROD 
+export const API_BASE_URL = import.meta.env.PROD 
   ? '/api' 
   : `http://${window.location.hostname}:3006/api`;
 
