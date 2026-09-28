@@ -168,13 +168,13 @@ def handle_fast_download(client, ev, text, sender_jid):
         else:
             full_video_path_ref = None # Kode tidak akan ke sini
             
-        # Hapus Full Video SETELAH semua klip sukses dikirim ke WA (Atau jika dibatalkan)
-        if full_video_path_ref and os.path.exists(full_video_path_ref):
-            try:
-                os.remove(full_video_path)
-                print(f"[CLEANUP] Full Video dihapus karena semua klip sudah berhasil dikirim.")
-            except Exception as e:
-                print(f"[CLEANUP FAIL] Gagal menghapus Full Video: {e}")
+        # Full Video dibiarkan agar dihapus otomatis setelah 1 hari oleh daemon
+        # if full_video_path_ref and os.path.exists(full_video_path_ref):
+        #     try:
+        #         os.remove(full_video_path)
+        #         print(f"[CLEANUP] Full Video dihapus karena semua klip sudah berhasil dikirim.")
+        #     except Exception as e:
+        #         print(f"[CLEANUP FAIL] Gagal menghapus Full Video: {e}")
                 
         # Proses penggabungan jika --all diaktifkan DAN tidak dibatalkan
         if combine_all and len(downloaded_landscape_clips) > 1 and not check_cancel():
@@ -210,7 +210,7 @@ def handle_fast_download(client, ev, text, sender_jid):
                     except Exception as upload_err:
                         client.send_message(ev.Info.MessageSource.Chat, f"❌ Terjadi kesalahan saat mengunggah ke GDrive: {str(upload_err)}")
                     
-                    # Bersihkan file sampah concat text saja (video gabungan dibiarkan untuk cleanup 60 menit)
+                    # Bersihkan file sampah concat text saja (video gabungan dibiarkan untuk cleanup 1 hari)
                     os.remove(concat_txt)
             except Exception as e:
                 client.send_message(ev.Info.MessageSource.Chat, f"❌ Gagal memproses video gabungan: {str(e)}")

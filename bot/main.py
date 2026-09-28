@@ -133,8 +133,8 @@ def on_message(client: NewClient, ev: MessageEv):
 
 if __name__ == "__main__":
     print("Starting WhatsApp Bot...")
-    # Jalankan auto-destroy daemon: mengecek folder 'output' tiap 5 menit, hapus file yg usianya lebih dari 1 jam (3600 detik)
-    start_cleanup_thread(output_dir="output", max_age_seconds=3600, check_interval=300)
+    # Jalankan auto-destroy daemon: mengecek folder 'output' tiap 5 menit, hapus file yg usianya lebih dari 1 hari (86400 detik)
+    start_cleanup_thread(output_dir="output", max_age_seconds=86400, check_interval=300)
     
     # Mengecek auth YouTube sebelum bot standby
     check_youtube_auth()
