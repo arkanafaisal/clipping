@@ -113,7 +113,8 @@ def handle_fast_download(client, ev, text, sender_jid):
             from utils.downloader import process_clips_generator
             
             # Gunakan generator agar mengirim satu per satu segera setelah selesai
-            clip_generator = process_clips_generator(url, output_dir, ranges_list, force_portrait, cancel_check=check_cancel)
+            # [MODIFIED] force_portrait dipaksa False di sini agar pemotongan landscape selesai cepat semua
+            clip_generator = process_clips_generator(url, output_dir, ranges_list, force_portrait=False, cancel_check=check_cancel)
             
             full_video_path_ref = None
             
@@ -129,13 +130,13 @@ def handle_fast_download(client, ev, text, sender_jid):
                 end_str = clip['end_str']
                 
                 if filepath and os.path.exists(filepath):
-                    landscape_path = filepath.replace(".portrait.mp4", ".mp4")
-                    if os.path.exists(landscape_path):
-                        downloaded_landscape_clips.append(landscape_path)
-                        total_duration += (end_time - start_time)
-                        
+                    downloaded_landscape_clips.append(filepath)
+                    total_duration += (end_time - start_time)
+                    
                     try:
-                        if not no_clip:
+                        # Jika force_portrait atau no_clip, kita lewati pengiriman klip landscape ini.
+                        # Nanti portraiting dilakukan setelah gabungan selesai.
+                        if not no_clip and not force_portrait:
                             with open(filepath, 'rb') as f:
                                 buff = f.read()
                             
@@ -162,11 +163,6 @@ def handle_fast_download(client, ev, text, sender_jid):
                             msg_proto.videoMessage.caption = f"{start_str} - {end_str}"
                                 
                             response = client.send_message(ev.Info.MessageSource.Chat, msg_proto)
-                        
-                        # File portrait dibiarkan agar dihapus otomatis setelah 1 hari oleh daemon
-                        # if force_portrait and filepath.endswith(".portrait.mp4"):
-                        #     if os.path.exists(filepath):
-                        #         os.remove(filepath)
                                 
                     except Exception as e:
                         client.send_message(ev.Info.MessageSource.Chat, f"❌ Gagal mengirim klip {idx+1}: {str(e)}")
@@ -221,6 +217,56 @@ def handle_fast_download(client, ev, text, sender_jid):
                     os.remove(concat_txt)
             except Exception as e:
                 client.send_message(ev.Info.MessageSource.Chat, f"❌ Gagal memproses video gabungan: {str(e)}")
+                
+        # --- Proses Portrait Di Akhir (Berat) ---
+        if force_portrait and not no_clip and not check_cancel():
+            client.send_message(ev.Info.MessageSource.Chat, f"⏳ Memulai proses pembuatan format Portrait untuk {len(downloaded_landscape_clips)} klip...")
+            from utils.downloader import apply_portrait_padding
+            ffmpeg_exe = os.getenv('FFMPEG_BINARY', 'ffmpeg')
+            
+            for idx, landscape_path in enumerate(downloaded_landscape_clips):
+                if check_cancel():
+                    break
+                
+                clip = ranges_list[idx]
+                start_time = clip['start_time']
+                end_time = clip['end_time']
+                start_str = clip['start_str']
+                end_str = clip['end_str']
+                
+                portrait_path = apply_portrait_padding(landscape_path, idx + 1, ffmpeg_exe)
+                if portrait_path and os.path.exists(portrait_path):
+                    try:
+                        with open(portrait_path, 'rb') as f:
+                            buff = f.read()
+                        
+                        upload = client.upload(buff)
+                        duration = end_time - start_time
+                        
+                        msg_proto = Message(
+                            videoMessage=VideoMessage(
+                                URL=upload.url,
+                                seconds=int(duration),
+                                directPath=upload.DirectPath,
+                                fileEncSHA256=upload.FileEncSHA256,
+                                fileLength=upload.FileLength,
+                                fileSHA256=upload.FileSHA256,
+                                mediaKey=upload.MediaKey,
+                                mimetype="video/mp4",
+                                contextInfo=ContextInfo()
+                            )
+                        )
+                        
+                        if ev.Message:
+                            msg_proto.videoMessage.contextInfo.MergeFrom(client._make_quoted_message(ev))
+                            
+                        msg_proto.videoMessage.caption = f"{start_str} - {end_str} (Portrait)"
+                        response = client.send_message(ev.Info.MessageSource.Chat, msg_proto)
+                        
+                    except Exception as e:
+                        client.send_message(ev.Info.MessageSource.Chat, f"❌ Gagal mengirim klip portrait {idx+1}: {str(e)}")
+                else:
+                    client.send_message(ev.Info.MessageSource.Chat, f"❌ Gagal memproses portrait klip {idx+1}.")
             
     threading.Thread(target=download_async, daemon=True).start()
     return True
