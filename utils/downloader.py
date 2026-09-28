@@ -194,11 +194,36 @@ def download_full_video_robust(video_url, full_video_path, cancel_check=None, ex
         'socket_timeout': 60
     }
     
-    # Tahap 1: Mode Anonim (Tanpa Cookies)
-    ydl_opts_anon = ydl_opts.copy()
+    info_json_path = full_video_path.replace(".mp4", ".info.json")
+    
+    def try_download(opts_base, use_cookies=False):
+        opts = opts_base.copy()
+        if use_cookies:
+            from utils.youtube_auth import add_cookies
+            opts = add_cookies(opts, client_type='web_no_po')
+            
+        if os.path.exists(info_json_path):
+            opts_cache = opts.copy()
+            opts_cache['load_info_filename'] = info_json_path
+            print("\n🚀 Melanjutkan progress download menggunakan CACHE URL Stream...")
+            try:
+                with yt_dlp.YoutubeDL(opts_cache) as ydl:
+                    ydl.download([video_url])
+                return True
+            except Exception as e:
+                if "DibatalkanOlehUser" in str(e):
+                    raise e
+                print(f"⚠️ Cache URL kedaluwarsa ({e}). Menghapus cache dan mengambil URL stream baru dari YouTube...")
+                try: os.remove(info_json_path)
+                except: pass
+                
+        opts['writeinfojson'] = True
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            ydl.download([video_url])
+        return True
+
     try:
-        with yt_dlp.YoutubeDL(ydl_opts_anon) as ydl_anon:
-            ydl_anon.download([video_url])
+        try_download(ydl_opts, use_cookies=False)
         return True
     except Exception as e_anon:
         if "DibatalkanOlehUser" in str(e_anon):
@@ -207,11 +232,8 @@ def download_full_video_robust(video_url, full_video_path, cancel_check=None, ex
         print(f"⚠️ Mode Anonim gagal: {e_anon}")
         print(f"Mencoba Mode Cookies (Web) standar...")
         
-        # Tahap 2: Mode Cookies Web (Standar - Prime Quality)
-        ydl_opts_main = add_cookies(ydl_opts.copy(), client_type='web_no_po')
         try:
-            with yt_dlp.YoutubeDL(ydl_opts_main) as ydl:
-                ydl.download([video_url])
+            try_download(ydl_opts, use_cookies=True)
             return True
         except Exception as e:
             if "DibatalkanOlehUser" in str(e):
