@@ -287,6 +287,9 @@ def handle_fast_download(client, ev, text, sender_jid):
                             import time; time.sleep(3)
                 else:
                     client.send_message(ev.Info.MessageSource.Chat, f"❌ Gagal memproses portrait klip {idx+1}.")
+                    
+        if not check_cancel():
+            client.reply_message("✅ Tugas selesai!", ev)
             
     threading.Thread(target=download_async, daemon=True).start()
     return True
