@@ -60,6 +60,12 @@ def handle_fast_download(client, ev, text, sender_jid):
     
     force_portrait = bool(re.search(r'--portrait|-p\b', text, re.IGNORECASE))
     combine_all = bool(re.search(r'--all|-a\b', text, re.IGNORECASE))
+    no_clip = bool(re.search(r'--noclip\b', text, re.IGNORECASE))
+    
+    if no_clip:
+        combine_all = True
+        force_portrait = False
+        
     safe_mode = True # Selalu dipaksa True (Download full lalu cut offline)
     
     # Cari semua rentang waktu
@@ -129,37 +135,38 @@ def handle_fast_download(client, ev, text, sender_jid):
                         total_duration += (end_time - start_time)
                         
                     try:
-                        with open(filepath, 'rb') as f:
-                            buff = f.read()
-                        
-                        upload = client.upload(buff)
-                        duration = end_time - start_time
-                        
-                        msg_proto = Message(
-                            videoMessage=VideoMessage(
-                                URL=upload.url,
-                                seconds=int(duration),
-                                directPath=upload.DirectPath,
-                                fileEncSHA256=upload.FileEncSHA256,
-                                fileLength=upload.FileLength,
-                                fileSHA256=upload.FileSHA256,
-                                mediaKey=upload.MediaKey,
-                                mimetype="video/mp4",
-                                contextInfo=ContextInfo()
+                        if not no_clip:
+                            with open(filepath, 'rb') as f:
+                                buff = f.read()
+                            
+                            upload = client.upload(buff)
+                            duration = end_time - start_time
+                            
+                            msg_proto = Message(
+                                videoMessage=VideoMessage(
+                                    URL=upload.url,
+                                    seconds=int(duration),
+                                    directPath=upload.DirectPath,
+                                    fileEncSHA256=upload.FileEncSHA256,
+                                    fileLength=upload.FileLength,
+                                    fileSHA256=upload.FileSHA256,
+                                    mediaKey=upload.MediaKey,
+                                    mimetype="video/mp4",
+                                    contextInfo=ContextInfo()
+                                )
                             )
-                        )
-                        
-                        if ev.Message:
-                            msg_proto.videoMessage.contextInfo.MergeFrom(client._make_quoted_message(ev))
                             
-                        msg_proto.videoMessage.caption = f"{start_str} - {end_str}"
-                            
-                        response = client.send_message(ev.Info.MessageSource.Chat, msg_proto)
+                            if ev.Message:
+                                msg_proto.videoMessage.contextInfo.MergeFrom(client._make_quoted_message(ev))
+                                
+                            msg_proto.videoMessage.caption = f"{start_str} - {end_str}"
+                                
+                            response = client.send_message(ev.Info.MessageSource.Chat, msg_proto)
                         
-                        # Hapus file portrait setelah dikirim agar tidak memenuhi disk
-                        if force_portrait and filepath.endswith(".portrait.mp4"):
-                            if os.path.exists(filepath):
-                                os.remove(filepath)
+                        # File portrait dibiarkan agar dihapus otomatis setelah 1 hari oleh daemon
+                        # if force_portrait and filepath.endswith(".portrait.mp4"):
+                        #     if os.path.exists(filepath):
+                        #         os.remove(filepath)
                                 
                     except Exception as e:
                         client.send_message(ev.Info.MessageSource.Chat, f"❌ Gagal mengirim klip {idx+1}: {str(e)}")
