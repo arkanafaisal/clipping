@@ -199,40 +199,16 @@ def handle_fast_download(client, ev, text, sender_jid):
             try:
                 subprocess.run(ffmpeg_cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 if os.path.exists(combined_filepath):
-                    with open(combined_filepath, 'rb') as f:
-                        buff = f.read()
-                    
+                    client.send_message(ev.Info.MessageSource.Chat, f"⏳ Mengunggah video gabungan ke Google Drive...")
                     try:
-                        upload = client.upload(buff)
-                        
-                        msg_proto = Message(
-                            videoMessage=VideoMessage(
-                                URL=upload.url,
-                                seconds=int(total_duration),
-                                directPath=upload.DirectPath,
-                                fileEncSHA256=upload.FileEncSHA256,
-                                fileLength=upload.FileLength,
-                                fileSHA256=upload.FileSHA256,
-                                mediaKey=upload.MediaKey,
-                                mimetype="video/mp4",
-                                contextInfo=ContextInfo()
-                            )
-                        )
-                        if ev.Message:
-                            msg_proto.videoMessage.contextInfo.MergeFrom(client._make_quoted_message(ev))
-                            
-                        msg_proto.videoMessage.caption = f"🎬 Full Combined Video ({len(downloaded_landscape_clips)} klip)"
-                        client.send_message(ev.Info.MessageSource.Chat, msg_proto)
-                        
-                    except Exception as upload_err:
-                        # Fallback ke Google Drive jika 413 / ukuran terlalu besar
-                        client.send_message(ev.Info.MessageSource.Chat, f"⚠️ Video terlalu besar untuk WA. Mengunggah ke Google Drive utama Anda...")
                         from utils.gdrive import upload_to_gdrive
                         link = upload_to_gdrive(combined_filepath)
                         if link:
                             client.send_message(ev.Info.MessageSource.Chat, f"🎬 Full Combined Video ({len(downloaded_landscape_clips)} klip)\n\n🔗 *Link GDrive:* {link}")
                         else:
-                            client.send_message(ev.Info.MessageSource.Chat, f"❌ Gagal mengirim video gabungan ke WA maupun GDrive.\nError WA: {str(upload_err)}")
+                            client.send_message(ev.Info.MessageSource.Chat, f"❌ Gagal mengunggah video gabungan ke GDrive.")
+                    except Exception as upload_err:
+                        client.send_message(ev.Info.MessageSource.Chat, f"❌ Terjadi kesalahan saat mengunggah ke GDrive: {str(upload_err)}")
                     
                     # Bersihkan file sampah concat text saja (video gabungan dibiarkan untuk cleanup 60 menit)
                     os.remove(concat_txt)
