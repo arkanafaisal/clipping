@@ -133,39 +133,43 @@ def handle_fast_download(client, ev, text, sender_jid):
                     downloaded_landscape_clips.append(filepath)
                     total_duration += (end_time - start_time)
                     
-                    try:
-                        # Jika force_portrait atau no_clip, kita lewati pengiriman klip landscape ini.
-                        # Nanti portraiting dilakukan setelah gabungan selesai.
-                        if not no_clip and not force_portrait:
-                            with open(filepath, 'rb') as f:
-                                buff = f.read()
-                            
-                            upload = client.upload(buff)
-                            duration = end_time - start_time
-                            
-                            msg_proto = Message(
-                                videoMessage=VideoMessage(
-                                    URL=upload.url,
-                                    seconds=int(duration),
-                                    directPath=upload.DirectPath,
-                                    fileEncSHA256=upload.FileEncSHA256,
-                                    fileLength=upload.FileLength,
-                                    fileSHA256=upload.FileSHA256,
-                                    mediaKey=upload.MediaKey,
-                                    mimetype="video/mp4",
-                                    contextInfo=ContextInfo()
+                    if not no_clip and not force_portrait:
+                        retry_count = 0
+                        while retry_count < 999:
+                            if check_cancel(): break
+                            try:
+                                with open(filepath, 'rb') as f:
+                                    buff = f.read()
+                                
+                                upload = client.upload(buff)
+                                duration = end_time - start_time
+                                
+                                msg_proto = Message(
+                                    videoMessage=VideoMessage(
+                                        URL=upload.url,
+                                        seconds=int(duration),
+                                        directPath=upload.DirectPath,
+                                        fileEncSHA256=upload.FileEncSHA256,
+                                        fileLength=upload.FileLength,
+                                        fileSHA256=upload.FileSHA256,
+                                        mediaKey=upload.MediaKey,
+                                        mimetype="video/mp4",
+                                        contextInfo=ContextInfo()
+                                    )
                                 )
-                            )
-                            
-                            if ev.Message:
-                                msg_proto.videoMessage.contextInfo.MergeFrom(client._make_quoted_message(ev))
                                 
-                            msg_proto.videoMessage.caption = f"{start_str} - {end_str}"
-                                
-                            response = client.send_message(ev.Info.MessageSource.Chat, msg_proto)
-                                
-                    except Exception as e:
-                        client.send_message(ev.Info.MessageSource.Chat, f"❌ Gagal mengirim klip {idx+1}: {str(e)}")
+                                if ev.Message:
+                                    msg_proto.videoMessage.contextInfo.MergeFrom(client._make_quoted_message(ev))
+                                    
+                                msg_proto.videoMessage.caption = f"{start_str} - {end_str}"
+                                    
+                                response = client.send_message(ev.Info.MessageSource.Chat, msg_proto)
+                                break
+                            except Exception as e:
+                                err_str = str(e).lower()
+                                retry_count += 1
+                                client.send_message(ev.Info.MessageSource.Chat, f"⚠️ Gagal mengirim klip {idx+1} ke WA ({err_str}). Mencoba ulang ({retry_count})...")
+                                import time; time.sleep(3)
                 else:
                     client.send_message(ev.Info.MessageSource.Chat, f"❌ Download gagal untuk klip {idx+1}.")
         else:
@@ -203,15 +207,25 @@ def handle_fast_download(client, ev, text, sender_jid):
                 subprocess.run(ffmpeg_cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 if os.path.exists(combined_filepath):
                     client.send_message(ev.Info.MessageSource.Chat, f"⏳ Mengunggah video gabungan ke Google Drive...")
-                    try:
-                        from utils.gdrive import upload_to_gdrive
-                        link = upload_to_gdrive(combined_filepath)
-                        if link:
-                            client.send_message(ev.Info.MessageSource.Chat, f"🎬 Full Combined Video ({len(downloaded_landscape_clips)} klip)\n\n🔗 *Link GDrive:* {link}")
-                        else:
-                            client.send_message(ev.Info.MessageSource.Chat, f"❌ Gagal mengunggah video gabungan ke GDrive.")
-                    except Exception as upload_err:
-                        client.send_message(ev.Info.MessageSource.Chat, f"❌ Terjadi kesalahan saat mengunggah ke GDrive: {str(upload_err)}")
+                    from utils.gdrive import upload_to_gdrive
+                    retry_count = 0
+                    while retry_count < 999: # Paksa terus sampai sukses (kecuali storage full)
+                        if check_cancel(): break
+                        try:
+                            link = upload_to_gdrive(combined_filepath)
+                            if link:
+                                client.send_message(ev.Info.MessageSource.Chat, f"🎬 Full Combined Video ({len(downloaded_landscape_clips)} klip)\n\n🔗 *Link GDrive:* {link}")
+                            else:
+                                client.send_message(ev.Info.MessageSource.Chat, f"❌ Gagal mengunggah video gabungan ke GDrive.")
+                            break
+                        except Exception as upload_err:
+                            err_str = str(upload_err).lower()
+                            if "quota" in err_str or "storage" in err_str or "space" in err_str:
+                                client.send_message(ev.Info.MessageSource.Chat, f"❌ Google Drive penuh/limit quota: {str(upload_err)}")
+                                break
+                            retry_count += 1
+                            client.send_message(ev.Info.MessageSource.Chat, f"⚠️ Gagal mengunggah ke GDrive ({err_str}). Mencoba ulang ({retry_count})...")
+                            import time; time.sleep(3)
                     
                     # Bersihkan file sampah concat text saja (video gabungan dibiarkan untuk cleanup 1 hari)
                     os.remove(concat_txt)
@@ -236,35 +250,41 @@ def handle_fast_download(client, ev, text, sender_jid):
                 
                 portrait_path = apply_portrait_padding(landscape_path, idx + 1, ffmpeg_exe)
                 if portrait_path and os.path.exists(portrait_path):
-                    try:
-                        with open(portrait_path, 'rb') as f:
-                            buff = f.read()
-                        
-                        upload = client.upload(buff)
-                        duration = end_time - start_time
-                        
-                        msg_proto = Message(
-                            videoMessage=VideoMessage(
-                                URL=upload.url,
-                                seconds=int(duration),
-                                directPath=upload.DirectPath,
-                                fileEncSHA256=upload.FileEncSHA256,
-                                fileLength=upload.FileLength,
-                                fileSHA256=upload.FileSHA256,
-                                mediaKey=upload.MediaKey,
-                                mimetype="video/mp4",
-                                contextInfo=ContextInfo()
-                            )
-                        )
-                        
-                        if ev.Message:
-                            msg_proto.videoMessage.contextInfo.MergeFrom(client._make_quoted_message(ev))
+                    retry_count = 0
+                    while retry_count < 999:
+                        if check_cancel(): break
+                        try:
+                            with open(portrait_path, 'rb') as f:
+                                buff = f.read()
                             
-                        msg_proto.videoMessage.caption = f"{start_str} - {end_str} (Portrait)"
-                        response = client.send_message(ev.Info.MessageSource.Chat, msg_proto)
-                        
-                    except Exception as e:
-                        client.send_message(ev.Info.MessageSource.Chat, f"❌ Gagal mengirim klip portrait {idx+1}: {str(e)}")
+                            upload = client.upload(buff)
+                            duration = end_time - start_time
+                            
+                            msg_proto = Message(
+                                videoMessage=VideoMessage(
+                                    URL=upload.url,
+                                    seconds=int(duration),
+                                    directPath=upload.DirectPath,
+                                    fileEncSHA256=upload.FileEncSHA256,
+                                    fileLength=upload.FileLength,
+                                    fileSHA256=upload.FileSHA256,
+                                    mediaKey=upload.MediaKey,
+                                    mimetype="video/mp4",
+                                    contextInfo=ContextInfo()
+                                )
+                            )
+                            
+                            if ev.Message:
+                                msg_proto.videoMessage.contextInfo.MergeFrom(client._make_quoted_message(ev))
+                                
+                            msg_proto.videoMessage.caption = f"{start_str} - {end_str} (Portrait)"
+                            response = client.send_message(ev.Info.MessageSource.Chat, msg_proto)
+                            break
+                        except Exception as e:
+                            err_str = str(e).lower()
+                            retry_count += 1
+                            client.send_message(ev.Info.MessageSource.Chat, f"⚠️ Gagal mengirim klip portrait {idx+1} ke WA ({err_str}). Mencoba ulang ({retry_count})...")
+                            import time; time.sleep(3)
                 else:
                     client.send_message(ev.Info.MessageSource.Chat, f"❌ Gagal memproses portrait klip {idx+1}.")
             

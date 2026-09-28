@@ -72,4 +72,4 @@ def upload_to_gdrive(filepath, filename=None):
 
     except Exception as e:
         print(f"[GDRIVE] ❌ Terjadi error saat mengupload ke Google Drive: {e}")
-        return None
+        raise e
