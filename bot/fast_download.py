@@ -118,6 +118,8 @@ def handle_fast_download(client, ev, text, sender_jid):
             clip_generator = process_clips_generator(url, output_dir, ranges_list, force_portrait=False, cancel_check=check_cancel)
             
             full_video_path_ref = None
+            import time
+            landscape_mtime_base = time.time()
             
             for idx, (filepath, full_video_path) in enumerate(clip_generator):
                 full_video_path_ref = full_video_path
@@ -131,6 +133,9 @@ def handle_fast_download(client, ev, text, sender_jid):
                 end_str = clip['end_str']
                 
                 if filepath and os.path.exists(filepath):
+                    mtime = landscape_mtime_base + idx
+                    os.utime(filepath, (mtime, mtime))
+                    
                     downloaded_landscape_clips.append(filepath)
                     total_duration += (end_time - start_time)
                     
@@ -242,6 +247,9 @@ def handle_fast_download(client, ev, text, sender_jid):
             from utils.downloader import apply_portrait_padding
             ffmpeg_exe = os.getenv('FFMPEG_BINARY', 'ffmpeg')
             
+            import time
+            portrait_mtime_base = time.time()
+            
             for idx, landscape_path in enumerate(downloaded_landscape_clips):
                 if check_cancel():
                     break
@@ -254,6 +262,8 @@ def handle_fast_download(client, ev, text, sender_jid):
                 
                 portrait_path = apply_portrait_padding(landscape_path, idx + 1, ffmpeg_exe)
                 if portrait_path and os.path.exists(portrait_path):
+                    mtime = portrait_mtime_base + idx
+                    os.utime(portrait_path, (mtime, mtime))
                     if not no_send:
                         retry_count = 0
                         while retry_count < 999:
