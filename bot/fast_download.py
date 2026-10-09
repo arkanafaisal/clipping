@@ -108,9 +108,15 @@ def handle_fast_download(client, ev, text, sender_jid):
         
         def check_cancel():
             return CANCEL_FLAGS.get(video_id, False)
+            
+        def safe_send_message(text_or_msg):
+            try:
+                client.send_message(ev.Info.MessageSource.Chat, text_or_msg)
+            except Exception as e:
+                print(f"[WA_ERROR] Gagal mengirim pesan ke WA (Socket terputus?): {e}")
 
         if safe_mode:
-            client.send_message(ev.Info.MessageSource.Chat, f"⏳ Memproses {len(ranges_list)} klip secara bertahap...")
+            safe_send_message(f"⏳ Memproses {len(ranges_list)} klip secara bertahap...")
             from utils.downloader import process_clips_generator
             
             # Gunakan generator agar mengirim satu per satu segera setelah selesai
@@ -169,15 +175,15 @@ def handle_fast_download(client, ev, text, sender_jid):
                                     
                                 msg_proto.videoMessage.caption = f"{start_str} - {end_str}"
                                     
-                                response = client.send_message(ev.Info.MessageSource.Chat, msg_proto)
+                                response = safe_send_message(msg_proto)
                                 break
                             except Exception as e:
                                 err_str = str(e).lower()
                                 retry_count += 1
-                                client.send_message(ev.Info.MessageSource.Chat, f"⚠️ Gagal mengirim klip {idx+1} ke WA ({err_str}). Mencoba ulang ({retry_count})...")
+                                safe_send_message(f"⚠️ Gagal mengirim klip {idx+1} ke WA ({err_str}). Mencoba ulang ({retry_count})...")
                                 import time; time.sleep(3)
                 else:
-                    client.send_message(ev.Info.MessageSource.Chat, f"❌ Download gagal untuk klip {idx+1}.")
+                    safe_send_message(f"❌ Download gagal untuk klip {idx+1}.")
         else:
             full_video_path_ref = None # Kode tidak akan ke sini
             
@@ -191,7 +197,7 @@ def handle_fast_download(client, ev, text, sender_jid):
                 
         # Proses penggabungan jika --all diaktifkan DAN tidak dibatalkan
         if combine_all and len(downloaded_landscape_clips) > 1 and not check_cancel():
-            client.send_message(ev.Info.MessageSource.Chat, f"⏳ Menggabungkan {len(downloaded_landscape_clips)} klip menjadi satu video Full...")
+            safe_send_message(f"⏳ Menggabungkan {len(downloaded_landscape_clips)} klip menjadi satu video Full...")
             import subprocess
             import time
             
@@ -213,7 +219,7 @@ def handle_fast_download(client, ev, text, sender_jid):
                 subprocess.run(ffmpeg_cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 if os.path.exists(combined_filepath):
                     if not no_send:
-                        client.send_message(ev.Info.MessageSource.Chat, f"⏳ Mengunggah video gabungan ke Google Drive...")
+                        safe_send_message(f"⏳ Mengunggah video gabungan ke Google Drive...")
                         from utils.gdrive import upload_to_gdrive
                         retry_count = 0
                         while retry_count < 999: # Paksa terus sampai sukses (kecuali storage full)
@@ -221,29 +227,29 @@ def handle_fast_download(client, ev, text, sender_jid):
                             try:
                                 link = upload_to_gdrive(combined_filepath)
                                 if link:
-                                    client.send_message(ev.Info.MessageSource.Chat, f"🎬 Full Combined Video ({len(downloaded_landscape_clips)} klip)\n\n🔗 *Link GDrive:* {link}")
+                                    safe_send_message(f"🎬 Full Combined Video ({len(downloaded_landscape_clips)} klip)\n\n🔗 *Link GDrive:* {link}")
                                 else:
-                                    client.send_message(ev.Info.MessageSource.Chat, f"❌ Gagal mengunggah video gabungan ke GDrive.")
+                                    safe_send_message(f"❌ Gagal mengunggah video gabungan ke GDrive.")
                                 break
                             except Exception as upload_err:
                                 err_str = str(upload_err).lower()
                                 if "quota" in err_str or "storage" in err_str or "space" in err_str:
-                                    client.send_message(ev.Info.MessageSource.Chat, f"❌ Google Drive penuh/limit quota: {str(upload_err)}")
+                                    safe_send_message(f"❌ Google Drive penuh/limit quota: {str(upload_err)}")
                                     break
                                 retry_count += 1
-                                client.send_message(ev.Info.MessageSource.Chat, f"⚠️ Gagal mengunggah ke GDrive ({err_str}). Mencoba ulang ({retry_count})...")
+                                safe_send_message(f"⚠️ Gagal mengunggah ke GDrive ({err_str}). Mencoba ulang ({retry_count})...")
                                 import time; time.sleep(3)
                     else:
-                        client.send_message(ev.Info.MessageSource.Chat, f"✅ Video gabungan berhasil dibuat secara lokal (Skip upload GDrive karena --nosend).")
+                        safe_send_message(f"✅ Video gabungan berhasil dibuat secara lokal (Skip upload GDrive karena --nosend).")
                     
                     # Bersihkan file sampah concat text saja (video gabungan dibiarkan untuk cleanup 1 hari)
                     os.remove(concat_txt)
             except Exception as e:
-                client.send_message(ev.Info.MessageSource.Chat, f"❌ Gagal memproses video gabungan: {str(e)}")
+                safe_send_message(f"❌ Gagal memproses video gabungan: {str(e)}")
                 
         # --- Proses Portrait Di Akhir (Berat) ---
         if force_portrait and not no_clip and not check_cancel():
-            client.send_message(ev.Info.MessageSource.Chat, f"⏳ Memulai proses pembuatan format Portrait untuk {len(downloaded_landscape_clips)} klip...")
+            safe_send_message(f"⏳ Memulai proses pembuatan format Portrait untuk {len(downloaded_landscape_clips)} klip...")
             from utils.downloader import apply_portrait_padding
             ffmpeg_exe = os.getenv('FFMPEG_BINARY', 'ffmpeg')
             
@@ -293,20 +299,23 @@ def handle_fast_download(client, ev, text, sender_jid):
                                     msg_proto.videoMessage.contextInfo.MergeFrom(client._make_quoted_message(ev))
                                     
                                 msg_proto.videoMessage.caption = f"{start_str} - {end_str} (Portrait)"
-                                response = client.send_message(ev.Info.MessageSource.Chat, msg_proto)
+                                response = safe_send_message(msg_proto)
                                 break
                             except Exception as e:
                                 err_str = str(e).lower()
                                 retry_count += 1
-                                client.send_message(ev.Info.MessageSource.Chat, f"⚠️ Gagal mengirim klip portrait {idx+1} ke WA ({err_str}). Mencoba ulang ({retry_count})...")
+                                safe_send_message(f"⚠️ Gagal mengirim klip portrait {idx+1} ke WA ({err_str}). Mencoba ulang ({retry_count})...")
                                 import time; time.sleep(3)
                     else:
                         pass # Hanya diproses di lokal, tidak dikirim
                 else:
-                    client.send_message(ev.Info.MessageSource.Chat, f"❌ Gagal memproses portrait klip {idx+1}.")
+                    safe_send_message(f"❌ Gagal memproses portrait klip {idx+1}.")
                     
         if not check_cancel():
-            client.reply_message("✅ Tugas selesai!", ev)
+            try:
+                client.reply_message("✅ Tugas selesai!", ev)
+            except Exception as e:
+                print(f"[WA_ERROR] Gagal mengirim pesan reply WA (Socket terputus?): {e}")
             
     threading.Thread(target=download_async, daemon=True).start()
     return True
