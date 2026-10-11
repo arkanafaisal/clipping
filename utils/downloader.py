@@ -305,7 +305,9 @@ def process_clips_generator(video_url, output_dir, clips, force_portrait=False, 
             '-ss', str(start_time),
             '-to', str(end_time),
             '-i', full_video_path,
-            '-c', 'copy',
+            '-c:v', 'libx264',
+            '-preset', 'ultrafast',
+            '-c:a', 'copy',
             filepath
         ]
         
