@@ -11,13 +11,11 @@ export interface ClipItem {
 export interface HeatmapResponse {
   title: string;
   clips: ClipItem[];
-  from_cache?: boolean;
 }
 
 export interface StreamResponse {
   video_id: string;
   stream_url: string;
-  from_cache?: boolean;
 }
 
 // Support both embedded Chaquopy Python (port 8080) and Termux / local server (port 3006)
@@ -36,7 +34,11 @@ export async function pingServer(): Promise<{ status: string; uptime_seconds?: n
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 1200);
-      const res = await fetch(`${baseUrl}/ping`, { signal: controller.signal });
+      const res = await fetch(`${baseUrl}/ping`, { 
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal 
+      });
       clearTimeout(timeoutId);
       if (res.ok) {
         const data = await res.json();
@@ -51,54 +53,8 @@ export async function pingServer(): Promise<{ status: string; uptime_seconds?: n
 }
 
 /**
- * Fetch YouTube Heatmap ("Most Replayed") from local Python engine
- * Will attempt activeBaseUrl first, then fallback to alternate candidate
- */
-export async function fetchHeatmap(
-  videoId: string,
-  numClips: number = 50,
-  offset: number = 0
-): Promise<HeatmapResponse> {
-  const urlsToTry = [
-    activeBaseUrl,
-    ...CANDIDATE_BASE_URLS.filter((u) => u !== activeBaseUrl),
-  ];
-
-  let lastError: Error | null = null;
-
-  for (const baseUrl of urlsToTry) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 20000);
-
-    try {
-      const url = `${baseUrl}/api/heatmap/${videoId}?num_clips=${numClips}&offset=${offset}`;
-      const res = await fetch(url, { signal: controller.signal });
-      clearTimeout(timeoutId);
-
-      if (res.ok) {
-        const data: HeatmapResponse = await res.json();
-        activeBaseUrl = baseUrl;
-        return data;
-      }
-
-      if (res.status === 404) {
-        lastError = new Error(`Video tidak memiliki data heatmap atau rute belum aktif di ${baseUrl} (HTTP 404)`);
-      } else if (res.status === 429) {
-        lastError = new Error('Limit request YouTube tercapai. Tunggu beberapa menit.');
-      } else {
-        lastError = new Error(`Server error HTTP ${res.status}`);
-      }
-    } catch (e: any) {
-      clearTimeout(timeoutId);
-      lastError = new Error(`Koneksi ke ${baseUrl} gagal: ${e.message || 'Timeout'}`);
-    }
-  }
-
-  throw lastError || new Error('Gagal mengekstrak Heatmap.');
-}
-
-/**
- * Fetch direct stream URL from local Python engine
+ * Fetches the direct stream URL for a given YouTube video ID.
+ * 100% parity with frontend/src/services/api.js
  */
 export async function fetchStreamUrl(videoId: string): Promise<string> {
   const urlsToTry = [
@@ -113,28 +69,99 @@ export async function fetchStreamUrl(videoId: string): Promise<string> {
     const timeoutId = setTimeout(() => controller.abort(), 20000);
 
     try {
-      const url = `${baseUrl}/api/stream/${videoId}`;
-      const res = await fetch(url, { signal: controller.signal });
+      const response = await fetch(`${baseUrl}/api/stream/${videoId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        signal: controller.signal,
+      });
       clearTimeout(timeoutId);
 
-      if (res.ok) {
-        const data: StreamResponse = await res.json();
-        activeBaseUrl = baseUrl;
-        return data.stream_url;
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error('Video tidak ditemukan atau dibatasi (Private/Age-restricted).');
+        } else if (response.status === 429) {
+          throw new Error('Terlalu banyak request ke YouTube (Rate Limit). Coba lagi nanti.');
+        } else if (response.status >= 500) {
+          throw new Error('Terjadi kesalahan pada server saat mengekstrak stream.');
+        } else {
+          throw new Error(`Error tidak dikenal (Status: ${response.status})`);
+        }
       }
 
-      if (res.status === 404) {
-        lastError = new Error(`Endpoint stream belum ada di ${baseUrl} (HTTP 404)`);
-      } else if (res.status === 429) {
-        lastError = new Error('Rate limit YouTube tercapai.');
-      } else {
-        lastError = new Error(`Server stream error HTTP ${res.status}`);
-      }
+      const data: StreamResponse = await response.json();
+      activeBaseUrl = baseUrl;
+      return data.stream_url;
     } catch (e: any) {
       clearTimeout(timeoutId);
-      lastError = new Error(`Koneksi stream ke ${baseUrl} gagal: ${e.message || 'Timeout'}`);
+      lastError = e;
     }
   }
 
-  throw lastError || new Error('Gagal mendapatkan stream URL.');
+  throw lastError || new Error('Gagal mengekstrak direct stream URL.');
+}
+
+/**
+ * Fetches the heatmap data for a given YouTube video ID.
+ * 100% parity with frontend/src/services/api.js
+ */
+export async function fetchHeatmap(
+  videoId: string,
+  numClips: number = 100,
+  offset: number = 0
+): Promise<HeatmapResponse> {
+  const urlsToTry = [
+    activeBaseUrl,
+    ...CANDIDATE_BASE_URLS.filter((u) => u !== activeBaseUrl),
+  ];
+
+  let lastError: Error | null = null;
+
+  for (const baseUrl of urlsToTry) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 20000);
+
+    try {
+      const response = await fetch(
+        `${baseUrl}/api/heatmap/${videoId}?num_clips=${numClips}&offset=${offset}`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          signal: controller.signal,
+        }
+      );
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error('Video tidak memiliki data heatmap (Most Replayed).');
+        } else {
+          throw new Error(`Gagal mengambil heatmap (Status: ${response.status})`);
+        }
+      }
+
+      const data: HeatmapResponse = await response.json();
+      activeBaseUrl = baseUrl;
+      return data;
+    } catch (e: any) {
+      clearTimeout(timeoutId);
+      lastError = e;
+    }
+  }
+
+  throw lastError || new Error('Gagal mengambil heatmap.');
+}
+
+/**
+ * Downloads a specific clip (preserved for parity with web api.js, not invoked automatically)
+ */
+export async function downloadClip(videoId: string, start: number, end: number): Promise<void> {
+  const url = `${activeBaseUrl}/api/download_clip/${videoId}?start=${start}&end=${end}`;
+  const response = await fetch(url, { method: 'GET' });
+  if (!response.ok) {
+    throw new Error(`Gagal mendownload klip (Status: ${response.status})`);
+  }
 }

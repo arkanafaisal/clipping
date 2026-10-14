@@ -25,6 +25,7 @@ import {
 import {
   ClipItem,
   fetchStreamUrl,
+  fetchHeatmap,
 } from '../services/api';
 import { LocalStorage } from '../services/storage';
 import { ToastManager } from './Toast';
@@ -50,6 +51,7 @@ function formatTime(seconds: number): string {
 
 export const FeedScreen: React.FC<FeedScreenProps> = ({
   videoId,
+  initialCount = 50,
   onBack,
   onUpdateWorkshopDone,
 }) => {
@@ -101,22 +103,34 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
         setLoading(true);
         const savedDraft = await LocalStorage.getItem(DRAFT_KEY);
 
-        if (!savedDraft) {
-          Alert.alert('Data Klip Kosong', 'Tidak ditemukan data klip untuk video ini. Kembali ke Dashboard.');
-          onBack();
-          return;
+        let loadedClips: ClipItem[] = [];
+        if (savedDraft) {
+          try {
+            const parsed: ClipItem[] = JSON.parse(savedDraft);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              loadedClips = parsed.map((c: any, idx: number) => ({ ...c, rank: c.rank || idx + 1 }));
+            }
+          } catch (e) {}
         }
 
-        const parsed: ClipItem[] = JSON.parse(savedDraft);
-        if (!Array.isArray(parsed) || parsed.length === 0) {
-          Alert.alert('Data Klip Kosong', 'Draft klip tidak valid. Kembali ke Dashboard.');
-          onBack();
-          return;
+        if (loadedClips.length === 0) {
+          // Fallback fetch dari Heatmap API (paritas 100% dengan web Feed.jsx)
+          setLoadingMessage('Mengekstrak Heatmap AI (Bisa memakan waktu belasan detik)...');
+          const heatmapData = await fetchHeatmap(videoId, initialCount, 0);
+          loadedClips = heatmapData.clips.map((c: any, idx: number) => ({
+            ...c,
+            status: 'none' as const,
+            rank: c.rank || idx + 1,
+          }));
+          await LocalStorage.setItem(DRAFT_KEY, JSON.stringify(loadedClips));
         }
 
         if (isMounted) {
-          setClips(parsed);
-          setActiveClipId(parsed[0].id);
+          setClips(loadedClips);
+          const initialVisible = [...loadedClips].sort((a, b) => a.start - b.start);
+          if (initialVisible.length > 0) {
+            setActiveClipId(initialVisible[0].id);
+          }
           setLoading(false);
         }
 
@@ -283,10 +297,11 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     player.currentTime = nextTime;
   };
 
-  // Group clips into pairs (columns of 2 rows) for true 2-row horizontal grid
+  // Group clips into pairs (columns of 2 rows) sorted chronologically (parity with Feed.jsx)
+  const sortedClips = [...clips].sort((a, b) => a.start - b.start);
   const clipColumns: ClipItem[][] = [];
-  for (let i = 0; i < clips.length; i += 2) {
-    clipColumns.push(clips.slice(i, i + 2));
+  for (let i = 0; i < sortedClips.length; i += 2) {
+    clipColumns.push(sortedClips.slice(i, i + 2));
   }
 
   if (loading) {
@@ -491,7 +506,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
 
           <TouchableOpacity
             style={styles.skipBtn}
-            onPress={() => skipSeconds(3)}
+            onPress={() => skipSeconds(5)}
             activeOpacity={0.7}
           >
             <ChevronRight size={24} color="rgba(255, 255, 255, 0.6)" />
@@ -499,7 +514,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
 
           <TouchableOpacity
             style={styles.skipBtn}
-            onPress={() => skipSeconds(10)}
+            onPress={() => skipSeconds(15)}
             activeOpacity={0.7}
           >
             <FastForward size={20} color="rgba(255, 255, 255, 0.6)" />
