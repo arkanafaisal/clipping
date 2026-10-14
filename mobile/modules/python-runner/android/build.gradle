@@ -28,9 +28,10 @@ android {
 chaquopy {
     defaultConfig {
         version "3.10"
+        buildPython "python3.10"
         pip {
-            install "fastapi"
-            install "uvicorn"
+            // Pure Python libraries (100% compatible with Chaquopy without native C/Rust compilers)
+            install "flask"
             install "yt-dlp"
         }
     }
