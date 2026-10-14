@@ -1,17 +1,23 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity } from 'react-native';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Plus } from 'lucide-react-native';
 
 interface WorkshopInputFormProps {
   onCreate: (url: string, count: number) => void;
   error?: string | null;
+  loading?: boolean;
 }
 
-export const WorkshopInputForm: React.FC<WorkshopInputFormProps> = ({ onCreate, error }) => {
+export const WorkshopInputForm: React.FC<WorkshopInputFormProps> = ({
+  onCreate,
+  error,
+  loading = false,
+}) => {
   const [urlInput, setUrlInput] = useState('');
   const [countInput, setCountInput] = useState('50');
 
   const handlePressCreate = () => {
+    if (loading) return;
     const finalCount = parseInt(countInput, 10) || 50;
     onCreate(urlInput.trim(), finalCount);
   };
@@ -31,6 +37,7 @@ export const WorkshopInputForm: React.FC<WorkshopInputFormProps> = ({ onCreate, 
             placeholderTextColor="rgba(255, 255, 255, 0.25)"
             autoCapitalize="none"
             autoCorrect={false}
+            editable={!loading}
           />
         </View>
 
@@ -44,16 +51,24 @@ export const WorkshopInputForm: React.FC<WorkshopInputFormProps> = ({ onCreate, 
               onChangeText={setCountInput}
               keyboardType="numeric"
               maxLength={3}
+              editable={!loading}
             />
           </View>
 
           <TouchableOpacity
-            style={styles.submitBtn}
+            style={[styles.submitBtn, loading && styles.submitBtnDisabled]}
             onPress={handlePressCreate}
             activeOpacity={0.85}
+            disabled={loading}
           >
-            <Plus size={18} color="#ffffff" strokeWidth={3} />
-            <Text style={styles.submitBtnText}>BUAT</Text>
+            {loading ? (
+              <ActivityIndicator size="small" color="#ffffff" />
+            ) : (
+              <>
+                <Plus size={18} color="#ffffff" strokeWidth={3} />
+                <Text style={styles.submitBtnText}>BUAT</Text>
+              </>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -131,6 +146,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.4,
     shadowRadius: 10,
     elevation: 6,
+  },
+  submitBtnDisabled: {
+    backgroundColor: 'rgba(220, 38, 38, 0.6)',
   },
   submitBtnText: {
     color: '#ffffff',

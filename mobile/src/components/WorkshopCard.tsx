@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Image } from 'react-native';
-import { Play, Trash2, MessageCircle, Copy, DownloadCloud } from 'lucide-react-native';
+import { Play, Trash2 } from 'lucide-react-native';
 
 export interface WorkshopItem {
   videoId: string;
@@ -23,9 +23,6 @@ export const WorkshopCard: React.FC<WorkshopCardProps> = ({
   workshop,
   onPress,
   onDelete,
-  onExport,
-  onBulkWA,
-  onDownloadDrive,
 }) => {
   const thumbnailUrl = `https://img.youtube.com/vi/${workshop.videoId}/mqdefault.jpg`;
   const clipCount = workshop.count || 50;
@@ -62,9 +59,9 @@ export const WorkshopCard: React.FC<WorkshopCardProps> = ({
           {workshop.title || `Video ID: ${workshop.videoId}`}
         </Text>
 
-        {/* Bottom Row: Stats & Action Buttons */}
+        {/* Bottom Row: Stats (KLIP & DONE) aligned with Delete Button */}
         <View style={styles.cardFooter}>
-          {/* Badges: KLIP & DONE */}
+          {/* Left: Badges (KLIP & DONE) */}
           <View style={styles.statsRow}>
             <View style={styles.badge}>
               <Text style={styles.badgeLabel}>KLIP</Text>
@@ -77,44 +74,15 @@ export const WorkshopCard: React.FC<WorkshopCardProps> = ({
             </View>
           </View>
 
-          {/* Action Buttons */}
-          <View style={styles.actionsRow}>
-            {/* GDrive Download */}
-            <TouchableOpacity
-              style={[styles.actionBtn, styles.btnPurple]}
-              onPress={() => onDownloadDrive?.(workshop.videoId)}
-              activeOpacity={0.7}
-            >
-              <DownloadCloud size={16} color="#c084fc" />
-            </TouchableOpacity>
-
-            {/* Copy / Export */}
-            <TouchableOpacity
-              style={[styles.actionBtn, styles.btnBlue]}
-              onPress={() => onExport?.(workshop)}
-              activeOpacity={0.7}
-            >
-              <Copy size={16} color="#60a5fa" />
-            </TouchableOpacity>
-
-            {/* WA Export */}
-            <TouchableOpacity
-              style={[styles.actionBtn, styles.btnEmerald]}
-              onPress={() => onBulkWA?.(workshop.videoId)}
-              activeOpacity={0.7}
-            >
-              <MessageCircle size={16} color="#34d399" />
-            </TouchableOpacity>
-
-            {/* Delete Draft */}
-            <TouchableOpacity
-              style={[styles.actionBtn, styles.btnRose]}
-              onPress={() => onDelete(workshop.videoId)}
-              activeOpacity={0.7}
-            >
-              <Trash2 size={16} color="#f87171" />
-            </TouchableOpacity>
-          </View>
+          {/* Right: Compact Delete Action */}
+          <TouchableOpacity
+            style={styles.deleteBtn}
+            onPress={() => onDelete(workshop.videoId)}
+            activeOpacity={0.7}
+            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+          >
+            <Trash2 size={13} color="#f87171" />
+          </TouchableOpacity>
         </View>
       </View>
     </TouchableOpacity>
@@ -184,8 +152,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    flexWrap: 'wrap',
-    gap: 8,
   },
   statsRow: {
     flexDirection: 'row',
@@ -219,29 +185,14 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: '#60a5fa',
   },
-  actionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginLeft: 'auto',
-  },
-  actionBtn: {
-    width: 32,
-    height: 32,
+  deleteBtn: {
+    width: 28,
+    height: 28,
     borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  btnPurple: {
-    backgroundColor: 'rgba(168, 85, 247, 0.12)',
-  },
-  btnBlue: {
-    backgroundColor: 'rgba(59, 130, 246, 0.12)',
-  },
-  btnEmerald: {
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-  },
-  btnRose: {
     backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.25)',
   },
 });
