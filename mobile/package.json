@@ -44,7 +44,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "eas-build-pre-install": "bash ./scripts/eas-build-pre-install.sh"
   },
   "private": true
 }
