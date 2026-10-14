@@ -12,5 +12,9 @@ cookies.txt
 token.json
 credentials.json
 
-
 note.md
+explanation*.md
+*.log
+*.tmp
+temp/
+.temp/
