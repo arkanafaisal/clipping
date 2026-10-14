@@ -2,7 +2,7 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from flask import Flask, jsonify, request, Response
+from flask import Flask, jsonify, request
 from utils.stream_extractor import get_direct_stream_url
 from utils.heatmap import get_raw_heatmap
 
@@ -23,113 +23,70 @@ def ping():
         "message": "Server Python berjalan mandiri di dalam HP!"
     })
 
-@app.route("/api/stream", methods=["GET", "POST"])
-@app.route("/api/stream/<video_id>", methods=["GET", "POST"])
+@app.route("/api/stream", methods=["POST", "GET"])
+@app.route("/api/stream/<video_id>", methods=["POST", "GET"])
 def get_stream(video_id=None):
     """
-    Endpoint Pass-Through untuk mengekstrak direct stream URL dari YouTube.
-    100% dinamis: Menerima video_id dan custom ydl_opts langsung dari request body (POST) atau query/path (GET).
-    Tidak ada in-memory cache dan tidak ada rate limiter di backend;
-    error dari YouTube diteruskan secara mentah (raw) ke frontend.
+    Endpoint Pass-Through murni untuk mengekstrak direct stream URL dari YouTube.
+    100% dinamis: Seluruh opsi yt-dlp wajib dikirim oleh frontend.
+    Jika ydl_opts tidak ada, tolak langsung dengan HTTP 400 (Bad Request).
+    Respon hanya berisi hasil stream_url (atau pesan error jika gagal).
     """
     body = request.get_json(silent=True) or {}
     vid = body.get("video_id") or video_id or request.args.get("video_id")
     
     if not vid:
-        return jsonify({
-            "status": "error",
-            "error": "Parameter 'video_id' wajib disertakan dalam path, query, atau body."
-        }), 400
+        return jsonify({"error": "Parameter 'video_id' wajib disertakan."}), 400
 
-    custom_opts = body.get("ydl_opts") or body.get("options")
+    opts = body.get("ydl_opts")
+    if not opts:
+        return jsonify({"error": "Parameter 'ydl_opts' (konfigurasi yt-dlp) wajib disertakan dari frontend."}), 400
     
-    url, err = get_direct_stream_url(vid, custom_opts=custom_opts)
+    url, err = get_direct_stream_url(vid, ydl_opts=opts)
     if err or not url:
-        return jsonify({
-            "status": "error",
-            "video_id": vid,
-            "error": err or "Gagal mendapatkan stream URL dari YouTube."
-        }), 400
+        return jsonify({"error": err or "Gagal mengekstrak stream URL dari YouTube."}), 400
         
     return jsonify({
-        "status": "ok",
-        "video_id": vid,
         "stream_url": url
-    })
+    }), 200
 
-@app.route("/api/heatmap", methods=["GET", "POST"])
-@app.route("/api/heatmap/<video_id>", methods=["GET", "POST"])
+@app.route("/api/heatmap", methods=["POST", "GET"])
+@app.route("/api/heatmap/<video_id>", methods=["POST", "GET"])
 def get_heatmap(video_id=None):
     """
-    Endpoint Pass-Through untuk mengambil data mentah heatmap ('Most Replayed') dan title video.
-    100% dinamis: Backend TIDAK memformat klip, TIDAK menghitung offset (+/- 5s), dan TIDAK mengurutkan ranking.
-    Data mentah (raw heatmap array) dan error dikembalikan langsung ke frontend untuk diolah di client.
+    Endpoint Pass-Through murni untuk mengambil data mentah heatmap ('Most Replayed') dan title.
+    100% dinamis: Backend TIDAK memformat klip, TIDAK menghitung offset, dan TIDAK memiliki fallback config.
+    Respon hanya berisi title dan raw heatmap array mentah dari YouTube.
     """
     body = request.get_json(silent=True) or {}
     vid = body.get("video_id") or video_id or request.args.get("video_id")
     
     if not vid:
-        return jsonify({
-            "status": "error",
-            "error": "Parameter 'video_id' wajib disertakan dalam path, query, atau body."
-        }), 400
+        return jsonify({"error": "Parameter 'video_id' wajib disertakan."}), 400
 
-    custom_opts = body.get("ydl_opts") or body.get("options")
+    opts = body.get("ydl_opts")
+    if not opts:
+        return jsonify({"error": "Parameter 'ydl_opts' (konfigurasi yt-dlp) wajib disertakan dari frontend."}), 400
     
-    raw_heatmap, title, err = get_raw_heatmap(vid, custom_opts=custom_opts)
+    raw_heatmap, title, err = get_raw_heatmap(vid, ydl_opts=opts)
     if err and not raw_heatmap:
-        return jsonify({
-            "status": "error",
-            "video_id": vid,
-            "error": err
-        }), 404
-        
-    # Sediakan juga formatted fallback untuk menjaga kompatibilitas backward frontend lama
-    offset = int(request.args.get("offset", body.get("offset", 0)))
-    num_clips = int(request.args.get("num_clips", body.get("num_clips", len(raw_heatmap))))
-    sorted_moments = sorted(raw_heatmap, key=lambda x: x.get('value', 0), reverse=True)[:num_clips]
-    
-    fallback_clips = []
-    for rank, moment in enumerate(sorted_moments, start=1):
-        orig_start = moment.get('start_time', 0)
-        orig_end = moment.get('end_time', 0)
-        fallback_clips.append({
-            "id": f"clip_{orig_start}",
-            "rank": rank,
-            "videoId": vid,
-            "start": max(0, orig_start - offset),
-            "end": orig_end + offset,
-            "value": moment.get('value', 0)
-        })
+        return jsonify({"error": err}), 404
 
     return jsonify({
-        "status": "ok",
-        "video_id": vid,
         "title": title,
-        "heatmap": raw_heatmap,      # Raw pass-through array
-        "clips": fallback_clips       # Backward-compatible clips
-    })
+        "heatmap": raw_heatmap
+    }), 200
 
 # ==============================================================================
-# [OFFLOADED / COMMENTED OUT - TIDAK DIGUNAKAN DI MOBILE NATIVE]
+# [COMMENTED OUT - TIDAK DIGUNAKAN DI MOBILE NATIVE]
 # 1. /api/proxy_stream:
-#    Pemutar video native Android (ExoPlayer / expo-video) TIDAK dibatasi oleh CORS browser web,
-#    sehingga memutar langsung direct URL HTTPS Google Video dengan kecepatan penuh.
-#    Proxy ini dahulu hanya dibuat untuk browser web (Chrome/Firefox) dan justru memperlambat
-#    koneksi saat memakai tunnel/Tailscale karena bandwidth terbagi dua (YouTube -> Server -> HP).
-#
-# @app.route("/api/proxy_stream", methods=["GET"])
-# def proxy_stream():
-#     url = request.args.get("url")
-#     if not url: return jsonify({"detail": "Missing url"}), 400
-#     ...
-#
-# 2. /api/download-to-gdrive & Full video downloader:
-#    Diberhentikan untuk fase streaming-only agar Python backend tetap minimalis & instan.
+#    Pemutar video native Android (ExoPlayer / expo-video) langsung memutar
+#    direct URL HTTPS Google Video tanpa terhambat CORS browser.
+# 2. /api/download-to-gdrive & Full video downloader.
 # ==============================================================================
 
 def start_server(port=8080):
-    print(f"[Native Python] Starting Minimalist Pass-Through Server di port {port}...")
+    print(f"[Native Python] Starting Pure Pass-Through Server di port {port}...")
     app.run(host="127.0.0.1", port=port, debug=False, use_reloader=False, threaded=True)
 
 if __name__ == "__main__":

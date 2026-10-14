@@ -1,4 +1,5 @@
 import { LocalStorage } from './storage';
+import { STREAM_YTDL_OPTS, HEATMAP_YTDL_OPTS } from '../constants/ytdlp';
 
 export interface ClipItem {
   id: string;
@@ -16,7 +17,6 @@ export interface HeatmapResponse {
 }
 
 export interface StreamResponse {
-  video_id: string;
   stream_url: string;
   error?: string;
 }
@@ -27,7 +27,7 @@ export const API_BASE_URL = 'http://127.0.0.1:3006';
 /**
  * Ping Python server on 127.0.0.1:3006 (Termux / Mobile API)
  */
-export async function pingServer(): Promise<{ status: string; message?: string; uptime_seconds?: number }> {
+export async function pingServer(): Promise<{ status: string; message?: string }> {
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 1500);
@@ -49,7 +49,7 @@ export async function pingServer(): Promise<{ status: string; message?: string; 
 /**
  * Fetches the direct stream URL for a given YouTube video ID.
  * Caches stream URLs in frontend LocalStorage (2 hours expiration).
- * Sends dynamic options via request body to keep backend 100% pass-through.
+ * Sends explicit STREAM_YTDL_OPTS via request body to keep backend 100% pass-through.
  */
 export async function fetchStreamUrl(videoId: string): Promise<string> {
   // 1. Cek cache frontend terlebih dahulu
@@ -70,7 +70,7 @@ export async function fetchStreamUrl(videoId: string): Promise<string> {
   const timeoutId = setTimeout(() => controller.abort(), 20000);
 
   try {
-    // Kirim opsi konfigurasi langsung dari Frontend (Dynamic Options)
+    // Kirim konfigurasi eksplisit dari Frontend (Zero Backend Fallback)
     const response = await fetch(`${API_BASE_URL}/api/stream`, {
       method: 'POST',
       headers: {
@@ -78,9 +78,7 @@ export async function fetchStreamUrl(videoId: string): Promise<string> {
       },
       body: JSON.stringify({
         video_id: videoId,
-        ydl_opts: {
-          format: 'best[height<=480][ext=mp4]/best[ext=mp4]',
-        }
+        ydl_opts: STREAM_YTDL_OPTS,
       }),
       signal: controller.signal,
     });
@@ -88,7 +86,7 @@ export async function fetchStreamUrl(videoId: string): Promise<string> {
 
     const data = await response.json();
 
-    if (!response.ok || data.status === 'error' || !data.stream_url) {
+    if (!response.ok || !data.stream_url) {
       const errorMsg = data.error || (response.status === 404 
         ? 'Video tidak ditemukan atau dibatasi (Private/Age-restricted).'
         : `Gagal mengekstrak stream (Status: ${response.status})`);
@@ -117,8 +115,8 @@ export async function fetchStreamUrl(videoId: string): Promise<string> {
 
 /**
  * Fetches the heatmap data for a given YouTube video ID.
- * Mengambil data mentah (raw pass-through) dari Python dan melakukan formatting,
- * kalkulasi offset, serta sorting klip 100% di Frontend.
+ * Mengirimkan HEATMAP_YTDL_OPTS secara eksplisit ke backend,
+ * lalu melakukan formatting, kalkulasi offset, dan sorting klip 100% di Frontend.
  */
 export async function fetchHeatmap(
   videoId: string,
@@ -136,8 +134,7 @@ export async function fetchHeatmap(
       },
       body: JSON.stringify({
         video_id: videoId,
-        offset: offset,
-        num_clips: numClips
+        ydl_opts: HEATMAP_YTDL_OPTS,
       }),
       signal: controller.signal,
     });
@@ -145,54 +142,46 @@ export async function fetchHeatmap(
 
     const data = await response.json();
 
-    if (!response.ok || data.status === 'error') {
+    if (!response.ok || !Array.isArray(data.heatmap)) {
       const errorMsg = data.error || (response.status === 404 
         ? 'Video tidak memiliki data heatmap (Most Replayed).'
         : `Gagal mengambil heatmap (Status: ${response.status})`);
       throw new Error(errorMsg);
     }
 
-    // Jika backend mengirim raw heatmap array, lakukan kalkulasi 100% di frontend
-    if (Array.isArray(data.heatmap) && data.heatmap.length > 0) {
-      const topMoments = [...data.heatmap]
-        .sort((a: any, b: any) => (b.value || 0) - (a.value || 0))
-        .slice(0, numClips);
+    // Olah raw heatmap 100% di Frontend TypeScript
+    const topMoments = [...data.heatmap]
+      .sort((a: any, b: any) => (b.value || 0) - (a.value || 0))
+      .slice(0, numClips);
 
-      const formattedClips: ClipItem[] = topMoments.map((moment: any, index: number) => {
-        const origStart = Number(moment.start_time || 0);
-        const origEnd = Number(moment.end_time || 0);
-        let start = origStart - offset;
-        let end = origEnd + offset;
+    const formattedClips: ClipItem[] = topMoments.map((moment: any, index: number) => {
+      const origStart = Number(moment.start_time || 0);
+      const origEnd = Number(moment.end_time || 0);
+      let start = origStart - offset;
+      let end = origEnd + offset;
 
-        if (end <= start) {
-          const mid = (origStart + origEnd) / 2;
-          start = Math.max(0, Math.floor(mid - 1));
-          end = start + 2;
-        } else {
-          start = Math.max(0, start);
-        }
-
-        return {
-          id: `clip_${origStart}`,
-          rank: index + 1,
-          videoId: videoId,
-          start: Math.round(start),
-          end: Math.round(end),
-          value: moment.value,
-          status: 'none'
-        };
-      });
+      if (end <= start) {
+        const mid = (origStart + origEnd) / 2;
+        start = Math.max(0, Math.floor(mid - 1));
+        end = start + 2;
+      } else {
+        start = Math.max(0, start);
+      }
 
       return {
-        title: data.title || '',
-        clips: formattedClips
+        id: `clip_${origStart}`,
+        rank: index + 1,
+        videoId: videoId,
+        start: Math.round(start),
+        end: Math.round(end),
+        value: moment.value,
+        status: 'none' as const,
       };
-    }
+    });
 
-    // Fallback jika backend mengirim clips yang sudah diformat
     return {
       title: data.title || '',
-      clips: data.clips || []
+      clips: formattedClips,
     };
 
   } catch (error: any) {

@@ -3,40 +3,32 @@ import yt_dlp
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-def get_raw_heatmap(video_id_or_url: str, custom_opts: dict = None) -> tuple:
+def get_raw_heatmap(video_id: str, ydl_opts: dict) -> tuple:
     """
-    Mengambil data mentah heatmap ('Most Replayed') dan title video dari YouTube secara pass-through.
-    Seluruh kalkulasi offset, sorting ranking, dan formatting klip didelegasikan ke frontend.
+    Ekstrak data mentah heatmap ('Most Replayed') dan title video dari YouTube secara murni pass-through.
+    TIDAK ADA fallback value di backend. Parameter video_id dan ydl_opts wajib dikirim oleh frontend.
     
     Returns:
         tuple: (heatmap: list, title: str, error: str | None)
     """
-    if "youtube.com" in video_id_or_url or "youtu.be" in video_id_or_url:
-        video_url = video_id_or_url
-    else:
-        video_url = f"https://www.youtube.com/watch?v={video_id_or_url}"
+    if not video_id:
+        return [], "", "Parameter 'video_id' wajib diisi."
+        
+    if not ydl_opts or not isinstance(ydl_opts, dict):
+        return [], "", "Parameter 'ydl_opts' (konfigurasi yt-dlp) wajib dikirim oleh frontend."
 
-    ydl_opts = {
-        'skip_download': True,
-        'quiet': True,
-        'no_warnings': True,
-        'extract_flat': False
-    }
+    opts = ydl_opts.copy()
 
-    # Inject cookies jika ada
+    # Sertakan cookies jika file cookies.txt tersedia
     cookie_path = os.path.join(BASE_DIR, 'cookies.txt')
     if os.path.exists(cookie_path):
-        ydl_opts['cookiefile'] = cookie_path
-        
-    ydl_opts['extractor_args'] = {'youtube': {'player_client': ['ios', 'android']}}
+        opts['cookiefile'] = cookie_path
 
-    # 100% Dynamic: Override dengan opsi yang dikirim oleh request body frontend
-    if custom_opts and isinstance(custom_opts, dict):
-        ydl_opts.update(custom_opts)
+    url = f"https://www.youtube.com/watch?v={video_id}"
 
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(video_url, download=False)
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(url, download=False)
             heatmap = info.get('heatmap') or []
             title = info.get('title') or ""
             
@@ -44,17 +36,6 @@ def get_raw_heatmap(video_id_or_url: str, custom_opts: dict = None) -> tuple:
                 return [], title, "Heatmap tidak ditemukan. Video ini mungkin belum memiliki data 'Most Replayed'."
                 
             return heatmap, title, None
-
     except Exception as e:
         error_msg = str(e)
-        print(f"[HEATMAP EXTRACTOR ERROR] Gagal mengambil heatmap: {error_msg}")
         return [], "", error_msg
-
-# Backward-compatibility alias
-def get_top_clips(video_url, num_clips=10, offset=0):
-    heatmap, title, err = get_raw_heatmap(video_url)
-    if err or not heatmap:
-        return [], title
-    # Sort and return raw for legacy callers
-    top = sorted(heatmap, key=lambda x: x.get('value', 0), reverse=True)[:num_clips]
-    return top, title
