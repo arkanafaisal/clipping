@@ -1,0 +1,6 @@
+{
+  "name": "python-runner",
+  "version": "1.0.0",
+  "description": "Embedded Python engine for Android using Chaquopy",
+  "main": "index.ts"
+}
