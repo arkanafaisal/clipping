@@ -18,6 +18,7 @@ export interface HeatmapResponse {
 export interface StreamResponse {
   video_id: string;
   stream_url: string;
+  error?: string;
 }
 
 // Termux / Mobile API running on port 3006
@@ -48,6 +49,7 @@ export async function pingServer(): Promise<{ status: string; message?: string; 
 /**
  * Fetches the direct stream URL for a given YouTube video ID.
  * Caches stream URLs in frontend LocalStorage (2 hours expiration).
+ * Sends dynamic options via request body to keep backend 100% pass-through.
  */
 export async function fetchStreamUrl(videoId: string): Promise<string> {
   // 1. Cek cache frontend terlebih dahulu
@@ -68,28 +70,30 @@ export async function fetchStreamUrl(videoId: string): Promise<string> {
   const timeoutId = setTimeout(() => controller.abort(), 20000);
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/stream/${videoId}`, {
-      method: 'GET',
+    // Kirim opsi konfigurasi langsung dari Frontend (Dynamic Options)
+    const response = await fetch(`${API_BASE_URL}/api/stream`, {
+      method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
+      body: JSON.stringify({
+        video_id: videoId,
+        ydl_opts: {
+          format: 'best[height<=480][ext=mp4]/best[ext=mp4]',
+        }
+      }),
       signal: controller.signal,
     });
     clearTimeout(timeoutId);
 
-    if (!response.ok) {
-      if (response.status === 404) {
-        throw new Error('Video tidak ditemukan atau dibatasi (Private/Age-restricted).');
-      } else if (response.status === 429) {
-        throw new Error('Terlalu banyak request ke YouTube (Rate Limit). Coba lagi nanti.');
-      } else if (response.status >= 500) {
-        throw new Error('Terjadi kesalahan pada server saat mengekstrak stream.');
-      } else {
-        throw new Error(`Error tidak dikenal (Status: ${response.status})`);
-      }
-    }
+    const data = await response.json();
 
-    const data: StreamResponse = await response.json();
+    if (!response.ok || data.status === 'error' || !data.stream_url) {
+      const errorMsg = data.error || (response.status === 404 
+        ? 'Video tidak ditemukan atau dibatasi (Private/Age-restricted).'
+        : `Gagal mengekstrak stream (Status: ${response.status})`);
+      throw new Error(errorMsg);
+    }
     
     // 2. Simpan ke cache frontend (valid 2 jam = 7200 detik)
     try {
@@ -113,39 +117,84 @@ export async function fetchStreamUrl(videoId: string): Promise<string> {
 
 /**
  * Fetches the heatmap data for a given YouTube video ID.
- * 100% parity with frontend/src/services/api.js
+ * Mengambil data mentah (raw pass-through) dari Python dan melakukan formatting,
+ * kalkulasi offset, serta sorting klip 100% di Frontend.
  */
 export async function fetchHeatmap(
   videoId: string,
   numClips: number = 100,
-  offset: number = 0
+  offset: number = 5
 ): Promise<HeatmapResponse> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 20000);
 
   try {
-    const response = await fetch(
-      `${API_BASE_URL}/api/heatmap/${videoId}?num_clips=${numClips}&offset=${offset}`,
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        signal: controller.signal,
-      }
-    );
+    const response = await fetch(`${API_BASE_URL}/api/heatmap`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        video_id: videoId,
+        offset: offset,
+        num_clips: numClips
+      }),
+      signal: controller.signal,
+    });
     clearTimeout(timeoutId);
 
-    if (!response.ok) {
-      if (response.status === 404) {
-        throw new Error('Video tidak memiliki data heatmap (Most Replayed).');
-      } else {
-        throw new Error(`Gagal mengambil heatmap (Status: ${response.status})`);
-      }
+    const data = await response.json();
+
+    if (!response.ok || data.status === 'error') {
+      const errorMsg = data.error || (response.status === 404 
+        ? 'Video tidak memiliki data heatmap (Most Replayed).'
+        : `Gagal mengambil heatmap (Status: ${response.status})`);
+      throw new Error(errorMsg);
     }
 
-    const data: HeatmapResponse = await response.json();
-    return data;
+    // Jika backend mengirim raw heatmap array, lakukan kalkulasi 100% di frontend
+    if (Array.isArray(data.heatmap) && data.heatmap.length > 0) {
+      const topMoments = [...data.heatmap]
+        .sort((a: any, b: any) => (b.value || 0) - (a.value || 0))
+        .slice(0, numClips);
+
+      const formattedClips: ClipItem[] = topMoments.map((moment: any, index: number) => {
+        const origStart = Number(moment.start_time || 0);
+        const origEnd = Number(moment.end_time || 0);
+        let start = origStart - offset;
+        let end = origEnd + offset;
+
+        if (end <= start) {
+          const mid = (origStart + origEnd) / 2;
+          start = Math.max(0, Math.floor(mid - 1));
+          end = start + 2;
+        } else {
+          start = Math.max(0, start);
+        }
+
+        return {
+          id: `clip_${origStart}`,
+          rank: index + 1,
+          videoId: videoId,
+          start: Math.round(start),
+          end: Math.round(end),
+          value: moment.value,
+          status: 'none'
+        };
+      });
+
+      return {
+        title: data.title || '',
+        clips: formattedClips
+      };
+    }
+
+    // Fallback jika backend mengirim clips yang sudah diformat
+    return {
+      title: data.title || '',
+      clips: data.clips || []
+    };
+
   } catch (error: any) {
     clearTimeout(timeoutId);
     throw error;

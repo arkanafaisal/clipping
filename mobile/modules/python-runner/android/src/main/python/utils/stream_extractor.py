@@ -1,18 +1,18 @@
-import time
 import yt_dlp
 from utils.youtube_auth import add_cookies
-from utils.rate_limiter import gate1_limiter
 
-# Cache in-memory: { "video_id": {"url": "...", "expires_at": timestamp} }
-# YouTube URLs usually expire in 6 hours, we cache for 2 hours (7200 detik)
-STREAM_CACHE = {}
-
-def get_direct_stream_url(video_id: str) -> str:
+def get_direct_stream_url(video_id: str, custom_opts: dict = None) -> tuple:
     """
-    Ekstrak direct stream URL dari video YouTube menggunakan yt-dlp.
+    Ekstrak direct stream URL dari video YouTube menggunakan yt-dlp secara minimalis (pass-through).
+    Tidak menggunakan cache in-memory atau file rate limiter di backend;
+    seluruh konfigurasi dan caching didelegasikan ke frontend.
+    
+    Returns:
+        tuple: (url: str | None, error: str | None)
     """
     url = f"https://www.youtube.com/watch?v={video_id}"
     
+    # Konfigurasi default jika frontend tidak mengirimkan custom ydl_opts
     ydl_opts = {
         'format': 'best[height<=480][ext=mp4]/best[ext=mp4]',
         'quiet': True,
@@ -20,32 +20,21 @@ def get_direct_stream_url(video_id: str) -> str:
         'extract_flat': False
     }
     
-    # Cek Cache dulu sebelum membuang tiket Gate 1
-    now = time.time()
-    if video_id in STREAM_CACHE:
-        cache_data = STREAM_CACHE[video_id]
-        if now < cache_data["expires_at"]:
-            print(f"[STREAM CACHE] Memakai URL dari cache untuk {video_id}. (Aman dari hitungan Gate 1!)")
-            return cache_data["url"]
-        else:
-            del STREAM_CACHE[video_id] # Expired
+    # 100% Dynamic: Override dengan konfigurasi dari request body jika disediakan
+    if custom_opts and isinstance(custom_opts, dict):
+        ydl_opts.update(custom_opts)
             
-    # Menggunakan jalur iOS (Sangat aman dari BotGuard, kualitas cukup untuk preview)
+    # Menggunakan jalur iOS (Sangat aman dari BotGuard, format mp4 langsung)
     ydl_opts_ios = add_cookies(ydl_opts.copy(), client_type='ios')
+    
     try:
-        gate1_limiter.check_and_add()
         with yt_dlp.YoutubeDL(ydl_opts_ios) as ydl_ios:
             info_ios = ydl_ios.extract_info(url, download=False)
             result_url = info_ios.get('url')
-            
-            # Simpan ke cache (Valid selama 2 jam / 7200 detik)
-            if result_url:
-                STREAM_CACHE[video_id] = {
-                    "url": result_url,
-                    "expires_at": time.time() + 7200
-                }
-            return result_url
+            if not result_url:
+                return None, "Direct stream URL tidak ditemukan dalam metadata YouTube."
+            return result_url, None
     except Exception as e_ios:
-        if "RATE_LIMIT_EXCEEDED" in str(e_ios): raise
-        print(f"[STREAM EXTRACTOR] Error mengekstrak URL iOS untuk {video_id}: {e_ios}")
-        return None
+        error_msg = str(e_ios)
+        print(f"[STREAM EXTRACTOR ERROR] Gagal mengekstrak video '{video_id}': {error_msg}")
+        return None, error_msg

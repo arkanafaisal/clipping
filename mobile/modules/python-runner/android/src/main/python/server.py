@@ -3,24 +3,15 @@ import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from flask import Flask, jsonify, request, Response
-try:
-    import requests
-except ImportError:
-    requests = None
 from utils.stream_extractor import get_direct_stream_url
-from utils.heatmap import get_top_clips
-import os
-import threading
-import time
-
-# gdrive_upload_tasks = {}
+from utils.heatmap import get_raw_heatmap
 
 app = Flask(__name__)
 
-# Setup CORS agar bisa di-hit dari frontend React
+# Setup CORS agar bisa di-hit dari frontend React Native / Web
 @app.after_request
 def add_cors_headers(response):
-    response.headers["Access-Control-Allow-Origin"] = "*" # Sangat permissif untuk development lokal
+    response.headers["Access-Control-Allow-Origin"] = "*"
     response.headers["Access-Control-Allow-Methods"] = "*"
     response.headers["Access-Control-Allow-Headers"] = "*"
     return response
@@ -32,156 +23,115 @@ def ping():
         "message": "Server Python berjalan mandiri di dalam HP!"
     })
 
-@app.route("/api/stream/<video_id>", methods=["GET"])
-def get_stream(video_id: str):
+@app.route("/api/stream", methods=["GET", "POST"])
+@app.route("/api/stream/<video_id>", methods=["GET", "POST"])
+def get_stream(video_id=None):
     """
-    Endpoint untuk mendapatkan direct stream URL dari video YouTube
+    Endpoint Pass-Through untuk mengekstrak direct stream URL dari YouTube.
+    100% dinamis: Menerima video_id dan custom ydl_opts langsung dari request body (POST) atau query/path (GET).
+    Tidak ada in-memory cache dan tidak ada rate limiter di backend;
+    error dari YouTube diteruskan secara mentah (raw) ke frontend.
     """
-    try:
-        url = get_direct_stream_url(video_id)
-        if not url:
-            print(f"[API ERROR] Stream URL for '{video_id}' could not be extracted (Returned None).")
-            return jsonify({"detail": "Not Found"}), 404
-            
+    body = request.get_json(silent=True) or {}
+    vid = body.get("video_id") or video_id or request.args.get("video_id")
+    
+    if not vid:
         return jsonify({
-            "video_id": video_id,
-            "stream_url": url
-        })
-    except Exception as e:
-        if "RATE_LIMIT_EXCEEDED" in str(e):
-            return jsonify({"detail": "Too Many Requests to YouTube API. Silakan tunggu beberapa menit."}), 429
-        print(f"[API CRITICAL ERROR] Failed to process video '{video_id}': {str(e)}")
-        return jsonify({"detail": "Internal Server Error"}), 500
+            "status": "error",
+            "error": "Parameter 'video_id' wajib disertakan dalam path, query, atau body."
+        }), 400
 
-# [OFFLOADED TO FRONTEND / UNUSED IN STREAM-ONLY PHASE]
-# Google Drive & Full Video downloads di-comment agar backend tetap minimalis,
-# cepat, dan fokus 100% pada ekstraksi Heatmap dan Stream.
-#
-# gdrive_upload_tasks = {}
-#
-# def background_download_and_upload(video_id: str):
-#     gdrive_upload_tasks[video_id] = {"status": "downloading", "link": None, "error": None}
-#     try:
-#         gdrive_upload_tasks[video_id]["status"] = "done"
-#         gdrive_upload_tasks[video_id]["link"] = None
-#     except Exception as e:
-#         print(f"[LOKAL API ERROR] {e}")
-#         gdrive_upload_tasks[video_id]["status"] = "error"
-#         gdrive_upload_tasks[video_id]["error"] = str(e)
-#
-# @app.route("/api/download-to-gdrive", methods=["POST"])
-# def download_to_gdrive():
-#     req = request.get_json(silent=True) or {}
-#     video_id = req.get("video_id", "")
-#     if video_id in gdrive_upload_tasks:
-#         task = gdrive_upload_tasks[video_id]
-#         if task["status"] in ["downloading", "uploading", "done"]:
-#             return jsonify(task)
-#     threading.Thread(target=background_download_and_upload, args=(video_id,)).start()
-#     gdrive_upload_tasks[video_id] = {"status": "starting", "link": None, "error": None}
-#     return jsonify(gdrive_upload_tasks[video_id])
-#
-# @app.route("/api/download-to-gdrive/active-tasks", methods=["GET"])
-# def get_active_gdrive_tasks():
-#     return jsonify(gdrive_upload_tasks)
-
-@app.route("/api/proxy_stream", methods=["GET"])
-def proxy_stream():
-    """
-    Endpoint proxy untuk membypass pemblokiran CORS / User-Agent dari YouTube
-    hanya untuk video yang bermasalah. Mendukung Range request.
-    """
-    url = request.args.get("url")
-    if not url:
-        return jsonify({"detail": "Missing url"}), 400
-
-    headers = {}
-    range_header = request.headers.get("Range")
-    if range_header:
-        headers["Range"] = range_header
-        
-    try:
-        if requests is not None:
-            # Stream=True agar tidak memuat seluruh video ke memori
-            req = requests.get(url, headers=headers, stream=True, timeout=10)
-            
-            def iterfile():
-                for chunk in req.iter_content(chunk_size=1024 * 1024):  # 1MB chunks
-                    if chunk:
-                        yield chunk
-
-            response_headers = {
-                k: v for k, v in req.headers.items() 
-                if k.lower() in ("content-type", "content-length", "content-range", "accept-ranges")
-            }
-
-            return Response(
-                iterfile(), 
-                status=req.status_code, 
-                headers=response_headers
-            )
-        else:
-            import urllib.request
-            req = urllib.request.Request(url, headers=headers)
-            res = urllib.request.urlopen(req, timeout=10)
-
-            def iterfile():
-                while True:
-                    chunk = res.read(1024 * 1024)
-                    if not chunk:
-                        break
-                    yield chunk
-
-            response_headers = {
-                k: v for k, v in res.headers.items()
-                if k.lower() in ("content-type", "content-length", "content-range", "accept-ranges")
-            }
-
-            return Response(
-                iterfile(),
-                status=res.getcode(),
-                headers=response_headers
-            )
-    except Exception as e:
-        print(f"[API ERROR] Proxy stream failed: {e}")
-        return jsonify({"detail": "Failed to proxy stream"}), 500
-
-@app.route("/api/heatmap/<video_id>", methods=["GET"])
-def get_heatmap(video_id: str):
-    """
-    Endpoint untuk mendapatkan daftar klip berdasarkan heatmap (most replayed)
-    """
-    num_clips = request.args.get("num_clips", default=5, type=int)
-    offset = request.args.get("offset", default=5, type=int)
-    try:
-        url = f"https://www.youtube.com/watch?v={video_id}"
-        clips, title = get_top_clips(url, num_clips=num_clips, offset=offset)
-        
-        if not clips:
-            return jsonify({"detail": "Gagal mengekstrak heatmap. Mungkin video tidak punya data 'Most Replayed'."}), 404
-        
-        # Mapping response ke struktur yang dipahami frontend: { id, videoId, start, end }
-        formatted_clips = []
-        for clip in clips:
-            formatted_clips.append({
-                "id": f"clip_{clip['original_start']}",
-                "rank": clip["rank"],
-                "videoId": video_id,
-                "start": clip["start_time"],
-                "end": clip["end_time"]
-            })
-            
+    custom_opts = body.get("ydl_opts") or body.get("options")
+    
+    url, err = get_direct_stream_url(vid, custom_opts=custom_opts)
+    if err or not url:
         return jsonify({
-            "title": title,
-            "clips": formatted_clips
-        })
-    except Exception as e:
-        print(f"[API CRITICAL ERROR] Failed to fetch heatmap '{video_id}': {str(e)}")
-        return jsonify({"detail": "Internal Server Error"}), 500
+            "status": "error",
+            "video_id": vid,
+            "error": err or "Gagal mendapatkan stream URL dari YouTube."
+        }), 400
+        
+    return jsonify({
+        "status": "ok",
+        "video_id": vid,
+        "stream_url": url
+    })
 
-def start_server():
-    print("[API] Starting Flask Server di port 8080...")
-    app.run(host="0.0.0.0", port=8080, debug=False, use_reloader=False, threaded=True)
+@app.route("/api/heatmap", methods=["GET", "POST"])
+@app.route("/api/heatmap/<video_id>", methods=["GET", "POST"])
+def get_heatmap(video_id=None):
+    """
+    Endpoint Pass-Through untuk mengambil data mentah heatmap ('Most Replayed') dan title video.
+    100% dinamis: Backend TIDAK memformat klip, TIDAK menghitung offset (+/- 5s), dan TIDAK mengurutkan ranking.
+    Data mentah (raw heatmap array) dan error dikembalikan langsung ke frontend untuk diolah di client.
+    """
+    body = request.get_json(silent=True) or {}
+    vid = body.get("video_id") or video_id or request.args.get("video_id")
+    
+    if not vid:
+        return jsonify({
+            "status": "error",
+            "error": "Parameter 'video_id' wajib disertakan dalam path, query, atau body."
+        }), 400
+
+    custom_opts = body.get("ydl_opts") or body.get("options")
+    
+    raw_heatmap, title, err = get_raw_heatmap(vid, custom_opts=custom_opts)
+    if err and not raw_heatmap:
+        return jsonify({
+            "status": "error",
+            "video_id": vid,
+            "error": err
+        }), 404
+        
+    # Sediakan juga formatted fallback untuk menjaga kompatibilitas backward frontend lama
+    offset = int(request.args.get("offset", body.get("offset", 0)))
+    num_clips = int(request.args.get("num_clips", body.get("num_clips", len(raw_heatmap))))
+    sorted_moments = sorted(raw_heatmap, key=lambda x: x.get('value', 0), reverse=True)[:num_clips]
+    
+    fallback_clips = []
+    for rank, moment in enumerate(sorted_moments, start=1):
+        orig_start = moment.get('start_time', 0)
+        orig_end = moment.get('end_time', 0)
+        fallback_clips.append({
+            "id": f"clip_{orig_start}",
+            "rank": rank,
+            "videoId": vid,
+            "start": max(0, orig_start - offset),
+            "end": orig_end + offset,
+            "value": moment.get('value', 0)
+        })
+
+    return jsonify({
+        "status": "ok",
+        "video_id": vid,
+        "title": title,
+        "heatmap": raw_heatmap,      # Raw pass-through array
+        "clips": fallback_clips       # Backward-compatible clips
+    })
+
+# ==============================================================================
+# [OFFLOADED / COMMENTED OUT - TIDAK DIGUNAKAN DI MOBILE NATIVE]
+# 1. /api/proxy_stream:
+#    Pemutar video native Android (ExoPlayer / expo-video) TIDAK dibatasi oleh CORS browser web,
+#    sehingga memutar langsung direct URL HTTPS Google Video dengan kecepatan penuh.
+#    Proxy ini dahulu hanya dibuat untuk browser web (Chrome/Firefox) dan justru memperlambat
+#    koneksi saat memakai tunnel/Tailscale karena bandwidth terbagi dua (YouTube -> Server -> HP).
+#
+# @app.route("/api/proxy_stream", methods=["GET"])
+# def proxy_stream():
+#     url = request.args.get("url")
+#     if not url: return jsonify({"detail": "Missing url"}), 400
+#     ...
+#
+# 2. /api/download-to-gdrive & Full video downloader:
+#    Diberhentikan untuk fase streaming-only agar Python backend tetap minimalis & instan.
+# ==============================================================================
+
+def start_server(port=8080):
+    print(f"[Native Python] Starting Minimalist Pass-Through Server di port {port}...")
+    app.run(host="127.0.0.1", port=port, debug=False, use_reloader=False, threaded=True)
 
 if __name__ == "__main__":
-    start_server()
+    port = int(os.environ.get("PORT", 8080))
+    start_server(port=port)
