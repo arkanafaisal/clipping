@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   Text,
@@ -12,7 +12,6 @@ import {
 } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import {
-  ArrowLeft,
   Trash2,
   CheckCircle2,
   Play,
@@ -68,6 +67,10 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
   const [isPlaying, setIsPlaying] = useState(false);
   const [progressPercent, setProgressPercent] = useState(0);
 
+  // Debounce refs for smooth, leak-proof UI adjustments & storage sync
+  const seekDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const storageDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Active clip reference
   const activeClip = clips.find((c) => c.id === activeClipId) || clips[0] || {
     id: 'temp',
@@ -84,7 +87,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     p.timeUpdateEventInterval = 0.2;
   });
 
-  // Handle Android hardware back button
+  // Handle Android hardware back button (No on-screen back button)
   useEffect(() => {
     const backAction = () => {
       onBack();
@@ -94,7 +97,15 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     return () => backHandler.remove();
   }, [onBack]);
 
-  // 1. Load Real Clips from Local Storage (sudah di-fetch sebelumnya di Dashboard)
+  // Cleanup debounce timers on unmount
+  useEffect(() => {
+    return () => {
+      if (seekDebounceTimerRef.current) clearTimeout(seekDebounceTimerRef.current);
+      if (storageDebounceTimerRef.current) clearTimeout(storageDebounceTimerRef.current);
+    };
+  }, []);
+
+  // 1. Load Real Clips from Local Storage
   useEffect(() => {
     let isMounted = true;
 
@@ -114,9 +125,8 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
         }
 
         if (loadedClips.length === 0) {
-          // Fallback fetch dari Heatmap API (paritas 100% dengan web Feed.jsx)
           setLoadingMessage('Mengekstrak Heatmap AI (Bisa memakan waktu belasan detik)...');
-          const heatmapData = await fetchHeatmap(videoId, initialCount, 0);
+          const heatmapData = await fetchHeatmap(videoId, initialCount, 5);
           loadedClips = heatmapData.clips.map((c: any, idx: number) => ({
             ...c,
             status: 'none' as const,
@@ -125,11 +135,13 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
           await LocalStorage.setItem(DRAFT_KEY, JSON.stringify(loadedClips));
         }
 
+        let firstClipStart = 0;
         if (isMounted) {
           setClips(loadedClips);
           const initialVisible = [...loadedClips].sort((a, b) => a.start - b.start);
           if (initialVisible.length > 0) {
             setActiveClipId(initialVisible[0].id);
+            firstClipStart = initialVisible[0].start;
           }
           setLoading(false);
         }
@@ -140,6 +152,14 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
           if (isMounted && directUrl) {
             setStreamUrl(directUrl);
             player.replace(directUrl);
+            // AUTO PLAY: Mulai putar langsung dari posisi start klip pertama
+            try {
+              player.currentTime = firstClipStart;
+              player.play();
+              setIsPlaying(true);
+            } catch (playErr) {
+              console.log('[Feed] Auto-play initial clip error:', playErr);
+            }
             ToastManager.show({
               type: 'success',
               title: 'Stream URL Aktif',
@@ -172,28 +192,33 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     };
   }, [videoId]);
 
-  // Save changes to storage whenever clips change
+  // Save changes to storage whenever clips change (debounced 400ms to avoid disk thrashing)
   useEffect(() => {
     if (clips.length > 0) {
-      LocalStorage.setItem(DRAFT_KEY, JSON.stringify(clips));
-      const doneCount = clips.filter((c) => c.status === 'done').length;
-      onUpdateWorkshopDone?.(videoId, doneCount);
+      if (storageDebounceTimerRef.current) {
+        clearTimeout(storageDebounceTimerRef.current);
+      }
+      storageDebounceTimerRef.current = setTimeout(() => {
+        LocalStorage.setItem(DRAFT_KEY, JSON.stringify(clips));
+        const doneCount = clips.filter((c) => c.status === 'done').length;
+        onUpdateWorkshopDone?.(videoId, doneCount);
+      }, 400);
     }
   }, [clips]);
 
-  // Jump player to clip start when active clip changes
+  // Jump player to clip start & AUTO PLAY when active clip changes
   useEffect(() => {
-    if (activeClip && player) {
+    if (activeClip && player && streamUrl) {
       try {
         player.currentTime = activeClip.start;
         setProgressPercent(0);
         player.play();
         setIsPlaying(true);
       } catch (e) {
-        console.log('Player seek error:', e);
+        console.log('Player seek error on clip change:', e);
       }
     }
-  }, [activeClipId]);
+  }, [activeClipId, streamUrl]);
 
   // Track playback time update & handle segment loop
   useEffect(() => {
@@ -224,31 +249,71 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     };
   }, [player, activeClip.start, activeClip.end]);
 
-  // Extend & Crop Handlers
+  // Extend & Crop Handlers with 100% Leak-Proof Debounce:
+  // - UI (angka teks rentang) langsung ter-update secara instan (optimistic)
+  // - Seek video hanya dieksekusi 1x setelah user berhenti menekan tombol (debounce 450ms)
   const handleUpdateStart = (delta: number) => {
+    let targetSeek = 0;
     setClips((prev) =>
       prev.map((c) => {
         if (c.id === activeClipId) {
           const newStart = Math.max(0, Math.min(c.start + delta, c.end - 1));
-          if (player) player.currentTime = newStart;
+          targetSeek = newStart;
           return { ...c, start: newStart };
         }
         return c;
       })
     );
+
+    // Batalkan timeout seek sebelumnya jika user menekan beruntun (misal 20x klik)
+    if (seekDebounceTimerRef.current) {
+      clearTimeout(seekDebounceTimerRef.current);
+    }
+
+    // Set seek baru setelah 450ms jeda bebas klik
+    seekDebounceTimerRef.current = setTimeout(() => {
+      if (player) {
+        try {
+          player.currentTime = targetSeek;
+          player.play();
+          setIsPlaying(true);
+        } catch (e) {
+          console.log('Debounced seek start error:', e);
+        }
+      }
+    }, 450);
   };
 
   const handleUpdateEnd = (delta: number) => {
+    let targetSeek = 0;
     setClips((prev) =>
       prev.map((c) => {
         if (c.id === activeClipId) {
           const newEnd = Math.max(c.start + 1, c.end + delta);
-          if (player) player.currentTime = Math.max(c.start, newEnd - 3);
+          targetSeek = Math.max(c.start, newEnd - 3); // Preview 3 detik sebelum batas akhir
           return { ...c, end: newEnd };
         }
         return c;
       })
     );
+
+    // Batalkan timeout seek sebelumnya jika user menekan beruntun
+    if (seekDebounceTimerRef.current) {
+      clearTimeout(seekDebounceTimerRef.current);
+    }
+
+    // Set seek baru setelah 450ms jeda bebas klik
+    seekDebounceTimerRef.current = setTimeout(() => {
+      if (player) {
+        try {
+          player.currentTime = targetSeek;
+          player.play();
+          setIsPlaying(true);
+        } catch (e) {
+          console.log('Debounced seek end error:', e);
+        }
+      }
+    }, 450);
   };
 
   // Toggle clip Done status (hijau)
@@ -315,28 +380,11 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
 
   return (
     <View style={styles.container}>
-      {/* 1. TOP CONTROLS (Back di kiri | Rentang Waktu di tengah | Trash & Done di kanan) */}
+      {/* 1. TOP CONTROLS (Kiri: Trash/Skip | Tengah: Rentang Waktu Luas | Kanan: Done) */}
       <View style={styles.topSection}>
         <View style={styles.timeRangeRow}>
-          {/* KIRI: Tombol Kembali (Back) saja, tanpa unduh */}
+          {/* KIRI: Tombol Merah Trash / Skip (Icon Only, Tanpa Teks, Menggantikan Back) */}
           <View style={styles.leftActionGroup}>
-            <TouchableOpacity style={styles.backBtn} onPress={onBack} activeOpacity={0.7}>
-              <ArrowLeft size={17} color="#ffffff" />
-            </TouchableOpacity>
-          </View>
-
-          {/* TENGAH: Rentang Waktu (100% Dead Center) */}
-          <View style={styles.centerTimeWrapper} pointerEvents="box-none">
-            <View style={styles.timeDisplay}>
-              <Text style={styles.timeNumberText}>{formatTime(activeClip.start)}</Text>
-              <Text style={styles.timeSeparatorText}>-</Text>
-              <Text style={styles.timeNumberText}>{formatTime(activeClip.end)}</Text>
-            </View>
-          </View>
-
-          {/* KANAN: Tombol Manajemen Klip (Merah Trash/Skip & Hijau Done) */}
-          <View style={styles.rightActionGroup}>
-            {/* Tombol Merah: Tandai Trash / Lewati */}
             <TouchableOpacity
               style={[
                 styles.statusBtn,
@@ -346,12 +394,23 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
               activeOpacity={0.7}
             >
               <Trash2
-                size={16}
+                size={18}
                 color={activeClip.status === 'trash' ? '#ffffff' : '#f87171'}
               />
             </TouchableOpacity>
+          </View>
 
-            {/* Tombol Hijau: Tandai Berhasil / Selesai (Done) */}
+          {/* TENGAH: Rentang Waktu (Leluasa & Luas) */}
+          <View style={styles.centerTimeWrapper} pointerEvents="box-none">
+            <View style={styles.timeDisplay}>
+              <Text style={styles.timeNumberText}>{formatTime(activeClip.start)}</Text>
+              <Text style={styles.timeSeparatorText}>-</Text>
+              <Text style={styles.timeNumberText}>{formatTime(activeClip.end)}</Text>
+            </View>
+          </View>
+
+          {/* KANAN: Tombol Hijau Done / Selesai (Icon Only, Tanpa Teks) */}
+          <View style={styles.rightActionGroup}>
             <TouchableOpacity
               style={[
                 styles.statusBtn,
@@ -609,14 +668,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     zIndex: 10,
   },
-  backBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   centerTimeWrapper: {
     ...StyleSheet.absoluteFill,
     alignItems: 'center',
@@ -630,7 +681,7 @@ const styles = StyleSheet.create({
   },
   timeNumberText: {
     color: 'rgba(255, 255, 255, 0.95)',
-    fontSize: 13,
+    fontSize: 14,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
     fontWeight: '800',
     letterSpacing: 0.5,
@@ -642,13 +693,12 @@ const styles = StyleSheet.create({
   rightActionGroup: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
     zIndex: 10,
   },
   statusBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
