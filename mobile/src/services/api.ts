@@ -18,13 +18,13 @@ export interface StreamResponse {
   stream_url: string;
 }
 
-// Embedded Chaquopy Python server running internally inside Android on port 8080
-export const API_BASE_URL = 'http://127.0.0.1:8080';
+// Termux / Mobile API running on port 3006
+export const API_BASE_URL = 'http://127.0.0.1:3006';
 
 /**
- * Ping internal Python server on 127.0.0.1:8080
+ * Ping Python server on 127.0.0.1:3006 (Termux / Mobile API)
  */
-export async function pingServer(): Promise<{ status: string; uptime_seconds?: number }> {
+export async function pingServer(): Promise<{ status: string; message?: string; uptime_seconds?: number }> {
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 1500);
@@ -38,9 +38,9 @@ export async function pingServer(): Promise<{ status: string; uptime_seconds?: n
       return await res.json();
     }
   } catch (e: any) {
-    throw new Error('Server Python internal belum aktif pada 127.0.0.1:8080.');
+    throw new Error('Server Python belum aktif pada 127.0.0.1:3006.');
   }
-  throw new Error('Server Python tidak merespons di port 8080.');
+  throw new Error('Server Python tidak merespons di port 3006.');
 }
 
 /**

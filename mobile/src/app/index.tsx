@@ -4,7 +4,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Dashboard } from '../components/Dashboard';
 import { FeedScreen } from '../components/FeedScreen';
 import { ToastContainer, ToastManager } from '../components/Toast';
-import { startPythonServer, getPythonLastError } from '../../modules/python-runner';
 import { pingServer } from '../services/api';
 
 interface ActiveWorkshop {
@@ -17,50 +16,27 @@ export default function HomeScreen() {
 
   // Otomatis nyalakan engine Python lokal di background saat aplikasi dibuka
   useEffect(() => {
-    try {
-      const res = startPythonServer();
-      console.log('[Native] Python Engine auto-start result:', res);
-      
-      // Berikan notifikasi awal status server kepada user
-      setTimeout(async () => {
-        try {
-          const pingRes = await pingServer();
-          if (pingRes.status === 'ok') {
-            ToastManager.show({
-              type: 'success',
-              title: 'Server Python Aktif',
-              message: `Port 8080 aktif (Uptime: ${pingRes.uptime_seconds || 0}s)`,
-              duration: 3000,
-            });
-          }
-        } catch (e) {
-          const lastErr = getPythonLastError();
-          if (lastErr) {
-            console.error('[Native] Python Server Error on Launch:', lastErr);
-            ToastManager.show({
-              type: 'error',
-              title: 'Python Server Error',
-              message: lastErr,
-              duration: 6000,
-            });
-          } else {
-            ToastManager.show({
-              type: 'info',
-              title: 'Server Background',
-              message: 'Engine Python sedang memuat di background HP...',
-              duration: 3500,
-            });
-          }
+    // Periksa koneksi ke server Python Termux di port 3006
+    setTimeout(async () => {
+      try {
+        const pingRes = await pingServer();
+        if (pingRes.status === 'ok') {
+          ToastManager.show({
+            type: 'success',
+            title: 'API Termux Terhubung',
+            message: `Port 3006 aktif (${pingRes.message || 'Siap digunakan'})`,
+            duration: 3000,
+          });
         }
-      }, 1500);
-    } catch (e: any) {
-      console.log('[Native] Python engine initialization error:', e);
-      ToastManager.show({
-        type: 'error',
-        title: 'Python Engine Error',
-        message: e.message || 'Gagal memulai server lokal',
-      });
-    }
+      } catch (e) {
+        ToastManager.show({
+          type: 'info',
+          title: 'Termux Port 3006',
+          message: 'Pastikan server Python di Termux sudah berjalan pada port 3006.',
+          duration: 4000,
+        });
+      }
+    }, 1000);
   }, []);
 
   const handleOpenWorkshop = (videoId: string, count: number) => {
