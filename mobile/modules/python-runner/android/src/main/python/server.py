@@ -13,8 +13,7 @@ import os
 import threading
 import time
 
-# Dictionary untuk menyimpan status progress download/upload
-gdrive_upload_tasks = {}
+# gdrive_upload_tasks = {}
 
 app = Flask(__name__)
 
@@ -54,36 +53,37 @@ def get_stream(video_id: str):
         print(f"[API CRITICAL ERROR] Failed to process video '{video_id}': {str(e)}")
         return jsonify({"detail": "Internal Server Error"}), 500
 
-def background_download_and_upload(video_id: str):
-    gdrive_upload_tasks[video_id] = {"status": "downloading", "link": None, "error": None}
-    try:
-        gdrive_upload_tasks[video_id]["status"] = "done"
-        gdrive_upload_tasks[video_id]["link"] = None
-    except Exception as e:
-        print(f"[LOKAL API ERROR] {e}")
-        gdrive_upload_tasks[video_id]["status"] = "error"
-        gdrive_upload_tasks[video_id]["error"] = str(e)
-
-@app.route("/api/download-to-gdrive", methods=["POST"])
-def download_to_gdrive():
-    req = request.get_json(silent=True) or {}
-    video_id = req.get("video_id", "")
-    
-    # Cek apakah sudah ada di tasks
-    if video_id in gdrive_upload_tasks:
-        task = gdrive_upload_tasks[video_id]
-        if task["status"] in ["downloading", "uploading", "done"]:
-            return jsonify(task)
-
-    # Kalau belum ada, kita jalankan di background
-    threading.Thread(target=background_download_and_upload, args=(video_id,)).start()
-    gdrive_upload_tasks[video_id] = {"status": "starting", "link": None, "error": None}
-    
-    return jsonify(gdrive_upload_tasks[video_id])
-
-@app.route("/api/download-to-gdrive/active-tasks", methods=["GET"])
-def get_active_gdrive_tasks():
-    return jsonify(gdrive_upload_tasks)
+# [OFFLOADED TO FRONTEND / UNUSED IN STREAM-ONLY PHASE]
+# Google Drive & Full Video downloads di-comment agar backend tetap minimalis,
+# cepat, dan fokus 100% pada ekstraksi Heatmap dan Stream.
+#
+# gdrive_upload_tasks = {}
+#
+# def background_download_and_upload(video_id: str):
+#     gdrive_upload_tasks[video_id] = {"status": "downloading", "link": None, "error": None}
+#     try:
+#         gdrive_upload_tasks[video_id]["status"] = "done"
+#         gdrive_upload_tasks[video_id]["link"] = None
+#     except Exception as e:
+#         print(f"[LOKAL API ERROR] {e}")
+#         gdrive_upload_tasks[video_id]["status"] = "error"
+#         gdrive_upload_tasks[video_id]["error"] = str(e)
+#
+# @app.route("/api/download-to-gdrive", methods=["POST"])
+# def download_to_gdrive():
+#     req = request.get_json(silent=True) or {}
+#     video_id = req.get("video_id", "")
+#     if video_id in gdrive_upload_tasks:
+#         task = gdrive_upload_tasks[video_id]
+#         if task["status"] in ["downloading", "uploading", "done"]:
+#             return jsonify(task)
+#     threading.Thread(target=background_download_and_upload, args=(video_id,)).start()
+#     gdrive_upload_tasks[video_id] = {"status": "starting", "link": None, "error": None}
+#     return jsonify(gdrive_upload_tasks[video_id])
+#
+# @app.route("/api/download-to-gdrive/active-tasks", methods=["GET"])
+# def get_active_gdrive_tasks():
+#     return jsonify(gdrive_upload_tasks)
 
 @app.route("/api/proxy_stream", methods=["GET"])
 def proxy_stream():

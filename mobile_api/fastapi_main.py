@@ -62,67 +62,45 @@ def get_stream(video_id: str):
         print(f"[API CRITICAL ERROR] Failed to process video '{video_id}': {str(e)}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
-def background_download_and_upload(video_id: str):
-    import yt_dlp
-    from utils.gdrive_uploader import upload_video_to_gdrive
-    from utils.downloader import download_video_sync
-    
-    gdrive_upload_tasks[video_id] = {"status": "downloading", "link": None, "error": None}
-    
-    try:
-        # Step 1: Download Video lokal
-        print(f"[LOKAL DOWNLOAD] Mulai mendownload {video_id} untuk upload GDrive...")
-        # Path output
-        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        output_dir = os.path.join(base_dir, "output", "full_video")
-        os.makedirs(output_dir, exist_ok=True)
-        
-        url = f"https://www.youtube.com/watch?v={video_id}"
-        # Download video kualitas terbaik MP4
-        # Format filename: <video_id>.mp4
-        filepath = os.path.join(output_dir, f"{video_id}.mp4")
-        
-        # Eksekusi download sync sederhana jika file belum ada
-        if not os.path.exists(filepath):
-            success, msg, real_path = download_video_sync(url, output_dir, filename_prefix=video_id)
-            if not success:
-                raise Exception(f"Download failed: {msg}")
-            filepath = real_path
-
-        # Step 2: Upload ke GDrive
-        gdrive_upload_tasks[video_id]["status"] = "uploading"
-        print(f"[GDRIVE] Mulai upload {filepath} ke Google Drive...")
-        link = upload_video_to_gdrive(filepath, folder_name="Youtube Clipper Videos")
-        
-        # Selesai
-        gdrive_upload_tasks[video_id]["status"] = "done"
-        gdrive_upload_tasks[video_id]["link"] = link
-        print(f"[GDRIVE] Berhasil diupload! Link: {link}")
-        
-    except Exception as e:
-        print(f"[LOKAL GDrive ERROR] {e}")
-        gdrive_upload_tasks[video_id]["status"] = "error"
-        gdrive_upload_tasks[video_id]["error"] = str(e)
-
-@app.post("/api/download-to-gdrive")
-def download_to_gdrive(payload: GDriveDownloadRequest, background_tasks: BackgroundTasks):
-    video_id = payload.video_id
-    
-    # Cek apakah sudah ada di tasks
-    if video_id in gdrive_upload_tasks:
-        task = gdrive_upload_tasks[video_id]
-        if task["status"] in ["downloading", "uploading", "done"]:
-            return task
-
-    # Kalau belum ada, kita jalankan di background
-    background_tasks.add_task(background_download_and_upload, video_id)
-    gdrive_upload_tasks[video_id] = {"status": "starting", "link": None, "error": None}
-    
-    return gdrive_upload_tasks[video_id]
-
-@app.get("/api/download-to-gdrive/active-tasks")
-def get_active_gdrive_tasks():
-    return gdrive_upload_tasks
+# [OFFLOADED TO FRONTEND / UNUSED IN STREAM-ONLY PHASE]
+# Google Drive & Full Video downloads di-comment agar backend tetap minimalis,
+# cepat, dan fokus 100% pada ekstraksi Heatmap dan Stream.
+#
+# def background_download_and_upload(video_id: str):
+#     gdrive_upload_tasks[video_id] = {"status": "downloading", "link": None, "error": None}
+#     try:
+#         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+#         output_dir = os.path.join(base_dir, "output", "full_video")
+#         os.makedirs(output_dir, exist_ok=True)
+#         url = f"https://www.youtube.com/watch?v={video_id}"
+#         filepath = os.path.join(output_dir, f"{video_id}.mp4")
+#         if not os.path.exists(filepath):
+#             success, msg, real_path = download_video_sync(url, output_dir, filename_prefix=video_id)
+#             if not success:
+#                 raise Exception(f"Download failed: {msg}")
+#             filepath = real_path
+#         gdrive_upload_tasks[video_id]["status"] = "uploading"
+#         link = upload_video_to_gdrive(filepath, folder_name="Youtube Clipper Videos")
+#         gdrive_upload_tasks[video_id]["status"] = "done"
+#         gdrive_upload_tasks[video_id]["link"] = link
+#     except Exception as e:
+#         gdrive_upload_tasks[video_id]["status"] = "error"
+#         gdrive_upload_tasks[video_id]["error"] = str(e)
+#
+# @app.post("/api/download-to-gdrive")
+# def download_to_gdrive(payload: GDriveDownloadRequest, background_tasks: BackgroundTasks):
+#     video_id = payload.video_id
+#     if video_id in gdrive_upload_tasks:
+#         task = gdrive_upload_tasks[video_id]
+#         if task["status"] in ["downloading", "uploading", "done"]:
+#             return task
+#     background_tasks.add_task(background_download_and_upload, video_id)
+#     gdrive_upload_tasks[video_id] = {"status": "starting", "link": None, "error": None}
+#     return gdrive_upload_tasks[video_id]
+#
+# @app.get("/api/download-to-gdrive/active-tasks")
+# def get_active_gdrive_tasks():
+#     return gdrive_upload_tasks
 
 @app.get("/api/proxy_stream")
 def proxy_stream(url: str, request: Request):

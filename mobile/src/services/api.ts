@@ -1,3 +1,5 @@
+import { LocalStorage } from './storage';
+
 export interface ClipItem {
   id: string;
   rank: number;
@@ -45,9 +47,23 @@ export async function pingServer(): Promise<{ status: string; message?: string; 
 
 /**
  * Fetches the direct stream URL for a given YouTube video ID.
- * 100% parity with frontend/src/services/api.js
+ * Caches stream URLs in frontend LocalStorage (2 hours expiration).
  */
 export async function fetchStreamUrl(videoId: string): Promise<string> {
+  // 1. Cek cache frontend terlebih dahulu
+  try {
+    const cached = await LocalStorage.getItem(`stream_cache_${videoId}`);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (parsed.url && parsed.expiresAt && Date.now() < parsed.expiresAt) {
+        console.log(`[Frontend Cache] Menggunakan stream URL tersimpan untuk ${videoId}`);
+        return parsed.url;
+      }
+    }
+  } catch (e) {
+    // Abaikan cache read error
+  }
+
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 20000);
 
@@ -74,6 +90,20 @@ export async function fetchStreamUrl(videoId: string): Promise<string> {
     }
 
     const data: StreamResponse = await response.json();
+    
+    // 2. Simpan ke cache frontend (valid 2 jam = 7200 detik)
+    try {
+      await LocalStorage.setItem(
+        `stream_cache_${videoId}`,
+        JSON.stringify({
+          url: data.stream_url,
+          expiresAt: Date.now() + 7200 * 1000,
+        })
+      );
+    } catch (e) {
+      // Abaikan cache write error
+    }
+
     return data.stream_url;
   } catch (error: any) {
     clearTimeout(timeoutId);
