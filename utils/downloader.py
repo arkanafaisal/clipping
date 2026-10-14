@@ -95,10 +95,13 @@ def apply_portrait_padding(filepath, rank, ffmpeg_exe):
             
     return filepath
 
-def download_single_clip(video_url, output_dir, clip, i=0, total_clips=1, force_portrait=False):
-    # FUNGSI INI SUDAH TIDAK DIPAKAI (DEPRECATED)
-    # Semua download dialihkan ke download_full_video_and_cut
-    return None
+def download_single_clip(video_url, output_dir, clip, i=0, total_clips=1, force_portrait=False, info_json_path=None):
+    rank = clip['rank']
+    start_time = clip['start_time']
+    end_time = clip['end_time']
+    
+    filename, exists = get_output_filename(output_dir, rank, start_time, end_time)
+    filepath = os.path.join(output_dir, filename)
     
     start_str_print = format_time_filename(start_time).replace('.', ':')
     end_str_print = format_time_filename(end_time).replace('.', ':')
@@ -114,6 +117,8 @@ def download_single_clip(video_url, output_dir, clip, i=0, total_clips=1, force_
     
     ydl_opts = {
         'format': 'bestvideo+bestaudio/best',
+        'load_info_filename': info_json_path,
+
         'outtmpl': filepath,
         'download_ranges': download_range_func(None, [(start_time, end_time)]),
         'force_keyframes_at_cuts': True,
@@ -136,9 +141,18 @@ def download_single_clip(video_url, output_dir, clip, i=0, total_clips=1, force_
     ydl_opts_anon = ydl_opts.copy() # Asli, tanpa cookies
     
     download_start_time = time.time()
+    
+    def execute_download(opts):
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            if info_json_path and os.path.exists(info_json_path):
+                with open(info_json_path, 'r', encoding='utf-8') as f:
+                    info_dict = json.load(f)
+                ydl.process_ie_result(info_dict, download=True)
+            else:
+                ydl.download([video_url])
+
     try:
-        with yt_dlp.YoutubeDL(ydl_opts_anon) as ydl_anon:
-            ydl_anon.download([video_url])
+        execute_download(ydl_opts_anon)
     except Exception as e_anon:
         print(f"⚠️ Mode Anonim gagal (Mungkin video Age-Restricted/Terblokir IP): {e_anon}")
         print(f"Mencoba Mode Cookies (Web) demi mempertahankan Kualitas Prime...")
@@ -146,8 +160,7 @@ def download_single_clip(video_url, output_dir, clip, i=0, total_clips=1, force_
         # 2. Coba gunakan Web Client + Cookies
         ydl_opts_main = add_cookies(ydl_opts.copy(), client_type='web')
         try:
-            with yt_dlp.YoutubeDL(ydl_opts_main) as ydl:
-                ydl.download([video_url])
+            execute_download(ydl_opts_main)
         except Exception as e:
             print(f"⚠️ Mode Cookies gagal: {e}")
             print(f"Mencoba jalur darurat penyamaran iOS (Kualitas terpaksa mentok di 360p)...")
@@ -155,8 +168,7 @@ def download_single_clip(video_url, output_dir, clip, i=0, total_clips=1, force_
             # 3. Coba iOS + Cookies (Pasti tembus tapi 360p karena SABR)
             ydl_opts_ios = add_cookies(ydl_opts.copy(), client_type='ios')
             try:
-                with yt_dlp.YoutubeDL(ydl_opts_ios) as ydl_ios:
-                    ydl_ios.download([video_url])
+                execute_download(ydl_opts_ios)
             except Exception as e_ios:
                 elapsed_time = time.time() - download_start_time
                 print(f"[GAGAL] Semua metode pengunduhan Klip Peringkat {rank} gagal setelah {elapsed_time:.1f} detik: {e_ios}")
@@ -242,12 +254,56 @@ def download_full_video_robust(video_url, full_video_path, cancel_check=None, ex
             print(f"[GAGAL] Semua metode pengunduhan Prime gagal: {e}")
             return False
 
-def process_clips_generator(video_url, output_dir, clips, force_portrait=False, cancel_check=None):
+def process_clips_generator(video_url, output_dir, clips, force_portrait=False, cancel_check=None, safe_mode=True):
     import subprocess
     import tempfile
     
     full_video_path = os.path.join(output_dir, "Full_Video.mp4")
     
+    if not safe_mode:
+        print("\n[FAST MODE] Mengunduh klip secara langsung menggunakan rentang waktu (tanpa download video utuh)...")
+        
+        # Ekstrak & Cache Streaming URL sekali saja untuk menghindari Rate Limit YouTube (429)
+        info_json_path = os.path.join(output_dir, "stream_cache.info.json")
+        try:
+            if not os.path.exists(info_json_path):
+                print("[CACHE] Mengekstrak URL streaming dari YouTube...")
+                import yt_dlp
+                from utils.youtube_auth import add_cookies
+                
+                ydl_opts_info = {
+                    'skip_download': True,
+                    'writeinfojson': True,
+                    'outtmpl': os.path.join(output_dir, "stream_cache"),
+                    'quiet': True,
+                    'no_warnings': True
+                }
+                # Coba anonim dulu
+                try:
+                    with yt_dlp.YoutubeDL(ydl_opts_info) as ydl:
+                        ydl.download([video_url])
+                except:
+                    # Kalau gagal (misal age-restricted), pakai cookies
+                    ydl_opts_info = add_cookies(ydl_opts_info, client_type='web')
+                    with yt_dlp.YoutubeDL(ydl_opts_info) as ydl:
+                        ydl.download([video_url])
+            else:
+                print("[CACHE] Menggunakan cache URL streaming yang sudah ada.")
+        except Exception as e:
+            print(f"[CACHE ERROR] Gagal membuat info.json: {e}")
+            info_json_path = None # Fallback tanpa cache
+            
+        for i, clip in enumerate(clips):
+            if cancel_check and cancel_check():
+                print(f"\n🛑 Proses dibatalkan oleh user pada klip ke-{i+1}!")
+                break
+            filepath = download_single_clip(video_url, output_dir, clip, i, len(clips), force_portrait, info_json_path)
+            if filepath:
+                yield filepath, None
+            else:
+                yield None, None
+        return
+
     # 1. Cek apakah semua klip sudah ada
     all_exist = True
     for clip in clips:

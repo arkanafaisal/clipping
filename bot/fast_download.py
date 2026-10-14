@@ -67,7 +67,7 @@ def handle_fast_download(client, ev, text, sender_jid):
         combine_all = True
         force_portrait = False
         
-    safe_mode = True # Selalu dipaksa True (Download full lalu cut offline)
+    safe_mode = bool(re.search(r"--safe\b", text, re.IGNORECASE))
     
     # Cari semua rentang waktu
     ranges = re.findall(r"([\d:.]+)\s*-\s*([\d:.]+)", text)
@@ -115,13 +115,12 @@ def handle_fast_download(client, ev, text, sender_jid):
             except Exception as e:
                 print(f"[WA_ERROR] Gagal mengirim pesan ke WA (Socket terputus?): {e}")
 
-        if safe_mode:
-            safe_send_message(f"⏳ Memproses {len(ranges_list)} klip secara bertahap...")
-            from utils.downloader import process_clips_generator
-            
-            # Gunakan generator agar mengirim satu per satu segera setelah selesai
-            # [MODIFIED] force_portrait dipaksa False di sini agar pemotongan landscape selesai cepat semua
-            clip_generator = process_clips_generator(url, output_dir, ranges_list, force_portrait=False, cancel_check=check_cancel)
+        mode_str = "SAFE MODE" if safe_mode else "FAST MODE"
+        safe_send_message(f"⏳ Memproses {len(ranges_list)} klip secara bertahap dengan {mode_str}...")
+        from utils.downloader import process_clips_generator
+        
+        clip_generator = process_clips_generator(url, output_dir, ranges_list, force_portrait=False, cancel_check=check_cancel, safe_mode=safe_mode)
+        if True:
             
             full_video_path_ref = None
             import time
