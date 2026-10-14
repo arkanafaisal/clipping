@@ -19,8 +19,11 @@ class Gate1RateLimiter:
         return []
 
     def _save(self, data):
-        with open(RATE_LIMIT_FILE, 'w') as f:
-            json.dump(data, f)
+        try:
+            with open(RATE_LIMIT_FILE, 'w') as f:
+                json.dump(data, f)
+        except Exception as e:
+            print(f"[RateLimiter] Could not persist to file: {e}")
 
     def check_and_add(self) -> bool:
         """Mengembalikan True jika masih dalam limit, melempar Exception jika sudah kena limit"""

@@ -3,7 +3,10 @@ import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from flask import Flask, jsonify, request, Response
-import requests
+try:
+    import requests
+except ImportError:
+    requests = None
 from utils.stream_extractor import get_direct_stream_url
 from utils.heatmap import get_top_clips
 import os
@@ -98,24 +101,47 @@ def proxy_stream():
         headers["Range"] = range_header
         
     try:
-        # Stream=True agar tidak memuat seluruh video ke memori
-        req = requests.get(url, headers=headers, stream=True, timeout=10)
-        
-        def iterfile():
-            for chunk in req.iter_content(chunk_size=1024 * 1024):  # 1MB chunks
-                if chunk:
+        if requests is not None:
+            # Stream=True agar tidak memuat seluruh video ke memori
+            req = requests.get(url, headers=headers, stream=True, timeout=10)
+            
+            def iterfile():
+                for chunk in req.iter_content(chunk_size=1024 * 1024):  # 1MB chunks
+                    if chunk:
+                        yield chunk
+
+            response_headers = {
+                k: v for k, v in req.headers.items() 
+                if k.lower() in ("content-type", "content-length", "content-range", "accept-ranges")
+            }
+
+            return Response(
+                iterfile(), 
+                status=req.status_code, 
+                headers=response_headers
+            )
+        else:
+            import urllib.request
+            req = urllib.request.Request(url, headers=headers)
+            res = urllib.request.urlopen(req, timeout=10)
+
+            def iterfile():
+                while True:
+                    chunk = res.read(1024 * 1024)
+                    if not chunk:
+                        break
                     yield chunk
 
-        response_headers = {
-            k: v for k, v in req.headers.items() 
-            if k.lower() in ("content-type", "content-length", "content-range", "accept-ranges")
-        }
+            response_headers = {
+                k: v for k, v in res.headers.items()
+                if k.lower() in ("content-type", "content-length", "content-range", "accept-ranges")
+            }
 
-        return Response(
-            iterfile(), 
-            status=req.status_code, 
-            headers=response_headers
-        )
+            return Response(
+                iterfile(),
+                status=res.getcode(),
+                headers=response_headers
+            )
     except Exception as e:
         print(f"[API ERROR] Proxy stream failed: {e}")
         return jsonify({"detail": "Failed to proxy stream"}), 500
@@ -155,7 +181,7 @@ def get_heatmap(video_id: str):
 
 def start_server():
     print("[API] Starting Flask Server di port 8080...")
-    app.run(host="127.0.0.1", port=8080, debug=False, use_reloader=False, threaded=True)
+    app.run(host="0.0.0.0", port=8080, debug=False, use_reloader=False, threaded=True)
 
 if __name__ == "__main__":
     start_server()

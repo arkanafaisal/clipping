@@ -42,6 +42,7 @@ chaquopy {
         pip {
             // Pure Python libraries (100% compatible with Chaquopy without native C/Rust compilers)
             install "flask"
+            install "requests"
             install "yt-dlp"
         }
     }

@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Dashboard } from '../components/Dashboard';
 import { FeedScreen } from '../components/FeedScreen';
 import { ToastContainer, ToastManager } from '../components/Toast';
-import { startPythonServer } from '../../modules/python-runner';
+import { startPythonServer, getPythonLastError } from '../../modules/python-runner';
 import { pingServer } from '../services/api';
 
 interface ActiveWorkshop {
@@ -34,14 +34,25 @@ export default function HomeScreen() {
             });
           }
         } catch (e) {
-          ToastManager.show({
-            type: 'info',
-            title: 'Server Background',
-            message: 'Engine Python sedang memuat di background HP...',
-            duration: 3500,
-          });
+          const lastErr = getPythonLastError();
+          if (lastErr) {
+            console.error('[Native] Python Server Error on Launch:', lastErr);
+            ToastManager.show({
+              type: 'error',
+              title: 'Python Server Error',
+              message: lastErr,
+              duration: 6000,
+            });
+          } else {
+            ToastManager.show({
+              type: 'info',
+              title: 'Server Background',
+              message: 'Engine Python sedang memuat di background HP...',
+              duration: 3500,
+            });
+          }
         }
-      }, 1000);
+      }, 1500);
     } catch (e: any) {
       console.log('[Native] Python engine initialization error:', e);
       ToastManager.show({
