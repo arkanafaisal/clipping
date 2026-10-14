@@ -1,0 +1,42 @@
+apply plugin: 'com.android.library'
+apply plugin: 'kotlin-android'
+apply plugin: 'com.chaquo.python'
+
+group = 'expo.modules.pythonrunner'
+version = '1.0.0'
+
+android {
+    namespace "expo.modules.pythonrunner"
+    compileSdkVersion 34
+
+    defaultConfig {
+        minSdkVersion 24
+        targetSdkVersion 34
+        versionCode 1
+        versionName "1.0.0"
+
+        ndk {
+            abiFilters "arm64-v8a", "armeabi-v7a", "x86", "x86_64"
+        }
+    }
+
+    lintOptions {
+        abortOnError false
+    }
+}
+
+chaquopy {
+    defaultConfig {
+        version "3.10"
+        pip {
+            install "fastapi"
+            install "uvicorn"
+            install "yt-dlp"
+        }
+    }
+}
+
+dependencies {
+    implementation project(':expo-modules-core')
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.23"
+}

@@ -21,3 +21,8 @@ This file contains a growing ruleset that improves over time. At session start, 
 - User states a preference ("always use X", "never do Y")
 
 ## Learned Rules
+
+1. [CODE] Always prioritize code readability and established frameworks (like FastAPI) over low-level "zero-dependency" verbose scripts because code clarity and maintainability are paramount.
+2. [ARCH] Never clutter the Expo project with raw native boilerplate files (custom Kotlin classes, manual Gradle scripts) that obscure standard Expo workflow and reduce readability.
+3. [ARCH] Always include the native Chaquopy bridge (Kotlin module and Gradle configuration) required to embed and execute the Python engine directly on the mobile device, because running the server internally inside the app is a core project requirement.
+4. [PROCESS] Never record one-time architectural setup steps or specific tech-stack details in Learned Rules; always limit rules to enduring coding styles, workflow practices, and developer preferences (superseding rules 2 and 3) because technical architecture must be inferred directly from the active codebase.
