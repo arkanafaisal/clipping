@@ -15,10 +15,18 @@ async function ensureDir() {
   }
 }
 
-// In-memory fallback cache
+// In-memory cache for instant synchronous access and resilient fallback
 const MEMORY_CACHE = new Map<string, string>();
 
+/**
+ * LocalStorage emulator for mobile React Native (Expo)
+ * Provides 100% parity with web localStorage (getItem, setItem, removeItem)
+ * backed by both in-memory cache and persistent JSON storage.
+ */
 export const LocalStorage = {
+  /**
+   * Mengambil data berdasarkan key (sama seperti web localStorage.getItem)
+   */
   async getItem(key: string): Promise<string | null> {
     try {
       if (MEMORY_CACHE.has(key)) {
@@ -38,6 +46,9 @@ export const LocalStorage = {
     }
   },
 
+  /**
+   * Menyimpan data berdasarkan key (sama seperti web localStorage.setItem)
+   */
   async setItem(key: string, value: string): Promise<void> {
     try {
       MEMORY_CACHE.set(key, value);
@@ -50,6 +61,9 @@ export const LocalStorage = {
     }
   },
 
+  /**
+   * Menghapus data berdasarkan key (sama seperti web localStorage.removeItem)
+   */
   async removeItem(key: string): Promise<void> {
     try {
       MEMORY_CACHE.delete(key);
@@ -63,4 +77,26 @@ export const LocalStorage = {
       console.warn(`[Storage] removeItem error for ${key}:`, e);
     }
   },
+
+  // Aliases for convenience matching user request (get, set, delete)
+  get(key: string): Promise<string | null> {
+    return this.getItem(key);
+  },
+  set(key: string, value: string): Promise<void> {
+    return this.setItem(key, value);
+  },
+  delete(key: string): Promise<void> {
+    return this.removeItem(key);
+  },
+  deleteItem(key: string): Promise<void> {
+    return this.removeItem(key);
+  },
+
+  // Synchronous in-memory lookup if needed
+  getItemSync(key: string): string | null {
+    return MEMORY_CACHE.get(key) || null;
+  },
 };
+
+export const localStorage = LocalStorage;
+export default LocalStorage;

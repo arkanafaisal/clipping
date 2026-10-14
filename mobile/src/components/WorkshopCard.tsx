@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Image } from 'react-native';
-import { Play, Trash2 } from 'lucide-react-native';
+import { Play, Trash2, MessageCircle } from 'lucide-react-native';
 
 export interface WorkshopItem {
   videoId: string;
@@ -14,15 +14,14 @@ interface WorkshopCardProps {
   workshop: WorkshopItem;
   onPress: (videoId: string) => void;
   onDelete: (videoId: string) => void;
-  onExport?: (workshop: WorkshopItem) => void;
   onBulkWA?: (videoId: string) => void;
-  onDownloadDrive?: (videoId: string) => void;
 }
 
 export const WorkshopCard: React.FC<WorkshopCardProps> = ({
   workshop,
   onPress,
   onDelete,
+  onBulkWA,
 }) => {
   const thumbnailUrl = `https://img.youtube.com/vi/${workshop.videoId}/mqdefault.jpg`;
   const clipCount = workshop.count || 50;
@@ -59,7 +58,7 @@ export const WorkshopCard: React.FC<WorkshopCardProps> = ({
           {workshop.title || `Video ID: ${workshop.videoId}`}
         </Text>
 
-        {/* Bottom Row: Stats (KLIP & DONE) aligned with Delete Button */}
+        {/* Bottom Row: Stats (KLIP & DONE) aligned with WhatsApp and Delete Buttons */}
         <View style={styles.cardFooter}>
           {/* Left: Badges (KLIP & DONE) */}
           <View style={styles.statsRow}>
@@ -74,15 +73,28 @@ export const WorkshopCard: React.FC<WorkshopCardProps> = ({
             </View>
           </View>
 
-          {/* Right: Compact Delete Action */}
-          <TouchableOpacity
-            style={styles.deleteBtn}
-            onPress={() => onDelete(workshop.videoId)}
-            activeOpacity={0.7}
-            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-          >
-            <Trash2 size={13} color="#f87171" />
-          </TouchableOpacity>
+          {/* Right: Actions Group (WhatsApp & Delete) */}
+          <View style={styles.actionsRow}>
+            {onBulkWA && (
+              <TouchableOpacity
+                style={styles.waBtn}
+                onPress={() => onBulkWA(workshop.videoId)}
+                activeOpacity={0.7}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+              >
+                <MessageCircle size={13} color="#34d399" />
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity
+              style={styles.deleteBtn}
+              onPress={() => onDelete(workshop.videoId)}
+              activeOpacity={0.7}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+            >
+              <Trash2 size={13} color="#f87171" />
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </TouchableOpacity>
@@ -184,6 +196,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '900',
     color: '#60a5fa',
+  },
+  actionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  waBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.25)',
   },
   deleteBtn: {
     width: 28,

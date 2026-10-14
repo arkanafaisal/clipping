@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
   Text,
@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Linking,
 } from 'react-native';
 import { Download } from 'lucide-react-native';
 import { WorkshopCard, WorkshopItem } from './WorkshopCard';
@@ -16,6 +17,17 @@ import { ToastManager } from './Toast';
 import { fetchHeatmap } from '../services/api';
 
 const WORKSHOPS_STORAGE_KEY = 'workshops_list';
+const BOT_NUMBER = '6285742923730';
+
+function formatTimeWithMs(seconds: number): string {
+  if (seconds === undefined || seconds === null || isNaN(seconds)) return '00:00:00.00';
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  const ms = Math.floor((seconds % 1) * 100);
+  const pad = (num: number, len = 2) => num.toString().padStart(len, '0');
+  return `${pad(h)}:${pad(m)}:${pad(s)}.${pad(ms, 2)}`;
+}
 
 interface DashboardProps {
   onOpenWorkshop?: (videoId: string, count: number) => void;
@@ -27,24 +39,41 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
   const [importModalVisible, setImportModalVisible] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
 
-  // Load workshops from LocalStorage on mount
-  useEffect(() => {
-    async function loadSavedWorkshops() {
-      try {
-        const saved = await LocalStorage.getItem(WORKSHOPS_STORAGE_KEY);
-        if (saved) {
-          const parsed: WorkshopItem[] = JSON.parse(saved);
-          if (Array.isArray(parsed)) {
-            parsed.sort((a, b) => (b.lastUpdated || 0) - (a.lastUpdated || 0));
-            setWorkshops(parsed);
-          }
+  // Load workshops & attach current doneCount from drafts
+  const loadSavedWorkshops = useCallback(async () => {
+    try {
+      const saved = await LocalStorage.getItem(WORKSHOPS_STORAGE_KEY);
+      if (saved) {
+        const parsed: WorkshopItem[] = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          // Sync doneCount for each item
+          const synced = await Promise.all(
+            parsed.map(async (ws) => {
+              try {
+                const draftStr = await LocalStorage.getItem(`clips_draft_${ws.videoId}`);
+                if (draftStr) {
+                  const clips = JSON.parse(draftStr);
+                  const done = Array.isArray(clips)
+                    ? clips.filter((c: any) => c.status === 'done').length
+                    : 0;
+                  return { ...ws, doneCount: done };
+                }
+              } catch (e) {}
+              return ws;
+            })
+          );
+          synced.sort((a, b) => (b.lastUpdated || 0) - (a.lastUpdated || 0));
+          setWorkshops(synced);
         }
-      } catch (e) {
-        console.warn('[Dashboard] Failed to load workshops:', e);
       }
+    } catch (e) {
+      console.warn('[Dashboard] Failed to load workshops:', e);
     }
-    loadSavedWorkshops();
   }, []);
+
+  useEffect(() => {
+    loadSavedWorkshops();
+  }, [loadSavedWorkshops]);
 
   // Helper extracting 11-char YouTube ID
   const extractVideoId = (url: string): string | null => {
@@ -165,7 +194,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
         'Gagal Mengambil Heatmap',
         `${err.message}\n\nAplikasi tetap berada di Dashboard karena data klip belum berhasil diperoleh.`
       );
-      // TIDAK MEMBUKA FeedScreen!
     }
   };
 
@@ -252,6 +280,48 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
     ]);
   };
 
+  // Kirim semua klip yang Done (Hijau) ke WhatsApp Bot
+  const handleBulkWA = async (videoId: string) => {
+    const stored = await LocalStorage.getItem(`clips_draft_${videoId}`);
+    if (!stored) {
+      Alert.alert('Perhatian', 'Tidak ada draft klip untuk video ini.');
+      return;
+    }
+
+    try {
+      const clips = JSON.parse(stored);
+      const doneClips = clips
+        .filter((c: any) => c.status === 'done')
+        .sort((a: any, b: any) => a.start - b.start);
+
+      if (doneClips.length === 0) {
+        Alert.alert('Perhatian', 'Tidak ada klip yang ditandai Selesai (Hijau) pada video ini.');
+        return;
+      }
+
+      const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+      let command = `!download ${videoUrl}\n`;
+
+      doneClips.forEach((c: any) => {
+        command += `${formatTimeWithMs(c.start)} - ${formatTimeWithMs(c.end)}\n`;
+      });
+
+      const encodedCommand = encodeURIComponent(command.trim());
+      const waUrl = `https://wa.me/${BOT_NUMBER}?text=${encodedCommand}`;
+
+      const supported = await Linking.canOpenURL(waUrl);
+      if (supported) {
+        await Linking.openURL(waUrl);
+      } else {
+        // Fallback open via browser
+        await Linking.openURL(`https://api.whatsapp.com/send?phone=${BOT_NUMBER}&text=${encodedCommand}`);
+      }
+    } catch (err: any) {
+      console.error(err);
+      Alert.alert('Gagal', 'Gagal memproses draft klip untuk WhatsApp.');
+    }
+  };
+
   const handleImportJSON = async (jsonText: string) => {
     try {
       const parsed = JSON.parse(jsonText);
@@ -265,8 +335,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
       await saveWorkshops(updatedList);
 
       // If json contains draft clips, save them too
-      if (parsed.draft && Array.isArray(parsed.draft)) {
-        await LocalStorage.setItem(`clips_draft_${wsData.videoId}`, JSON.stringify(parsed.draft));
+      if (parsed.draft) {
+        const draftContent = typeof parsed.draft === 'string' ? parsed.draft : JSON.stringify(parsed.draft);
+        await LocalStorage.setItem(`clips_draft_${wsData.videoId}`, draftContent);
       }
 
       setImportModalVisible(false);
@@ -275,6 +346,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
         title: 'Import Sukses',
         message: `Workshop ${wsData.videoId} berhasil di-import.`,
       });
+      loadSavedWorkshops();
     } catch (err) {
       Alert.alert('Gagal', 'Format data JSON yang Anda paste tidak valid.');
     }
@@ -327,6 +399,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
             workshop={ws}
             onPress={(vid) => handleOpenExisting(vid, ws.count || 50)}
             onDelete={handleDeleteWorkshop}
+            onBulkWA={handleBulkWA}
           />
         ))
       )}
