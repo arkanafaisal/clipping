@@ -28,7 +28,17 @@ android {
 chaquopy {
     defaultConfig {
         version "3.10"
-        buildPython "python3.10"
+        if (System.getProperty("os.name").toLowerCase().contains("windows")) {
+            buildPython "python"
+        } else {
+            if (new File("/usr/bin/python3.10").exists()) {
+                buildPython "/usr/bin/python3.10"
+            } else if (new File("/usr/local/bin/python3.10").exists()) {
+                buildPython "/usr/local/bin/python3.10"
+            } else {
+                buildPython "python3"
+            }
+        }
         pip {
             // Pure Python libraries (100% compatible with Chaquopy without native C/Rust compilers)
             install "flask"

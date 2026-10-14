@@ -1,4 +1,9 @@
 {
+  "name": "clipping-root",
+  "private": true,
+  "scripts": {
+    "eas-build-pre-install": "bash ./mobile/scripts/eas-build-pre-install.sh"
+  },
   "dependencies": {
     "puppeteer": "^25.11.0",
     "puppeteer-extra": "^3.3.6",
