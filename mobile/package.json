@@ -45,7 +45,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "eas-build-pre-install": "bash -c 'if [ -f ./scripts/eas-build-pre-install.sh ]; then bash ./scripts/eas-build-pre-install.sh; elif [ -f ./mobile/scripts/eas-build-pre-install.sh ]; then bash ./mobile/scripts/eas-build-pre-install.sh; fi'"
+    "eas-build-pre-install": "bash -c 'HOOK=\"\"; if [ -f ./scripts/eas-build-pre-install.sh ]; then HOOK=\"./scripts/eas-build-pre-install.sh\"; elif [ -f ./mobile/scripts/eas-build-pre-install.sh ]; then HOOK=\"./mobile/scripts/eas-build-pre-install.sh\"; fi; if [ -n \"$HOOK\" ]; then sed -i \"s/\\r$//\" \"$HOOK\" 2>/dev/null || true; bash \"$HOOK\"; fi'"
   },
   "private": true
 }
