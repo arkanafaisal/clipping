@@ -14,7 +14,7 @@ import { WorkshopInputForm } from './WorkshopInputForm';
 import { ImportWorkshopModal } from './ImportWorkshopModal';
 import { LocalStorage } from '../services/storage';
 import { ToastManager } from './Toast';
-import { fetchHeatmap } from '../services/api';
+import { fetchHeatmap, fetchStreamUrl } from '../services/api';
 
 const WORKSHOPS_STORAGE_KEY = 'workshops_list';
 const BOT_NUMBER = '6285742923730';
@@ -102,67 +102,39 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
       return;
     }
 
-    // 1. Cek apakah draft klip lokal sudah pernah tersimpan
-    const savedDraft = await LocalStorage.getItem(`clips_draft_${videoId}`);
-    if (savedDraft) {
-      try {
-        const parsed = JSON.parse(savedDraft);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          // Buka langsung karena draft sudah ada
-          const existingIndex = workshops.findIndex((w) => w.videoId === videoId);
-          if (existingIndex >= 0) {
-            const updated = [...workshops];
-            updated[existingIndex].count = count;
-            updated[existingIndex].lastUpdated = Date.now();
-            await saveWorkshops(updated);
-          }
-          onOpenWorkshop?.(videoId, count);
-          return;
-        }
-      } catch (e) {
-        // Abaikan parse error, lanjut fetch
-      }
-    }
-
-    // 2. Jika belum ada draft, fetch heatmap DULU sebelum masuk ke halaman room
     setIsExtracting(true);
-    ToastManager.show({
-      type: 'loading',
-      title: 'Mengekstrak Heatmap',
-      message: `Mengambil data Most Replayed untuk video ${videoId}...`,
-    });
 
     try {
+      // 1. Ekstrak heatmap
       const data = await fetchHeatmap(videoId, count, 0);
-
       if (!data.clips || data.clips.length === 0) {
         throw new Error('Heatmap tidak mengembalikan segmen klip.');
       }
 
-      // Format klip dengan status 'none'
       const formattedClips = data.clips.map((c, idx) => ({
         ...c,
         status: 'none' as const,
         rank: c.rank || idx + 1,
       }));
-
-      // Simpan draft klip ke LocalStorage
+      const videoTitle = data.title || `YouTube Video (${videoId})`;
       await LocalStorage.setItem(`clips_draft_${videoId}`, JSON.stringify(formattedClips));
 
-      // Update / Simpan workshop ke list
-      const title = data.title || `YouTube Video (${videoId})`;
+      // 2. Ambil direct stream URL
+      await fetchStreamUrl(videoId);
+
+      // 3. Simpan workshop ke daftar
       const existingIndex = workshops.findIndex((w) => w.videoId === videoId);
       let updatedList: WorkshopItem[];
 
       if (existingIndex >= 0) {
         updatedList = [...workshops];
-        updatedList[existingIndex].title = title;
+        updatedList[existingIndex].title = videoTitle;
         updatedList[existingIndex].count = count;
         updatedList[existingIndex].lastUpdated = Date.now();
       } else {
         const newWorkshop: WorkshopItem = {
           videoId,
-          title,
+          title: videoTitle,
           count,
           doneCount: 0,
           lastUpdated: Date.now(),
@@ -173,90 +145,78 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
       await saveWorkshops(updatedList);
       setIsExtracting(false);
 
-      ToastManager.show({
-        type: 'success',
-        title: 'Heatmap Berhasil',
-        message: `${formattedClips.length} klip berhasil diambil!`,
-      });
-
-      // HANYA masuk ke FeedScreen jika ekstraksi benar-benar sukses!
+      // 4. Masuk ke FeedScreen setelah data berhasil diperoleh
       onOpenWorkshop?.(videoId, count);
     } catch (err: any) {
       setIsExtracting(false);
       ToastManager.show({
         type: 'error',
-        title: 'Gagal Ekstrak Heatmap',
+        title: 'Gagal Membuat Workshop',
         message: err.message || 'Server gagal mengambil data.',
         duration: 5000,
       });
 
       Alert.alert(
-        'Gagal Mengambil Heatmap',
-        `${err.message}\n\nAplikasi tetap berada di Dashboard karena data klip belum berhasil diperoleh.`
+        'Gagal Membuka Workshop',
+        `${err.message || 'Koneksi ke backend gagal.'}\n\nAplikasi tetap berada di Dashboard karena data klip atau stream belum siap.`
       );
     }
   };
 
   const handleOpenExisting = async (videoId: string, count: number) => {
-    // Cek apakah draft sudah ada
-    const savedDraft = await LocalStorage.getItem(`clips_draft_${videoId}`);
-    if (savedDraft) {
-      try {
-        const parsed = JSON.parse(savedDraft);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          // Update lastUpdated
-          const existingIndex = workshops.findIndex((w) => w.videoId === videoId);
-          if (existingIndex >= 0) {
-            const updated = [...workshops];
-            updated[existingIndex].lastUpdated = Date.now();
-            await saveWorkshops(updated);
-          }
-          onOpenWorkshop?.(videoId, count);
-          return;
-        }
-      } catch (e) {
-        // Lanjut ke fetch jika draft korup
-      }
-    }
-
-    // Jika belum ada draft, coba fetch heatmap terlebih dahulu
-    setIsExtracting(true);
-    ToastManager.show({
-      type: 'loading',
-      title: 'Mengekstrak Heatmap',
-      message: `Mengambil data klip untuk ${videoId}...`,
-    });
-
     try {
-      const data = await fetchHeatmap(videoId, count, 0);
-      if (!data.clips || data.clips.length === 0) {
-        throw new Error('Heatmap tidak mengembalikan klip.');
+      // 1. Cek apakah draft sudah ada, jika belum fetch heatmap
+      let savedDraft = await LocalStorage.getItem(`clips_draft_${videoId}`);
+      let hasValidClips = false;
+
+      if (savedDraft) {
+        try {
+          const parsed = JSON.parse(savedDraft);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            hasValidClips = true;
+          }
+        } catch (e) {}
       }
 
-      const formattedClips = data.clips.map((c, idx) => ({
-        ...c,
-        status: 'none' as const,
-        rank: c.rank || idx + 1,
-      }));
+      if (!hasValidClips) {
+        const data = await fetchHeatmap(videoId, count, 0);
+        if (!data.clips || data.clips.length === 0) {
+          throw new Error('Heatmap tidak mengembalikan klip.');
+        }
 
-      await LocalStorage.setItem(`clips_draft_${videoId}`, JSON.stringify(formattedClips));
-      setIsExtracting(false);
+        const formattedClips = data.clips.map((c, idx) => ({
+          ...c,
+          status: 'none' as const,
+          rank: c.rank || idx + 1,
+        }));
 
-      ToastManager.show({
-        type: 'success',
-        title: 'Heatmap Berhasil',
-        message: `${formattedClips.length} klip siap di-review.`,
-      });
+        await LocalStorage.setItem(`clips_draft_${videoId}`, JSON.stringify(formattedClips));
+      }
 
+      // 2. Ambil direct stream URL
+      await fetchStreamUrl(videoId);
+
+      // 3. Update lastUpdated
+      const existingIndex = workshops.findIndex((w) => w.videoId === videoId);
+      if (existingIndex >= 0) {
+        const updated = [...workshops];
+        updated[existingIndex].lastUpdated = Date.now();
+        await saveWorkshops(updated);
+      }
+
+      // 4. Masuk ke FeedScreen setelah respons berhasil
       onOpenWorkshop?.(videoId, count);
     } catch (err: any) {
-      setIsExtracting(false);
       ToastManager.show({
         type: 'error',
-        title: 'Gagal Mengambil Klip',
-        message: err.message,
+        title: 'Gagal Membuka Workshop',
+        message: err.message || 'Server sedang offline.',
+        duration: 5000,
       });
-      Alert.alert('Gagal Mengambil Heatmap', err.message);
+      Alert.alert(
+        'Tidak Dapat Masuk ke Kamar',
+        `${err.message || 'Koneksi ke server gagal.'}\n\nAplikasi tetap berada di Dashboard karena backend belum siap.`
+      );
     }
   };
 

@@ -14,29 +14,31 @@ interface ActiveWorkshop {
 export default function HomeScreen() {
   const [activeWorkshop, setActiveWorkshop] = useState<ActiveWorkshop | null>(null);
 
-  // Otomatis nyalakan engine Python lokal di background saat aplikasi dibuka
+  // Periksa koneksi backend Python pada startup
   useEffect(() => {
-    // Periksa koneksi ke server Python Termux di port 3006
-    setTimeout(async () => {
+    const checkServerConnection = async () => {
       try {
         const pingRes = await pingServer();
         if (pingRes.status === 'ok') {
           ToastManager.show({
             type: 'success',
-            title: 'API Termux Terhubung',
+            title: 'Server Python Terhubung',
             message: `Port 3006 aktif (${pingRes.message || 'Siap digunakan'})`,
             duration: 3000,
           });
         }
-      } catch (e) {
+      } catch (e: any) {
         ToastManager.show({
-          type: 'info',
-          title: 'Termux Port 3006',
-          message: 'Pastikan server Python di Termux sudah berjalan pada port 3006.',
-          duration: 4000,
+          type: 'error',
+          title: 'Server Python Offline',
+          message: 'Server Python belum aktif pada 127.0.0.1:3006. Pastikan Termux sudah berjalan.',
+          duration: 5000,
         });
       }
-    }, 1000);
+    };
+
+    const timer = setTimeout(checkServerConnection, 500);
+    return () => clearTimeout(timer);
   }, []);
 
   const handleOpenWorkshop = (videoId: string, count: number) => {

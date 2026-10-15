@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   StyleSheet,
   Text,
@@ -69,6 +69,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
 
   // Debounce refs for smooth, leak-proof UI adjustments & storage sync
   const seekDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingSeekTargetRef = useRef<number | null>(null);
   const storageDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Active clip reference
@@ -206,25 +207,55 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     }
   }, [clips]);
 
-  // Jump player to clip start & AUTO PLAY when active clip changes
-  useEffect(() => {
-    if (activeClip && player && streamUrl) {
-      try {
-        player.currentTime = activeClip.start;
-        setProgressPercent(0);
-        player.play();
-        setIsPlaying(true);
-      } catch (e) {
-        console.log('Player seek error on clip change:', e);
-      }
+  /**
+   * Centralized universal debounced seek handler:
+   * Menampung SEMUA seek (crop, extend, skip waktu, pindah klip) ke dalam 1 gerbang terpusat.
+   * Debounce trailing edge: 500ms sejak interaksi TERAKHIR user.
+   * Jika user menekan beruntun (misal crop 5x + extend 5x), state UI langsung berubah (optimistic),
+   * timer 500ms di-reset tiap pencetan, dan player HANYA di-seek 1x ke posisi akhir setelah jeda 500ms.
+   * Jika seek berhasil: tidak menampilkan toast.
+   * Jika seek gagal: tampilkan notifikasi error.
+   */
+  const centralizedSeek = useCallback((targetTime: number, shouldPlay: boolean = true) => {
+    pendingSeekTargetRef.current = targetTime;
+
+    if (seekDebounceTimerRef.current) {
+      clearTimeout(seekDebounceTimerRef.current);
     }
-  }, [activeClipId, streamUrl]);
+
+    seekDebounceTimerRef.current = setTimeout(() => {
+      const finalTarget = pendingSeekTargetRef.current;
+      if (player && finalTarget !== null && !isNaN(finalTarget)) {
+        try {
+          player.currentTime = Math.max(0, finalTarget);
+          if (shouldPlay) {
+            player.play();
+            setIsPlaying(true);
+          }
+        } catch (e: any) {
+          ToastManager.show({
+            type: 'error',
+            title: 'Gagal Memindahkan Pemutar',
+            message: e?.message || 'Player gagal melakukan seek ke durasi target.',
+            duration: 3500,
+          });
+        }
+      }
+      seekDebounceTimerRef.current = null;
+      pendingSeekTargetRef.current = null;
+    }, 500);
+  }, [player]);
 
   // Track playback time update & handle segment loop
   useEffect(() => {
     if (!player) return;
 
     const sub = player.addListener('timeUpdate', (event) => {
+      // Jika user sedang aktif menekan seek/crop/extend/skip/klip (debounce aktif), jangan tumpuk update scrubber & loop
+      if (pendingSeekTargetRef.current !== null) {
+        return;
+      }
+
       const current = event.currentTime;
       const duration = activeClip.end - activeClip.start;
       if (duration > 0) {
@@ -252,15 +283,14 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
             player.currentTime = activeClip.start;
             player.play();
             setIsPlaying(true);
-            ToastManager.show({
-              type: 'info',
-              title: 'Stream Diperbarui',
-              message: 'URL stream telah diperbarui otomatis.',
-              duration: 2500,
-            });
           }
         } catch (e: any) {
-          console.error('[Feed] Gagal auto-refresh stream URL:', e);
+          ToastManager.show({
+            type: 'error',
+            title: 'Gagal Memperbarui Stream',
+            message: e?.message || 'Server gagal me-refresh stream video.',
+            duration: 4000,
+          });
         }
       }
     });
@@ -271,71 +301,48 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     };
   }, [player, activeClip.start, activeClip.end]);
 
-  // Extend & Crop Handlers with 100% Leak-Proof Debounce:
-  // - UI (angka teks rentang) langsung ter-update secara instan (optimistic)
-  // - Seek video hanya dieksekusi 1x setelah user berhenti menekan tombol (debounce 450ms)
+  // Extend & Crop Handlers:
+  // - UI langsung ter-update secara instan (optimistic)
+  // - Seek video terpusat dieksekusi 1x setelah user berhenti menekan tombol (debounce 500ms trailing)
   const handleUpdateStart = (delta: number) => {
-    let targetSeek = 0;
+    const currentClip = clips.find((c) => c.id === activeClipId);
+    if (!currentClip) return;
+    const newStart = Math.max(0, Math.min(currentClip.start + delta, currentClip.end - 1));
+
     setClips((prev) =>
-      prev.map((c) => {
-        if (c.id === activeClipId) {
-          const newStart = Math.max(0, Math.min(c.start + delta, c.end - 1));
-          targetSeek = newStart;
-          return { ...c, start: newStart };
-        }
-        return c;
-      })
+      prev.map((c) => (c.id === activeClipId ? { ...c, start: newStart } : c))
     );
 
-    // Batalkan timeout seek sebelumnya jika user menekan beruntun (misal 20x klik)
-    if (seekDebounceTimerRef.current) {
-      clearTimeout(seekDebounceTimerRef.current);
-    }
-
-    // Set seek baru setelah 450ms jeda bebas klik
-    seekDebounceTimerRef.current = setTimeout(() => {
-      if (player) {
-        try {
-          player.currentTime = targetSeek;
-          player.play();
-          setIsPlaying(true);
-        } catch (e) {
-          console.log('Debounced seek start error:', e);
-        }
-      }
-    }, 450);
+    setProgressPercent(0);
+    centralizedSeek(newStart, true);
   };
 
   const handleUpdateEnd = (delta: number) => {
-    let targetSeek = 0;
+    const currentClip = clips.find((c) => c.id === activeClipId);
+    if (!currentClip) return;
+    const newEnd = Math.max(currentClip.start + 1, currentClip.end + delta);
+    const targetSeek = Math.max(currentClip.start, newEnd - 3);
+
     setClips((prev) =>
-      prev.map((c) => {
-        if (c.id === activeClipId) {
-          const newEnd = Math.max(c.start + 1, c.end + delta);
-          targetSeek = Math.max(c.start, newEnd - 3); // Preview 3 detik sebelum batas akhir
-          return { ...c, end: newEnd };
-        }
-        return c;
-      })
+      prev.map((c) => (c.id === activeClipId ? { ...c, end: newEnd } : c))
     );
 
-    // Batalkan timeout seek sebelumnya jika user menekan beruntun
-    if (seekDebounceTimerRef.current) {
-      clearTimeout(seekDebounceTimerRef.current);
+    const duration = newEnd - currentClip.start;
+    if (duration > 0) {
+      const pct = Math.max(0, Math.min(100, ((targetSeek - currentClip.start) / duration) * 100));
+      setProgressPercent(pct);
     }
 
-    // Set seek baru setelah 450ms jeda bebas klik
-    seekDebounceTimerRef.current = setTimeout(() => {
-      if (player) {
-        try {
-          player.currentTime = targetSeek;
-          player.play();
-          setIsPlaying(true);
-        } catch (e) {
-          console.log('Debounced seek end error:', e);
-        }
-      }
-    }, 450);
+    centralizedSeek(targetSeek, true);
+  };
+
+  // Switch klip dengan debounce seek terpusat
+  const handleSelectClip = (clipId: string) => {
+    const targetClip = clips.find((c) => c.id === clipId);
+    if (!targetClip) return;
+    setActiveClipId(clipId);
+    setProgressPercent(0);
+    centralizedSeek(targetClip.start, true);
   };
 
   // Toggle clip Done status (hijau)
@@ -377,11 +384,24 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
   };
 
   const skipSeconds = (seconds: number) => {
-    if (!player) return;
-    let nextTime = player.currentTime + seconds;
+    const baseTime =
+      pendingSeekTargetRef.current !== null
+        ? pendingSeekTargetRef.current
+        : player
+        ? player.currentTime
+        : activeClip.start;
+
+    let nextTime = baseTime + seconds;
     if (nextTime < activeClip.start) nextTime = activeClip.start;
     if (nextTime > activeClip.end) nextTime = activeClip.end;
-    player.currentTime = nextTime;
+
+    const duration = activeClip.end - activeClip.start;
+    if (duration > 0) {
+      const pct = Math.max(0, Math.min(100, ((nextTime - activeClip.start) / duration) * 100));
+      setProgressPercent(pct);
+    }
+
+    centralizedSeek(nextTime, isPlaying);
   };
 
   // Group clips into pairs (columns of 2 rows) sorted chronologically (parity with Feed.jsx)
@@ -627,7 +647,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
                       isTrash && styles.clipCardTrash,
                       isActive && styles.clipCardActive,
                     ]}
-                    onPress={() => setActiveClipId(clip.id)}
+                    onPress={() => handleSelectClip(clip.id)}
                     activeOpacity={0.8}
                   >
                     {/* Rank Badge */}
