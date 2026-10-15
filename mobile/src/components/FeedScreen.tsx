@@ -30,6 +30,15 @@ import {
   getClipOutputFilePath,
   checkClipFileExists,
 } from '../services/api';
+/*
+// [WORK IN PROGRESS - COMMENTED OUT] Subtitle imports
+import {
+  SubtitleCue,
+  SUBTITLE_CUES_CACHE,
+  fetchSubtitles,
+  sliceCuesForClip,
+} from '../services/api';
+*/
 import { LocalStorage } from '../services/storage';
 import { ToastManager } from './Toast';
 
@@ -133,6 +142,15 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
   const [currentClipTime, setCurrentClipTime] = useState<number>(0);
   const [downloadingClips, setDownloadingClips] = useState<Record<string, boolean>>({});
   const [downloadedClips, setDownloadedClips] = useState<Record<string, boolean>>({});
+
+  // ============================================================================
+  // [WORK IN PROGRESS - COMMENTED OUT] State Subtitle & Overlay (Layer 1)
+  // ============================================================================
+  /*
+  const [subtitles, setSubtitles] = useState<SubtitleCue[]>([]);
+  const [activeSubtitleText, setActiveSubtitleText] = useState<string>('');
+  const [isSubtitleVisible, setIsSubtitleVisible] = useState<boolean>(true);
+  */
 
   // Debounce refs for smooth, leak-proof UI adjustments & storage sync
   const seekDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -351,6 +369,16 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
         setProgressPercent(pct);
         const rel = Math.max(0, Math.min(duration, current - currentActive.start));
         setCurrentClipTime(rel);
+
+        /*
+        // [WORK IN PROGRESS - COMMENTED OUT] Sinkronisasi teks subtitle aktif
+        if (isSubtitleVisible && subtitles.length > 0) {
+          const matchedCue = subtitles.find(
+            (cue) => rel >= cue.start && rel <= cue.end
+          );
+          setActiveSubtitleText(matchedCue ? matchedCue.text : '');
+        }
+        */
       }
 
       // Loop current segment
@@ -392,6 +420,30 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
       statusSub.remove();
     };
   }, [player, activeClip.start, activeClip.end]);
+
+  /*
+  // ============================================================================
+  // [WORK IN PROGRESS - COMMENTED OUT] Auto-load & Slicing Subtitle Klip Aktif
+  // ============================================================================
+  useEffect(() => {
+    async function loadSubtitlesForActiveClip() {
+      if (!activeClip || !activeClip.videoId) return;
+      try {
+        if (SUBTITLE_CUES_CACHE.has(activeClip.id)) {
+          setSubtitles(SUBTITLE_CUES_CACHE.get(activeClip.id) || []);
+          return;
+        }
+        const allCues = await fetchSubtitles(activeClip.videoId, 'id');
+        const sliced = sliceCuesForClip(allCues, activeClip.start, activeClip.end);
+        SUBTITLE_CUES_CACHE.set(activeClip.id, sliced);
+        setSubtitles(sliced);
+      } catch (err) {
+        console.warn('[Feed] Gagal memuat subtitle klip:', err);
+      }
+    }
+    loadSubtitlesForActiveClip();
+  }, [activeClip.id, activeClip.start, activeClip.end]);
+  */
 
   // Extend & Crop Handlers:
   // - UI langsung ter-update secara instan 0ms tanpa animasi/delay
@@ -632,23 +684,41 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
           {/* SISI KIRI: Jika Mode Done -> Tombol Unduh, Jika Mode Normal -> Tombol Trash */}
           <View style={styles.leftActionGroup}>
             {activeClip.status === 'done' ? (
-              <Pressable
-                style={({ pressed }) => [
-                  styles.statusBtn,
-                  styles.downloadBtn,
-                  downloadedClips[activeClip.id] && styles.downloadBtnSuccess,
-                  pressed && { opacity: 0.7 },
-                ]}
-                onPressIn={handleDownloadClip}
-              >
-                {downloadingClips[activeClip.id] ? (
-                  <ActivityIndicator size="small" color="#38bdf8" />
-                ) : downloadedClips[activeClip.id] ? (
-                  <CheckCircle2 size={18} color="#34d399" />
-                ) : (
-                  <Download size={18} color="#38bdf8" />
-                )}
-              </Pressable>
+              <>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.statusBtn,
+                    styles.downloadBtn,
+                    downloadedClips[activeClip.id] && styles.downloadBtnSuccess,
+                    pressed && { opacity: 0.7 },
+                  ]}
+                  onPressIn={handleDownloadClip}
+                >
+                  {downloadingClips[activeClip.id] ? (
+                    <ActivityIndicator size="small" color="#38bdf8" />
+                  ) : downloadedClips[activeClip.id] ? (
+                    <CheckCircle2 size={18} color="#34d399" />
+                  ) : (
+                    <Download size={18} color="#38bdf8" />
+                  )}
+                </Pressable>
+
+                {/*
+                // [WORK IN PROGRESS - COMMENTED OUT] Tombol Toggle Subtitle di Mode Review
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.statusBtn,
+                    styles.subtitleToggleBtn,
+                    pressed && { opacity: 0.7 },
+                  ]}
+                  onPressIn={() => setIsSubtitleVisible((prev) => !prev)}
+                >
+                  <Text style={styles.subtitleBtnText}>
+                    {isSubtitleVisible ? 'CC' : 'CC Off'}
+                  </Text>
+                </Pressable>
+                */}
+              </>
             ) : (
               <Pressable
                 style={({ pressed }) => [
@@ -798,6 +868,17 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
             </Text>
           </View>
         )}
+
+        {/*
+        // [WORK IN PROGRESS - COMMENTED OUT] Subtitle Layer 1 (Realtime Non-Destructive Preview)
+        {isSubtitleVisible && activeSubtitleText ? (
+          <View style={styles.subtitleOverlayContainer} pointerEvents="none">
+            <View style={styles.subtitlePill}>
+              <Text style={styles.subtitleText}>{activeSubtitleText}</Text>
+            </View>
+          </View>
+        ) : null}
+        */}
       </View>
 
       {/* 3. BOTTOM PLAYBACK CONTROLS (Fixed Height) */}
@@ -987,6 +1068,47 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(16, 185, 129, 0.15)',
     borderColor: 'rgba(16, 185, 129, 0.4)',
   },
+  /*
+  // [WORK IN PROGRESS - COMMENTED OUT] Styles Subtitle Overlay & Toggle
+  subtitleOverlayContainer: {
+    position: 'absolute',
+    bottom: 24,
+    left: 16,
+    right: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+  subtitlePill: {
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    maxWidth: '90%',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  subtitleText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '600',
+    textAlign: 'center',
+    lineHeight: 20,
+    textShadowColor: 'rgba(0, 0, 0, 0.9)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 3,
+  },
+  subtitleToggleBtn: {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  subtitleBtnText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  */
   timeMsText: {
     fontSize: 13,
     letterSpacing: 0.2,

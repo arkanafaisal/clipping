@@ -111,3 +111,23 @@ export const FFMPEG_FIXED_CONFIG = {
   avoidNegativeTs: 'make_zero',
 };
 
+// ==============================================================================
+// [WORK IN PROGRESS - COMMENTED OUT]
+// Konfigurasi Ekstraksi Subtitle / Closed Captions:
+// - Mengambil subtitle otomatis (ASR) atau manual tanpa mendownload video
+// - Format WebVTT (.vtt) agar mudah diparse line-by-line oleh frontend
+// ==============================================================================
+/*
+export const SUBTITLE_YTDL_OPTS: YtdlOpts = {
+  skip_download: true,
+  writesubtitles: true,
+  writeautomaticsub: true,
+  subtitleslangs: ['id', 'en'],
+  subtitlesformat: 'vtt',
+  quiet: true,
+  no_warnings: true,
+  extract_flat: false,
+};
+*/
+
+

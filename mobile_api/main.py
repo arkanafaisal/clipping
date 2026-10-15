@@ -152,6 +152,73 @@ def download_clip(video_id=None):
         }), 500
 
 # ==============================================================================
+# [WORK IN PROGRESS - COMMENTED OUT]
+# Endpoint Pass-Through murni untuk ekstraksi subtitle YouTube via yt-dlp.
+# Frontend mengirimkan: video_id, output_dir, lang (default: 'id'), dan ydl_opts.
+# Backend mengekstrak subtitle (.vtt) tanpa mendownload video, dan mengembalikan kontennya.
+# ==============================================================================
+# @app.route("/api/subtitles", methods=["POST"])
+# @app.route("/api/subtitles/<video_id>", methods=["POST"])
+# def get_subtitles(video_id=None):
+#     try:
+#         body = request.get_json(silent=True) or {}
+#         vid = body.get("video_id") or video_id or request.args.get("video_id")
+#         output_sub_dir = body.get("output_dir")
+#         ydl_opts_in = body.get("ydl_opts") or {}
+#         lang = body.get("lang", "id")
+# 
+#         if not vid or not output_sub_dir:
+#             return jsonify({
+#                 "message": "INVALID_PARAMS",
+#                 "error": "Parameter 'video_id' dan 'output_dir' wajib disertakan oleh frontend."
+#             }), 400
+# 
+#         if not os.path.exists(output_sub_dir):
+#             os.makedirs(output_sub_dir, exist_ok=True)
+# 
+#         import yt_dlp
+#         outtmpl = os.path.join(output_sub_dir, f"{vid}.%(ext)s")
+#         ydl_opts = dict(ydl_opts_in)
+#         ydl_opts["skip_download"] = True
+#         ydl_opts["writesubtitles"] = True
+#         ydl_opts["writeautomaticsub"] = True
+#         ydl_opts["subtitleslangs"] = [lang, "en"]
+#         ydl_opts["subtitlesformat"] = "vtt"
+#         ydl_opts["outtmpl"] = outtmpl
+# 
+#         url = f"https://www.youtube.com/watch?v={vid}"
+#         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+#             ydl.download([url])
+# 
+#         # Cari file .vtt yang dihasilkan di direktori output
+#         found_file = None
+#         for fname in os.listdir(output_sub_dir):
+#             if fname.startswith(vid) and fname.endswith(".vtt"):
+#                 found_file = os.path.join(output_sub_dir, fname)
+#                 break
+# 
+#         if not found_file or not os.path.exists(found_file):
+#             return jsonify({
+#                 "message": "SUBTITLE_NOT_FOUND",
+#                 "error": f"Subtitle untuk video '{vid}' tidak ditemukan di YouTube."
+#             }), 404
+# 
+#         with open(found_file, "r", encoding="utf-8") as f:
+#             vtt_content = f.read()
+# 
+#         return jsonify({
+#             "status": "success",
+#             "sub_path": found_file,
+#             "content": vtt_content
+#         }), 200
+#     except Exception as e:
+#         return jsonify({
+#             "message": "SUBTITLE_ERROR",
+#             "error": str(e)
+#         }), 500
+
+
+# ==============================================================================
 # [COMMENTED OUT - TIDAK DIGUNAKAN DI MOBILE NATIVE]
 # 1. /api/proxy_stream:
 #    Pemutar video native Android (ExoPlayer / expo-video) langsung memutar

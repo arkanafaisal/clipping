@@ -347,3 +347,174 @@ export async function downloadClip(
   }
 }
 
+// ==============================================================================
+// [WORK IN PROGRESS - COMMENTED OUT] LOGIKA EKSTRAKSI & SLICING SUBTITLE
+// 1. SubtitleCue interface (format cue dengan start & end ternormalisasi per klip)
+// 2. parseTimestampToSeconds (parser string timestamp VTT/SRT ke float detik)
+// 3. parseVttToCues (parser raw file WebVTT teks menjadi cue terstruktur)
+// 4. sliceCuesForClip (filter & normalisasi cue relatif 0.000s sesuai start klip)
+// 5. fetchSubtitles (pass-through request ke server internal Python)
+// ==============================================================================
+/*
+export interface SubtitleCue {
+  id: string;
+  start: number;    // Detik relatif terhadap awal klip (0.000s)
+  end: number;      // Detik relatif terhadap awal klip
+  rawStart: number; // Detik absolut pada video penuh YouTube
+  rawEnd: number;   // Detik absolut pada video penuh YouTube
+  text: string;     // Teks caption yang sudah dibersihkan dari tag VTT
+}
+
+// In-Memory cache subtitle per klip: key = clipId, value = SubtitleCue[]
+export const SUBTITLE_CUES_CACHE = new Map<string, SubtitleCue[]>();
+
+export function parseTimestampToSeconds(timestamp: string): number {
+  const clean = timestamp.trim().replace(',', '.');
+  const parts = clean.split(':');
+  if (parts.length === 3) {
+    const hours = parseFloat(parts[0]) || 0;
+    const minutes = parseFloat(parts[1]) || 0;
+    const seconds = parseFloat(parts[2]) || 0;
+    return hours * 3600 + minutes * 60 + seconds;
+  } else if (parts.length === 2) {
+    const minutes = parseFloat(parts[0]) || 0;
+    const seconds = parseFloat(parts[1]) || 0;
+    return minutes * 60 + seconds;
+  }
+  return parseFloat(clean) || 0;
+}
+
+export function parseVttToCues(vttContent: string): SubtitleCue[] {
+  const lines = vttContent.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+  const cues: SubtitleCue[] = [];
+  let index = 0;
+  let currentStart = 0;
+  let currentEnd = 0;
+  let currentTextLines: string[] = [];
+  let isParsingCue = false;
+
+  const timeRegex = /((?:\d{2}:)?\d{2}:\d{2}[\.,]\d{3})\s*-->\s*((?:\d{2}:)?\d{2}:\d{2}[\.,]\d{3})/;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed === 'WEBVTT' || trimmed.startsWith('NOTE') || trimmed.startsWith('STYLE')) {
+      if (isParsingCue && currentTextLines.length > 0) {
+        cues.push({
+          id: `cue_${index++}`,
+          start: currentStart,
+          end: currentEnd,
+          rawStart: currentStart,
+          rawEnd: currentEnd,
+          text: currentTextLines.join(' ').replace(/<[^>]+>/g, '').trim(),
+        });
+        currentTextLines = [];
+        isParsingCue = false;
+      }
+      continue;
+    }
+
+    const match = trimmed.match(timeRegex);
+    if (match) {
+      if (isParsingCue && currentTextLines.length > 0) {
+        cues.push({
+          id: `cue_${index++}`,
+          start: currentStart,
+          end: currentEnd,
+          rawStart: currentStart,
+          rawEnd: currentEnd,
+          text: currentTextLines.join(' ').replace(/<[^>]+>/g, '').trim(),
+        });
+        currentTextLines = [];
+      }
+      currentStart = parseTimestampToSeconds(match[1]);
+      currentEnd = parseTimestampToSeconds(match[2]);
+      isParsingCue = true;
+      continue;
+    }
+
+    if (isParsingCue) {
+      currentTextLines.push(trimmed);
+    }
+  }
+
+  if (isParsingCue && currentTextLines.length > 0) {
+    cues.push({
+      id: `cue_${index++}`,
+      start: currentStart,
+      end: currentEnd,
+      rawStart: currentStart,
+      rawEnd: currentEnd,
+      text: currentTextLines.join(' ').replace(/<[^>]+>/g, '').trim(),
+    });
+  }
+
+  return cues;
+}
+
+export function sliceCuesForClip(
+  allCues: SubtitleCue[],
+  clipStart: number,
+  clipEnd: number
+): SubtitleCue[] {
+  const clipDuration = clipEnd - clipStart;
+  const filtered: SubtitleCue[] = [];
+
+  for (const cue of allCues) {
+    if (cue.rawEnd > clipStart && cue.rawStart < clipEnd) {
+      const relStart = Math.max(0, cue.rawStart - clipStart);
+      const relEnd = Math.min(clipDuration, cue.rawEnd - clipStart);
+      filtered.push({
+        ...cue,
+        start: relStart,
+        end: relEnd,
+      });
+    }
+  }
+
+  return filtered;
+}
+
+export async function fetchSubtitles(
+  videoId: string,
+  lang: string = 'id'
+): Promise<SubtitleCue[]> {
+  const subDir = new File(Paths.document, 'output', videoId, 'subtitles');
+  const nativeSubDir = subDir.uri.replace(/^file:\/\//, '');
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/subtitles`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        video_id: videoId,
+        output_dir: nativeSubDir,
+        lang,
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok || !data.content) {
+      const code = data.message || 'SUBTITLE_NOT_FOUND';
+      const rawError = data.error || 'Gagal mengekstrak subtitle';
+      throw new ApiError(code, rawError);
+    }
+
+    return parseVttToCues(data.content);
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(
+      error.name === 'AbortError' ? 'NETWORK_ERROR' : 'SUBTITLE_ERROR',
+      error.message
+    );
+  }
+}
+*/
+
+
