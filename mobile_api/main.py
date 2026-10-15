@@ -28,23 +28,15 @@ def ping():
 def get_stream(video_id=None):
     """
     Endpoint Pass-Through murni untuk mengekstrak direct stream URL dari YouTube.
-    100% dinamis: Seluruh opsi yt-dlp wajib dikirim oleh frontend.
-    Jika ydl_opts tidak ada, tolak langsung dengan HTTP 400 (Bad Request).
-    Respon hanya berisi hasil stream_url (atau pesan error jika gagal).
+    Validasi didelegasikan seutuhnya ke get_direct_stream_url.
     """
     body = request.get_json(silent=True) or {}
-    vid = body.get("video_id") or video_id or request.args.get("video_id")
-    
-    if not vid:
-        return jsonify({"error": "Parameter 'video_id' wajib disertakan."}), 400
-
-    opts = body.get("ydl_opts")
-    if not opts:
-        return jsonify({"error": "Parameter 'ydl_opts' (konfigurasi yt-dlp) wajib disertakan dari frontend."}), 400
-    
-    url, err = get_direct_stream_url(vid, ydl_opts=opts)
-    if err or not url:
-        return jsonify({"error": err or "Gagal mengekstrak stream URL dari YouTube."}), 400
+    url, err = get_direct_stream_url(
+        body.get("video_id") or video_id or request.args.get("video_id"),
+        body.get("ydl_opts")
+    )
+    if err:
+        return jsonify({"error": err}), 400
         
     return jsonify({
         "stream_url": url
@@ -55,22 +47,15 @@ def get_stream(video_id=None):
 def get_heatmap(video_id=None):
     """
     Endpoint Pass-Through murni untuk mengambil data mentah heatmap ('Most Replayed') dan title.
-    100% dinamis: Backend TIDAK memformat klip, TIDAK menghitung offset, dan TIDAK memiliki fallback config.
-    Respon hanya berisi title dan raw heatmap array mentah dari YouTube.
+    Validasi didelegasikan seutuhnya ke get_raw_heatmap.
     """
     body = request.get_json(silent=True) or {}
-    vid = body.get("video_id") or video_id or request.args.get("video_id")
-    
-    if not vid:
-        return jsonify({"error": "Parameter 'video_id' wajib disertakan."}), 400
-
-    opts = body.get("ydl_opts")
-    if not opts:
-        return jsonify({"error": "Parameter 'ydl_opts' (konfigurasi yt-dlp) wajib disertakan dari frontend."}), 400
-    
-    raw_heatmap, title, err = get_raw_heatmap(vid, ydl_opts=opts)
-    if err and not raw_heatmap:
-        return jsonify({"error": err}), 404
+    raw_heatmap, title, err = get_raw_heatmap(
+        body.get("video_id") or video_id or request.args.get("video_id"),
+        body.get("ydl_opts")
+    )
+    if err:
+        return jsonify({"error": err}), 400
 
     return jsonify({
         "title": title,
