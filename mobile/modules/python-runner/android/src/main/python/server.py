@@ -80,6 +80,77 @@ def get_heatmap(video_id=None):
             "error": str(e)
         }), 500
 
+@app.route("/api/download-clip", methods=["POST"])
+@app.route("/api/download-clip/<video_id>", methods=["POST"])
+def download_clip(video_id=None):
+    """
+    Endpoint Pass-Through murni untuk mendownload rentang klip spesifik YouTube.
+    Front-end mengirimkan konfigurasi dinamis: video_id, start, end, output_path, ydl_opts.
+    Server bertindak sebagai bridge pass-through minimal tanpa fallback / hardcoded config.
+    """
+    try:
+        body = request.get_json(silent=True) or {}
+        vid = body.get("video_id") or video_id or request.args.get("video_id")
+        start = body.get("start")
+        end = body.get("end")
+        output_path = body.get("output_path")
+        ydl_opts_in = body.get("ydl_opts") or {}
+
+        # Validasi ketat kelengkapan parameter tanpa fallback
+        if not vid or start is None or end is None or not output_path:
+            return jsonify({
+                "message": "INVALID_PARAMS",
+                "error": "Parameter 'video_id', 'start', 'end', dan 'output_path' wajib disertakan oleh frontend."
+            }), 400
+
+        try:
+            start_num = float(start)
+            end_num = float(end)
+        except (ValueError, TypeError):
+            return jsonify({
+                "message": "INVALID_RANGE",
+                "error": "Parameter 'start' dan 'end' harus berupa angka waktu valid."
+            }), 400
+
+        if end_num <= start_num:
+            return jsonify({
+                "message": "INVALID_RANGE",
+                "error": f"Waktu 'end' ({end_num}) harus lebih besar daripada 'start' ({start_num})."
+            }), 400
+
+        # Alokasi direktori output sesuai path dari frontend
+        output_dir = os.path.dirname(output_path)
+        if output_dir and not os.path.exists(output_dir):
+            os.makedirs(output_dir, exist_ok=True)
+
+        import yt_dlp
+        from yt_dlp.utils import download_range_func
+
+        ydl_opts = dict(ydl_opts_in)
+        ydl_opts["outtmpl"] = output_path
+        ydl_opts["download_ranges"] = download_range_func(None, [(start_num, end_num)])
+        ydl_opts["force_keyframes_at_cuts"] = True
+
+        url = f"https://www.youtube.com/watch?v={vid}"
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
+
+        if not os.path.exists(output_path):
+            return jsonify({
+                "message": "DOWNLOAD_FAILED",
+                "error": f"File output tidak ditemukan di '{output_path}' setelah eksekusi download selesai."
+            }), 500
+
+        return jsonify({
+            "status": "success",
+            "output_path": output_path
+        }), 200
+    except Exception as e:
+        return jsonify({
+            "message": "DOWNLOAD_FAILED",
+            "error": str(e)
+        }), 500
+
 # ==============================================================================
 # [COMMENTED OUT - TIDAK DIGUNAKAN DI MOBILE NATIVE]
 # 1. /api/proxy_stream:

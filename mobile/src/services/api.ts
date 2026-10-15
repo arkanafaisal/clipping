@@ -1,5 +1,6 @@
+import { Paths, File } from 'expo-file-system';
 import { LocalStorage } from './storage';
-import { STREAM_YTDL_OPTS, HEATMAP_YTDL_OPTS } from '../constants/ytdlp';
+import { STREAM_YTDL_OPTS, HEATMAP_YTDL_OPTS, PRIME_CLIP_DOWNLOAD_OPTS } from '../constants/ytdlp';
 
 export interface ClipItem {
   id: string;
@@ -35,6 +36,9 @@ export const API_ERROR_MAP: Record<string, string> = {
   HEATMAP_NOT_FOUND: 'Video ini belum memiliki data Most Replayed (Heatmap) dari YouTube.',
   RATE_LIMIT_EXCEEDED: 'Batas permintaan YouTube terlampaui (Error 429). Silakan tunggu beberapa menit.',
   EXTRACTOR_ERROR: 'Ekstraktor video mengalami kendala saat membaca metadata YouTube.',
+  INVALID_PARAMS: 'Parameter pengunduhan klip tidak lengkap.',
+  INVALID_RANGE: 'Rentang waktu klip tidak valid.',
+  DOWNLOAD_FAILED: 'Gagal mengunduh klip video dari YouTube.',
   SERVER_OFFLINE: 'Server internal Python belum aktif pada port 3006.',
   INTERNAL_ERROR: 'Terjadi kesalahan internal pada server Python.',
   NETWORK_ERROR: 'Gagal terhubung ke jaringan internal server.',
@@ -243,13 +247,103 @@ export async function fetchHeatmap(
   }
 }
 
+// In-Memory cache deteksi file download klip: key = fileUri, value = exists boolean
+export const DOWNLOADED_CLIPS_CACHE = new Map<string, boolean>();
+
 /**
- * Downloads a specific clip (preserved for parity with web api.js, not invoked automatically)
+ * Menghasilkan alokasi lokasi file tujuan download klip pada sandboxed app storage.
+ * Frontend memegang kendali 100% path & nama folder, backend hanya menerima path final.
  */
-export async function downloadClip(videoId: string, start: number, end: number): Promise<void> {
-  const url = `${API_BASE_URL}/api/download_clip/${videoId}?start=${start}&end=${end}`;
-  const response = await fetch(url, { method: 'GET' });
-  if (!response.ok) {
-    throw new Error(`Gagal mendownload klip (Status: ${response.status})`);
+export function getClipOutputFilePath(
+  videoId: string,
+  start: number,
+  end: number,
+  rank?: number
+): { fileUri: string; nativePath: string } {
+  const startStr = Math.round(start);
+  const endStr = Math.round(end);
+  const filename = rank
+    ? `clip_${rank}_${startStr}_${endStr}.mp4`
+    : `clip_${videoId}_${startStr}_${endStr}.mp4`;
+  const file = new File(Paths.document, 'output', videoId, filename);
+  const fileUri = file.uri;
+  // Hapus prefix file:// untuk path Linux / Android native yang dimengerti Python
+  const nativePath = fileUri.replace(/^file:\/\//, '');
+  return { fileUri, nativePath };
+}
+
+/**
+ * Memeriksa keberadaan file klip video di local file system dengan in-memory caching.
+ */
+export async function checkClipFileExists(fileUri: string, forceCheckDisk: boolean = false): Promise<boolean> {
+  if (!forceCheckDisk && DOWNLOADED_CLIPS_CACHE.has(fileUri)) {
+    return DOWNLOADED_CLIPS_CACHE.get(fileUri) || false;
+  }
+  try {
+    const file = new File(fileUri);
+    const exists = Boolean(file.exists);
+    DOWNLOADED_CLIPS_CACHE.set(fileUri, exists);
+    return exists;
+  } catch {
+    return false;
   }
 }
+
+/**
+ * Mendownload rentang klip tertentu secara dinamis dengan kualitas prime dan stream reconnect.
+ * Non-blocking: berjalan di background tanpa menghambat thread interaksi UI.
+ */
+export async function downloadClip(
+  videoId: string,
+  start: number,
+  end: number,
+  rank?: number
+): Promise<{ status: string; output_path: string; fileUri: string }> {
+  const { fileUri, nativePath } = getClipOutputFilePath(videoId, start, end, rank);
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 menit timeout download klip
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/download-clip`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        video_id: videoId,
+        start,
+        end,
+        output_path: nativePath,
+        ydl_opts: PRIME_CLIP_DOWNLOAD_OPTS,
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok || data.status !== 'success') {
+      const code = data.message || (response.status === 400 ? 'INVALID_PARAMS' : 'DOWNLOAD_FAILED');
+      const rawError = data.error || `HTTP ${response.status}: Gagal mengunduh klip`;
+      throw new ApiError(code, rawError);
+    }
+
+    // Tandai pada in-memory cache
+    DOWNLOADED_CLIPS_CACHE.set(fileUri, true);
+
+    return {
+      status: 'success',
+      output_path: nativePath,
+      fileUri,
+    };
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(
+      error.name === 'AbortError' ? 'NETWORK_ERROR' : 'DOWNLOAD_FAILED',
+      error.message
+    );
+  }
+}
+

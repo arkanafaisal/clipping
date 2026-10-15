@@ -70,6 +70,37 @@ export const DOWNLOAD_YTDL_OPTS: YtdlOpts = {
 };
 
 /**
+ * Konfigurasi Download Klip Fisik (Prime Quality + Stream Reconnect + Retries):
+ * - Kualitas: Prime HD asli YouTube (bestvideo+bestaudio merged ke MP4)
+ * - FFmpeg: Reconnect streamed stream dan ultrafast encoding
+ * - Retry: 15x retry untuk fragment & socket timeout 60s
+ */
+export const PRIME_CLIP_DOWNLOAD_OPTS: YtdlOpts = {
+  format: 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+  merge_output_format: 'mp4',
+  quiet: false,
+  no_warnings: true,
+  retries: 15,
+  fragment_retries: 15,
+  socket_timeout: 60,
+  external_downloader_args: {
+    ffmpeg_i: [
+      '-user_agent',
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/604.1',
+      '-headers',
+      'Origin: https://www.youtube.com\r\nReferer: https://www.youtube.com/\r\n',
+      '-reconnect',
+      '1',
+      '-reconnect_streamed',
+      '1',
+      '-reconnect_delay_max',
+      '5',
+    ],
+    ffmpeg: ['-c:v', 'libx264', '-preset', 'ultrafast', '-loglevel', 'warning'],
+  },
+};
+
+/**
  * Konfigurasi Fixed FFmpeg (Tanpa Fallback):
  * Pemotongan presisi tinggi menggunakan filter seek
  */
@@ -79,3 +110,4 @@ export const FFMPEG_FIXED_CONFIG = {
   preset: 'ultrafast',
   avoidNegativeTs: 'make_zero',
 };
+

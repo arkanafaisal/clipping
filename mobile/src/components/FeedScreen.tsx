@@ -20,11 +20,15 @@ import {
   FastForward,
   ChevronLeft,
   ChevronRight,
+  Download,
 } from 'lucide-react-native';
 import {
   ClipItem,
   fetchStreamUrl,
   fetchHeatmap,
+  downloadClip,
+  getClipOutputFilePath,
+  checkClipFileExists,
 } from '../services/api';
 import { LocalStorage } from '../services/storage';
 import { ToastManager } from './Toast';
@@ -46,6 +50,15 @@ function formatTime(seconds: number): string {
     return `${pad(h)}:${pad(m)}:${pad(s)}`;
   }
   return `${pad(m)}:${pad(s)}`;
+}
+
+function formatTimeWithMs(seconds: number): string {
+  if (seconds === undefined || seconds === null || isNaN(seconds)) return '00:00.000';
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  const ms = Math.floor((seconds % 1) * 1000);
+  const pad = (num: number, size: number = 2) => num.toString().padStart(size, '0');
+  return `${pad(m)}:${pad(s)}.${pad(ms, 3)}`;
 }
 
 interface ClipCardProps {
@@ -117,6 +130,9 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
   // Playback state
   const [isPlaying, setIsPlaying] = useState(false);
   const [progressPercent, setProgressPercent] = useState(0);
+  const [currentClipTime, setCurrentClipTime] = useState<number>(0);
+  const [downloadingClips, setDownloadingClips] = useState<Record<string, boolean>>({});
+  const [downloadedClips, setDownloadedClips] = useState<Record<string, boolean>>({});
 
   // Debounce refs for smooth, leak-proof UI adjustments & storage sync
   const seekDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -144,10 +160,10 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     status: 'none',
   };
 
-  // Video Player instance via expo-video
+  // Video Player instance via expo-video (100ms interval for smooth millisecond UI)
   const player = useVideoPlayer(streamUrl || '', (p) => {
     p.loop = false;
-    p.timeUpdateEventInterval = 0.2;
+    p.timeUpdateEventInterval = 0.1;
   });
 
   // Handle Android hardware back button (No on-screen back button)
@@ -333,6 +349,8 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
       if (duration > 0) {
         const pct = Math.max(0, Math.min(100, ((current - currentActive.start) / duration) * 100));
         setProgressPercent(pct);
+        const rel = Math.max(0, Math.min(duration, current - currentActive.start));
+        setCurrentClipTime(rel);
       }
 
       // Loop current segment
@@ -394,6 +412,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
 
     // Optimistic progress bar: langsung snap ke posisi awal klip (0%) seketika
     setProgressPercent(0);
+    setCurrentClipTime(0);
     centralizedSeek(targetStart, true);
   };
 
@@ -417,6 +436,8 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     if (active && active.end > active.start) {
       const pct = Math.max(0, Math.min(100, ((targetSeek - active.start) / (active.end - active.start)) * 100));
       setProgressPercent(pct);
+      const rel = Math.max(0, Math.min(active.end - active.start, targetSeek - active.start));
+      setCurrentClipTime(rel);
     }
 
     centralizedSeek(targetSeek, true);
@@ -428,24 +449,51 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     setActiveClipId(clipId);
     // Optimistic: Progress bar seketika langsung balik ke 0
     setProgressPercent(0);
+    setCurrentClipTime(0);
 
     const targetClip = clipsRef.current.find((c) => c.id === clipId);
     if (!targetClip) return;
     centralizedSeek(targetClip.start, true);
   }, [centralizedSeek]);
 
+  // Deteksi keberadaan file video saat klip aktif berstatus 'done'
+  useEffect(() => {
+    if (activeClip && activeClip.status === 'done') {
+      const { fileUri } = getClipOutputFilePath(videoId, activeClip.start, activeClip.end, activeClip.rank);
+      checkClipFileExists(fileUri).then((exists) => {
+        if (exists) {
+          setDownloadedClips((prev) => ({ ...prev, [activeClip.id]: true }));
+        }
+      });
+    }
+  }, [activeClipId, activeClip.status, activeClip.start, activeClip.end, videoId]);
+
   // Toggle clip Done status (hijau)
   const handleToggleDone = () => {
     const currentActiveId = activeClipIdRef.current || activeClipId;
+    let nextStatus: 'none' | 'done' = 'done';
     const updated = clipsRef.current.map((c) => {
       if (c.id === currentActiveId) {
-        const nextStatus = (c.status === 'done' ? 'none' : 'done') as 'none' | 'done';
+        nextStatus = (c.status === 'done' ? 'none' : 'done') as 'none' | 'done';
         return { ...c, status: nextStatus };
       }
       return c;
     });
     clipsRef.current = updated;
     setClips(updated);
+
+    // Jika berubah jadi done, cek apakah filenya sudah pernah diunduh
+    if (nextStatus === 'done') {
+      const active = updated.find((c) => c.id === currentActiveId);
+      if (active) {
+        const { fileUri } = getClipOutputFilePath(videoId, active.start, active.end, active.rank);
+        checkClipFileExists(fileUri).then((exists) => {
+          if (exists) {
+            setDownloadedClips((prev) => ({ ...prev, [active.id]: true }));
+          }
+        });
+      }
+    }
   };
 
   // Toggle clip Trash/Skip status (merah)
@@ -460,6 +508,62 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     });
     clipsRef.current = updated;
     setClips(updated);
+  };
+
+  // Download clip handler (Non-blocking background download dengan in-memory cache)
+  const handleDownloadClip = async () => {
+    if (!activeClip || activeClip.status !== 'done') return;
+    const clipId = activeClip.id;
+
+    if (downloadedClips[clipId]) {
+      ToastManager.show({
+        type: 'info',
+        title: 'Klip Sudah Ada',
+        message: 'File klip video berkualitas penuh sudah terunduh di folder output.',
+        duration: 2500,
+      });
+      return;
+    }
+
+    if (downloadingClips[clipId]) {
+      ToastManager.show({
+        type: 'info',
+        title: 'Sedang Mengunduh',
+        message: 'Klip sedang diproses di latar belakang...',
+        duration: 2000,
+      });
+      return;
+    }
+
+    setDownloadingClips((prev) => ({ ...prev, [clipId]: true }));
+    ToastManager.show({
+      type: 'info',
+      title: 'Memulai Unduhan Klip',
+      message: `Mengunduh Klip #${activeClip.rank || ''} (${formatTime(activeClip.start)} - ${formatTime(activeClip.end)})...`,
+      duration: 3000,
+    });
+
+    try {
+      const res = await downloadClip(videoId, activeClip.start, activeClip.end, activeClip.rank);
+      setDownloadingClips((prev) => ({ ...prev, [clipId]: false }));
+      setDownloadedClips((prev) => ({ ...prev, [clipId]: true }));
+      ToastManager.show({
+        type: 'success',
+        title: 'Klip Berhasil Diunduh',
+        message: `File MP4 tersimpan di: ${res.output_path}`,
+        duration: 4000,
+      });
+    } catch (err: any) {
+      setDownloadingClips((prev) => ({ ...prev, [clipId]: false }));
+      ToastManager.show({
+        type: 'error',
+        title: 'Gagal Mengunduh Klip',
+        message: err.message || 'Terjadi kesalahan saat mengunduh klip.',
+        rawError: err.rawError,
+        errorCode: err.code,
+        duration: 4500,
+      });
+    }
   };
 
   // Playback Control Handlers
@@ -494,6 +598,8 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     if (duration > 0) {
       const pct = Math.max(0, Math.min(100, ((nextTime - currentActive.start) / duration) * 100));
       setProgressPercent(pct);
+      const rel = Math.max(0, Math.min(duration, nextTime - currentActive.start));
+      setCurrentClipTime(rel);
     }
 
     centralizedSeek(nextTime, true);
@@ -520,36 +626,68 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
 
   return (
     <View style={styles.container}>
-      {/* 1. TOP CONTROLS (Kiri: Trash/Skip | Tengah: Rentang Waktu Luas | Kanan: Done) */}
+      {/* 1. TOP CONTROLS */}
       <View style={styles.topSection}>
         <View style={styles.timeRangeRow}>
-          {/* KIRI: Tombol Merah Trash / Skip (Icon Only, Tanpa Teks, Menggantikan Back) */}
+          {/* SISI KIRI: Jika Mode Done -> Tombol Unduh, Jika Mode Normal -> Tombol Trash */}
           <View style={styles.leftActionGroup}>
-            <Pressable
-              style={({ pressed }) => [
-                styles.statusBtn,
-                activeClip.status === 'trash' ? styles.trashBtnActive : styles.trashBtnInactive,
-                pressed && { opacity: 0.7 },
-              ]}
-              onPressIn={handleToggleTrash}
-            >
-              <Trash2
-                size={18}
-                color={activeClip.status === 'trash' ? '#ffffff' : '#f87171'}
-              />
-            </Pressable>
+            {activeClip.status === 'done' ? (
+              <Pressable
+                style={({ pressed }) => [
+                  styles.statusBtn,
+                  styles.downloadBtn,
+                  downloadedClips[activeClip.id] && styles.downloadBtnSuccess,
+                  pressed && { opacity: 0.7 },
+                ]}
+                onPressIn={handleDownloadClip}
+              >
+                {downloadingClips[activeClip.id] ? (
+                  <ActivityIndicator size="small" color="#38bdf8" />
+                ) : downloadedClips[activeClip.id] ? (
+                  <CheckCircle2 size={18} color="#34d399" />
+                ) : (
+                  <Download size={18} color="#38bdf8" />
+                )}
+              </Pressable>
+            ) : (
+              <Pressable
+                style={({ pressed }) => [
+                  styles.statusBtn,
+                  activeClip.status === 'trash' ? styles.trashBtnActive : styles.trashBtnInactive,
+                  pressed && { opacity: 0.7 },
+                ]}
+                onPressIn={handleToggleTrash}
+              >
+                <Trash2
+                  size={18}
+                  color={activeClip.status === 'trash' ? '#ffffff' : '#f87171'}
+                />
+              </Pressable>
+            )}
           </View>
 
-          {/* TENGAH: Rentang Waktu (Leluasa & Luas) */}
+          {/* SISI TENGAH: Jika Mode Done -> Durasi realtime presisi ms, Jika Normal -> Rentang Waktu */}
           <View style={styles.centerTimeWrapper} pointerEvents="box-none">
-            <View style={styles.timeDisplay}>
-              <Text style={styles.timeNumberText}>{formatTime(activeClip.start)}</Text>
-              <Text style={styles.timeSeparatorText}>-</Text>
-              <Text style={styles.timeNumberText}>{formatTime(activeClip.end)}</Text>
-            </View>
+            {activeClip.status === 'done' ? (
+              <View style={styles.timeDisplay}>
+                <Text style={[styles.timeNumberText, styles.timeMsText]}>
+                  {formatTimeWithMs(currentClipTime)}
+                </Text>
+                <Text style={styles.timeSeparatorText}>/</Text>
+                <Text style={[styles.timeNumberText, styles.timeMsText, styles.timeMsDim]}>
+                  {formatTimeWithMs(activeClip.end - activeClip.start)}
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.timeDisplay}>
+                <Text style={styles.timeNumberText}>{formatTime(activeClip.start)}</Text>
+                <Text style={styles.timeSeparatorText}>-</Text>
+                <Text style={styles.timeNumberText}>{formatTime(activeClip.end)}</Text>
+              </View>
+            )}
           </View>
 
-          {/* KANAN: Tombol Hijau Done / Selesai (Icon Only, Tanpa Teks) */}
+          {/* SISI KANAN: Tombol Done (Tetap ada, jika diklik mengembalikan mode ke normal) */}
           <View style={styles.rightActionGroup}>
             <Pressable
               style={({ pressed }) => [
@@ -567,75 +705,80 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
           </View>
         </View>
 
-        {/* Row 2: Extend Row (Emerald) */}
-        <View style={styles.extendRow}>
-          <View style={styles.fineTuneGroup}>
-            <Pressable
-              style={({ pressed }) => [styles.extendBtn, pressed && { opacity: 0.6 }]}
-              onPressIn={() => handleUpdateStart(-5)}
-            >
-              <Text style={styles.extendBtnText}>+5</Text>
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [styles.extendBtn, pressed && { opacity: 0.6 }]}
-              onPressIn={() => handleUpdateStart(-1)}
-            >
-              <Text style={styles.extendBtnText}>+1</Text>
-            </Pressable>
-          </View>
+        {/* Baris Extend & Crop HANYA muncul saat klip belum berstatus 'done' */}
+        {activeClip.status !== 'done' && (
+          <>
+            {/* Row 2: Extend Row (Emerald) */}
+            <View style={styles.extendRow}>
+              <View style={styles.fineTuneGroup}>
+                <Pressable
+                  style={({ pressed }) => [styles.extendBtn, pressed && { opacity: 0.6 }]}
+                  onPressIn={() => handleUpdateStart(-5)}
+                >
+                  <Text style={styles.extendBtnText}>+5</Text>
+                </Pressable>
+                <Pressable
+                  style={({ pressed }) => [styles.extendBtn, pressed && { opacity: 0.6 }]}
+                  onPressIn={() => handleUpdateStart(-1)}
+                >
+                  <Text style={styles.extendBtnText}>+1</Text>
+                </Pressable>
+              </View>
 
-          <Text style={styles.extendLabel}>EXTEND</Text>
+              <Text style={styles.extendLabel}>EXTEND</Text>
 
-          <View style={styles.fineTuneGroup}>
-            <Pressable
-              style={({ pressed }) => [styles.extendBtn, pressed && { opacity: 0.6 }]}
-              onPressIn={() => handleUpdateEnd(1)}
-            >
-              <Text style={styles.extendBtnText}>+1</Text>
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [styles.extendBtn, pressed && { opacity: 0.6 }]}
-              onPressIn={() => handleUpdateEnd(5)}
-            >
-              <Text style={styles.extendBtnText}>+5</Text>
-            </Pressable>
-          </View>
-        </View>
+              <View style={styles.fineTuneGroup}>
+                <Pressable
+                  style={({ pressed }) => [styles.extendBtn, pressed && { opacity: 0.6 }]}
+                  onPressIn={() => handleUpdateEnd(1)}
+                >
+                  <Text style={styles.extendBtnText}>+1</Text>
+                </Pressable>
+                <Pressable
+                  style={({ pressed }) => [styles.extendBtn, pressed && { opacity: 0.6 }]}
+                  onPressIn={() => handleUpdateEnd(5)}
+                >
+                  <Text style={styles.extendBtnText}>+5</Text>
+                </Pressable>
+              </View>
+            </View>
 
-        {/* Row 3: Crop Row (Rose/Red) */}
-        <View style={styles.cropRow}>
-          <View style={styles.fineTuneGroup}>
-            <Pressable
-              style={({ pressed }) => [styles.cropBtn, pressed && { opacity: 0.6 }]}
-              onPressIn={() => handleUpdateStart(5)}
-            >
-              <Text style={styles.cropBtnText}>-5</Text>
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [styles.cropBtn, pressed && { opacity: 0.6 }]}
-              onPressIn={() => handleUpdateStart(1)}
-            >
-              <Text style={styles.cropBtnText}>-1</Text>
-            </Pressable>
-          </View>
+            {/* Row 3: Crop Row (Rose/Red) */}
+            <View style={styles.cropRow}>
+              <View style={styles.fineTuneGroup}>
+                <Pressable
+                  style={({ pressed }) => [styles.cropBtn, pressed && { opacity: 0.6 }]}
+                  onPressIn={() => handleUpdateStart(5)}
+                >
+                  <Text style={styles.cropBtnText}>-5</Text>
+                </Pressable>
+                <Pressable
+                  style={({ pressed }) => [styles.cropBtn, pressed && { opacity: 0.6 }]}
+                  onPressIn={() => handleUpdateStart(1)}
+                >
+                  <Text style={styles.cropBtnText}>-1</Text>
+                </Pressable>
+              </View>
 
-          <Text style={styles.cropLabel}>CROP</Text>
+              <Text style={styles.cropLabel}>CROP</Text>
 
-          <View style={styles.fineTuneGroup}>
-            <Pressable
-              style={({ pressed }) => [styles.cropBtn, pressed && { opacity: 0.6 }]}
-              onPressIn={() => handleUpdateEnd(-1)}
-            >
-              <Text style={styles.cropBtnText}>-1</Text>
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [styles.cropBtn, pressed && { opacity: 0.6 }]}
-              onPressIn={() => handleUpdateEnd(-5)}
-            >
-              <Text style={styles.cropBtnText}>-5</Text>
-            </Pressable>
-          </View>
-        </View>
+              <View style={styles.fineTuneGroup}>
+                <Pressable
+                  style={({ pressed }) => [styles.cropBtn, pressed && { opacity: 0.6 }]}
+                  onPressIn={() => handleUpdateEnd(-1)}
+                >
+                  <Text style={styles.cropBtnText}>-1</Text>
+                </Pressable>
+                <Pressable
+                  style={({ pressed }) => [styles.cropBtn, pressed && { opacity: 0.6 }]}
+                  onPressIn={() => handleUpdateEnd(-5)}
+                >
+                  <Text style={styles.cropBtnText}>-5</Text>
+                </Pressable>
+              </View>
+            </View>
+          </>
+        )}
       </View>
 
       {/* 2. VIDEO PLAYER AREA (expo-video) */}
@@ -678,6 +821,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
 
             // Langsung pindah seketika (0ms, tanpa animasi / delay)
             setProgressPercent(pct);
+            setCurrentClipTime((pct / 100) * duration);
             centralizedSeek(targetTime, true);
           }}
         >
@@ -833,6 +977,22 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  downloadBtn: {
+    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.3)',
+  },
+  downloadBtnSuccess: {
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderColor: 'rgba(16, 185, 129, 0.4)',
+  },
+  timeMsText: {
+    fontSize: 13,
+    letterSpacing: 0.2,
+  },
+  timeMsDim: {
+    color: 'rgba(255, 255, 255, 0.5)',
   },
   trashBtnInactive: {
     backgroundColor: 'rgba(239, 68, 68, 0.1)',
