@@ -9,13 +9,13 @@ def get_raw_heatmap(video_id: str, ydl_opts: dict) -> tuple:
     TIDAK ADA fallback value di backend. Parameter video_id dan ydl_opts wajib dikirim oleh frontend.
     
     Returns:
-        tuple: (heatmap: list, title: str, error: str | None)
+        tuple: (heatmap: list, title: str, code: str | None, error: str | None)
     """
     if not video_id:
-        return [], "", "Parameter 'video_id' wajib diisi."
+        return [], "", "VIDEO_ID_REQUIRED", "Parameter 'video_id' wajib diisi."
         
     if not ydl_opts or not isinstance(ydl_opts, dict):
-        return [], "", "Parameter 'ydl_opts' (konfigurasi yt-dlp) wajib dikirim oleh frontend."
+        return [], "", "YDL_OPTS_REQUIRED", "Parameter 'ydl_opts' (konfigurasi yt-dlp) wajib dikirim oleh frontend."
 
     opts = ydl_opts.copy()
 
@@ -33,9 +33,10 @@ def get_raw_heatmap(video_id: str, ydl_opts: dict) -> tuple:
             title = info.get('title') or ""
             
             if not heatmap:
-                return [], title, "Heatmap tidak ditemukan. Video ini mungkin belum memiliki data 'Most Replayed'."
+                return [], title, "HEATMAP_NOT_FOUND", "Heatmap tidak ditemukan. Video ini mungkin belum memiliki data 'Most Replayed'."
                 
-            return heatmap, title, None
+            return heatmap, title, None, None
     except Exception as e:
         error_msg = str(e)
-        return [], "", error_msg
+        code = "RATE_LIMIT_EXCEEDED" if ("429" in error_msg or "rate limit" in error_msg.lower()) else "EXTRACTOR_ERROR"
+        return [], "", code, error_msg

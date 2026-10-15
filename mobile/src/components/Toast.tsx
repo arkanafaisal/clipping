@@ -6,12 +6,16 @@ import {
   Animated,
   TouchableOpacity,
   ActivityIndicator,
+  Modal,
+  ScrollView,
 } from 'react-native';
 import {
   CheckCircle2,
   AlertCircle,
   Info,
   X,
+  Code2,
+  Bug,
 } from 'lucide-react-native';
 
 export type ToastType = 'info' | 'success' | 'error' | 'loading';
@@ -21,6 +25,8 @@ export interface ToastConfig {
   type: ToastType;
   title: string;
   message?: string;
+  rawError?: string; // Log raw error asli untuk kebutuhan debug developer
+  errorCode?: string; // Kode error API (misal: "STREAM_NOT_FOUND")
   duration?: number; // ms (0 means persistent until replaced or closed)
 }
 
@@ -77,6 +83,7 @@ export const ToastManager = new ToastService();
 
 export const ToastContainer: React.FC = () => {
   const [toast, setToast] = useState<ToastConfig | null>(null);
+  const [debugModalVisible, setDebugModalVisible] = useState(false);
   const opacityAnim = useState(new Animated.Value(0))[0];
   const translateYAnim = useState(new Animated.Value(-20))[0];
 
@@ -145,32 +152,103 @@ export const ToastContainer: React.FC = () => {
   };
 
   return (
-    <Animated.View
-      style={[
-        styles.container,
-        {
-          borderColor: getBorderColor(),
-          opacity: opacityAnim,
-          transform: [{ translateY: translateYAnim }],
-        },
-      ]}
-      pointerEvents="box-none"
-    >
-      <View style={styles.contentRow}>
-        {renderIcon()}
-        <View style={styles.textContainer}>
-          <Text style={styles.titleText}>{toast.title}</Text>
-          {toast.message ? <Text style={styles.messageText}>{toast.message}</Text> : null}
+    <>
+      <Animated.View
+        style={[
+          styles.container,
+          {
+            borderColor: getBorderColor(),
+            opacity: opacityAnim,
+            transform: [{ translateY: translateYAnim }],
+          },
+        ]}
+        pointerEvents="box-none"
+      >
+        <View style={styles.contentRow}>
+          {renderIcon()}
+          <View style={styles.textContainer}>
+            <Text style={styles.titleText}>{toast.title}</Text>
+            {toast.message ? <Text style={styles.messageText}>{toast.message}</Text> : null}
+          </View>
+
+          {/* Icon Button Khusus Debug Modal (Hanya muncul jika terdapat rawError) */}
+          {toast.rawError ? (
+            <TouchableOpacity
+              style={styles.debugBtn}
+              onPress={() => setDebugModalVisible(true)}
+              activeOpacity={0.7}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Code2 size={15} color="#fca5a5" />
+            </TouchableOpacity>
+          ) : null}
+
+          <TouchableOpacity
+            style={styles.closeBtn}
+            onPress={() => ToastManager.hide()}
+            activeOpacity={0.7}
+          >
+            <X size={14} color="rgba(255, 255, 255, 0.5)" />
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity
-          style={styles.closeBtn}
-          onPress={() => ToastManager.hide()}
-          activeOpacity={0.7}
-        >
-          <X size={14} color="rgba(255, 255, 255, 0.5)" />
-        </TouchableOpacity>
-      </View>
-    </Animated.View>
+      </Animated.View>
+
+      {/* Modal Detail Debug Log Error */}
+      <Modal
+        visible={debugModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setDebugModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalTitleGroup}>
+                <Bug size={18} color="#f87171" />
+                <Text style={styles.modalTitle}>Detail Debug Error</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setDebugModalVisible(false)}
+                style={styles.modalCloseBtn}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <X size={16} color="rgba(255, 255, 255, 0.7)" />
+              </TouchableOpacity>
+            </View>
+
+            {toast.errorCode ? (
+              <View style={styles.codeBadge}>
+                <Text style={styles.codeBadgeKey}>KODE:</Text>
+                <Text style={styles.codeBadgeVal}>{toast.errorCode}</Text>
+              </View>
+            ) : null}
+
+            <Text style={styles.sectionLabel}>Pesan Pengguna:</Text>
+            <Text style={styles.userMsgText}>{toast.message || toast.title}</Text>
+
+            <Text style={styles.sectionLabel}>Raw Error / Respon Server:</Text>
+            <ScrollView
+              style={styles.rawErrorContainer}
+              contentContainerStyle={styles.rawErrorContent}
+            >
+              <Text style={styles.rawErrorText} selectable={true}>
+                {toast.rawError}
+              </Text>
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={styles.modalDismissBtn}
+                onPress={() => setDebugModalVisible(false)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.modalDismissBtnText}>Tutup</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 };
 
@@ -214,8 +292,130 @@ const styles = StyleSheet.create({
     marginTop: 2,
     lineHeight: 15,
   },
+  debugBtn: {
+    padding: 5,
+    borderRadius: 6,
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+    marginRight: 2,
+  },
   closeBtn: {
     padding: 4,
     marginLeft: 6,
+  },
+  // Debug Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalCard: {
+    width: '100%',
+    maxHeight: '80%',
+    backgroundColor: '#18181b',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.6,
+    shadowRadius: 20,
+    elevation: 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  modalTitleGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  modalTitle: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  modalCloseBtn: {
+    padding: 4,
+  },
+  codeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+    marginBottom: 12,
+  },
+  codeBadgeKey: {
+    color: '#f87171',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  codeBadgeVal: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '700',
+    fontFamily: 'monospace',
+  },
+  sectionLabel: {
+    color: 'rgba(255, 255, 255, 0.5)',
+    fontSize: 11,
+    fontWeight: '600',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  userMsgText: {
+    color: '#ffffff',
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 12,
+  },
+  rawErrorContainer: {
+    maxHeight: 220,
+    backgroundColor: '#09090b',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    marginBottom: 14,
+  },
+  rawErrorContent: {
+    padding: 12,
+  },
+  rawErrorText: {
+    color: '#f87171',
+    fontSize: 11,
+    fontFamily: 'monospace',
+    lineHeight: 16,
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  modalDismissBtn: {
+    backgroundColor: '#27272a',
+    paddingVertical: 8,
+    paddingHorizontal: 18,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  modalDismissBtnText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '600',
   },
 });

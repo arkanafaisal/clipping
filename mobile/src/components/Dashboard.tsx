@@ -153,6 +153,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
         type: 'error',
         title: 'Gagal Membuat Workshop',
         message: err.message || 'Server gagal mengambil data.',
+        rawError: err.rawError,
+        errorCode: err.code,
         duration: 5000,
       });
 
@@ -211,6 +213,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
         type: 'error',
         title: 'Gagal Membuka Workshop',
         message: err.message || 'Server sedang offline.',
+        rawError: err.rawError,
+        errorCode: err.code,
         duration: 5000,
       });
       Alert.alert(

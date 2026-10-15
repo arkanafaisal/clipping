@@ -28,39 +28,57 @@ def ping():
 def get_stream(video_id=None):
     """
     Endpoint Pass-Through murni untuk mengekstrak direct stream URL dari YouTube.
-    Validasi didelegasikan seutuhnya ke get_direct_stream_url.
+    Mengembalikan 100% error terstruktur: { "message": "<CODE>", "error": "<RAW_DETAIL>" }.
     """
-    body = request.get_json(silent=True) or {}
-    url, err = get_direct_stream_url(
-        body.get("video_id") or video_id or request.args.get("video_id"),
-        body.get("ydl_opts")
-    )
-    if err:
-        return jsonify({"error": err}), 400
-        
-    return jsonify({
-        "stream_url": url
-    }), 200
+    try:
+        body = request.get_json(silent=True) or {}
+        vid = body.get("video_id") or video_id or request.args.get("video_id")
+        opts = body.get("ydl_opts")
+        url, code, err = get_direct_stream_url(vid, opts)
+        if code or err:
+            status_code = 404 if code == "STREAM_NOT_FOUND" else (429 if code == "RATE_LIMIT_EXCEEDED" else 400)
+            return jsonify({
+                "message": code or "STREAM_ERROR",
+                "error": err or str(code)
+            }), status_code
+            
+        return jsonify({
+            "stream_url": url
+        }), 200
+    except Exception as e:
+        return jsonify({
+            "message": "INTERNAL_ERROR",
+            "error": str(e)
+        }), 500
 
 @app.route("/api/heatmap", methods=["POST", "GET"])
 @app.route("/api/heatmap/<video_id>", methods=["POST", "GET"])
 def get_heatmap(video_id=None):
     """
     Endpoint Pass-Through murni untuk mengambil data mentah heatmap ('Most Replayed') dan title.
-    Validasi didelegasikan seutuhnya ke get_raw_heatmap.
+    Mengembalikan 100% error terstruktur: { "message": "<CODE>", "error": "<RAW_DETAIL>" }.
     """
-    body = request.get_json(silent=True) or {}
-    raw_heatmap, title, err = get_raw_heatmap(
-        body.get("video_id") or video_id or request.args.get("video_id"),
-        body.get("ydl_opts")
-    )
-    if err:
-        return jsonify({"error": err}), 400
+    try:
+        body = request.get_json(silent=True) or {}
+        vid = body.get("video_id") or video_id or request.args.get("video_id")
+        opts = body.get("ydl_opts")
+        raw_heatmap, title, code, err = get_raw_heatmap(vid, opts)
+        if code or err:
+            status_code = 404 if code == "HEATMAP_NOT_FOUND" else (429 if code == "RATE_LIMIT_EXCEEDED" else 400)
+            return jsonify({
+                "message": code or "HEATMAP_ERROR",
+                "error": err or str(code)
+            }), status_code
 
-    return jsonify({
-        "title": title,
-        "heatmap": raw_heatmap
-    }), 200
+        return jsonify({
+            "title": title,
+            "heatmap": raw_heatmap
+        }), 200
+    except Exception as e:
+        return jsonify({
+            "message": "INTERNAL_ERROR",
+            "error": str(e)
+        }), 500
 
 # ==============================================================================
 # [COMMENTED OUT - TIDAK DIGUNAKAN DI MOBILE NATIVE]

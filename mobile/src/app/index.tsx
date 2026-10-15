@@ -31,7 +31,9 @@ export default function HomeScreen() {
         ToastManager.show({
           type: 'error',
           title: 'Server Python Offline',
-          message: 'Server Python belum aktif pada 127.0.0.1:3006. Pastikan Termux sudah berjalan.',
+          message: e.message || 'Server Python belum aktif pada 127.0.0.1:3006. Pastikan Termux sudah berjalan.',
+          rawError: e.rawError,
+          errorCode: e.code,
           duration: 5000,
         });
       }

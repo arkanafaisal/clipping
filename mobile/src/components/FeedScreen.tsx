@@ -189,6 +189,8 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
             type: 'info',
             title: 'Stream Belum Siap',
             message: streamErr.message || 'Stream URL tidak dapat dimuat.',
+            rawError: streamErr.rawError,
+            errorCode: streamErr.code,
             duration: 4000,
           });
         }
@@ -342,6 +344,8 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
             type: 'error',
             title: 'Gagal Memperbarui Stream',
             message: e?.message || 'Server gagal me-refresh stream video.',
+            rawError: e?.rawError,
+            errorCode: e?.code,
             duration: 4000,
           });
         }

@@ -25,6 +25,46 @@ export interface StreamResponse {
 export const API_BASE_URL = 'http://127.0.0.1:3006';
 
 /**
+ * Kamus pemetaan kode error API dari backend ke pesan ramah pengguna (Bahasa Indonesia).
+ * Backend hanya mengembalikan KODE (misal: "STREAM_NOT_FOUND"), frontend memegang 100% kamus teks.
+ */
+export const API_ERROR_MAP: Record<string, string> = {
+  VIDEO_ID_REQUIRED: 'ID video YouTube tidak boleh kosong.',
+  YDL_OPTS_REQUIRED: 'Konfigurasi ekstraksi (ydl_opts) tidak valid.',
+  STREAM_NOT_FOUND: 'Direct stream video tidak ditemukan atau video dibatasi (Private/Age-restricted).',
+  HEATMAP_NOT_FOUND: 'Video ini belum memiliki data Most Replayed (Heatmap) dari YouTube.',
+  RATE_LIMIT_EXCEEDED: 'Batas permintaan YouTube terlampaui (Error 429). Silakan tunggu beberapa menit.',
+  EXTRACTOR_ERROR: 'Ekstraktor video mengalami kendala saat membaca metadata YouTube.',
+  SERVER_OFFLINE: 'Server internal Python belum aktif pada port 3006.',
+  INTERNAL_ERROR: 'Terjadi kesalahan internal pada server Python.',
+  NETWORK_ERROR: 'Gagal terhubung ke jaringan internal server.',
+};
+
+/**
+ * Mengubah kode error API menjadi pesan Bahasa Indonesia yang ramah pengguna.
+ */
+export function resolveErrorMessage(codeOrMessage?: string): string {
+  if (!codeOrMessage) return 'Terjadi kesalahan sistem.';
+  return API_ERROR_MAP[codeOrMessage] || codeOrMessage;
+}
+
+/**
+ * Custom Error Class untuk membungkus kode error, pesan pengguna terjemahan,
+ * serta log raw error asli dari backend untuk kebutuhan debugging.
+ */
+export class ApiError extends Error {
+  code: string;
+  rawError?: string;
+
+  constructor(code: string, rawError?: string) {
+    super(resolveErrorMessage(code));
+    this.name = 'ApiError';
+    this.code = code;
+    this.rawError = rawError;
+  }
+}
+
+/**
  * Ping Python server on 127.0.0.1:3006 (Termux / Mobile API)
  */
 export async function pingServer(): Promise<{ status: string; message?: string }> {
@@ -40,10 +80,12 @@ export async function pingServer(): Promise<{ status: string; message?: string }
     if (res.ok) {
       return await res.json();
     }
+    const errData = await res.json().catch(() => ({}));
+    throw new ApiError(errData.message || 'SERVER_OFFLINE', errData.error || `HTTP ${res.status}`);
   } catch (e: any) {
-    throw new Error('Server Python belum aktif pada 127.0.0.1:3006.');
+    if (e instanceof ApiError) throw e;
+    throw new ApiError('SERVER_OFFLINE', e.message || 'Server Python belum aktif pada 127.0.0.1:3006.');
   }
-  throw new Error('Server Python tidak merespons di port 3006.');
 }
 
 // In-Memory Stream Cache Map: Key = videoId, Value = direct stream URL
@@ -98,13 +140,12 @@ export async function fetchStreamUrl(videoId: string, forceRefresh: boolean = fa
     });
     clearTimeout(timeoutId);
 
-    const data = await response.json();
+    const data = await response.json().catch(() => ({}));
 
     if (!response.ok || !data.stream_url) {
-      const errorMsg = data.error || (response.status === 404 
-        ? 'Video tidak ditemukan atau dibatasi (Private/Age-restricted).'
-        : `Gagal mengekstrak stream (Status: ${response.status})`);
-      throw new Error(errorMsg);
+      const code = data.message || (response.status === 404 ? 'STREAM_NOT_FOUND' : 'EXTRACTOR_ERROR');
+      const rawError = data.error || `HTTP ${response.status}: ${response.statusText || 'Gagal mengekstrak stream'}`;
+      throw new ApiError(code, rawError);
     }
 
     const streamUrl = data.stream_url;
@@ -120,7 +161,8 @@ export async function fetchStreamUrl(videoId: string, forceRefresh: boolean = fa
     return streamUrl;
   } catch (error: any) {
     clearTimeout(timeoutId);
-    throw error;
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(error.name === 'AbortError' ? 'NETWORK_ERROR' : 'EXTRACTOR_ERROR', error.message);
   }
 }
 
@@ -151,13 +193,12 @@ export async function fetchHeatmap(
     });
     clearTimeout(timeoutId);
 
-    const data = await response.json();
+    const data = await response.json().catch(() => ({}));
 
     if (!response.ok || !Array.isArray(data.heatmap)) {
-      const errorMsg = data.error || (response.status === 404 
-        ? 'Video tidak memiliki data heatmap (Most Replayed).'
-        : `Gagal mengambil heatmap (Status: ${response.status})`);
-      throw new Error(errorMsg);
+      const code = data.message || (response.status === 404 ? 'HEATMAP_NOT_FOUND' : 'EXTRACTOR_ERROR');
+      const rawError = data.error || `HTTP ${response.status}: ${response.statusText || 'Gagal mengambil heatmap'}`;
+      throw new ApiError(code, rawError);
     }
 
     // Olah raw heatmap 100% di Frontend TypeScript
@@ -197,7 +238,8 @@ export async function fetchHeatmap(
 
   } catch (error: any) {
     clearTimeout(timeoutId);
-    throw error;
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(error.name === 'AbortError' ? 'NETWORK_ERROR' : 'EXTRACTOR_ERROR', error.message);
   }
 }
 

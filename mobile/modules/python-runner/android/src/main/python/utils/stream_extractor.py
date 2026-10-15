@@ -9,13 +9,13 @@ def get_direct_stream_url(video_id: str, ydl_opts: dict) -> tuple:
     TIDAK ADA fallback value di backend. Seluruh konfigurasi wajib dikirim dari frontend.
     
     Returns:
-        tuple: (url: str | None, error: str | None)
+        tuple: (url: str | None, code: str | None, error: str | None)
     """
     if not video_id:
-        return None, "Parameter 'video_id' wajib diisi."
+        return None, "VIDEO_ID_REQUIRED", "Parameter 'video_id' wajib diisi."
         
     if not ydl_opts or not isinstance(ydl_opts, dict):
-        return None, "Parameter 'ydl_opts' (konfigurasi yt-dlp) wajib dikirim oleh frontend."
+        return None, "YDL_OPTS_REQUIRED", "Parameter 'ydl_opts' (konfigurasi yt-dlp) wajib dikirim oleh frontend."
 
     opts = ydl_opts.copy()
 
@@ -31,8 +31,9 @@ def get_direct_stream_url(video_id: str, ydl_opts: dict) -> tuple:
             info = ydl.extract_info(url, download=False)
             result_url = info.get('url')
             if not result_url:
-                return None, "Direct stream URL tidak ditemukan dalam respon metadata YouTube."
-            return result_url, None
+                return None, "STREAM_NOT_FOUND", "Direct stream URL tidak ditemukan dalam respon metadata YouTube."
+            return result_url, None, None
     except Exception as e:
         error_msg = str(e)
-        return None, error_msg
+        code = "RATE_LIMIT_EXCEEDED" if ("429" in error_msg or "rate limit" in error_msg.lower()) else "EXTRACTOR_ERROR"
+        return None, code, error_msg
