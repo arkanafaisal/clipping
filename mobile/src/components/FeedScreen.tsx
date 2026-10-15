@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   StyleSheet,
   Text,
   View,
-  TouchableOpacity,
+  Pressable,
   ScrollView,
   ActivityIndicator,
   Platform,
@@ -48,6 +48,57 @@ function formatTime(seconds: number): string {
   return `${pad(m)}:${pad(s)}`;
 }
 
+interface ClipCardProps {
+  id: string;
+  rank: number;
+  start: number;
+  clipNumber: number;
+  isActive: boolean;
+  status: 'none' | 'done' | 'trash';
+  onSelect: (id: string) => void;
+}
+
+/**
+ * Komponen Card Klip ter-memoized 100%:
+ * Mencegah re-render 50-100 kartu klip setiap kali progress bar bergerak (timeUpdate).
+ * Menggunakan Pressable dengan delayPressIn={0} dan onPressIn agar merespons instan 0ms saat disentuh.
+ */
+const ClipCardItem = React.memo<ClipCardProps>(
+  ({ id, rank, start, clipNumber, isActive, status, onSelect }) => {
+    const isDone = status === 'done';
+    const isTrash = status === 'trash';
+
+    return (
+      <Pressable
+        style={({ pressed }) => [
+          styles.clipCard,
+          isDone && styles.clipCardDone,
+          isTrash && styles.clipCardTrash,
+          isActive && styles.clipCardActive,
+          pressed && { opacity: 0.75 },
+        ]}
+        onPressIn={() => onSelect(id)}
+      >
+        {/* Rank Badge */}
+        <View style={[styles.rankBadge, isTrash && styles.rankBadgeTrash]}>
+          <Text style={styles.rankBadgeText}>#{rank || clipNumber}</Text>
+        </View>
+
+        <Text style={[styles.clipCardTitle, isTrash && styles.clipCardTitleTrash]}>
+          KLIP {clipNumber}
+        </Text>
+        <Text style={styles.clipCardTime}>{formatTime(start)}</Text>
+      </Pressable>
+    );
+  },
+  (prev, next) =>
+    prev.id === next.id &&
+    prev.isActive === next.isActive &&
+    prev.status === next.status &&
+    prev.start === next.start &&
+    prev.rank === next.rank
+);
+
 export const FeedScreen: React.FC<FeedScreenProps> = ({
   videoId,
   initialCount = 50,
@@ -70,9 +121,6 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
   // Debounce refs for smooth, leak-proof UI adjustments & storage sync
   const seekDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingSeekTargetRef = useRef<number | null>(null);
-  const isSeekingRef = useRef(false);
-  const seekTargetTimeRef = useRef<number | null>(null);
-  const seekUnlockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const trackWidthRef = useRef<number>(1);
   const storageDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const clipsRef = useRef<ClipItem[]>(clips);
@@ -117,7 +165,6 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     return () => {
       if (seekDebounceTimerRef.current) clearTimeout(seekDebounceTimerRef.current);
       if (storageDebounceTimerRef.current) clearTimeout(storageDebounceTimerRef.current);
-      if (seekUnlockTimerRef.current) clearTimeout(seekUnlockTimerRef.current);
     };
   }, []);
 
@@ -229,15 +276,11 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
    * Menampung SEMUA seek (crop, extend, skip waktu, pindah klip, tap scrubber) ke dalam 1 gerbang terpusat.
    * Debounce trailing edge: 500ms sejak interaksi TERAKHIR user.
    * UI (progress bar, angka rentang, active card) langsung di-update secara instan 0ms tanpa animasi/delay.
-   * Kunci seeking (isSeekingRef) menjaga agar event timeUpdate usang dari native player tidak meng-overwrite
-   * atau membuat progress bar mental bolak-balik (rubberbanding).
    */
   const centralizedSeek = useCallback((targetTime: number, shouldPlay: boolean = true) => {
     pendingSeekTargetRef.current = targetTime;
-    isSeekingRef.current = true;
-    seekTargetTimeRef.current = targetTime;
 
-    // Auto-pause seketika jika player sedang berjalan agar video freeze di frame terakhir
+    // Auto-pause video seketika jika sedang berputar agar frame lama freeze
     if (player && player.playing) {
       try {
         player.pause();
@@ -247,9 +290,6 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
 
     if (seekDebounceTimerRef.current) {
       clearTimeout(seekDebounceTimerRef.current);
-    }
-    if (seekUnlockTimerRef.current) {
-      clearTimeout(seekUnlockTimerRef.current);
     }
 
     seekDebounceTimerRef.current = setTimeout(() => {
@@ -271,13 +311,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
         }
       }
       seekDebounceTimerRef.current = null;
-      // Jangan langsung buka lock seeking sebelum native player selesai memproses seek!
-      // Berikan batas waktu pengaman 700ms jika event timeUpdate belum tiba persis di target
-      seekUnlockTimerRef.current = setTimeout(() => {
-        isSeekingRef.current = false;
-        seekTargetTimeRef.current = null;
-        pendingSeekTargetRef.current = null;
-      }, 700);
+      pendingSeekTargetRef.current = null;
     }, 500);
   }, [player]);
 
@@ -286,32 +320,15 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     if (!player) return;
 
     const sub = player.addListener('timeUpdate', (event) => {
-      const current = event.currentTime;
-
-      // Jika user sedang aktif menekan seek/crop/extend/skip (debounce / seek lock aktif)
-      if (pendingSeekTargetRef.current !== null || isSeekingRef.current) {
-        if (seekTargetTimeRef.current !== null) {
-          // Buka kunci HANYA jika native player sudah benar-benar tiba di dekat target waktu
-          if (Math.abs(current - seekTargetTimeRef.current) <= 0.4) {
-            isSeekingRef.current = false;
-            seekTargetTimeRef.current = null;
-            pendingSeekTargetRef.current = null;
-            if (seekUnlockTimerRef.current) {
-              clearTimeout(seekUnlockTimerRef.current);
-              seekUnlockTimerRef.current = null;
-            }
-          } else {
-            // Abaikan timeUpdate usang agar progress bar TIDAK mental kembali ke posisi lama
-            return;
-          }
-        } else {
-          return;
-        }
+      // Jika debounce sedang aktif, jangan timpa progress bar
+      if (pendingSeekTargetRef.current !== null) {
+        return;
       }
 
       const currentActiveId = activeClipIdRef.current || activeClipId;
       const currentActive = clipsRef.current.find((c) => c.id === currentActiveId) || activeClip;
 
+      const current = event.currentTime;
       const duration = currentActive.end - currentActive.start;
       if (duration > 0) {
         const pct = Math.max(0, Math.min(100, ((current - currentActive.start) / duration) * 100));
@@ -406,7 +423,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
   };
 
   // Switch klip dengan debounce seek terpusat & optimistic UI update instan
-  const handleSelectClip = (clipId: string) => {
+  const handleSelectClip = useCallback((clipId: string) => {
     activeClipIdRef.current = clipId;
     setActiveClipId(clipId);
     // Optimistic: Progress bar seketika langsung balik ke 0
@@ -415,7 +432,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     const targetClip = clipsRef.current.find((c) => c.id === clipId);
     if (!targetClip) return;
     centralizedSeek(targetClip.start, true);
-  };
+  }, [centralizedSeek]);
 
   // Toggle clip Done status (hijau)
   const handleToggleDone = () => {
@@ -461,11 +478,8 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     const currentActiveId = activeClipIdRef.current || activeClipId;
     const currentActive = clipsRef.current.find((c) => c.id === currentActiveId) || activeClip;
     
-    // Utamakan seekTargetTimeRef agar multi-klik beruntun tidak membaca player.currentTime yang sedang pending
     const baseTime =
-      seekTargetTimeRef.current !== null
-        ? seekTargetTimeRef.current
-        : pendingSeekTargetRef.current !== null
+      pendingSeekTargetRef.current !== null
         ? pendingSeekTargetRef.current
         : player
         ? player.currentTime
@@ -485,12 +499,15 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     centralizedSeek(nextTime, true);
   };
 
-  // Group clips into pairs (columns of 2 rows) sorted chronologically (parity with Feed.jsx)
-  const sortedClips = [...clips].sort((a, b) => a.start - b.start);
-  const clipColumns: ClipItem[][] = [];
-  for (let i = 0; i < sortedClips.length; i += 2) {
-    clipColumns.push(sortedClips.slice(i, i + 2));
-  }
+  // Group clips into pairs (columns of 2 rows) sorted chronologically (memoized agar tidak di-recompute setiap tick)
+  const sortedClips = useMemo(() => [...clips].sort((a, b) => a.start - b.start), [clips]);
+  const clipColumns = useMemo(() => {
+    const cols: ClipItem[][] = [];
+    for (let i = 0; i < sortedClips.length; i += 2) {
+      cols.push(sortedClips.slice(i, i + 2));
+    }
+    return cols;
+  }, [sortedClips]);
 
   if (loading) {
     return (
@@ -508,19 +525,19 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
         <View style={styles.timeRangeRow}>
           {/* KIRI: Tombol Merah Trash / Skip (Icon Only, Tanpa Teks, Menggantikan Back) */}
           <View style={styles.leftActionGroup}>
-            <TouchableOpacity
-              style={[
+            <Pressable
+              style={({ pressed }) => [
                 styles.statusBtn,
                 activeClip.status === 'trash' ? styles.trashBtnActive : styles.trashBtnInactive,
+                pressed && { opacity: 0.7 },
               ]}
-              onPress={handleToggleTrash}
-              activeOpacity={0.7}
+              onPressIn={handleToggleTrash}
             >
               <Trash2
                 size={18}
                 color={activeClip.status === 'trash' ? '#ffffff' : '#f87171'}
               />
-            </TouchableOpacity>
+            </Pressable>
           </View>
 
           {/* TENGAH: Rentang Waktu (Leluasa & Luas) */}
@@ -534,97 +551,89 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
 
           {/* KANAN: Tombol Hijau Done / Selesai (Icon Only, Tanpa Teks) */}
           <View style={styles.rightActionGroup}>
-            <TouchableOpacity
-              style={[
+            <Pressable
+              style={({ pressed }) => [
                 styles.statusBtn,
                 activeClip.status === 'done' ? styles.doneBtnActive : styles.doneBtnInactive,
+                pressed && { opacity: 0.7 },
               ]}
-              onPress={handleToggleDone}
-              activeOpacity={0.7}
+              onPressIn={handleToggleDone}
             >
               <CheckCircle2
                 size={18}
                 color={activeClip.status === 'done' ? '#ffffff' : '#34d399'}
               />
-            </TouchableOpacity>
+            </Pressable>
           </View>
         </View>
 
         {/* Row 2: Extend Row (Emerald) */}
         <View style={styles.extendRow}>
           <View style={styles.fineTuneGroup}>
-            <TouchableOpacity
-              style={styles.extendBtn}
-              onPress={() => handleUpdateStart(-5)}
-              activeOpacity={0.7}
+            <Pressable
+              style={({ pressed }) => [styles.extendBtn, pressed && { opacity: 0.6 }]}
+              onPressIn={() => handleUpdateStart(-5)}
             >
               <Text style={styles.extendBtnText}>+5</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.extendBtn}
-              onPress={() => handleUpdateStart(-1)}
-              activeOpacity={0.7}
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [styles.extendBtn, pressed && { opacity: 0.6 }]}
+              onPressIn={() => handleUpdateStart(-1)}
             >
               <Text style={styles.extendBtnText}>+1</Text>
-            </TouchableOpacity>
+            </Pressable>
           </View>
 
           <Text style={styles.extendLabel}>EXTEND</Text>
 
           <View style={styles.fineTuneGroup}>
-            <TouchableOpacity
-              style={styles.extendBtn}
-              onPress={() => handleUpdateEnd(1)}
-              activeOpacity={0.7}
+            <Pressable
+              style={({ pressed }) => [styles.extendBtn, pressed && { opacity: 0.6 }]}
+              onPressIn={() => handleUpdateEnd(1)}
             >
               <Text style={styles.extendBtnText}>+1</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.extendBtn}
-              onPress={() => handleUpdateEnd(5)}
-              activeOpacity={0.7}
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [styles.extendBtn, pressed && { opacity: 0.6 }]}
+              onPressIn={() => handleUpdateEnd(5)}
             >
               <Text style={styles.extendBtnText}>+5</Text>
-            </TouchableOpacity>
+            </Pressable>
           </View>
         </View>
 
         {/* Row 3: Crop Row (Rose/Red) */}
         <View style={styles.cropRow}>
           <View style={styles.fineTuneGroup}>
-            <TouchableOpacity
-              style={styles.cropBtn}
-              onPress={() => handleUpdateStart(5)}
-              activeOpacity={0.7}
+            <Pressable
+              style={({ pressed }) => [styles.cropBtn, pressed && { opacity: 0.6 }]}
+              onPressIn={() => handleUpdateStart(5)}
             >
               <Text style={styles.cropBtnText}>-5</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.cropBtn}
-              onPress={() => handleUpdateStart(1)}
-              activeOpacity={0.7}
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [styles.cropBtn, pressed && { opacity: 0.6 }]}
+              onPressIn={() => handleUpdateStart(1)}
             >
               <Text style={styles.cropBtnText}>-1</Text>
-            </TouchableOpacity>
+            </Pressable>
           </View>
 
           <Text style={styles.cropLabel}>CROP</Text>
 
           <View style={styles.fineTuneGroup}>
-            <TouchableOpacity
-              style={styles.cropBtn}
-              onPress={() => handleUpdateEnd(-1)}
-              activeOpacity={0.7}
+            <Pressable
+              style={({ pressed }) => [styles.cropBtn, pressed && { opacity: 0.6 }]}
+              onPressIn={() => handleUpdateEnd(-1)}
             >
               <Text style={styles.cropBtnText}>-1</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.cropBtn}
-              onPress={() => handleUpdateEnd(-5)}
-              activeOpacity={0.7}
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [styles.cropBtn, pressed && { opacity: 0.6 }]}
+              onPressIn={() => handleUpdateEnd(-5)}
             >
               <Text style={styles.cropBtnText}>-5</Text>
-            </TouchableOpacity>
+            </Pressable>
           </View>
         </View>
       </View>
@@ -651,14 +660,13 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
       {/* 3. BOTTOM PLAYBACK CONTROLS (Fixed Height) */}
       <View style={styles.bottomPlayback}>
         {/* Scrubber Progress Bar (Direct click to seek, zero animation, instant jump) */}
-        <TouchableOpacity
+        <Pressable
           style={styles.progressBarTrack}
-          activeOpacity={1}
           hitSlop={{ top: 12, bottom: 12, left: 0, right: 0 }}
           onLayout={(e) => {
             trackWidthRef.current = e.nativeEvent.layout.width;
           }}
-          onPress={(e) => {
+          onPressIn={(e) => {
             const currentActiveId = activeClipIdRef.current || activeClipId;
             const currentActive = clipsRef.current.find((c) => c.id === currentActiveId) || activeClip;
             const duration = currentActive.end - currentActive.start;
@@ -675,53 +683,48 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
         >
           <View style={[styles.progressBarFill, { width: `${progressPercent}%` }]} />
           <View style={[styles.progressKnob, { left: `${progressPercent}%` }]} />
-        </TouchableOpacity>
+        </Pressable>
 
-        {/* Playback Buttons (-10s, -3s, Play/Pause, +3s, +10s) */}
+        {/* Playback Buttons (-10s, -3s, Play/Pause, +5s, +15s) */}
         <View style={styles.playbackControlsRow}>
-          <TouchableOpacity
-            style={styles.skipBtn}
-            onPress={() => skipSeconds(-10)}
-            activeOpacity={0.7}
+          <Pressable
+            style={({ pressed }) => [styles.skipBtn, pressed && { opacity: 0.5 }]}
+            onPressIn={() => skipSeconds(-10)}
           >
             <Rewind size={20} color="rgba(255, 255, 255, 0.6)" />
-          </TouchableOpacity>
+          </Pressable>
 
-          <TouchableOpacity
-            style={styles.skipBtn}
-            onPress={() => skipSeconds(-3)}
-            activeOpacity={0.7}
+          <Pressable
+            style={({ pressed }) => [styles.skipBtn, pressed && { opacity: 0.5 }]}
+            onPressIn={() => skipSeconds(-3)}
           >
             <ChevronLeft size={24} color="rgba(255, 255, 255, 0.6)" />
-          </TouchableOpacity>
+          </Pressable>
 
-          <TouchableOpacity
-            style={styles.playPauseBtn}
-            onPress={togglePlayPause}
-            activeOpacity={0.85}
+          <Pressable
+            style={({ pressed }) => [styles.playPauseBtn, pressed && { transform: [{ scale: 0.95 }] }]}
+            onPressIn={togglePlayPause}
           >
             {isPlaying ? (
               <Pause size={22} color="#000000" fill="#000000" />
             ) : (
               <Play size={22} color="#000000" fill="#000000" style={{ marginLeft: 2 }} />
             )}
-          </TouchableOpacity>
+          </Pressable>
 
-          <TouchableOpacity
-            style={styles.skipBtn}
-            onPress={() => skipSeconds(5)}
-            activeOpacity={0.7}
+          <Pressable
+            style={({ pressed }) => [styles.skipBtn, pressed && { opacity: 0.5 }]}
+            onPressIn={() => skipSeconds(5)}
           >
             <ChevronRight size={24} color="rgba(255, 255, 255, 0.6)" />
-          </TouchableOpacity>
+          </Pressable>
 
-          <TouchableOpacity
-            style={styles.skipBtn}
-            onPress={() => skipSeconds(15)}
-            activeOpacity={0.7}
+          <Pressable
+            style={({ pressed }) => [styles.skipBtn, pressed && { opacity: 0.5 }]}
+            onPressIn={() => skipSeconds(15)}
           >
             <FastForward size={20} color="rgba(255, 255, 255, 0.6)" />
-          </TouchableOpacity>
+          </Pressable>
         </View>
       </View>
 
@@ -736,32 +739,17 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
             <View key={colIdx} style={styles.clipColumn}>
               {col.map((clip, rowIdx) => {
                 const clipNumber = colIdx * 2 + rowIdx + 1;
-                const isActive = clip.id === activeClipId;
-                const isDone = clip.status === 'done';
-                const isTrash = clip.status === 'trash';
-
                 return (
-                  <TouchableOpacity
+                  <ClipCardItem
                     key={clip.id}
-                    style={[
-                      styles.clipCard,
-                      isDone && styles.clipCardDone,
-                      isTrash && styles.clipCardTrash,
-                      isActive && styles.clipCardActive,
-                    ]}
-                    onPress={() => handleSelectClip(clip.id)}
-                    activeOpacity={0.8}
-                  >
-                    {/* Rank Badge */}
-                    <View style={[styles.rankBadge, isTrash && styles.rankBadgeTrash]}>
-                      <Text style={styles.rankBadgeText}>#{clip.rank || clipNumber}</Text>
-                    </View>
-
-                    <Text style={[styles.clipCardTitle, isTrash && styles.clipCardTitleTrash]}>
-                      KLIP {clipNumber}
-                    </Text>
-                    <Text style={styles.clipCardTime}>{formatTime(clip.start)}</Text>
-                  </TouchableOpacity>
+                    id={clip.id}
+                    rank={clip.rank}
+                    start={clip.start}
+                    clipNumber={clipNumber}
+                    isActive={clip.id === activeClipId}
+                    status={clip.status || 'none'}
+                    onSelect={handleSelectClip}
+                  />
                 );
               })}
             </View>
