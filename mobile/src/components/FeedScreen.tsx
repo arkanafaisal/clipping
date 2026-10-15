@@ -239,8 +239,30 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
       }
     });
 
-    const statusSub = player.addListener('statusChange', () => {
+    const statusSub = player.addListener('statusChange', async () => {
       setIsPlaying(player.playing);
+      // Auto-recovery: Jika stream URL kadaluwarsa (player status error), fetch ulang secara otomatis
+      if (player.status === 'error') {
+        console.warn('[Feed] Player error detected, stream URL mungkin kadaluwarsa. Mengambil URL baru...');
+        try {
+          const freshUrl = await fetchStreamUrl(videoId, true); // forceRefresh = true
+          if (freshUrl) {
+            setStreamUrl(freshUrl);
+            player.replace(freshUrl);
+            player.currentTime = activeClip.start;
+            player.play();
+            setIsPlaying(true);
+            ToastManager.show({
+              type: 'info',
+              title: 'Stream Diperbarui',
+              message: 'URL stream telah diperbarui otomatis.',
+              duration: 2500,
+            });
+          }
+        } catch (e: any) {
+          console.error('[Feed] Gagal auto-refresh stream URL:', e);
+        }
+      }
     });
 
     return () => {

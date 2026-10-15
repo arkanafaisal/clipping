@@ -46,31 +46,45 @@ export async function pingServer(): Promise<{ status: string; message?: string }
   throw new Error('Server Python tidak merespons di port 3006.');
 }
 
+// In-Memory Stream Cache Map: Key = videoId, Value = direct stream URL
+const STREAM_MEMORY_MAP = new Map<string, string>();
+
 /**
  * Fetches the direct stream URL for a given YouTube video ID.
- * Caches stream URLs in frontend LocalStorage (2 hours expiration).
- * Sends explicit STREAM_YTDL_OPTS via request body to keep backend 100% pass-through.
+ * Menggunakan arsitektur 2-Tier Caching:
+ * 1. Tier 1 (In-Memory Map): Akses instan 0ms tanpa membaca disk storage
+ * 2. Tier 2 (Persistent File Storage): Disimpan ke file fisik di HP, dibaca jika memori kosong
+ * 3. Fallback / Refresh: Jika forceRefresh = true atau URL gagal diputar, ambil URL baru dari server Python.
  */
-export async function fetchStreamUrl(videoId: string): Promise<string> {
-  // 1. Cek cache frontend terlebih dahulu
-  try {
-    const cached = await LocalStorage.getItem(`stream_cache_${videoId}`);
-    if (cached) {
-      const parsed = JSON.parse(cached);
-      if (parsed.url && parsed.expiresAt && Date.now() < parsed.expiresAt) {
-        console.log(`[Frontend Cache] Menggunakan stream URL tersimpan untuk ${videoId}`);
-        return parsed.url;
-      }
+export async function fetchStreamUrl(videoId: string, forceRefresh: boolean = false): Promise<string> {
+  // 1. Cek Tier 1: In-Memory Map (Paling Cepat, Zero Disk I/O)
+  if (!forceRefresh && STREAM_MEMORY_MAP.has(videoId)) {
+    const memUrl = STREAM_MEMORY_MAP.get(videoId);
+    if (memUrl) {
+      console.log(`[StreamCache] In-Memory Map hit untuk ${videoId}`);
+      return memUrl;
     }
-  } catch (e) {
-    // Abaikan cache read error
   }
 
+  // 2. Cek Tier 2: File Fisik di LocalStorage (Jika In-Memory belum ada)
+  if (!forceRefresh) {
+    try {
+      const fileUrl = await LocalStorage.getItem(`stream_url_${videoId}`);
+      if (fileUrl) {
+        STREAM_MEMORY_MAP.set(videoId, fileUrl);
+        console.log(`[StreamCache] File Fisik hit untuk ${videoId}, disimpan ke In-Memory Map`);
+        return fileUrl;
+      }
+    } catch (e) {
+      // Abaikan file read error
+    }
+  }
+
+  // 3. Tier 3: Fetch dari Server Python (Jika memori dan file fisik kosong, atau saat force refresh)
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 20000);
 
   try {
-    // Kirim konfigurasi eksplisit dari Frontend (Zero Backend Fallback)
     const response = await fetch(`${API_BASE_URL}/api/stream`, {
       method: 'POST',
       headers: {
@@ -92,21 +106,18 @@ export async function fetchStreamUrl(videoId: string): Promise<string> {
         : `Gagal mengekstrak stream (Status: ${response.status})`);
       throw new Error(errorMsg);
     }
-    
-    // 2. Simpan ke cache frontend (valid 2 jam = 7200 detik)
-    try {
-      await LocalStorage.setItem(
-        `stream_cache_${videoId}`,
-        JSON.stringify({
-          url: data.stream_url,
-          expiresAt: Date.now() + 7200 * 1000,
-        })
-      );
-    } catch (e) {
-      // Abaikan cache write error
-    }
 
-    return data.stream_url;
+    const streamUrl = data.stream_url;
+    
+    // Simpan ke In-Memory Map
+    STREAM_MEMORY_MAP.set(videoId, streamUrl);
+
+    // Simpan ke File Fisik di HP (asynchronous)
+    LocalStorage.setItem(`stream_url_${videoId}`, streamUrl).catch((err) => {
+      console.warn('[StreamCache] Gagal menyimpan stream ke file fisik:', err);
+    });
+
+    return streamUrl;
   } catch (error: any) {
     clearTimeout(timeoutId);
     throw error;
