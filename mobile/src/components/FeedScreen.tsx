@@ -70,7 +70,21 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
   // Debounce refs for smooth, leak-proof UI adjustments & storage sync
   const seekDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingSeekTargetRef = useRef<number | null>(null);
+  const isSeekingRef = useRef(false);
+  const seekTargetTimeRef = useRef<number | null>(null);
+  const seekUnlockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const trackWidthRef = useRef<number>(1);
   const storageDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clipsRef = useRef<ClipItem[]>(clips);
+  const activeClipIdRef = useRef<string | null>(activeClipId);
+
+  useEffect(() => {
+    clipsRef.current = clips;
+  }, [clips]);
+
+  useEffect(() => {
+    activeClipIdRef.current = activeClipId;
+  }, [activeClipId]);
 
   // Active clip reference
   const activeClip = clips.find((c) => c.id === activeClipId) || clips[0] || {
@@ -103,6 +117,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     return () => {
       if (seekDebounceTimerRef.current) clearTimeout(seekDebounceTimerRef.current);
       if (storageDebounceTimerRef.current) clearTimeout(storageDebounceTimerRef.current);
+      if (seekUnlockTimerRef.current) clearTimeout(seekUnlockTimerRef.current);
     };
   }, []);
 
@@ -209,18 +224,30 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
 
   /**
    * Centralized universal debounced seek handler:
-   * Menampung SEMUA seek (crop, extend, skip waktu, pindah klip) ke dalam 1 gerbang terpusat.
+   * Menampung SEMUA seek (crop, extend, skip waktu, pindah klip, tap scrubber) ke dalam 1 gerbang terpusat.
    * Debounce trailing edge: 500ms sejak interaksi TERAKHIR user.
-   * Jika user menekan beruntun (misal crop 5x + extend 5x), state UI langsung berubah (optimistic),
-   * timer 500ms di-reset tiap pencetan, dan player HANYA di-seek 1x ke posisi akhir setelah jeda 500ms.
-   * Jika seek berhasil: tidak menampilkan toast.
-   * Jika seek gagal: tampilkan notifikasi error.
+   * UI (progress bar, angka rentang, active card) langsung di-update secara instan 0ms tanpa animasi/delay.
+   * Kunci seeking (isSeekingRef) menjaga agar event timeUpdate usang dari native player tidak meng-overwrite
+   * atau membuat progress bar mental bolak-balik (rubberbanding).
    */
   const centralizedSeek = useCallback((targetTime: number, shouldPlay: boolean = true) => {
     pendingSeekTargetRef.current = targetTime;
+    isSeekingRef.current = true;
+    seekTargetTimeRef.current = targetTime;
+
+    // Auto-pause seketika jika player sedang berjalan agar video freeze di frame terakhir
+    if (player && player.playing) {
+      try {
+        player.pause();
+        setIsPlaying(false);
+      } catch (e) {}
+    }
 
     if (seekDebounceTimerRef.current) {
       clearTimeout(seekDebounceTimerRef.current);
+    }
+    if (seekUnlockTimerRef.current) {
+      clearTimeout(seekUnlockTimerRef.current);
     }
 
     seekDebounceTimerRef.current = setTimeout(() => {
@@ -242,7 +269,13 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
         }
       }
       seekDebounceTimerRef.current = null;
-      pendingSeekTargetRef.current = null;
+      // Jangan langsung buka lock seeking sebelum native player selesai memproses seek!
+      // Berikan batas waktu pengaman 700ms jika event timeUpdate belum tiba persis di target
+      seekUnlockTimerRef.current = setTimeout(() => {
+        isSeekingRef.current = false;
+        seekTargetTimeRef.current = null;
+        pendingSeekTargetRef.current = null;
+      }, 700);
     }, 500);
   }, [player]);
 
@@ -251,21 +284,41 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     if (!player) return;
 
     const sub = player.addListener('timeUpdate', (event) => {
-      // Jika user sedang aktif menekan seek/crop/extend/skip/klip (debounce aktif), jangan tumpuk update scrubber & loop
-      if (pendingSeekTargetRef.current !== null) {
-        return;
+      const current = event.currentTime;
+
+      // Jika user sedang aktif menekan seek/crop/extend/skip (debounce / seek lock aktif)
+      if (pendingSeekTargetRef.current !== null || isSeekingRef.current) {
+        if (seekTargetTimeRef.current !== null) {
+          // Buka kunci HANYA jika native player sudah benar-benar tiba di dekat target waktu
+          if (Math.abs(current - seekTargetTimeRef.current) <= 0.4) {
+            isSeekingRef.current = false;
+            seekTargetTimeRef.current = null;
+            pendingSeekTargetRef.current = null;
+            if (seekUnlockTimerRef.current) {
+              clearTimeout(seekUnlockTimerRef.current);
+              seekUnlockTimerRef.current = null;
+            }
+          } else {
+            // Abaikan timeUpdate usang agar progress bar TIDAK mental kembali ke posisi lama
+            return;
+          }
+        } else {
+          return;
+        }
       }
 
-      const current = event.currentTime;
-      const duration = activeClip.end - activeClip.start;
+      const currentActiveId = activeClipIdRef.current || activeClipId;
+      const currentActive = clipsRef.current.find((c) => c.id === currentActiveId) || activeClip;
+
+      const duration = currentActive.end - currentActive.start;
       if (duration > 0) {
-        const pct = Math.max(0, Math.min(100, ((current - activeClip.start) / duration) * 100));
+        const pct = Math.max(0, Math.min(100, ((current - currentActive.start) / duration) * 100));
         setProgressPercent(pct);
       }
 
       // Loop current segment
-      if (current >= activeClip.end) {
-        player.currentTime = activeClip.start;
+      if (current >= currentActive.end) {
+        player.currentTime = currentActive.start;
         player.play();
       }
     });
@@ -302,73 +355,90 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
   }, [player, activeClip.start, activeClip.end]);
 
   // Extend & Crop Handlers:
-  // - UI langsung ter-update secara instan (optimistic)
+  // - UI langsung ter-update secara instan 0ms tanpa animasi/delay
+  // - Menggunakan clipsRef.current secara sinkron sehingga tidak terkena stale closure saat multi-klik cepat
   // - Seek video terpusat dieksekusi 1x setelah user berhenti menekan tombol (debounce 500ms trailing)
   const handleUpdateStart = (delta: number) => {
-    const currentClip = clips.find((c) => c.id === activeClipId);
-    if (!currentClip) return;
-    const newStart = Math.max(0, Math.min(currentClip.start + delta, currentClip.end - 1));
+    const currentActiveId = activeClipIdRef.current || activeClipId;
+    let targetStart = 0;
+    const updated = clipsRef.current.map((c) => {
+      if (c.id === currentActiveId) {
+        targetStart = Math.max(0, Math.min(c.start + delta, c.end - 1));
+        return { ...c, start: targetStart };
+      }
+      return c;
+    });
+    clipsRef.current = updated;
+    setClips(updated);
 
-    setClips((prev) =>
-      prev.map((c) => (c.id === activeClipId ? { ...c, start: newStart } : c))
-    );
-
+    // Optimistic progress bar: langsung snap ke posisi awal klip (0%) seketika
     setProgressPercent(0);
-    centralizedSeek(newStart, true);
+    centralizedSeek(targetStart, true);
   };
 
   const handleUpdateEnd = (delta: number) => {
-    const currentClip = clips.find((c) => c.id === activeClipId);
-    if (!currentClip) return;
-    const newEnd = Math.max(currentClip.start + 1, currentClip.end + delta);
-    const targetSeek = Math.max(currentClip.start, newEnd - 3);
+    const currentActiveId = activeClipIdRef.current || activeClipId;
+    let targetSeek = 0;
+    let newEnd = 0;
+    const updated = clipsRef.current.map((c) => {
+      if (c.id === currentActiveId) {
+        newEnd = Math.max(c.start + 1, c.end + delta);
+        targetSeek = Math.max(c.start, newEnd - 3);
+        return { ...c, end: newEnd };
+      }
+      return c;
+    });
+    clipsRef.current = updated;
+    setClips(updated);
 
-    setClips((prev) =>
-      prev.map((c) => (c.id === activeClipId ? { ...c, end: newEnd } : c))
-    );
-
-    const duration = newEnd - currentClip.start;
-    if (duration > 0) {
-      const pct = Math.max(0, Math.min(100, ((targetSeek - currentClip.start) / duration) * 100));
+    // Optimistic progress bar: langsung snap ke posisi preview akhir seketika tanpa delay
+    const active = updated.find((c) => c.id === currentActiveId);
+    if (active && active.end > active.start) {
+      const pct = Math.max(0, Math.min(100, ((targetSeek - active.start) / (active.end - active.start)) * 100));
       setProgressPercent(pct);
     }
 
     centralizedSeek(targetSeek, true);
   };
 
-  // Switch klip dengan debounce seek terpusat
+  // Switch klip dengan debounce seek terpusat & optimistic UI update instan
   const handleSelectClip = (clipId: string) => {
-    const targetClip = clips.find((c) => c.id === clipId);
-    if (!targetClip) return;
+    activeClipIdRef.current = clipId;
     setActiveClipId(clipId);
+    // Optimistic: Progress bar seketika langsung balik ke 0
     setProgressPercent(0);
+
+    const targetClip = clipsRef.current.find((c) => c.id === clipId);
+    if (!targetClip) return;
     centralizedSeek(targetClip.start, true);
   };
 
   // Toggle clip Done status (hijau)
   const handleToggleDone = () => {
-    setClips((prev) =>
-      prev.map((c) => {
-        if (c.id === activeClipId) {
-          const nextStatus = c.status === 'done' ? 'none' : 'done';
-          return { ...c, status: nextStatus };
-        }
-        return c;
-      })
-    );
+    const currentActiveId = activeClipIdRef.current || activeClipId;
+    const updated = clipsRef.current.map((c) => {
+      if (c.id === currentActiveId) {
+        const nextStatus = (c.status === 'done' ? 'none' : 'done') as 'none' | 'done';
+        return { ...c, status: nextStatus };
+      }
+      return c;
+    });
+    clipsRef.current = updated;
+    setClips(updated);
   };
 
   // Toggle clip Trash/Skip status (merah)
   const handleToggleTrash = () => {
-    setClips((prev) =>
-      prev.map((c) => {
-        if (c.id === activeClipId) {
-          const nextStatus = c.status === 'trash' ? 'none' : 'trash';
-          return { ...c, status: nextStatus };
-        }
-        return c;
-      })
-    );
+    const currentActiveId = activeClipIdRef.current || activeClipId;
+    const updated = clipsRef.current.map((c) => {
+      if (c.id === currentActiveId) {
+        const nextStatus = (c.status === 'trash' ? 'none' : 'trash') as 'none' | 'trash';
+        return { ...c, status: nextStatus };
+      }
+      return c;
+    });
+    clipsRef.current = updated;
+    setClips(updated);
   };
 
   // Playback Control Handlers
@@ -384,24 +454,31 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
   };
 
   const skipSeconds = (seconds: number) => {
+    const currentActiveId = activeClipIdRef.current || activeClipId;
+    const currentActive = clipsRef.current.find((c) => c.id === currentActiveId) || activeClip;
+    
+    // Utamakan seekTargetTimeRef agar multi-klik beruntun tidak membaca player.currentTime yang sedang pending
     const baseTime =
-      pendingSeekTargetRef.current !== null
+      seekTargetTimeRef.current !== null
+        ? seekTargetTimeRef.current
+        : pendingSeekTargetRef.current !== null
         ? pendingSeekTargetRef.current
         : player
         ? player.currentTime
-        : activeClip.start;
+        : currentActive.start;
 
     let nextTime = baseTime + seconds;
-    if (nextTime < activeClip.start) nextTime = activeClip.start;
-    if (nextTime > activeClip.end) nextTime = activeClip.end;
+    if (nextTime < currentActive.start) nextTime = currentActive.start;
+    if (nextTime > currentActive.end) nextTime = currentActive.end;
 
-    const duration = activeClip.end - activeClip.start;
+    // Optimistic: Scrubber langsung pindah ke posisi target seketika (0ms, tanpa animasi / delay)
+    const duration = currentActive.end - currentActive.start;
     if (duration > 0) {
-      const pct = Math.max(0, Math.min(100, ((nextTime - activeClip.start) / duration) * 100));
+      const pct = Math.max(0, Math.min(100, ((nextTime - currentActive.start) / duration) * 100));
       setProgressPercent(pct);
     }
 
-    centralizedSeek(nextTime, isPlaying);
+    centralizedSeek(nextTime, true);
   };
 
   // Group clips into pairs (columns of 2 rows) sorted chronologically (parity with Feed.jsx)
@@ -569,11 +646,32 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
 
       {/* 3. BOTTOM PLAYBACK CONTROLS (Fixed Height) */}
       <View style={styles.bottomPlayback}>
-        {/* Scrubber Progress Bar */}
-        <View style={styles.progressBarTrack}>
+        {/* Scrubber Progress Bar (Direct click to seek, zero animation, instant jump) */}
+        <TouchableOpacity
+          style={styles.progressBarTrack}
+          activeOpacity={1}
+          hitSlop={{ top: 12, bottom: 12, left: 0, right: 0 }}
+          onLayout={(e) => {
+            trackWidthRef.current = e.nativeEvent.layout.width;
+          }}
+          onPress={(e) => {
+            const currentActiveId = activeClipIdRef.current || activeClipId;
+            const currentActive = clipsRef.current.find((c) => c.id === currentActiveId) || activeClip;
+            const duration = currentActive.end - currentActive.start;
+            if (duration <= 0 || trackWidthRef.current <= 0) return;
+
+            const locationX = e.nativeEvent.locationX;
+            const pct = Math.max(0, Math.min(100, (locationX / trackWidthRef.current) * 100));
+            const targetTime = currentActive.start + (pct / 100) * duration;
+
+            // Langsung pindah seketika (0ms, tanpa animasi / delay)
+            setProgressPercent(pct);
+            centralizedSeek(targetTime, true);
+          }}
+        >
           <View style={[styles.progressBarFill, { width: `${progressPercent}%` }]} />
           <View style={[styles.progressKnob, { left: `${progressPercent}%` }]} />
-        </View>
+        </TouchableOpacity>
 
         {/* Playback Buttons (-10s, -3s, Play/Pause, +3s, +10s) */}
         <View style={styles.playbackControlsRow}>
