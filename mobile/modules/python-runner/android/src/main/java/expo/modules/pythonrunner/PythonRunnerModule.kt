@@ -48,7 +48,7 @@ class PythonRunnerModule : Module() {
                 Python.start(AndroidPlatform(context))
             }
 
-            thread(isDaemon = true, name = "PythonLocalServerThread") {
+            thread(isDaemon = false, name = "PythonLocalServerThread") {
                 try {
                     Log.i(TAG, "Getting Python instance...")
                     val py = Python.getInstance()

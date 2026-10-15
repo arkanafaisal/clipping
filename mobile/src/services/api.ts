@@ -22,8 +22,14 @@ export interface StreamResponse {
   error?: string;
 }
 
-// Termux / Mobile API running on port 3006
-export const API_BASE_URL = 'http://127.0.0.1:3006';
+import { startPythonServer } from '../../modules/python-runner';
+
+// Port default: 8080 (Embedded Chaquopy internal di dalam APK) dengan fallback ke 3006 (Termux / Localhost)
+export let API_BASE_URL = 'http://127.0.0.1:8080';
+
+export function setApiBaseUrl(url: string) {
+  API_BASE_URL = url;
+}
 
 /**
  * Kamus pemetaan kode error API dari backend ke pesan ramah pengguna (Bahasa Indonesia).
@@ -39,7 +45,7 @@ export const API_ERROR_MAP: Record<string, string> = {
   INVALID_PARAMS: 'Parameter pengunduhan klip tidak lengkap.',
   INVALID_RANGE: 'Rentang waktu klip tidak valid.',
   DOWNLOAD_FAILED: 'Gagal mengunduh klip video dari YouTube.',
-  SERVER_OFFLINE: 'Server internal Python belum aktif pada port 3006.',
+  SERVER_OFFLINE: 'Server internal Python belum aktif pada port 8080 (APK) maupun 3006 (Termux).',
   INTERNAL_ERROR: 'Terjadi kesalahan internal pada server Python.',
   NETWORK_ERROR: 'Gagal terhubung ke jaringan internal server.',
 };
@@ -68,28 +74,70 @@ export class ApiError extends Error {
   }
 }
 
-/**
- * Ping Python server on 127.0.0.1:3006 (Termux / Mobile API)
- */
-export async function pingServer(): Promise<{ status: string; message?: string }> {
+async function pingDirect(baseUrl: string): Promise<{ status: string; message?: string }> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 1200);
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 1500);
-    const res = await fetch(`${API_BASE_URL}/ping`, { 
+    const res = await fetch(`${baseUrl}/ping`, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
-      signal: controller.signal 
+      signal: controller.signal,
     });
     clearTimeout(timeoutId);
     if (res.ok) {
       return await res.json();
     }
-    const errData = await res.json().catch(() => ({}));
-    throw new ApiError(errData.message || 'SERVER_OFFLINE', errData.error || `HTTP ${res.status}`);
+    throw new Error(`HTTP ${res.status}`);
   } catch (e: any) {
-    if (e instanceof ApiError) throw e;
-    throw new ApiError('SERVER_OFFLINE', e.message || 'Server Python belum aktif pada 127.0.0.1:3006.');
+    clearTimeout(timeoutId);
+    throw e;
   }
+}
+
+/**
+ * Ping Python server.
+ * Mendeteksi secara dinamis apakah server berjalan di port 8080 (Chaquopy internal APK)
+ * atau port 3006 (Termux / Desktop simulator).
+ * Jika keduanya belum aktif pada Android, otomatis memicu "percikan" startPythonServer().
+ */
+export async function pingServer(): Promise<{ status: string; port: number; message?: string }> {
+  // 1. Coba port 8080 dulu (Embedded APK Chaquopy)
+  try {
+    const res8080 = await pingDirect('http://127.0.0.1:8080');
+    API_BASE_URL = 'http://127.0.0.1:8080';
+    return { status: 'ok', port: 8080, message: res8080.message || 'Server internal Chaquopy aktif (port 8080)' };
+  } catch {}
+
+  // 2. Coba port 3006 (Termux / Simulator)
+  try {
+    const res3006 = await pingDirect('http://127.0.0.1:3006');
+    API_BASE_URL = 'http://127.0.0.1:3006';
+    return { status: 'ok', port: 3006, message: res3006.message || 'Server Termux/Simulasi aktif (port 3006)' };
+  } catch {}
+
+  // 3. Jika kedua port belum aktif, beri "percikan" startPythonServer() (native Chaquopy di Android)
+  try {
+    startPythonServer();
+  } catch (err) {
+    console.log('[Api] Gagal memicu startPythonServer:', err);
+  }
+
+  // Tunggu sejenak agar thread Python siap mendengarkan port
+  await new Promise((r) => setTimeout(r, 1200));
+
+  try {
+    const resRetry8080 = await pingDirect('http://127.0.0.1:8080');
+    API_BASE_URL = 'http://127.0.0.1:8080';
+    return { status: 'ok', port: 8080, message: resRetry8080.message || 'Server internal Chaquopy berhasil dinyalakan (port 8080)' };
+  } catch {}
+
+  try {
+    const resRetry3006 = await pingDirect('http://127.0.0.1:3006');
+    API_BASE_URL = 'http://127.0.0.1:3006';
+    return { status: 'ok', port: 3006, message: resRetry3006.message || 'Server Termux aktif (port 3006)' };
+  } catch {}
+
+  throw new ApiError('SERVER_OFFLINE', 'Server Python belum aktif pada port 8080 (APK) maupun 3006 (Termux).');
 }
 
 // In-Memory Stream Cache Map: Key = videoId, Value = direct stream URL

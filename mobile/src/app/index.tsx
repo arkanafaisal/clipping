@@ -23,7 +23,7 @@ export default function HomeScreen() {
           ToastManager.show({
             type: 'success',
             title: 'Server Python Terhubung',
-            message: `Port 3006 aktif (${pingRes.message || 'Siap digunakan'})`,
+            message: `Port ${pingRes.port} aktif (${pingRes.message || 'Siap digunakan'})`,
             duration: 3000,
           });
         }
@@ -31,7 +31,7 @@ export default function HomeScreen() {
         ToastManager.show({
           type: 'error',
           title: 'Server Python Offline',
-          message: e.message || 'Server Python belum aktif pada 127.0.0.1:3006. Pastikan Termux sudah berjalan.',
+          message: e.message || 'Server Python belum aktif pada port 8080 (APK) maupun 3006 (Termux).',
           rawError: e.rawError,
           errorCode: e.code,
           duration: 5000,
