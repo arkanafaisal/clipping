@@ -97,6 +97,26 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Memeriksa apakah error yang terjadi merupakan akibat pembatasan akses YouTube
+ * (Rate Limit 429, 403 Forbidden, token access denied, bot verification check, ffmpeg exit code 8, dll).
+ */
+export function isRateLimitOrRestrictedError(err: any): boolean {
+  if (!err) return false;
+  if (err.code === 'RATE_LIMIT_EXCEEDED') return true;
+  const fullText = `${err.name || ''} ${err.code || ''} ${err.message || ''} ${err.rawError || ''}`.toLowerCase();
+  return (
+    fullText.includes('429') ||
+    fullText.includes('403') ||
+    fullText.includes('forbidden') ||
+    fullText.includes('access denied') ||
+    fullText.includes('rate limit') ||
+    fullText.includes('bot') ||
+    fullText.includes('sign in') ||
+    fullText.includes('code 8')
+  );
+}
+
 async function pingDirect(baseUrl: string): Promise<{ status: string; message?: string }> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 1200);

@@ -5,6 +5,15 @@ from yt_dlp.utils import download_range_func
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+def _is_rate_limit_or_restricted(err_text: str) -> bool:
+    if not err_text:
+        return False
+    msg = str(err_text).lower()
+    return any(k in msg for k in [
+        "429", "403", "forbidden", "access denied", "rate limit",
+        "bot", "sign in to confirm", "confirm you're not a bot", "captcha", "code 8"
+    ])
+
 def download_youtube_clip_range(
     video_id: str,
     start: float,
@@ -91,9 +100,9 @@ def download_youtube_clip_range(
                 return output_path, extracted_stream_url, None, None
         except Exception as e_cookies:
             error_msg = str(e_cookies)
-            code = "RATE_LIMIT_EXCEEDED" if ("429" in error_msg or "rate limit" in error_msg.lower()) else "DOWNLOAD_FAILED"
+            code = "RATE_LIMIT_EXCEEDED" if _is_rate_limit_or_restricted(error_msg) else "DOWNLOAD_FAILED"
             return None, extracted_stream_url, code, error_msg
 
     error_msg = first_error_msg or "File output tidak ditemukan setelah eksekusi download selesai."
-    code = "RATE_LIMIT_EXCEEDED" if ("429" in error_msg or "rate limit" in error_msg.lower()) else "DOWNLOAD_FAILED"
+    code = "RATE_LIMIT_EXCEEDED" if _is_rate_limit_or_restricted(error_msg) else "DOWNLOAD_FAILED"
     return None, extracted_stream_url, code, error_msg

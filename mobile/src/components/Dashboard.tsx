@@ -15,7 +15,7 @@ import { ImportWorkshopModal } from './ImportWorkshopModal';
 import { CookiesModal } from './CookiesModal';
 import { LocalStorage } from '../services/storage';
 import { ToastManager } from './Toast';
-import { fetchHeatmap, fetchStreamUrl } from '../services/api';
+import { fetchHeatmap, fetchStreamUrl, isRateLimitOrRestrictedError } from '../services/api';
 
 const WORKSHOPS_STORAGE_KEY = 'workshops_list';
 const BOT_NUMBER = '6285742923730';
@@ -151,7 +151,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
       onOpenWorkshop?.(videoId, count);
     } catch (err: any) {
       setIsExtracting(false);
-      if (err.code === 'RATE_LIMIT_EXCEEDED' || (err.message && err.message.includes('429'))) {
+      if (isRateLimitOrRestrictedError(err)) {
         setCookiesModalVisible(true);
       }
       ToastManager.show({
@@ -214,7 +214,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
       // 4. Masuk ke FeedScreen setelah respons berhasil
       onOpenWorkshop?.(videoId, count);
     } catch (err: any) {
-      if (err.code === 'RATE_LIMIT_EXCEEDED' || (err.message && err.message.includes('429'))) {
+      if (isRateLimitOrRestrictedError(err)) {
         setCookiesModalVisible(true);
       }
       ToastManager.show({

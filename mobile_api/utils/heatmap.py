@@ -47,9 +47,11 @@ def get_raw_heatmap(video_id: str, ydl_opts: dict, cookie_path: str = None) -> t
                 return heatmap, title, None, None
         except Exception as e:
             error_msg = str(e)
-            code = "RATE_LIMIT_EXCEEDED" if ("429" in error_msg or "rate limit" in error_msg.lower()) else "EXTRACTOR_ERROR"
+            is_limit = any(k in error_msg.lower() for k in ["429", "403", "forbidden", "access denied", "rate limit", "bot", "captcha", "sign in"])
+            code = "RATE_LIMIT_EXCEEDED" if is_limit else "EXTRACTOR_ERROR"
             return [], "", code, error_msg
 
     error_msg = first_error_msg or "Heatmap tidak ditemukan. Video ini mungkin belum memiliki data 'Most Replayed'."
-    code = "RATE_LIMIT_EXCEEDED" if ("429" in error_msg or "rate limit" in error_msg.lower()) else ("HEATMAP_NOT_FOUND" if "heatmap" in error_msg.lower() else "EXTRACTOR_ERROR")
+    is_limit = any(k in error_msg.lower() for k in ["429", "403", "forbidden", "access denied", "rate limit", "bot", "captcha", "sign in"])
+    code = "RATE_LIMIT_EXCEEDED" if is_limit else ("HEATMAP_NOT_FOUND" if "heatmap" in error_msg.lower() else "EXTRACTOR_ERROR")
     return [], "", code, error_msg

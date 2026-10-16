@@ -22,6 +22,7 @@ import {
   ChevronRight,
   Download,
 } from 'lucide-react-native';
+import * as FileSystem from 'expo-file-system/legacy';
 import {
   ClipItem,
   fetchStreamUrl,
@@ -29,6 +30,8 @@ import {
   downloadClip,
   getClipOutputFilePath,
   checkClipFileExists,
+  isRateLimitOrRestrictedError,
+  SHARED_CLIPPING_OUTPUT_DIR,
 } from '../services/api';
 /*
 // [WORK IN PROGRESS - COMMENTED OUT] Subtitle imports
@@ -253,18 +256,59 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
           setLoading(false);
         }
 
-        // Pre-scan keberadaan file klip yang berstatus 'done' di storage
+        // Pre-scan keberadaan file klip di shared storage untuk SEMUA klip (universal & tahan banting)
         const existingDownloadMap: Record<string, boolean> = {};
-        for (const clip of loadedClips) {
-          if (clip.status === 'done') {
+        let hasNewDone = false;
+
+        const videoDirUri = `file://${SHARED_CLIPPING_OUTPUT_DIR}/${videoId}`;
+        let dirFiles: string[] = [];
+        try {
+          const dirInfo = await FileSystem.getInfoAsync(videoDirUri);
+          if (dirInfo.exists && dirInfo.isDirectory) {
+            dirFiles = await FileSystem.readDirectoryAsync(videoDirUri);
+          }
+        } catch {}
+
+        for (let i = 0; i < loadedClips.length; i++) {
+          const clip = loadedClips[i];
+          const startStr = Math.round(clip.start).toString();
+          const endStr = Math.round(clip.end).toString();
+
+          // 1. Pencocokan nama file di direktori (berdasarkan timestamp start & end)
+          const fileMatchInDir = dirFiles.find((f) =>
+            f.endsWith('.mp4') && f.includes(`_${startStr}_${endStr}.mp4`)
+          );
+
+          let exists = false;
+          if (fileMatchInDir) {
+            exists = true;
+          } else {
+            // 2. Pencocokan langsung format baku rank & videoId
             const { fileUri } = getClipOutputFilePath(videoId, clip.start, clip.end, clip.rank);
-            const exists = await checkClipFileExists(fileUri);
-            if (exists) {
-              existingDownloadMap[clip.id] = true;
+            exists = await checkClipFileExists(fileUri);
+            if (!exists) {
+              const fallbackUri = `file://${SHARED_CLIPPING_OUTPUT_DIR}/${videoId}/clip_${videoId}_${startStr}_${endStr}.mp4`;
+              exists = await checkClipFileExists(fallbackUri);
+            }
+          }
+
+          if (exists) {
+            existingDownloadMap[clip.id] = true;
+            if (clip.status !== 'done') {
+              loadedClips[i] = { ...clip, status: 'done' };
+              hasNewDone = true;
             }
           }
         }
+
+        if (hasNewDone) {
+          await LocalStorage.setItem(DRAFT_KEY, JSON.stringify(loadedClips));
+          onUpdateWorkshopDone?.(videoId, loadedClips.filter((c) => c.status === 'done').length);
+        }
+
         if (isMounted) {
+          setClips([...loadedClips]);
+          clipsRef.current = loadedClips;
           setDownloadedClips(existingDownloadMap);
           downloadedClipsRef.current = existingDownloadMap;
         }
@@ -321,7 +365,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
           }
         } catch (streamErr: any) {
           console.warn('[Feed] Stream fetch error:', streamErr.message);
-          if (streamErr.code === 'RATE_LIMIT_EXCEEDED' || (streamErr.message && streamErr.message.includes('429'))) {
+          if (isRateLimitOrRestrictedError(streamErr)) {
             setCookiesModalVisible(true);
           }
           ToastManager.show({
@@ -534,7 +578,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
             }
           }
         } catch (e: any) {
-          if (e?.code === 'RATE_LIMIT_EXCEEDED' || (e?.message && e.message.includes('429'))) {
+          if (isRateLimitOrRestrictedError(e)) {
             setCookiesModalVisible(true);
           }
           ToastManager.show({
@@ -766,6 +810,19 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
       setDownloadedClips((prev) => ({ ...prev, [clipId]: true }));
       downloadedClipsRef.current[clipId] = true;
 
+      // Update status klip menjadi 'done' dan simpan ke LocalStorage secara permanen
+      const updated = clipsRef.current.map((c) => {
+        if (c.id === clipId) {
+          return { ...c, status: 'done' as const };
+        }
+        return c;
+      });
+      clipsRef.current = updated;
+      setClips(updated);
+      await LocalStorage.setItem(DRAFT_KEY, JSON.stringify(updated));
+      const doneCount = updated.filter((c) => c.status === 'done').length;
+      onUpdateWorkshopDone?.(videoId, doneCount);
+
       // Jika klip yang baru selesai diunduh adalah klip yang sedang aktif ditonton, langsung switch ke local playback
       const currentActiveId = activeClipIdRef.current || activeClipId;
       if (currentActiveId === clipId) {
@@ -780,7 +837,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
       });
     } catch (err: any) {
       setDownloadingClips((prev) => ({ ...prev, [clipId]: false }));
-      if (err.code === 'RATE_LIMIT_EXCEEDED' || (err.message && err.message.includes('429'))) {
+      if (isRateLimitOrRestrictedError(err)) {
         setCookiesModalVisible(true);
       }
       ToastManager.show({

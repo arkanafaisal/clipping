@@ -45,10 +45,12 @@ def get_direct_stream_url(video_id: str, ydl_opts: dict, cookie_path: str = None
                 return None, "STREAM_NOT_FOUND", "Direct stream URL tidak ditemukan dalam respon metadata YouTube."
         except Exception as e:
             error_msg = str(e)
-            code = "RATE_LIMIT_EXCEEDED" if ("429" in error_msg or "rate limit" in error_msg.lower()) else "EXTRACTOR_ERROR"
+            is_limit = any(k in error_msg.lower() for k in ["429", "403", "forbidden", "access denied", "rate limit", "bot", "captcha", "sign in"])
+            code = "RATE_LIMIT_EXCEEDED" if is_limit else "EXTRACTOR_ERROR"
             return None, code, error_msg
 
     # Jika tidak ada cookies, kembalikan error dari percobaan anonim
     error_msg = first_error_msg or "Direct stream URL tidak ditemukan dalam respon metadata YouTube."
-    code = "RATE_LIMIT_EXCEEDED" if ("429" in error_msg or "rate limit" in error_msg.lower()) else ("STREAM_NOT_FOUND" if "not found" in error_msg.lower() else "EXTRACTOR_ERROR")
+    is_limit = any(k in error_msg.lower() for k in ["429", "403", "forbidden", "access denied", "rate limit", "bot", "captcha", "sign in"])
+    code = "RATE_LIMIT_EXCEEDED" if is_limit else ("STREAM_NOT_FOUND" if "not found" in error_msg.lower() else "EXTRACTOR_ERROR")
     return None, code, error_msg
