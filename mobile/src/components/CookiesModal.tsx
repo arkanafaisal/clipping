@@ -10,7 +10,7 @@ import {
   Platform,
   ActivityIndicator,
 } from 'react-native';
-import { syncCookiesFromGoogleDrive, extractGoogleDriveFileId } from '../services/api';
+import { syncCookiesFromGoogleDrive, extractGoogleDriveFileId, isGoogleDriveFolderLink } from '../services/api';
 import { ToastManager } from './Toast';
 
 interface CookiesModalProps {
@@ -33,6 +33,11 @@ export const CookiesModal: React.FC<CookiesModalProps> = ({
     const trimmed = driveLink.trim();
     if (!trimmed) {
       setErrorMessage('Tolong masukkan link atau ID file Google Drive cookies Anda.');
+      return;
+    }
+
+    if (isGoogleDriveFolderLink(trimmed)) {
+      setErrorMessage('Link yang Anda masukkan adalah link FOLDER. Harap buka file cookies.txt di Google Drive, lalu salin link langsung dari file tersebut.');
       return;
     }
 

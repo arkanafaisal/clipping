@@ -1,6 +1,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { LocalStorage } from './storage';
 import { STREAM_YTDL_OPTS, HEATMAP_YTDL_OPTS, PRIME_CLIP_DOWNLOAD_OPTS } from '../constants/ytdlp';
+import { DEFAULT_GDRIVE_DOWNLOAD_CONFIG } from '../constants/gdrive';
 
 export interface ClipItem {
   id: string;
@@ -62,7 +63,7 @@ export const API_ERROR_MAP: Record<string, string> = {
   STREAM_NOT_FOUND: 'Direct stream video tidak ditemukan atau video dibatasi (Private/Age-restricted).',
   HEATMAP_NOT_FOUND: 'Video ini belum memiliki data Most Replayed (Heatmap) dari YouTube.',
   RATE_LIMIT_EXCEEDED: 'Batas permintaan YouTube terlampaui (Error 429). Silakan tunggu beberapa menit atau gunakan cookies.',
-  GDRIVE_DOWNLOAD_FAILED: 'Gagal mengunduh file dari Google Drive. Pastikan akses file diatur ke Siapa saja yang memiliki link (Publik).',
+  GDRIVE_DOWNLOAD_FAILED: 'Gagal mengunduh file dari Google Drive. Pastikan yang dimasukkan adalah link file cookies.txt langsung (bukan link folder) dan akses diatur ke Publik.',
   EXTRACTOR_ERROR: 'Ekstraktor video mengalami kendala saat membaca metadata YouTube.',
   INVALID_PARAMS: 'Parameter permintaan tidak lengkap atau tidak valid.',
   INVALID_RANGE: 'Rentang waktu klip tidak valid.',
@@ -388,11 +389,21 @@ export async function getValidCookiesPath(): Promise<string | undefined> {
 }
 
 /**
+ * Memeriksa apakah link yang dimasukkan adalah link folder Google Drive.
+ */
+export function isGoogleDriveFolderLink(input: string): boolean {
+  if (!input) return false;
+  return input.includes('/folders/') || input.includes('folders%2F') || input.includes('/drive/folders');
+}
+
+/**
  * Ekstraksi Google Drive File ID dari URL publik atau raw input string.
  */
 export function extractGoogleDriveFileId(input: string): string | null {
   if (!input) return null;
   const trimmed = input.trim();
+  if (isGoogleDriveFolderLink(trimmed)) return null;
+
   const dMatch = trimmed.match(/\/d\/([a-zA-Z0-9_-]+)/);
   if (dMatch && dMatch[1]) return dMatch[1];
   const idMatch = trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/);
@@ -409,6 +420,13 @@ export function extractGoogleDriveFileId(input: string): string | null {
  * Menyimpan path ke in-memory cache dan LocalStorage setelah berhasil.
  */
 export async function syncCookiesFromGoogleDrive(linkOrId: string): Promise<string> {
+  if (isGoogleDriveFolderLink(linkOrId)) {
+    throw new ApiError(
+      'INVALID_PARAMS',
+      'Link yang dimasukkan adalah link FOLDER. Harap buka file cookies.txt di Google Drive, lalu salin link langsung dari file tersebut.'
+    );
+  }
+
   const fileId = extractGoogleDriveFileId(linkOrId);
   if (!fileId) {
     throw new ApiError('INVALID_PARAMS', 'Link Google Drive tidak valid atau ID file tidak ditemukan.');
@@ -421,22 +439,26 @@ export async function syncCookiesFromGoogleDrive(linkOrId: string): Promise<stri
   try {
     let response: Response;
     try {
-      response = await fetch(`${EMBEDDED_API_BASE_URL}/api/download-gdrive-file`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          file_id: fileId,
-          output_path: targetPath,
-        }),
-        signal: controller.signal,
-      });
-    } catch {
+      // Prioritaskan DEV_API_BASE_URL (port 3006 / Termux)
       response = await fetch(`${DEV_API_BASE_URL}/api/download-gdrive-file`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           file_id: fileId,
           output_path: targetPath,
+          config: DEFAULT_GDRIVE_DOWNLOAD_CONFIG,
+        }),
+        signal: controller.signal,
+      });
+    } catch {
+      // Fallback ke EMBEDDED_API_BASE_URL (port 8000)
+      response = await fetch(`${EMBEDDED_API_BASE_URL}/api/download-gdrive-file`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          file_id: fileId,
+          output_path: targetPath,
+          config: DEFAULT_GDRIVE_DOWNLOAD_CONFIG,
         }),
         signal: controller.signal,
       });

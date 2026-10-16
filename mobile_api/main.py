@@ -131,6 +131,7 @@ def download_gdrive_file():
         body = request.get_json(silent=True) or {}
         file_id = body.get("file_id")
         output_path = body.get("output_path")
+        cfg = body.get("config") or {}
 
         if not file_id or not output_path:
             return jsonify({
@@ -143,18 +144,54 @@ def download_gdrive_file():
             os.makedirs(output_dir, exist_ok=True)
 
         import requests
-        download_url = f"https://drive.usercontent.google.com/download?id={file_id}&export=download"
-        res = requests.get(download_url, stream=True, timeout=30)
-        
-        if res.status_code != 200:
-            fallback_url = f"https://drive.google.com/uc?export=download&id={file_id}"
-            res = requests.get(fallback_url, stream=True, timeout=30)
+        import re
 
-        if res.status_code != 200:
+        session = requests.Session()
+        headers = cfg.get("headers") or {}
+        if headers:
+            session.headers.update(headers)
+
+        timeout = cfg.get("timeout", 30)
+        url_templates = cfg.get("urlTemplates") or [
+            "https://drive.usercontent.google.com/download?id={file_id}&export=download&authuser=0&confirm=t",
+            "https://drive.google.com/uc?export=download&id={file_id}&confirm=t",
+            "https://drive.google.com/uc?id={file_id}&export=download",
+        ]
+        urls_to_try = [tpl.replace("{file_id}", file_id) for tpl in url_templates]
+
+        res = None
+        for u in urls_to_try:
+            try:
+                temp_res = session.get(u, stream=True, timeout=timeout)
+                if temp_res.status_code == 200:
+                    res = temp_res
+                    break
+            except Exception:
+                continue
+
+        if not res or res.status_code != 200:
+            status_code = res.status_code if res else 500
             return jsonify({
                 "message": "GDRIVE_DOWNLOAD_FAILED",
-                "error": f"HTTP {res.status_code}: Gagal mengunduh file publik dari Google Drive."
+                "error": f"HTTP {status_code}: Gagal mengunduh file publik dari Google Drive. Pastikan file bukan folder dan link dapat diakses oleh publik."
             }), 400
+
+        # Cek jika respons awal adalah halaman HTML konfirmasi virus scan Google
+        content_type = res.headers.get("Content-Type", "")
+        if "text/html" in content_type:
+            confirm_token = None
+            for k, v in session.cookies.items():
+                if k.startswith("download_warning"):
+                    confirm_token = v
+                    break
+            if not confirm_token:
+                match = re.search(r'confirm=([0-9A-Za-z_]+)', res.text)
+                if match:
+                    confirm_token = match.group(1)
+
+            if confirm_token:
+                confirm_url = f"https://drive.google.com/uc?export=download&id={file_id}&confirm={confirm_token}"
+                res = session.get(confirm_url, stream=True, timeout=30)
 
         with open(output_path, "wb") as f:
             for chunk in res.iter_content(chunk_size=8192):
@@ -166,6 +203,19 @@ def download_gdrive_file():
                 "message": "GDRIVE_DOWNLOAD_FAILED",
                 "error": "File hasil unduhan Google Drive kosong atau tidak tersimpan."
             }), 500
+
+        # Validasi isi file: pastikan bukan halaman HTML (misal preview folder atau pesan error HTML)
+        with open(output_path, "rb") as f:
+            header_sample = f.read(512).decode('utf-8', errors='ignore').strip()
+            if header_sample.startswith("<!DOCTYPE html") or header_sample.startswith("<html"):
+                try:
+                    os.remove(output_path)
+                except Exception:
+                    pass
+                return jsonify({
+                    "message": "GDRIVE_DOWNLOAD_FAILED",
+                    "error": "Link Google Drive yang dimasukkan mengarah ke halaman HTML atau Folder, bukan file cookies.txt. Harap salin link langsung dari file cookies.txt."
+                }), 400
 
         return jsonify({
             "status": "success",
