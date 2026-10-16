@@ -135,8 +135,9 @@ def download_gdrive_file():
 
         if not file_id or not output_path:
             return jsonify({
+                "code": "INVALID_PARAMS",
                 "message": "INVALID_PARAMS",
-                "error": "Parameter 'file_id' dan 'output_path' wajib disertakan."
+                "error": "Parameter 'file_id' and 'output_path' are required"
             }), 400
 
         output_dir = os.path.dirname(output_path)
@@ -160,20 +161,26 @@ def download_gdrive_file():
         urls_to_try = [tpl.replace("{file_id}", file_id) for tpl in url_templates]
 
         res = None
+        last_req_error = None
         for u in urls_to_try:
             try:
                 temp_res = session.get(u, stream=True, timeout=timeout)
                 if temp_res.status_code == 200:
                     res = temp_res
                     break
-            except Exception:
+                else:
+                    last_req_error = f"HTTP {temp_res.status_code} from {u}"
+            except Exception as e_req:
+                last_req_error = str(e_req)
                 continue
 
         if not res or res.status_code != 200:
             status_code = res.status_code if res else 500
+            err_detail = last_req_error or f"HTTP {status_code}: Google Drive request failed"
             return jsonify({
+                "code": "GDRIVE_DOWNLOAD_FAILED",
                 "message": "GDRIVE_DOWNLOAD_FAILED",
-                "error": f"HTTP {status_code}: Gagal mengunduh file publik dari Google Drive. Pastikan file bukan folder dan link dapat diakses oleh publik."
+                "error": err_detail
             }), 400
 
         # Cek jika respons awal adalah halaman HTML konfirmasi virus scan Google
@@ -191,7 +198,14 @@ def download_gdrive_file():
 
             if confirm_token:
                 confirm_url = f"https://drive.google.com/uc?export=download&id={file_id}&confirm={confirm_token}"
-                res = session.get(confirm_url, stream=True, timeout=30)
+                try:
+                    res = session.get(confirm_url, stream=True, timeout=timeout)
+                except Exception as e_conf:
+                    return jsonify({
+                        "code": "GDRIVE_DOWNLOAD_FAILED",
+                        "message": "GDRIVE_DOWNLOAD_FAILED",
+                        "error": str(e_conf)
+                    }), 500
 
         with open(output_path, "wb") as f:
             for chunk in res.iter_content(chunk_size=8192):
@@ -200,8 +214,9 @@ def download_gdrive_file():
 
         if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
             return jsonify({
-                "message": "GDRIVE_DOWNLOAD_FAILED",
-                "error": "File hasil unduhan Google Drive kosong atau tidak tersimpan."
+                "code": "GDRIVE_FILE_EMPTY",
+                "message": "GDRIVE_FILE_EMPTY",
+                "error": f"Downloaded file at '{output_path}' is empty or not created"
             }), 500
 
         # Validasi isi file: pastikan bukan halaman HTML (misal preview folder atau pesan error HTML)
@@ -213,8 +228,9 @@ def download_gdrive_file():
                 except Exception:
                     pass
                 return jsonify({
-                    "message": "GDRIVE_DOWNLOAD_FAILED",
-                    "error": "Link Google Drive yang dimasukkan mengarah ke halaman HTML atau Folder, bukan file cookies.txt. Harap salin link langsung dari file cookies.txt."
+                    "code": "GDRIVE_HTML_CONTENT",
+                    "message": "GDRIVE_HTML_CONTENT",
+                    "error": "Google Drive returned an HTML page instead of plain text cookies.txt"
                 }), 400
 
         return jsonify({
@@ -223,6 +239,7 @@ def download_gdrive_file():
         }), 200
     except Exception as e:
         return jsonify({
+            "code": "GDRIVE_DOWNLOAD_FAILED",
             "message": "GDRIVE_DOWNLOAD_FAILED",
             "error": str(e)
         }), 500
