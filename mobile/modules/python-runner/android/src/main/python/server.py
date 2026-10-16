@@ -136,61 +136,77 @@ def download_clip(video_id=None):
         ydl_opts["download_ranges"] = download_range_func(None, [(start_num, end_num)])
         ydl_opts["force_keyframes_at_cuts"] = True
 
-        source_url = stream_url if stream_url else f"https://www.youtube.com/watch?v={vid}"
-        extracted_stream_url = stream_url
         info_json_path = ydl_opts.get("load_info_filename")
+        youtube_url = f"https://www.youtube.com/watch?v={vid}"
 
-        # 1. Coba Mode Anonim
-        opts_anon = dict(ydl_opts)
-        opts_anon.pop('cookiefile', None)
-
-        first_error_msg = None
-        download_success = False
-
-        try:
-            with yt_dlp.YoutubeDL(opts_anon) as ydl:
-                ydl.download([source_url])
-            if os.path.exists(output_path):
-                download_success = True
-        except Exception as e_anon:
-            first_error_msg = str(e_anon)
-
-        # 2. Coba Mode Cookies jika anonim gagal
-        if not download_success and cookie_path and os.path.exists(cookie_path):
-            opts_cookies = dict(ydl_opts)
-            opts_cookies['cookiefile'] = cookie_path
+        def execute_dl(target_url):
+            # 1. Mode Anonim (tanpa cookies)
+            opts_anon = dict(ydl_opts)
+            opts_anon.pop('cookiefile', None)
+            first_err = None
             try:
-                with yt_dlp.YoutubeDL(opts_cookies) as ydl:
-                    ydl.download([source_url])
+                with yt_dlp.YoutubeDL(opts_anon) as ydl:
+                    ydl.download([target_url])
                 if os.path.exists(output_path):
-                    download_success = True
-            except Exception as e_cookies:
-                first_error_msg = str(e_cookies)
+                    return True, None
+            except Exception as e_anon:
+                first_err = str(e_anon)
 
-        if not extracted_stream_url and info_json_path and os.path.exists(info_json_path):
+            # 2. Mode Cookies (jika anonim gagal & cookie_path tersedia)
+            if cookie_path and os.path.exists(cookie_path):
+                opts_cookies = dict(ydl_opts)
+                opts_cookies['cookiefile'] = cookie_path
+                try:
+                    with yt_dlp.YoutubeDL(opts_cookies) as ydl:
+                        ydl.download([target_url])
+                    if os.path.exists(output_path):
+                        return True, None
+                except Exception as e_cookies:
+                    return False, str(e_cookies)
+
+            return False, first_err
+
+        # 1. Jika frontend mengirimkan stream_url ter-cache, coba gunakan URL tersebut langsung
+        if stream_url:
+            success, _ = execute_dl(stream_url)
+            if success:
+                return jsonify({
+                    "status": "success",
+                    "output_path": output_path,
+                    "stream_url": stream_url
+                }), 200
+
+        # 2. Get baru dari YouTube (jika tanpa cache atau jika stream_url kedaluwarsa)
+        success, last_error = execute_dl(youtube_url)
+
+        # Ekstraksi URL baru yang segar untuk dikembalikan ke frontend
+        new_stream_url = None
+        gen_info = output_path.rsplit(".", 1)[0] + ".info.json"
+        target_info = info_json_path if (info_json_path and os.path.exists(info_json_path)) else (gen_info if os.path.exists(gen_info) else None)
+        if target_info and os.path.exists(target_info):
             try:
-                with open(info_json_path, 'r', encoding='utf-8') as f:
+                with open(target_info, 'r', encoding='utf-8') as f:
                     info_data = json.load(f)
-                    extracted_stream_url = info_data.get('url') or (info_data.get('formats', [{}])[-1].get('url'))
+                    new_stream_url = info_data.get('url') or (info_data.get('formats', [{}])[-1].get('url'))
             except Exception:
                 pass
 
-        if not download_success or not os.path.exists(output_path):
-            err_text = first_error_msg or f"File output tidak ditemukan di '{output_path}' setelah eksekusi download selesai."
-            is_limit = any(k in err_text.lower() for k in ["429", "403", "forbidden", "access denied", "rate limit", "bot", "captcha", "code 8", "sign in"])
-            code = "RATE_LIMIT_EXCEEDED" if is_limit else "DOWNLOAD_FAILED"
-            status_code = 429 if code == "RATE_LIMIT_EXCEEDED" else 500
+        if success and os.path.exists(output_path):
             return jsonify({
-                "message": code,
-                "error": err_text,
-                "stream_url": extracted_stream_url
-            }), status_code
+                "status": "success",
+                "output_path": output_path,
+                "stream_url": new_stream_url
+            }), 200
 
+        err_text = last_error or f"File output tidak ditemukan di '{output_path}' setelah eksekusi download selesai."
+        is_limit = any(k in err_text.lower() for k in ["429", "403", "forbidden", "access denied", "rate limit", "bot", "captcha", "code 8", "sign in"])
+        code = "RATE_LIMIT_EXCEEDED" if is_limit else "DOWNLOAD_FAILED"
+        status_code = 429 if code == "RATE_LIMIT_EXCEEDED" else 500
         return jsonify({
-            "status": "success",
-            "output_path": output_path,
-            "stream_url": extracted_stream_url
-        }), 200
+            "message": code,
+            "error": err_text,
+            "stream_url": new_stream_url
+        }), status_code
     except Exception as e:
         return jsonify({
             "message": "DOWNLOAD_FAILED",

@@ -498,8 +498,89 @@ export async function checkClipFileExists(fileUri: string, forceCheckDisk: boole
 
 // 2-Tier Caching untuk URL Stream Pengunduhan Klip (Key = videoId, Value = Direct Stream URL)
 // Tier 1: In-Memory Map (0ms latency, zero disk I/O)
-// Tier 2: Persistent LocalStorage (bertahan saat aplikasi ditutup/pindah hari)
+// Tier 2: File Fisik di shared folder (/storage/emulated/0/clipping/output/<videoId>/stream_url.txt) & LocalStorage
 const DOWNLOAD_STREAM_MEMORY_MAP = new Map<string, string>();
+
+export function getDownloadStreamCacheFilePath(videoId: string): { fileUri: string; nativePath: string } {
+  const nativePath = `${SHARED_CLIPPING_OUTPUT_DIR}/${videoId}/stream_url.txt`;
+  return { fileUri: `file://${nativePath}`, nativePath };
+}
+
+/**
+ * Mengambil cached download stream URL dengan arsitektur 2-Tier:
+ * 1. Cek Tier 1 (In-Memory Map)
+ * 2. Cek Tier 2 (File stream_url.txt di folder video pada shared storage)
+ * 3. Fallback Tier 2 (LocalStorage internal)
+ */
+export async function getCachedDownloadStreamUrl(videoId: string): Promise<string | undefined> {
+  // 1. Cek Tier 1
+  if (DOWNLOAD_STREAM_MEMORY_MAP.has(videoId)) {
+    const mem = DOWNLOAD_STREAM_MEMORY_MAP.get(videoId);
+    if (mem) return mem;
+  }
+
+  // 2. Cek Tier 2: File Fisik di shared directory
+  try {
+    const { fileUri } = getDownloadStreamCacheFilePath(videoId);
+    const info = await FileSystem.getInfoAsync(fileUri);
+    if (info.exists && !info.isDirectory) {
+      const saved = await FileSystem.readAsStringAsync(fileUri);
+      if (saved && saved.trim().startsWith('http')) {
+        const trimmed = saved.trim();
+        DOWNLOAD_STREAM_MEMORY_MAP.set(videoId, trimmed);
+        return trimmed;
+      }
+    }
+  } catch {}
+
+  // 3. Fallback Tier 2: LocalStorage
+  try {
+    const savedLocal = await LocalStorage.getItem(`download_stream_${videoId}`);
+    if (savedLocal && savedLocal.trim().startsWith('http')) {
+      const trimmed = savedLocal.trim();
+      DOWNLOAD_STREAM_MEMORY_MAP.set(videoId, trimmed);
+      return trimmed;
+    }
+  } catch {}
+
+  return undefined;
+}
+
+/**
+ * Menyimpan URL download stream ke Tier 1 dan Tier 2 (file stream_url.txt & LocalStorage).
+ */
+export async function saveCachedDownloadStreamUrl(videoId: string, streamUrl: string): Promise<void> {
+  if (!streamUrl) return;
+  DOWNLOAD_STREAM_MEMORY_MAP.set(videoId, streamUrl);
+
+  try {
+    const { fileUri } = getDownloadStreamCacheFilePath(videoId);
+    const dirUri = `file://${SHARED_CLIPPING_OUTPUT_DIR}/${videoId}`;
+    const dirInfo = await FileSystem.getInfoAsync(dirUri);
+    if (!dirInfo.exists) {
+      await FileSystem.makeDirectoryAsync(dirUri, { intermediates: true });
+    }
+    await FileSystem.writeAsStringAsync(fileUri, streamUrl);
+  } catch {}
+
+  try {
+    await LocalStorage.setItem(`download_stream_${videoId}`, streamUrl);
+  } catch {}
+}
+
+/**
+ * Menghapus cache URL download stream dari Tier 1 dan Tier 2 jika kedaluwarsa.
+ */
+export async function clearCachedDownloadStreamUrl(videoId: string): Promise<void> {
+  DOWNLOAD_STREAM_MEMORY_MAP.delete(videoId);
+  try {
+    const { fileUri } = getDownloadStreamCacheFilePath(videoId);
+    await FileSystem.deleteAsync(fileUri, { idempotent: true });
+  } catch {}
+  try {
+    await LocalStorage.removeItem(`download_stream_${videoId}`);
+  } catch {}
+}
 
 /**
  * Mendownload rentang klip tertentu secara dinamis dengan kualitas prime dan stream reconnect.
@@ -515,19 +596,8 @@ export async function downloadClip(
 ): Promise<{ status: string; output_path: string; fileUri: string; stream_url?: string }> {
   const { fileUri, nativePath } = getClipOutputFilePath(videoId, start, end, rank);
 
-  // 1. Cek Tier 1: In-Memory Map untuk URL stream download
-  let cachedStreamUrl = DOWNLOAD_STREAM_MEMORY_MAP.get(videoId);
-
-  // 2. Cek Tier 2: Persistent LocalStorage jika In-Memory belum ada
-  if (!cachedStreamUrl) {
-    try {
-      const saved = await LocalStorage.getItem(`download_stream_${videoId}`);
-      if (saved) {
-        cachedStreamUrl = saved;
-        DOWNLOAD_STREAM_MEMORY_MAP.set(videoId, saved);
-      }
-    } catch {}
-  }
+  // 1. Cek 2-Tier Cache di Frontend sebelum memanggil server
+  const cachedStreamUrl = await getCachedDownloadStreamUrl(videoId);
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 menit timeout download klip
@@ -561,21 +631,18 @@ export async function downloadClip(
 
     const data = await response.json().catch(() => ({}));
 
-    // Tangkap download stream URL dari response server dan simpan ke Tier 1 & Tier 2
-    if (data.stream_url) {
-      DOWNLOAD_STREAM_MEMORY_MAP.set(videoId, data.stream_url);
-      LocalStorage.setItem(`download_stream_${videoId}`, data.stream_url).catch(() => {});
+    // Tangkap download stream URL dari response server dan simpan jika baru / berbeda
+    if (data.stream_url && data.stream_url !== cachedStreamUrl) {
+      await saveCachedDownloadStreamUrl(videoId, data.stream_url);
     }
 
     if (!response.ok || data.status !== 'success') {
       const code = data.message || (response.status === 400 ? 'INVALID_PARAMS' : 'DOWNLOAD_FAILED');
       const rawError = data.error || `HTTP ${response.status}: Gagal mengunduh klip`;
 
-      // Jika error terindikasi URL kadaluwarsa (misal 403 atau rate limit), bersihkan cache agar request berikutnya mengambil baru
+      // Jika error terindikasi URL kadaluwarsa (misal 403 atau rate limit), bersihkan cache Tier 1 & Tier 2
       if (rawError.includes('403') || rawError.includes('expired') || code === 'RATE_LIMIT_EXCEEDED') {
-        DOWNLOAD_STREAM_MEMORY_MAP.delete(videoId);
-        LocalStorage.removeItem(`download_stream_${videoId}`).catch(() => {});
-        // Hapus info JSON cache dari frontend (bukan server)
+        await clearCachedDownloadStreamUrl(videoId);
         FileSystem.deleteAsync(`file://${infoJsonPath}`, { idempotent: true }).catch(() => {});
       }
 
