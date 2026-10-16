@@ -266,6 +266,20 @@ def sync_storage():
             "error": str(e)
         }), 500
 
+@app.route("/api/check-file", methods=["POST"])
+def check_file():
+    """
+    Memeriksa keberadaan file di penyimpanan HP secara native dari Termux Linux.
+    """
+    try:
+        body = request.get_json(silent=True) or {}
+        path = body.get("path")
+        if not path:
+            return jsonify({"exists": False}), 400
+        return jsonify({"exists": os.path.exists(path)}), 200
+    except Exception as e:
+        return jsonify({"exists": False, "error": str(e)}), 500
+
 def start_server(port=3006):
     print(f"[API] Starting Pure Pass-Through Flask Server di port {port}...")
     app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False, threaded=True)

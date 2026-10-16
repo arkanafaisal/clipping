@@ -343,19 +343,42 @@ export function getClipOutputFilePath(
 
 /**
  * Memeriksa keberadaan file klip video di local file system dengan in-memory caching.
+ * Menggunakan deteksi lokal FileSystem Expo dan fallback ke Termux native check jika di luar sandbox.
  */
 export async function checkClipFileExists(fileUri: string, forceCheckDisk: boolean = false): Promise<boolean> {
   if (!forceCheckDisk && DOWNLOADED_CLIPS_CACHE.has(fileUri)) {
     return DOWNLOADED_CLIPS_CACHE.get(fileUri) || false;
   }
+  // 1. Cek langsung via FileSystem Expo
   try {
     const info = await FileSystem.getInfoAsync(fileUri);
-    const exists = Boolean(info.exists);
-    DOWNLOADED_CLIPS_CACHE.set(fileUri, exists);
-    return exists;
-  } catch {
-    return false;
-  }
+    if (info.exists) {
+      DOWNLOADED_CLIPS_CACHE.set(fileUri, true);
+      return true;
+    }
+  } catch {}
+
+  // 2. Fallback cek native via Termux Linux (jika di luar sandbox Android)
+  try {
+    const nativePath = fileUri.replace(/^file:\/\//, '');
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 1200);
+    const res = await fetch(`${DEV_API_BASE_URL}/api/check-file`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: nativePath }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    if (res.ok) {
+      const data = await res.json();
+      const exists = Boolean(data.exists);
+      DOWNLOADED_CLIPS_CACHE.set(fileUri, exists);
+      return exists;
+    }
+  } catch {}
+
+  return false;
 }
 
 /**

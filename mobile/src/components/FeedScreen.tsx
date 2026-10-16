@@ -713,7 +713,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
                     downloadedClips[activeClip.id] && styles.downloadBtnSuccess,
                     pressed && { opacity: 0.7 },
                   ]}
-                  onPressIn={handleDownloadClip}
+                  onPress={handleDownloadClip}
                 >
                   {downloadingClips[activeClip.id] ? (
                     <ActivityIndicator size="small" color="#38bdf8" />
