@@ -34,5 +34,4 @@ This file contains a growing ruleset that improves over time. At session start, 
 10. [TOOL] Never stage or commit temporary files, scratch scripts, debug logs, or explanation markdown files (such as explanation*.md) into Git commits, and always clean up temporary development artifacts before committing because repository history must remain strictly focused on clean project code.
 11. [CODE] Never add speculative UI loading states or redundant pre-flight ping checks before main API calls unless explicitly requested, because direct async/await on the primary endpoint keeps code clean and minimal.
 12. [ARCH] Always design backend API responses to return standardized error codes instead of raw display strings, and enforce zero caching, zero rate limiting, and zero data processing on the Python server because all formatting, dictionaries, caching, and rate limiting belong strictly in the frontend.
-13. [UX] Always decouple manual media playback toggle buttons from automated timeline seek, debounce freeze, and clip navigation events so automated background playback never mutates manual UI button state.
-
+13. [PROCESS] Always document each Git commit in changelog.md with its short commit ID, structural context, and key code diff explanations (what was removed/changed/added and why) immediately upon committing because commit messages alone lack diff context.
