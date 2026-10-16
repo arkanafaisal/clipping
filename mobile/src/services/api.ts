@@ -24,10 +24,31 @@ export interface StreamResponse {
 
 import { startPythonServer } from '../../modules/python-runner';
 
-// Port default: 8080 (Embedded Chaquopy internal di dalam APK) dengan fallback ke 3006 (Termux / Localhost)
-export let API_BASE_URL = 'http://127.0.0.1:8080';
+// 1. EMBEDDED INTERNAL SERVER (Port 8080):
+// Khusus endpoint stabil V1 yang sudah tertanam dan teruji di dalam APK build:
+// - GET /ping (koneksi internal Chaquopy)
+// - POST /api/stream (direct stream URL extraction)
+// - POST /api/heatmap (metadata & most replayed raw extraction)
+export let EMBEDDED_API_BASE_URL = 'http://127.0.0.1:8080';
 
+export function setEmbeddedApiBaseUrl(url: string) {
+  EMBEDDED_API_BASE_URL = url;
+}
+
+// 2. MOBILE DEV / MOCK SERVER (Port 3006):
+// Khusus endpoint update baru & eksperimental yang dikembangkan terpisah di mobile_api (port 3006):
+// - POST /api/download-clip (pengunduhan klip dinamis yt-dlp)
+// - Fitur lanjutan berikutnya (subtitles, full download, mock)
+export let DEV_API_BASE_URL = 'http://127.0.0.1:3006';
+
+export function setDevApiBaseUrl(url: string) {
+  DEV_API_BASE_URL = url;
+}
+
+// Backward compatibility alias jika ada komponen yang memanggil API_BASE_URL
+export let API_BASE_URL = EMBEDDED_API_BASE_URL;
 export function setApiBaseUrl(url: string) {
+  EMBEDDED_API_BASE_URL = url;
   API_BASE_URL = url;
 }
 
@@ -45,7 +66,8 @@ export const API_ERROR_MAP: Record<string, string> = {
   INVALID_PARAMS: 'Parameter pengunduhan klip tidak lengkap.',
   INVALID_RANGE: 'Rentang waktu klip tidak valid.',
   DOWNLOAD_FAILED: 'Gagal mengunduh klip video dari YouTube.',
-  SERVER_OFFLINE: 'Server internal Python belum aktif pada port 8080 (APK) maupun 3006 (Termux).',
+  SERVER_OFFLINE: 'Server internal Python belum aktif pada port 8080.',
+  DEV_SERVER_OFFLINE: 'Server Mobile Dev/Mock API belum aktif pada port 3006.',
   INTERNAL_ERROR: 'Terjadi kesalahan internal pada server Python.',
   NETWORK_ERROR: 'Gagal terhubung ke jaringan internal server.',
 };
@@ -95,27 +117,17 @@ async function pingDirect(baseUrl: string): Promise<{ status: string; message?: 
 }
 
 /**
- * Ping Python server.
- * Mendeteksi secara dinamis apakah server berjalan di port 8080 (Chaquopy internal APK)
- * atau port 3006 (Termux / Desktop simulator).
- * Jika keduanya belum aktif pada Android, otomatis memicu "percikan" startPythonServer().
+ * Ping Python server internal Chaquopy (port 8080).
+ * Jika belum aktif pada Android, otomatis memicu "percikan" startPythonServer().
  */
 export async function pingServer(): Promise<{ status: string; port: number; message?: string }> {
   // 1. Coba port 8080 dulu (Embedded APK Chaquopy)
   try {
-    const res8080 = await pingDirect('http://127.0.0.1:8080');
-    API_BASE_URL = 'http://127.0.0.1:8080';
+    const res8080 = await pingDirect(EMBEDDED_API_BASE_URL);
     return { status: 'ok', port: 8080, message: res8080.message || 'Server internal Chaquopy aktif (port 8080)' };
   } catch {}
 
-  // 2. Coba port 3006 (Termux / Simulator)
-  try {
-    const res3006 = await pingDirect('http://127.0.0.1:3006');
-    API_BASE_URL = 'http://127.0.0.1:3006';
-    return { status: 'ok', port: 3006, message: res3006.message || 'Server Termux/Simulasi aktif (port 3006)' };
-  } catch {}
-
-  // 3. Jika kedua port belum aktif, beri "percikan" startPythonServer() (native Chaquopy di Android)
+  // 2. Beri "percikan" startPythonServer() jika di Android native
   try {
     startPythonServer();
   } catch (err) {
@@ -126,18 +138,23 @@ export async function pingServer(): Promise<{ status: string; port: number; mess
   await new Promise((r) => setTimeout(r, 1200));
 
   try {
-    const resRetry8080 = await pingDirect('http://127.0.0.1:8080');
-    API_BASE_URL = 'http://127.0.0.1:8080';
+    const resRetry8080 = await pingDirect(EMBEDDED_API_BASE_URL);
     return { status: 'ok', port: 8080, message: resRetry8080.message || 'Server internal Chaquopy berhasil dinyalakan (port 8080)' };
   } catch {}
 
+  throw new ApiError('SERVER_OFFLINE', 'Server Python internal (port 8080) belum aktif.');
+}
+
+/**
+ * Ping server pengembangan / mock eksternal (port 3006).
+ */
+export async function pingDevServer(): Promise<{ status: string; port: number; message?: string }> {
   try {
-    const resRetry3006 = await pingDirect('http://127.0.0.1:3006');
-    API_BASE_URL = 'http://127.0.0.1:3006';
-    return { status: 'ok', port: 3006, message: resRetry3006.message || 'Server Termux aktif (port 3006)' };
+    const res3006 = await pingDirect(DEV_API_BASE_URL);
+    return { status: 'ok', port: 3006, message: res3006.message || 'Server Mobile API (port 3006) aktif' };
   } catch {}
 
-  throw new ApiError('SERVER_OFFLINE', 'Server Python belum aktif pada port 8080 (APK) maupun 3006 (Termux).');
+  throw new ApiError('DEV_SERVER_OFFLINE', `Server Mobile API belum aktif pada port 3006 (${DEV_API_BASE_URL}).`);
 }
 
 // In-Memory Stream Cache Map: Key = videoId, Value = direct stream URL
@@ -179,7 +196,7 @@ export async function fetchStreamUrl(videoId: string, forceRefresh: boolean = fa
   const timeoutId = setTimeout(() => controller.abort(), 20000);
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/stream`, {
+    const response = await fetch(`${EMBEDDED_API_BASE_URL}/api/stream`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -232,7 +249,7 @@ export async function fetchHeatmap(
   const timeoutId = setTimeout(() => controller.abort(), 20000);
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/heatmap`, {
+    const response = await fetch(`${EMBEDDED_API_BASE_URL}/api/heatmap`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -353,7 +370,7 @@ export async function downloadClip(
   const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 menit timeout download klip
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/download-clip`, {
+    const response = await fetch(`${DEV_API_BASE_URL}/api/download-clip`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -533,7 +550,7 @@ export async function fetchSubtitles(
   const timeoutId = setTimeout(() => controller.abort(), 30000);
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/subtitles`, {
+    const response = await fetch(`${DEV_API_BASE_URL}/api/subtitles`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
