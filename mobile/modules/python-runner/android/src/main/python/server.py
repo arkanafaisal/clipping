@@ -199,14 +199,11 @@ def download_clip(video_id=None):
             }), 200
 
         err_text = last_error or f"File output tidak ditemukan di '{output_path}' setelah eksekusi download selesai."
-        is_limit = any(k in err_text.lower() for k in ["429", "403", "forbidden", "access denied", "rate limit", "bot", "captcha", "code 8", "sign in"])
-        code = "RATE_LIMIT_EXCEEDED" if is_limit else "DOWNLOAD_FAILED"
-        status_code = 429 if code == "RATE_LIMIT_EXCEEDED" else 500
         return jsonify({
-            "message": code,
+            "message": "DOWNLOAD_FAILED",
             "error": err_text,
             "stream_url": new_stream_url
-        }), status_code
+        }), 500
     except Exception as e:
         return jsonify({
             "message": "DOWNLOAD_FAILED",

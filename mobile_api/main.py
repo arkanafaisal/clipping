@@ -103,7 +103,7 @@ def download_clip(video_id=None):
 
         path, ret_url, code, err = download_youtube_clip_range(vid, start, end, output_path, opts, stream_url, cookie_path)
         if code or err:
-            status_code = 400 if ("REQUIRED" in str(code) or "INVALID" in str(code)) else (429 if code == "RATE_LIMIT_EXCEEDED" else 500)
+            status_code = 400 if ("REQUIRED" in str(code) or "INVALID" in str(code)) else 500
             return jsonify({
                 "message": code or "DOWNLOAD_FAILED",
                 "error": err or str(code),

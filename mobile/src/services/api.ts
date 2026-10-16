@@ -113,7 +113,9 @@ export function isRateLimitOrRestrictedError(err: any): boolean {
     fullText.includes('rate limit') ||
     fullText.includes('bot') ||
     fullText.includes('sign in') ||
-    fullText.includes('code 8')
+    fullText.includes('code 8') ||
+    fullText.includes('requested format is not available') ||
+    fullText.includes('format is not available')
   );
 }
 
@@ -637,14 +639,16 @@ export async function downloadClip(
     }
 
     if (!response.ok || data.status !== 'success') {
-      const code = data.message || (response.status === 400 ? 'INVALID_PARAMS' : 'DOWNLOAD_FAILED');
       const rawError = data.error || `HTTP ${response.status}: Gagal mengunduh klip`;
 
-      // Jika error terindikasi URL kadaluwarsa (misal 403 atau rate limit), bersihkan cache Tier 1 & Tier 2
-      if (rawError.includes('403') || rawError.includes('expired') || code === 'RATE_LIMIT_EXCEEDED') {
-        await clearCachedDownloadStreamUrl(videoId);
-        FileSystem.deleteAsync(`file://${infoJsonPath}`, { idempotent: true }).catch(() => {});
-      }
+      // Bersihkan cache URL stream & file info JSON agar request berikutnya tidak terjebak cache lama
+      await clearCachedDownloadStreamUrl(videoId);
+      FileSystem.deleteAsync(`file://${infoJsonPath}`, { idempotent: true }).catch(() => {});
+
+      // Sesuai instruksi: Jika saat download gagal frontend belum mengirim cookies (karena belum ada),
+      // semua error otomatis dianggap sebagai RATE_LIMIT_EXCEEDED agar frontend memicu CookiesModal
+      const isLimit = !cookiePath || isRateLimitOrRestrictedError({ message: rawError, rawError });
+      const code = isLimit ? 'RATE_LIMIT_EXCEEDED' : (data.message || 'DOWNLOAD_FAILED');
 
       throw new ApiError(code, rawError);
     }
@@ -661,8 +665,10 @@ export async function downloadClip(
   } catch (error: any) {
     clearTimeout(timeoutId);
     if (error instanceof ApiError) throw error;
+    const cookiePath = await getValidCookiesPath().catch(() => undefined);
+    const isLimit = !cookiePath || isRateLimitOrRestrictedError(error);
     throw new ApiError(
-      error.name === 'AbortError' ? 'NETWORK_ERROR' : 'DOWNLOAD_FAILED',
+      isLimit ? 'RATE_LIMIT_EXCEEDED' : (error.name === 'AbortError' ? 'NETWORK_ERROR' : 'DOWNLOAD_FAILED'),
       error.message
     );
   }
