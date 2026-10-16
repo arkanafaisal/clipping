@@ -1,4 +1,4 @@
-import { Paths, File } from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { LocalStorage } from './storage';
 import { STREAM_YTDL_OPTS, HEATMAP_YTDL_OPTS, PRIME_CLIP_DOWNLOAD_OPTS } from '../constants/ytdlp';
 
@@ -315,9 +315,15 @@ export async function fetchHeatmap(
 // In-Memory cache deteksi file download klip: key = fileUri, value = exists boolean
 export const DOWNLOADED_CLIPS_CACHE = new Map<string, boolean>();
 
+// Shared clipping output directory:
+// fileUri: file:///storage/emulated/0/clipping/output/<videoId>/clip_<rank>_<start>_<end>.mp4
+// nativePath: /storage/emulated/0/clipping/output/<videoId>/clip_<rank>_<start>_<end>.mp4
+export const SHARED_CLIPPING_ROOT = '/storage/emulated/0/clipping';
+export const SHARED_CLIPPING_OUTPUT_DIR = `${SHARED_CLIPPING_ROOT}/output`;
+
 /**
- * Menghasilkan alokasi lokasi file tujuan download klip pada sandboxed app storage.
- * Frontend memegang kendali 100% path & nama folder, backend hanya menerima path final.
+ * Menghasilkan alokasi lokasi file tujuan download klip pada shared storage (/storage/emulated/0/clipping/output/).
+ * Frontend memegang kendali 100% path & nama folder, backend Termux hanya menerima path final.
  */
 export function getClipOutputFilePath(
   videoId: string,
@@ -330,10 +336,8 @@ export function getClipOutputFilePath(
   const filename = rank
     ? `clip_${rank}_${startStr}_${endStr}.mp4`
     : `clip_${videoId}_${startStr}_${endStr}.mp4`;
-  const file = new File(Paths.document, 'output', videoId, filename);
-  const fileUri = file.uri;
-  // Hapus prefix file:// untuk path Linux / Android native yang dimengerti Python
-  const nativePath = fileUri.replace(/^file:\/\//, '');
+  const nativePath = `${SHARED_CLIPPING_OUTPUT_DIR}/${videoId}/${filename}`;
+  const fileUri = `file://${nativePath}`;
   return { fileUri, nativePath };
 }
 
@@ -345,8 +349,8 @@ export async function checkClipFileExists(fileUri: string, forceCheckDisk: boole
     return DOWNLOADED_CLIPS_CACHE.get(fileUri) || false;
   }
   try {
-    const file = new File(fileUri);
-    const exists = Boolean(file.exists);
+    const info = await FileSystem.getInfoAsync(fileUri);
+    const exists = Boolean(info.exists);
     DOWNLOADED_CLIPS_CACHE.set(fileUri, exists);
     return exists;
   } catch {
