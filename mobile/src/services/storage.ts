@@ -1,17 +1,14 @@
 import * as FileSystem from 'expo-file-system/legacy';
 
-// Shared target directory path yang dikelola Termux di Android:
+// Shared output folder untuk media klip video:
 export const SHARED_ROOT_PATH = '/storage/emulated/0/clipping';
-export const SHARED_DATA_PATH = `${SHARED_ROOT_PATH}/data`;
 export const SHARED_OUTPUT_PATH = `${SHARED_ROOT_PATH}/output`;
 
-// Private sandbox directory untuk penyimpanan lokal cepat & offline di Expo
+// Private sandbox directory untuk penyimpanan lokal cepat, aman, & offline di Expo
 const STORAGE_DIR = `${FileSystem.documentDirectory || ''}clipping_data/`;
 
 // In-memory cache for instant synchronous access and resilient fallback
 const MEMORY_CACHE = new Map<string, string>();
-
-let isMigrationDone = false;
 
 // Ensure local private directory exists
 async function ensureDir() {
@@ -27,63 +24,9 @@ async function ensureDir() {
 }
 
 /**
- * Sinkronisasi asinkron ke shared folder (/storage/emulated/0/clipping/data/) via Termux API (port 3006).
- * Termux memiliki akses Linux langsung ke root shared storage Android, sehingga file JSON
- * dapat langsung muncul di File Manager HP tanpa terkendala batasan Scoped Storage Expo.
- */
-async function syncToSharedStorage(filename: string, content: string): Promise<void> {
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 2000);
-    await fetch('http://127.0.0.1:3006/api/storage/sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filename, content }),
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
-  } catch {
-    // Abaikan jika Termux sedang tidak aktif (data tetap 100% aman di private storage & cache)
-  }
-}
-
-/**
- * Migrasi satu kali (One-Time Transfer) dari folder private ke shared folder via Termux.
- */
-async function runOneTimeMigration(): Promise<void> {
-  if (isMigrationDone || !FileSystem.documentDirectory) return;
-
-  try {
-    const flagFile = `${STORAGE_DIR}.migration_synced`;
-    const flagInfo = await FileSystem.getInfoAsync(flagFile);
-    if (flagInfo.exists) {
-      isMigrationDone = true;
-      return;
-    }
-
-    const files = await FileSystem.readDirectoryAsync(STORAGE_DIR);
-    for (const file of files) {
-      if (file.endsWith('.json') && !file.startsWith('.')) {
-        const filePath = `${STORAGE_DIR}${file}`;
-        const content = await FileSystem.readAsStringAsync(filePath);
-        const cleanName = file.replace(/\.json$/, '');
-        await syncToSharedStorage(cleanName, content);
-      }
-    }
-
-    await FileSystem.writeAsStringAsync(flagFile, JSON.stringify({
-      migratedAt: new Date().toISOString(),
-    }));
-    isMigrationDone = true;
-  } catch {
-    // Silent
-  }
-}
-
-/**
  * LocalStorage emulator for mobile React Native (Expo)
- * Menyimpan data lokal secara instan dan otomatis menyinkronkan ke
- * folder publik shared (/storage/emulated/0/clipping/data/) saat Termux aktif.
+ * Menyimpan data lokal internal (heatmap, draft, preferences) secara instan
+ * di private sandbox tanpa membebani server backend.
  */
 export const LocalStorage = {
   /**
@@ -108,7 +51,7 @@ export const LocalStorage = {
   },
 
   /**
-   * Menyimpan data berdasarkan key ke private storage & sinkron ke shared storage
+   * Menyimpan data berdasarkan key ke private storage
    */
   async setItem(key: string, value: string): Promise<void> {
     try {
@@ -117,14 +60,6 @@ export const LocalStorage = {
       await ensureDir();
       const filePath = `${STORAGE_DIR}${key}.json`;
       await FileSystem.writeAsStringAsync(filePath, value);
-
-      // Sinkronkan ke shared storage via Termux di background
-      syncToSharedStorage(key, value);
-
-      // Pemicu migrasi satu kali jika ada file lama
-      if (!isMigrationDone) {
-        runOneTimeMigration();
-      }
     } catch (e) {
       console.warn(`[Storage] setItem error for ${key}:`, e);
     }
