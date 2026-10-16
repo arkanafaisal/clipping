@@ -11,11 +11,13 @@ def download_youtube_clip_range(
     end: float,
     output_path: str,
     ydl_opts: dict = None,
-    stream_url: str = None
+    stream_url: str = None,
+    cookie_path: str = None
 ) -> tuple:
     """
     Download rentang klip spesifik YouTube secara murni pass-through menggunakan yt-dlp.
-    Seluruh konfigurasi parameter dan opsi yt-dlp dikirim secara dinamis oleh frontend.
+    Mencoba mode anonim terlebih dahulu. Jika gagal dan cookie_path valid dikirimkan oleh frontend,
+    mencoba sekali lagi menggunakan cookies.
     
     Returns:
         tuple: (output_path: str | None, stream_url: str | None, code: str | None, error: str | None)
@@ -45,34 +47,53 @@ def download_youtube_clip_range(
     opts["download_ranges"] = download_range_func(None, [(start_num, end_num)])
     opts["force_keyframes_at_cuts"] = True
 
-    # Sertakan cookies jika file cookies.txt tersedia
-    cookie_path = os.path.join(BASE_DIR, 'cookies.txt')
-    if os.path.exists(cookie_path) and 'cookiefile' not in opts:
-        opts['cookiefile'] = cookie_path
-
-    # Prioritaskan stream_url jika dikirim oleh frontend, jika tidak gunakan URL YouTube
     source_url = stream_url if stream_url else f"https://www.youtube.com/watch?v={video_id}"
     extracted_stream_url = stream_url
     info_json_path = opts.get("load_info_filename")
 
+    # 1. Percobaan Pertama: Mode Anonim (tanpa cookies)
+    opts_anon = opts.copy()
+    opts_anon.pop('cookiefile', None)
+
+    first_error_msg = None
     try:
-        with yt_dlp.YoutubeDL(opts) as ydl:
+        with yt_dlp.YoutubeDL(opts_anon) as ydl:
             ydl.download([source_url])
 
-        # Ambil stream URL dari info_json jika tersedia untuk dikembalikan ke frontend
-        if not extracted_stream_url and info_json_path and os.path.exists(info_json_path):
-            try:
-                with open(info_json_path, 'r', encoding='utf-8') as f:
-                    info_data = json.load(f)
-                    extracted_stream_url = info_data.get('url') or (info_data.get('formats', [{}])[-1].get('url'))
-            except Exception:
-                pass
+        if os.path.exists(output_path):
+            if not extracted_stream_url and info_json_path and os.path.exists(info_json_path):
+                try:
+                    with open(info_json_path, 'r', encoding='utf-8') as f:
+                        info_data = json.load(f)
+                        extracted_stream_url = info_data.get('url') or (info_data.get('formats', [{}])[-1].get('url'))
+                except Exception:
+                    pass
+            return output_path, extracted_stream_url, None, None
+    except Exception as e_anon:
+        first_error_msg = str(e_anon)
 
-        if not os.path.exists(output_path):
-            return None, extracted_stream_url, "DOWNLOAD_FAILED", f"File output tidak ditemukan di '{output_path}' setelah eksekusi download selesai."
+    # 2. Percobaan Kedua: Mode Cookies jika percobaan pertama gagal & cookie_path dikirim oleh frontend
+    if cookie_path and os.path.exists(cookie_path):
+        opts_cookies = opts.copy()
+        opts_cookies['cookiefile'] = cookie_path
+        try:
+            with yt_dlp.YoutubeDL(opts_cookies) as ydl:
+                ydl.download([source_url])
 
-        return output_path, extracted_stream_url, None, None
-    except Exception as e:
-        error_msg = str(e)
-        code = "RATE_LIMIT_EXCEEDED" if ("429" in error_msg or "rate limit" in error_msg.lower()) else "DOWNLOAD_FAILED"
-        return None, extracted_stream_url, code, error_msg
+            if os.path.exists(output_path):
+                if not extracted_stream_url and info_json_path and os.path.exists(info_json_path):
+                    try:
+                        with open(info_json_path, 'r', encoding='utf-8') as f:
+                            info_data = json.load(f)
+                            extracted_stream_url = info_data.get('url') or (info_data.get('formats', [{}])[-1].get('url'))
+                    except Exception:
+                        pass
+                return output_path, extracted_stream_url, None, None
+        except Exception as e_cookies:
+            error_msg = str(e_cookies)
+            code = "RATE_LIMIT_EXCEEDED" if ("429" in error_msg or "rate limit" in error_msg.lower()) else "DOWNLOAD_FAILED"
+            return None, extracted_stream_url, code, error_msg
+
+    error_msg = first_error_msg or "File output tidak ditemukan setelah eksekusi download selesai."
+    code = "RATE_LIMIT_EXCEEDED" if ("429" in error_msg or "rate limit" in error_msg.lower()) else "DOWNLOAD_FAILED"
+    return None, extracted_stream_url, code, error_msg

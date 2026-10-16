@@ -61,9 +61,10 @@ export const API_ERROR_MAP: Record<string, string> = {
   YDL_OPTS_REQUIRED: 'Konfigurasi ekstraksi (ydl_opts) tidak valid.',
   STREAM_NOT_FOUND: 'Direct stream video tidak ditemukan atau video dibatasi (Private/Age-restricted).',
   HEATMAP_NOT_FOUND: 'Video ini belum memiliki data Most Replayed (Heatmap) dari YouTube.',
-  RATE_LIMIT_EXCEEDED: 'Batas permintaan YouTube terlampaui (Error 429). Silakan tunggu beberapa menit.',
+  RATE_LIMIT_EXCEEDED: 'Batas permintaan YouTube terlampaui (Error 429). Silakan tunggu beberapa menit atau gunakan cookies.',
+  GDRIVE_DOWNLOAD_FAILED: 'Gagal mengunduh file dari Google Drive. Pastikan akses file diatur ke Siapa saja yang memiliki link (Publik).',
   EXTRACTOR_ERROR: 'Ekstraktor video mengalami kendala saat membaca metadata YouTube.',
-  INVALID_PARAMS: 'Parameter pengunduhan klip tidak lengkap.',
+  INVALID_PARAMS: 'Parameter permintaan tidak lengkap atau tidak valid.',
   INVALID_RANGE: 'Rentang waktu klip tidak valid.',
   DOWNLOAD_FAILED: 'Gagal mengunduh klip video dari YouTube.',
   SERVER_OFFLINE: 'Server internal Python belum aktif pada port 8080.',
@@ -196,6 +197,7 @@ export async function fetchStreamUrl(videoId: string, forceRefresh: boolean = fa
   const timeoutId = setTimeout(() => controller.abort(), 20000);
 
   try {
+    const cookiePath = await getValidCookiesPath();
     const response = await fetch(`${EMBEDDED_API_BASE_URL}/api/stream`, {
       method: 'POST',
       headers: {
@@ -204,6 +206,7 @@ export async function fetchStreamUrl(videoId: string, forceRefresh: boolean = fa
       body: JSON.stringify({
         video_id: videoId,
         ydl_opts: STREAM_YTDL_OPTS,
+        cookie_path: cookiePath,
       }),
       signal: controller.signal,
     });
@@ -249,6 +252,7 @@ export async function fetchHeatmap(
   const timeoutId = setTimeout(() => controller.abort(), 20000);
 
   try {
+    const cookiePath = await getValidCookiesPath();
     const response = await fetch(`${EMBEDDED_API_BASE_URL}/api/heatmap`, {
       method: 'POST',
       headers: {
@@ -257,6 +261,7 @@ export async function fetchHeatmap(
       body: JSON.stringify({
         video_id: videoId,
         ydl_opts: HEATMAP_YTDL_OPTS,
+        cookie_path: cookiePath,
       }),
       signal: controller.signal,
     });
@@ -320,6 +325,118 @@ export const DOWNLOADED_CLIPS_CACHE = new Map<string, boolean>();
 // nativePath: /storage/emulated/0/clipping/output/<videoId>/clip_<rank>_<start>_<end>.mp4
 export const SHARED_CLIPPING_ROOT = '/storage/emulated/0/clipping';
 export const SHARED_CLIPPING_OUTPUT_DIR = `${SHARED_CLIPPING_ROOT}/output`;
+
+// Path file cookies pada shared clipping directory
+export const COOKIES_FILE_NAME = 'cookies.txt';
+export const COOKIES_FILE_PATH = `${SHARED_CLIPPING_ROOT}/${COOKIES_FILE_NAME}`;
+export const COOKIES_STORAGE_KEY = 'configured_cookies_path';
+
+// In-Memory cache cookies path
+let cachedCookiesPath: string | null = null;
+
+/**
+ * Memeriksa dan mengambil path cookies yang valid.
+ * Mengecek In-Memory cache terlebih dahulu, lalu LocalStorage, dan memvalidasi keberadaan file di file system.
+ */
+export async function getValidCookiesPath(): Promise<string | undefined> {
+  if (cachedCookiesPath) {
+    try {
+      const info = await FileSystem.getInfoAsync(`file://${cachedCookiesPath}`);
+      if (info.exists && !info.isDirectory) {
+        return cachedCookiesPath;
+      }
+    } catch {}
+    cachedCookiesPath = null;
+  }
+
+  try {
+    const savedPath = await LocalStorage.getItem(COOKIES_STORAGE_KEY);
+    if (savedPath) {
+      const info = await FileSystem.getInfoAsync(`file://${savedPath}`);
+      if (info.exists && !info.isDirectory) {
+        cachedCookiesPath = savedPath;
+        return savedPath;
+      } else {
+        await LocalStorage.removeItem(COOKIES_STORAGE_KEY);
+      }
+    }
+  } catch {}
+
+  return undefined;
+}
+
+/**
+ * Ekstraksi Google Drive File ID dari URL publik atau raw input string.
+ */
+export function extractGoogleDriveFileId(input: string): string | null {
+  if (!input) return null;
+  const trimmed = input.trim();
+  const dMatch = trimmed.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  if (dMatch && dMatch[1]) return dMatch[1];
+  const idMatch = trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (idMatch && idMatch[1]) return idMatch[1];
+  if (/^[a-zA-Z0-9_-]{25,}$/.test(trimmed)) {
+    return trimmed;
+  }
+  return null;
+}
+
+/**
+ * Mengunduh file cookies dari Google Drive publik via endpoint pass-through /api/download-gdrive-file.
+ * Frontend memformat file_id dan menetapkan lokasi output_path (/storage/emulated/0/clipping/cookies.txt).
+ * Menyimpan path ke in-memory cache dan LocalStorage setelah berhasil.
+ */
+export async function syncCookiesFromGoogleDrive(linkOrId: string): Promise<string> {
+  const fileId = extractGoogleDriveFileId(linkOrId);
+  if (!fileId) {
+    throw new ApiError('INVALID_PARAMS', 'Link Google Drive tidak valid atau ID file tidak ditemukan.');
+  }
+
+  const targetPath = COOKIES_FILE_PATH;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+  try {
+    let response: Response;
+    try {
+      response = await fetch(`${EMBEDDED_API_BASE_URL}/api/download-gdrive-file`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          file_id: fileId,
+          output_path: targetPath,
+        }),
+        signal: controller.signal,
+      });
+    } catch {
+      response = await fetch(`${DEV_API_BASE_URL}/api/download-gdrive-file`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          file_id: fileId,
+          output_path: targetPath,
+        }),
+        signal: controller.signal,
+      });
+    }
+    clearTimeout(timeoutId);
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.status !== 'success') {
+      const code = data.message || 'GDRIVE_DOWNLOAD_FAILED';
+      const rawErr = data.error || `HTTP ${response.status}: Gagal mengunduh file dari Google Drive`;
+      throw new ApiError(code, rawErr);
+    }
+
+    cachedCookiesPath = targetPath;
+    await LocalStorage.setItem(COOKIES_STORAGE_KEY, targetPath);
+    return targetPath;
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    if (error instanceof ApiError) throw error;
+    throw new ApiError('GDRIVE_DOWNLOAD_FAILED', error.message);
+  }
+}
 
 /**
  * Menghasilkan alokasi lokasi file tujuan download klip pada shared storage (/storage/emulated/0/clipping/output/).
@@ -403,6 +520,7 @@ export async function downloadClip(
   };
 
   try {
+    const cookiePath = await getValidCookiesPath();
     const response = await fetch(`${DEV_API_BASE_URL}/api/download-clip`, {
       method: 'POST',
       headers: {
@@ -414,6 +532,7 @@ export async function downloadClip(
         end,
         output_path: nativePath,
         stream_url: cachedStreamUrl || undefined,
+        cookie_path: cookiePath,
         ydl_opts: clipYdlOpts,
       }),
       signal: controller.signal,

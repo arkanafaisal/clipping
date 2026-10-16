@@ -35,7 +35,8 @@ def get_stream(video_id=None):
         body = request.get_json(silent=True) or {}
         vid = body.get("video_id") or video_id or request.args.get("video_id")
         opts = body.get("ydl_opts")
-        url, code, err = get_direct_stream_url(vid, opts)
+        cookie_path = body.get("cookie_path")
+        url, code, err = get_direct_stream_url(vid, opts, cookie_path)
         if code or err:
             status_code = 404 if code == "STREAM_NOT_FOUND" else (429 if code == "RATE_LIMIT_EXCEEDED" else 400)
             return jsonify({
@@ -63,7 +64,8 @@ def get_heatmap(video_id=None):
         body = request.get_json(silent=True) or {}
         vid = body.get("video_id") or video_id or request.args.get("video_id")
         opts = body.get("ydl_opts")
-        raw_heatmap, title, code, err = get_raw_heatmap(vid, opts)
+        cookie_path = body.get("cookie_path")
+        raw_heatmap, title, code, err = get_raw_heatmap(vid, opts, cookie_path)
         if code or err:
             status_code = 404 if code == "HEATMAP_NOT_FOUND" else (429 if code == "RATE_LIMIT_EXCEEDED" else 400)
             return jsonify({
@@ -86,7 +88,7 @@ def get_heatmap(video_id=None):
 def download_clip(video_id=None):
     """
     Endpoint Pass-Through murni untuk mendownload rentang klip spesifik YouTube.
-    Front-end mengirimkan konfigurasi dinamis: video_id, start, end, output_path, ydl_opts, stream_url.
+    Front-end mengirimkan konfigurasi dinamis: video_id, start, end, output_path, ydl_opts, stream_url, cookie_path.
     Server bertindak sebagai bridge pass-through minimal yang mendelegasikan ke utils/clip_downloader.py.
     """
     try:
@@ -97,8 +99,9 @@ def download_clip(video_id=None):
         output_path = body.get("output_path")
         opts = body.get("ydl_opts")
         stream_url = body.get("stream_url")
+        cookie_path = body.get("cookie_path")
 
-        path, ret_url, code, err = download_youtube_clip_range(vid, start, end, output_path, opts, stream_url)
+        path, ret_url, code, err = download_youtube_clip_range(vid, start, end, output_path, opts, stream_url, cookie_path)
         if code or err:
             status_code = 400 if ("REQUIRED" in str(code) or "INVALID" in str(code)) else (429 if code == "RATE_LIMIT_EXCEEDED" else 500)
             return jsonify({
@@ -115,6 +118,62 @@ def download_clip(video_id=None):
     except Exception as e:
         return jsonify({
             "message": "DOWNLOAD_FAILED",
+            "error": str(e)
+        }), 500
+
+@app.route("/api/download-gdrive-file", methods=["POST"])
+def download_gdrive_file():
+    """
+    Endpoint Pass-Through murni untuk mengunduh file publik dari Google Drive tanpa login.
+    Frontend mengirimkan: file_id dan output_path.
+    """
+    try:
+        body = request.get_json(silent=True) or {}
+        file_id = body.get("file_id")
+        output_path = body.get("output_path")
+
+        if not file_id or not output_path:
+            return jsonify({
+                "message": "INVALID_PARAMS",
+                "error": "Parameter 'file_id' dan 'output_path' wajib disertakan."
+            }), 400
+
+        output_dir = os.path.dirname(output_path)
+        if output_dir and not os.path.exists(output_dir):
+            os.makedirs(output_dir, exist_ok=True)
+
+        import requests
+        download_url = f"https://drive.usercontent.google.com/download?id={file_id}&export=download"
+        res = requests.get(download_url, stream=True, timeout=30)
+        
+        if res.status_code != 200:
+            fallback_url = f"https://drive.google.com/uc?export=download&id={file_id}"
+            res = requests.get(fallback_url, stream=True, timeout=30)
+
+        if res.status_code != 200:
+            return jsonify({
+                "message": "GDRIVE_DOWNLOAD_FAILED",
+                "error": f"HTTP {res.status_code}: Gagal mengunduh file publik dari Google Drive."
+            }), 400
+
+        with open(output_path, "wb") as f:
+            for chunk in res.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
+
+        if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
+            return jsonify({
+                "message": "GDRIVE_DOWNLOAD_FAILED",
+                "error": "File hasil unduhan Google Drive kosong atau tidak tersimpan."
+            }), 500
+
+        return jsonify({
+            "status": "success",
+            "output_path": output_path
+        }), 200
+    except Exception as e:
+        return jsonify({
+            "message": "GDRIVE_DOWNLOAD_FAILED",
             "error": str(e)
         }), 500
 

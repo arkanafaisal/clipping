@@ -1,12 +1,11 @@
 import os
 import yt_dlp
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-def get_direct_stream_url(video_id: str, ydl_opts: dict) -> tuple:
+def get_direct_stream_url(video_id: str, ydl_opts: dict, cookie_path: str = None) -> tuple:
     """
     Ekstrak direct stream URL dari video YouTube menggunakan yt-dlp secara murni pass-through.
-    TIDAK ADA fallback value di backend. Seluruh konfigurasi wajib dikirim dari frontend.
+    Mencoba mode anonim terlebih dahulu. Jika gagal dan parameter cookie_path valid dikirimkan,
+    mencoba sekali lagi menggunakan cookies.
     
     Returns:
         tuple: (url: str | None, code: str | None, error: str | None)
@@ -17,23 +16,39 @@ def get_direct_stream_url(video_id: str, ydl_opts: dict) -> tuple:
     if not ydl_opts or not isinstance(ydl_opts, dict):
         return None, "YDL_OPTS_REQUIRED", "Parameter 'ydl_opts' (konfigurasi yt-dlp) wajib dikirim oleh frontend."
 
-    opts = ydl_opts.copy()
-
-    # Sertakan cookies jika file cookies.txt tersedia di direktori
-    cookie_path = os.path.join(BASE_DIR, 'cookies.txt')
-    if os.path.exists(cookie_path):
-        opts['cookiefile'] = cookie_path
-
     url = f"https://www.youtube.com/watch?v={video_id}"
+
+    # 1. Percobaan Pertama: Mode Anonim (100% tanpa cookies)
+    opts_anon = ydl_opts.copy()
+    opts_anon.pop('cookiefile', None)
     
+    first_error_msg = None
     try:
-        with yt_dlp.YoutubeDL(opts) as ydl:
+        with yt_dlp.YoutubeDL(opts_anon) as ydl:
             info = ydl.extract_info(url, download=False)
             result_url = info.get('url')
-            if not result_url:
-                return None, "STREAM_NOT_FOUND", "Direct stream URL tidak ditemukan dalam respon metadata YouTube."
-            return result_url, None, None
+            if result_url:
+                return result_url, None, None
     except Exception as e:
-        error_msg = str(e)
-        code = "RATE_LIMIT_EXCEEDED" if ("429" in error_msg or "rate limit" in error_msg.lower()) else "EXTRACTOR_ERROR"
-        return None, code, error_msg
+        first_error_msg = str(e)
+
+    # 2. Percobaan Kedua: Mode Cookies (Hanya jika mode anonim gagal & cookie_path dikirim oleh frontend)
+    if cookie_path and os.path.exists(cookie_path):
+        opts_cookies = ydl_opts.copy()
+        opts_cookies['cookiefile'] = cookie_path
+        try:
+            with yt_dlp.YoutubeDL(opts_cookies) as ydl:
+                info = ydl.extract_info(url, download=False)
+                result_url = info.get('url')
+                if result_url:
+                    return result_url, None, None
+                return None, "STREAM_NOT_FOUND", "Direct stream URL tidak ditemukan dalam respon metadata YouTube."
+        except Exception as e:
+            error_msg = str(e)
+            code = "RATE_LIMIT_EXCEEDED" if ("429" in error_msg or "rate limit" in error_msg.lower()) else "EXTRACTOR_ERROR"
+            return None, code, error_msg
+
+    # Jika tidak ada cookies, kembalikan error dari percobaan anonim
+    error_msg = first_error_msg or "Direct stream URL tidak ditemukan dalam respon metadata YouTube."
+    code = "RATE_LIMIT_EXCEEDED" if ("429" in error_msg or "rate limit" in error_msg.lower()) else ("STREAM_NOT_FOUND" if "not found" in error_msg.lower() else "EXTRACTOR_ERROR")
+    return None, code, error_msg

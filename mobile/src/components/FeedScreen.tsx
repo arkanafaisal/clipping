@@ -41,6 +41,7 @@ import {
 */
 import { LocalStorage } from '../services/storage';
 import { ToastManager } from './Toast';
+import { CookiesModal } from './CookiesModal';
 
 interface FeedScreenProps {
   videoId: string;
@@ -142,6 +143,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
   const [currentClipTime, setCurrentClipTime] = useState<number>(0);
   const [downloadingClips, setDownloadingClips] = useState<Record<string, boolean>>({});
   const [downloadedClips, setDownloadedClips] = useState<Record<string, boolean>>({});
+  const [cookiesModalVisible, setCookiesModalVisible] = useState(false);
 
   // ============================================================================
   // [WORK IN PROGRESS - COMMENTED OUT] State Subtitle & Overlay (Layer 1)
@@ -319,6 +321,9 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
           }
         } catch (streamErr: any) {
           console.warn('[Feed] Stream fetch error:', streamErr.message);
+          if (streamErr.code === 'RATE_LIMIT_EXCEEDED' || (streamErr.message && streamErr.message.includes('429'))) {
+            setCookiesModalVisible(true);
+          }
           ToastManager.show({
             type: 'info',
             title: 'Stream Belum Siap',
@@ -529,6 +534,9 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
             }
           }
         } catch (e: any) {
+          if (e?.code === 'RATE_LIMIT_EXCEEDED' || (e?.message && e.message.includes('429'))) {
+            setCookiesModalVisible(true);
+          }
           ToastManager.show({
             type: 'error',
             title: 'Gagal Memperbarui Stream',
@@ -772,6 +780,9 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
       });
     } catch (err: any) {
       setDownloadingClips((prev) => ({ ...prev, [clipId]: false }));
+      if (err.code === 'RATE_LIMIT_EXCEEDED' || (err.message && err.message.includes('429'))) {
+        setCookiesModalVisible(true);
+      }
       ToastManager.show({
         type: 'error',
         title: 'Gagal Mengunduh Klip',
@@ -1180,6 +1191,11 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
           ))}
         </ScrollView>
       </View>
+      {/* 5. Cookies Modal for Rate Limits */}
+      <CookiesModal
+        visible={cookiesModalVisible}
+        onClose={() => setCookiesModalVisible(false)}
+      />
     </View>
   );
 };

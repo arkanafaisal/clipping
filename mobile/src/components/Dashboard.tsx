@@ -12,6 +12,7 @@ import { Download } from 'lucide-react-native';
 import { WorkshopCard, WorkshopItem } from './WorkshopCard';
 import { WorkshopInputForm } from './WorkshopInputForm';
 import { ImportWorkshopModal } from './ImportWorkshopModal';
+import { CookiesModal } from './CookiesModal';
 import { LocalStorage } from '../services/storage';
 import { ToastManager } from './Toast';
 import { fetchHeatmap, fetchStreamUrl } from '../services/api';
@@ -37,6 +38,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
   const [workshops, setWorkshops] = useState<WorkshopItem[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [importModalVisible, setImportModalVisible] = useState(false);
+  const [cookiesModalVisible, setCookiesModalVisible] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
 
   // Load workshops & attach current doneCount from drafts
@@ -149,6 +151,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
       onOpenWorkshop?.(videoId, count);
     } catch (err: any) {
       setIsExtracting(false);
+      if (err.code === 'RATE_LIMIT_EXCEEDED' || (err.message && err.message.includes('429'))) {
+        setCookiesModalVisible(true);
+      }
       ToastManager.show({
         type: 'error',
         title: 'Gagal Membuat Workshop',
@@ -209,6 +214,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
       // 4. Masuk ke FeedScreen setelah respons berhasil
       onOpenWorkshop?.(videoId, count);
     } catch (err: any) {
+      if (err.code === 'RATE_LIMIT_EXCEEDED' || (err.message && err.message.includes('429'))) {
+        setCookiesModalVisible(true);
+      }
       ToastManager.show({
         type: 'error',
         title: 'Gagal Membuka Workshop',
@@ -373,6 +381,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
         visible={importModalVisible}
         onClose={() => setImportModalVisible(false)}
         onImport={handleImportJSON}
+      />
+
+      {/* 6. Cookies Modal for Rate Limits */}
+      <CookiesModal
+        visible={cookiesModalVisible}
+        onClose={() => setCookiesModalVisible(false)}
       />
     </ScrollView>
   );
