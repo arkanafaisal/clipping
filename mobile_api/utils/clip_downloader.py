@@ -50,8 +50,24 @@ def download_youtube_clip_range(
 
     url = f"https://www.youtube.com/watch?v={video_id}"
     try:
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            ydl.download([url])
+        info_json_path = opts.get("load_info_filename")
+        if info_json_path and os.path.exists(info_json_path):
+            try:
+                with yt_dlp.YoutubeDL(opts) as ydl:
+                    ydl.download([url])
+            except Exception:
+                # Cache kedaluwarsa atau corrupt, hapus dan ambil baru langsung dari YouTube
+                try:
+                    os.remove(info_json_path)
+                except Exception:
+                    pass
+                opts_fresh = opts.copy()
+                opts_fresh.pop("load_info_filename", None)
+                with yt_dlp.YoutubeDL(opts_fresh) as ydl:
+                    ydl.download([url])
+        else:
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                ydl.download([url])
 
         if not os.path.exists(output_path):
             return None, "DOWNLOAD_FAILED", f"File output tidak ditemukan di '{output_path}' setelah eksekusi download selesai."

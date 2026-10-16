@@ -76,13 +76,16 @@ export const DOWNLOAD_YTDL_OPTS: YtdlOpts = {
  * - Retry: 15x retry untuk fragment & socket timeout 60s
  */
 export const PRIME_CLIP_DOWNLOAD_OPTS: YtdlOpts = {
-  format: 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+  format: 'bestvideo+bestaudio/best',
   merge_output_format: 'mp4',
   quiet: false,
   no_warnings: true,
   retries: 15,
   fragment_retries: 15,
+  skip_unavailable_fragments: false,
   socket_timeout: 60,
+  extractor_retries: 5,
+  file_access_retries: 5,
   external_downloader_args: {
     ffmpeg_i: [
       '-user_agent',

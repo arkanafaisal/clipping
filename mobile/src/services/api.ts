@@ -374,6 +374,13 @@ export async function downloadClip(
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 menit timeout download klip
 
+  const infoJsonPath = `${SHARED_CLIPPING_OUTPUT_DIR}/${videoId}/video_info.json`;
+  const clipYdlOpts = {
+    ...PRIME_CLIP_DOWNLOAD_OPTS,
+    load_info_filename: infoJsonPath,
+    writeinfojson: true,
+  };
+
   try {
     const response = await fetch(`${DEV_API_BASE_URL}/api/download-clip`, {
       method: 'POST',
@@ -385,7 +392,7 @@ export async function downloadClip(
         start,
         end,
         output_path: nativePath,
-        ydl_opts: PRIME_CLIP_DOWNLOAD_OPTS,
+        ydl_opts: clipYdlOpts,
       }),
       signal: controller.signal,
     });
