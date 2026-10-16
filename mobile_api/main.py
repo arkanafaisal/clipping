@@ -226,6 +226,46 @@ def download_clip(video_id=None):
 # 2. /api/download-to-gdrive & Full video downloader.
 # ==============================================================================
 
+@app.route("/api/storage/sync", methods=["POST"])
+def sync_storage():
+    """
+    Menyimpan file JSON data (draft, heatmap, workshops) langsung ke shared folder:
+    /storage/emulated/0/clipping/data/<filename>.json
+    Termux memiliki izin akses Linux langsung ke root shared storage Android.
+    """
+    try:
+        body = request.get_json(silent=True) or {}
+        filename = body.get("filename")
+        content = body.get("content")
+
+        if not filename or content is None:
+            return jsonify({
+                "message": "INVALID_PARAMS",
+                "error": "Parameter 'filename' dan 'content' wajib disertakan."
+            }), 400
+
+        data_dir = "/storage/emulated/0/clipping/data"
+        os.makedirs(data_dir, exist_ok=True)
+
+        clean_name = filename if filename.endswith(".json") else f"{filename}.json"
+        file_path = os.path.join(data_dir, clean_name)
+        with open(file_path, "w", encoding="utf-8") as f:
+            if isinstance(content, str):
+                f.write(content)
+            else:
+                import json
+                f.write(json.dumps(content, ensure_ascii=False, indent=2))
+
+        return jsonify({
+            "status": "success",
+            "path": file_path
+        }), 200
+    except Exception as e:
+        return jsonify({
+            "message": "STORAGE_SYNC_ERROR",
+            "error": str(e)
+        }), 500
+
 def start_server(port=3006):
     print(f"[API] Starting Pure Pass-Through Flask Server di port {port}...")
     app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False, threaded=True)
