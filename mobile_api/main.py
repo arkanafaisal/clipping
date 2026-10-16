@@ -101,22 +101,31 @@ def download_clip(video_id=None):
         stream_url = body.get("stream_url")
         cookie_path = body.get("cookie_path")
 
-        path, ret_url, code, err = download_youtube_clip_range(vid, start, end, output_path, opts, stream_url, cookie_path)
+        path, ret_url, code, err, meta = download_youtube_clip_range(vid, start, end, output_path, opts, stream_url, cookie_path)
         if code or err:
+            err_code = code or "DOWNLOAD_FAILED"
             status_code = 400 if ("REQUIRED" in str(code) or "INVALID" in str(code)) else 500
-            return jsonify({
-                "message": code or "DOWNLOAD_FAILED",
+            res_data = {
+                "code": err_code,
+                "message": err_code,
                 "error": err or str(code),
                 "stream_url": ret_url
-            }), status_code
+            }
+            if meta:
+                res_data.update(meta)
+            return jsonify(res_data), status_code
 
-        return jsonify({
+        res_data = {
             "status": "success",
             "output_path": path,
             "stream_url": ret_url
-        }), 200
+        }
+        if meta:
+            res_data.update(meta)
+        return jsonify(res_data), 200
     except Exception as e:
         return jsonify({
+            "code": "DOWNLOAD_FAILED",
             "message": "DOWNLOAD_FAILED",
             "error": str(e)
         }), 500
@@ -233,9 +242,12 @@ def download_gdrive_file():
                     "error": "Google Drive returned an HTML page instead of plain text cookies.txt"
                 }), 400
 
+        file_size = os.path.getsize(output_path) if os.path.exists(output_path) else 0
         return jsonify({
             "status": "success",
-            "output_path": output_path
+            "output_path": output_path,
+            "file_size": file_size,
+            "message": "SUCCESS"
         }), 200
     except Exception as e:
         return jsonify({

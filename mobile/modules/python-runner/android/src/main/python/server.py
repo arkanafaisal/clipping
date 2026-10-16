@@ -5,6 +5,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from flask import Flask, jsonify, request
 from utils.stream_extractor import get_direct_stream_url
 from utils.heatmap import get_raw_heatmap
+from utils.clip_downloader import download_youtube_clip_range
 
 app = Flask(__name__)
 
@@ -88,7 +89,7 @@ def download_clip(video_id=None):
     """
     Endpoint Pass-Through murni untuk mendownload rentang klip spesifik YouTube.
     Front-end mengirimkan konfigurasi dinamis: video_id, start, end, output_path, ydl_opts, stream_url, cookie_path.
-    Server bertindak sebagai bridge pass-through minimal tanpa fallback / hardcoded config.
+    Server bertindak sebagai bridge pass-through minimal yang mendelegasikan ke utils/clip_downloader.py.
     """
     try:
         body = request.get_json(silent=True) or {}
@@ -96,119 +97,37 @@ def download_clip(video_id=None):
         start = body.get("start")
         end = body.get("end")
         output_path = body.get("output_path")
-        ydl_opts_in = body.get("ydl_opts") or {}
+        opts = body.get("ydl_opts")
         stream_url = body.get("stream_url")
         cookie_path = body.get("cookie_path")
 
-        # Validasi ketat kelengkapan parameter tanpa fallback
-        if not vid or start is None or end is None or not output_path:
-            return jsonify({
-                "message": "INVALID_PARAMS",
-                "error": "Parameter 'video_id', 'start', 'end', dan 'output_path' wajib disertakan oleh frontend."
-            }), 400
+        path, ret_url, code, err, meta = download_youtube_clip_range(vid, start, end, output_path, opts, stream_url, cookie_path)
+        if code or err:
+            err_code = code or "DOWNLOAD_FAILED"
+            status_code = 400 if ("REQUIRED" in str(code) or "INVALID" in str(code)) else 500
+            res_data = {
+                "code": err_code,
+                "message": err_code,
+                "error": err or str(code),
+                "stream_url": ret_url
+            }
+            if meta:
+                res_data.update(meta)
+            return jsonify(res_data), status_code
 
-        try:
-            start_num = float(start)
-            end_num = float(end)
-        except (ValueError, TypeError):
-            return jsonify({
-                "message": "INVALID_RANGE",
-                "error": "Parameter 'start' dan 'end' harus berupa angka waktu valid."
-            }), 400
-
-        if end_num <= start_num:
-            return jsonify({
-                "message": "INVALID_RANGE",
-                "error": f"Waktu 'end' ({end_num}) harus lebih besar daripada 'start' ({start_num})."
-            }), 400
-
-        # Alokasi direktori output sesuai path dari frontend
-        output_dir = os.path.dirname(output_path)
-        if output_dir and not os.path.exists(output_dir):
-            os.makedirs(output_dir, exist_ok=True)
-
-        import json
-        import yt_dlp
-        from yt_dlp.utils import download_range_func
-
-        ydl_opts = dict(ydl_opts_in)
-        ydl_opts["outtmpl"] = output_path
-        ydl_opts["download_ranges"] = download_range_func(None, [(start_num, end_num)])
-        ydl_opts["force_keyframes_at_cuts"] = True
-
-        info_json_path = ydl_opts.get("load_info_filename")
-        youtube_url = f"https://www.youtube.com/watch?v={vid}"
-
-        def execute_dl(target_url):
-            # 1. Mode Anonim (tanpa cookies)
-            opts_anon = dict(ydl_opts)
-            opts_anon.pop('cookiefile', None)
-            first_err = None
-            try:
-                with yt_dlp.YoutubeDL(opts_anon) as ydl:
-                    ydl.download([target_url])
-                if os.path.exists(output_path):
-                    return True, None
-            except Exception as e_anon:
-                first_err = str(e_anon)
-
-            # 2. Mode Cookies (jika anonim gagal & cookie_path tersedia)
-            if cookie_path and os.path.exists(cookie_path):
-                opts_cookies = dict(ydl_opts)
-                opts_cookies['cookiefile'] = cookie_path
-                try:
-                    with yt_dlp.YoutubeDL(opts_cookies) as ydl:
-                        ydl.download([target_url])
-                    if os.path.exists(output_path):
-                        return True, None
-                except Exception as e_cookies:
-                    return False, str(e_cookies)
-
-            return False, first_err
-
-        # 1. Jika frontend mengirimkan stream_url ter-cache, coba gunakan URL tersebut langsung
-        if stream_url:
-            success, _ = execute_dl(stream_url)
-            if success:
-                return jsonify({
-                    "status": "success",
-                    "output_path": output_path,
-                    "stream_url": stream_url
-                }), 200
-
-        # 2. Get baru dari YouTube (jika tanpa cache atau jika stream_url kedaluwarsa)
-        success, last_error = execute_dl(youtube_url)
-
-        # Ekstraksi URL baru yang segar untuk dikembalikan ke frontend
-        new_stream_url = None
-        gen_info = output_path.rsplit(".", 1)[0] + ".info.json"
-        target_info = info_json_path if (info_json_path and os.path.exists(info_json_path)) else (gen_info if os.path.exists(gen_info) else None)
-        if target_info and os.path.exists(target_info):
-            try:
-                with open(target_info, 'r', encoding='utf-8') as f:
-                    info_data = json.load(f)
-                    new_stream_url = info_data.get('url') or (info_data.get('formats', [{}])[-1].get('url'))
-            except Exception:
-                pass
-
-        if success and os.path.exists(output_path):
-            return jsonify({
-                "status": "success",
-                "output_path": output_path,
-                "stream_url": new_stream_url
-            }), 200
-
-        err_text = last_error or f"File output tidak ditemukan di '{output_path}' setelah eksekusi download selesai."
-        return jsonify({
-            "message": "DOWNLOAD_FAILED",
-            "error": err_text,
-            "stream_url": new_stream_url
-        }), 500
+        res_data = {
+            "status": "success",
+            "output_path": path,
+            "stream_url": ret_url
+        }
+        if meta:
+            res_data.update(meta)
+        return jsonify(res_data), 200
     except Exception as e:
         return jsonify({
+            "code": "DOWNLOAD_FAILED",
             "message": "DOWNLOAD_FAILED",
-            "error": str(e),
-            "stream_url": stream_url
+            "error": str(e)
         }), 500
 
 @app.route("/api/download-gdrive-file", methods=["POST"])
@@ -323,9 +242,12 @@ def download_gdrive_file():
                     "error": "Google Drive returned an HTML page instead of plain text cookies.txt"
                 }), 400
 
+        file_size = os.path.getsize(output_path) if os.path.exists(output_path) else 0
         return jsonify({
             "status": "success",
-            "output_path": output_path
+            "output_path": output_path,
+            "file_size": file_size,
+            "message": "SUCCESS"
         }), 200
     except Exception as e:
         return jsonify({

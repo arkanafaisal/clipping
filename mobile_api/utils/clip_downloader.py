@@ -51,7 +51,13 @@ def download_youtube_clip_range(
     info_json_path = opts.get("load_info_filename")
     youtube_url = f"https://www.youtube.com/watch?v={video_id}"
 
+    cookies_attempted = False
+    cookies_file_exists = bool(cookie_path and os.path.exists(cookie_path))
+    anon_error = None
+    cookies_error = None
+
     def execute_dl(target_url):
+        nonlocal cookies_attempted, anon_error, cookies_error
         # 1. Mode Anonim (tanpa cookies)
         opts_anon = opts.copy()
         opts_anon.pop('cookiefile', None)
@@ -63,9 +69,11 @@ def download_youtube_clip_range(
                 return True, None
         except Exception as e_anon:
             first_err = str(e_anon)
+            anon_error = first_err
 
-        # 2. Mode Cookies (jika anonim gagal & cookie_path tersedia)
-        if cookie_path and os.path.exists(cookie_path):
+        # 2. Mode Cookies (jika anonim gagal & cookie_path tersedia di disk server)
+        if cookie_path and cookies_file_exists:
+            cookies_attempted = True
             opts_cookies = opts.copy()
             opts_cookies['cookiefile'] = cookie_path
             try:
@@ -74,7 +82,8 @@ def download_youtube_clip_range(
                 if os.path.exists(output_path):
                     return True, None
             except Exception as e_cookies:
-                return False, str(e_cookies)
+                cookies_error = str(e_cookies)
+                return False, cookies_error
 
         return False, first_err
 
@@ -82,7 +91,12 @@ def download_youtube_clip_range(
     if stream_url:
         success, _ = execute_dl(stream_url)
         if success:
-            return output_path, stream_url, None, None
+            meta = {
+                "cookies_attempted": cookies_attempted,
+                "cookies_file_exists": cookies_file_exists,
+                "cookies_path": cookie_path
+            }
+            return output_path, stream_url, None, None, meta
         # Jika stream_url gagal atau kedaluwarsa, lanjut fallback ke get baru dari YouTube
 
     # 2. Get baru dari YouTube (jika tanpa cache atau jika stream_url kedaluwarsa)
@@ -100,8 +114,17 @@ def download_youtube_clip_range(
         except Exception:
             pass
 
-    if success and os.path.exists(output_path):
-        return output_path, new_stream_url, None, None
+    meta = {
+        "cookies_attempted": cookies_attempted,
+        "cookies_file_exists": cookies_file_exists,
+        "cookies_path": cookie_path,
+        "anon_error": anon_error,
+        "cookies_error": cookies_error
+    }
 
-    err_text = last_error or "File output tidak ditemukan setelah eksekusi download selesai."
-    return None, new_stream_url, "DOWNLOAD_FAILED", err_text
+    if success and os.path.exists(output_path):
+        return output_path, new_stream_url, None, None, meta
+
+    code = "COOKIES_INVALID_OR_EXPIRED" if cookies_attempted else "DOWNLOAD_FAILED"
+    err_text = cookies_error if cookies_attempted else (anon_error or last_error or "File output tidak ditemukan setelah eksekusi download selesai.")
+    return None, new_stream_url, code, err_text, meta

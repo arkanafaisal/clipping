@@ -62,7 +62,9 @@ export const API_ERROR_MAP: Record<string, string> = {
   YDL_OPTS_REQUIRED: 'Konfigurasi ekstraksi (ydl_opts) tidak valid.',
   STREAM_NOT_FOUND: 'Direct stream video tidak ditemukan atau video dibatasi (Private/Age-restricted).',
   HEATMAP_NOT_FOUND: 'Video ini belum memiliki data Most Replayed (Heatmap) dari YouTube.',
-  RATE_LIMIT_EXCEEDED: 'Batas permintaan YouTube terlampaui (Error 429). Silakan tunggu beberapa menit atau gunakan cookies.',
+  RATE_LIMIT_EXCEEDED: 'Batas permintaan YouTube terlampaui (Error 429) pada mode anonim. Silakan impor cookies dari Google Drive untuk melanjutkan.',
+  COOKIES_INVALID_OR_EXPIRED: 'Gagal mengunduh klip: Cookies telah digunakan ke yt-dlp namun ditolak oleh YouTube (kedaluwarsa atau terkena verifikasi bot). Harap perbarui file cookies.txt Anda.',
+  COOKIES_FILE_NOT_FOUND: 'File cookies tidak ditemukan di direktori storage server (/storage/emulated/0/clipping/cookies.txt). Harap impor ulang cookies dari Google Drive.',
   GDRIVE_DOWNLOAD_FAILED: 'Gagal mengunduh file dari Google Drive. Pastikan file bukan folder dan link dapat diakses oleh publik.',
   GDRIVE_HTML_CONTENT: 'Link Google Drive yang dimasukkan mengarah ke halaman HTML atau Folder, bukan file cookies.txt. Harap salin link langsung dari file cookies.txt.',
   GDRIVE_FILE_EMPTY: 'File cookies hasil unduhan Google Drive kosong atau tidak tersimpan.',
@@ -361,29 +363,19 @@ let cachedCookiesPath: string | null = null;
 
 /**
  * Memeriksa dan mengambil path cookies yang valid.
- * Mengecek In-Memory cache terlebih dahulu, lalu LocalStorage, dan memvalidasi keberadaan file di file system.
+ * Prioritas: In-Memory cache -> LocalStorage.
+ * Mempertahankan path yang tersimpan tanpa menghapus LocalStorage secara agresif.
  */
 export async function getValidCookiesPath(): Promise<string | undefined> {
   if (cachedCookiesPath) {
-    try {
-      const info = await FileSystem.getInfoAsync(`file://${cachedCookiesPath}`);
-      if (info.exists && !info.isDirectory) {
-        return cachedCookiesPath;
-      }
-    } catch {}
-    cachedCookiesPath = null;
+    return cachedCookiesPath;
   }
 
   try {
     const savedPath = await LocalStorage.getItem(COOKIES_STORAGE_KEY);
-    if (savedPath) {
-      const info = await FileSystem.getInfoAsync(`file://${savedPath}`);
-      if (info.exists && !info.isDirectory) {
-        cachedCookiesPath = savedPath;
-        return savedPath;
-      } else {
-        await LocalStorage.removeItem(COOKIES_STORAGE_KEY);
-      }
+    if (savedPath && typeof savedPath === 'string' && savedPath.trim().length > 0) {
+      cachedCookiesPath = savedPath.trim();
+      return cachedCookiesPath;
     }
   } catch {}
 
@@ -476,6 +468,10 @@ export async function syncCookiesFromGoogleDrive(linkOrId: string): Promise<stri
 
     cachedCookiesPath = targetPath;
     await LocalStorage.setItem(COOKIES_STORAGE_KEY, targetPath);
+    if (data.file_size) {
+      await LocalStorage.setItem('cookies_file_size', String(data.file_size));
+    }
+    await LocalStorage.setItem('cookies_last_synced', String(Date.now()));
     return targetPath;
   } catch (error: any) {
     clearTimeout(timeoutId);
@@ -669,10 +665,21 @@ export async function downloadClip(
       await clearCachedDownloadStreamUrl(videoId);
       FileSystem.deleteAsync(`file://${infoJsonPath}`, { idempotent: true }).catch(() => {});
 
-      // Sesuai instruksi: Jika saat download gagal frontend belum mengirim cookies (karena belum ada),
-      // semua error otomatis dianggap sebagai RATE_LIMIT_EXCEEDED agar frontend memicu CookiesModal
-      const isLimit = !cookiePath || isRateLimitOrRestrictedError({ message: rawError, rawError });
-      const code = isLimit ? 'RATE_LIMIT_EXCEEDED' : (data.message || 'DOWNLOAD_FAILED');
+      let code = data.code || data.message || 'DOWNLOAD_FAILED';
+
+      // Membedakan secara transparan apakah kegagalan terjadi di mode cookies atau mode anonim:
+      if (data.cookies_attempted) {
+        // Backend sudah benar-benar mencoba yt-dlp dengan opsi cookies, namun tetap ditolak YouTube
+        code = 'COOKIES_INVALID_OR_EXPIRED';
+      } else if (!cookiePath) {
+        // Frontend belum memiliki cookies sama sekali (mode anonim gagal)
+        code = 'RATE_LIMIT_EXCEEDED';
+      } else if (data.cookies_path && data.cookies_file_exists === false) {
+        // Path cookies terkirim namun file fisik tidak ditemukan di disk server
+        code = 'COOKIES_FILE_NOT_FOUND';
+      } else if (isRateLimitOrRestrictedError({ message: rawError, rawError })) {
+        code = cookiePath ? 'COOKIES_INVALID_OR_EXPIRED' : 'RATE_LIMIT_EXCEEDED';
+      }
 
       throw new ApiError(code, rawError);
     }
@@ -690,11 +697,14 @@ export async function downloadClip(
     clearTimeout(timeoutId);
     if (error instanceof ApiError) throw error;
     const cookiePath = await getValidCookiesPath().catch(() => undefined);
-    const isLimit = !cookiePath || isRateLimitOrRestrictedError(error);
-    throw new ApiError(
-      isLimit ? 'RATE_LIMIT_EXCEEDED' : (error.name === 'AbortError' ? 'NETWORK_ERROR' : 'DOWNLOAD_FAILED'),
-      error.message
-    );
+    const isLimit = isRateLimitOrRestrictedError(error);
+    let code = 'DOWNLOAD_FAILED';
+    if (isLimit) {
+      code = cookiePath ? 'COOKIES_INVALID_OR_EXPIRED' : 'RATE_LIMIT_EXCEEDED';
+    } else if (error.name === 'AbortError') {
+      code = 'NETWORK_ERROR';
+    }
+    throw new ApiError(code, error.message);
   }
 }
 

@@ -840,13 +840,21 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
       if (isRateLimitOrRestrictedError(err)) {
         setCookiesModalVisible(true);
       }
+      const title = err.code === 'COOKIES_INVALID_OR_EXPIRED'
+        ? 'Cookies Tidak Valid / Kedaluwarsa'
+        : (err.code === 'COOKIES_FILE_NOT_FOUND'
+          ? 'File Cookies Tidak Ditemukan'
+          : (err.code === 'RATE_LIMIT_EXCEEDED'
+            ? 'Batas Permintaan YouTube (Mode Anonim)'
+            : 'Gagal Mengunduh Klip'));
+
       ToastManager.show({
         type: 'error',
-        title: 'Gagal Mengunduh Klip',
+        title,
         message: err.message || 'Terjadi kesalahan saat mengunduh klip.',
         rawError: err.rawError,
         errorCode: err.code,
-        duration: 4500,
+        duration: 5000,
       });
     }
   };
