@@ -159,6 +159,8 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
   const storageDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const clipsRef = useRef<ClipItem[]>(clips);
   const activeClipIdRef = useRef<string | null>(activeClipId);
+  const currentSourceUriRef = useRef<string>('');
+  const downloadedClipsRef = useRef<Record<string, boolean>>(downloadedClips);
 
   useEffect(() => {
     clipsRef.current = clips;
@@ -167,6 +169,10 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
   useEffect(() => {
     activeClipIdRef.current = activeClipId;
   }, [activeClipId]);
+
+  useEffect(() => {
+    downloadedClipsRef.current = downloadedClips;
+  }, [downloadedClips]);
 
   // Active clip reference
   const activeClip = clips.find((c) => c.id === activeClipId) || clips[0] || {
@@ -233,14 +239,32 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
         }
 
         let firstClipStart = 0;
+        let initialActiveClip: ClipItem | null = null;
         if (isMounted) {
           setClips(loadedClips);
           const initialVisible = [...loadedClips].sort((a, b) => a.start - b.start);
           if (initialVisible.length > 0) {
+            initialActiveClip = initialVisible[0];
             setActiveClipId(initialVisible[0].id);
             firstClipStart = initialVisible[0].start;
           }
           setLoading(false);
+        }
+
+        // Pre-scan keberadaan file klip yang berstatus 'done' di storage
+        const existingDownloadMap: Record<string, boolean> = {};
+        for (const clip of loadedClips) {
+          if (clip.status === 'done') {
+            const { fileUri } = getClipOutputFilePath(videoId, clip.start, clip.end, clip.rank);
+            const exists = await checkClipFileExists(fileUri);
+            if (exists) {
+              existingDownloadMap[clip.id] = true;
+            }
+          }
+        }
+        if (isMounted) {
+          setDownloadedClips(existingDownloadMap);
+          downloadedClipsRef.current = existingDownloadMap;
         }
 
         // 2. Fetch direct stream URL untuk video playback
@@ -248,20 +272,50 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
           const directUrl = await fetchStreamUrl(videoId);
           if (isMounted && directUrl) {
             setStreamUrl(directUrl);
-            player.replace(directUrl);
-            // AUTO PLAY: Mulai putar langsung dari posisi start klip pertama
-            try {
-              player.currentTime = firstClipStart;
-              player.play();
-            } catch (playErr) {
-              console.log('[Feed] Auto-play initial clip error:', playErr);
+            const isFirstClipLocal = Boolean(
+              initialActiveClip &&
+                initialActiveClip.status === 'done' &&
+                existingDownloadMap[initialActiveClip.id]
+            );
+
+            if (isFirstClipLocal && initialActiveClip) {
+              const { fileUri } = getClipOutputFilePath(
+                videoId,
+                initialActiveClip.start,
+                initialActiveClip.end,
+                initialActiveClip.rank
+              );
+              currentSourceUriRef.current = fileUri;
+              player.replace(fileUri);
+              try {
+                player.currentTime = 0;
+                player.play();
+              } catch (playErr) {
+                console.log('[Feed] Auto-play initial local clip error:', playErr);
+              }
+              ToastManager.show({
+                type: 'success',
+                title: 'Memutar File Lokal',
+                message: 'Memutar video klip berkualitas prime dari HP.',
+                duration: 2500,
+              });
+            } else {
+              currentSourceUriRef.current = directUrl;
+              player.replace(directUrl);
+              // AUTO PLAY: Mulai putar langsung dari posisi start klip pertama
+              try {
+                player.currentTime = firstClipStart;
+                player.play();
+              } catch (playErr) {
+                console.log('[Feed] Auto-play initial clip error:', playErr);
+              }
+              ToastManager.show({
+                type: 'success',
+                title: 'Stream URL Aktif',
+                message: 'Pemutar video siap.',
+                duration: 2500,
+              });
             }
-            ToastManager.show({
-              type: 'success',
-              title: 'Stream URL Aktif',
-              message: 'Pemutar video siap.',
-              duration: 2500,
-            });
           }
         } catch (streamErr: any) {
           console.warn('[Feed] Stream fetch error:', streamErr.message);
@@ -305,6 +359,59 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
   }, [clips]);
 
   /**
+   * Sinkronisasi sumber pemutar video secara dinamis:
+   * - Mode Lokal: Jika klip berstatus 'done' dan file fisik MP4 sudah terunduh di HP,
+   *   putar file fisik lokal (file://...) dari detik 0.0s s/d durasi klip.
+   * - Mode Stream: Jika klip belum 'done' (atau 'done' tapi belum diunduh),
+   *   putar direct stream online YouTube dan seek ke detik clip.start.
+   */
+  const syncPlayerSourceForClip = useCallback(
+    (clip: ClipItem, autoPlay: boolean = true) => {
+      if (!player) return;
+      const isDownloaded = Boolean(downloadedClipsRef.current[clip.id]);
+      const isLocalMode = clip.status === 'done' && isDownloaded;
+
+      if (isLocalMode) {
+        const { fileUri } = getClipOutputFilePath(videoId, clip.start, clip.end, clip.rank);
+        if (currentSourceUriRef.current !== fileUri) {
+          currentSourceUriRef.current = fileUri;
+          try {
+            player.replace(fileUri);
+          } catch (err) {
+            console.warn('[Feed] Replace local file error:', err);
+          }
+        }
+        try {
+          player.currentTime = 0;
+          if (autoPlay && isContinueState) {
+            player.play();
+          }
+        } catch (err) {
+          console.warn('[Feed] Play local error:', err);
+        }
+      } else {
+        if (streamUrl && currentSourceUriRef.current !== streamUrl) {
+          currentSourceUriRef.current = streamUrl;
+          try {
+            player.replace(streamUrl);
+          } catch (err) {
+            console.warn('[Feed] Replace stream error:', err);
+          }
+        }
+        try {
+          player.currentTime = Math.max(0, clip.start);
+          if (autoPlay && isContinueState) {
+            player.play();
+          }
+        } catch (err) {
+          console.warn('[Feed] Play stream error:', err);
+        }
+      }
+    },
+    [player, streamUrl, videoId, isContinueState]
+  );
+
+  /**
    * Centralized universal debounced seek handler:
    * Menampung SEMUA seek (crop, extend, skip waktu, pindah klip, tap scrubber) ke dalam 1 gerbang terpusat.
    * Debounce trailing edge: 500ms sejak interaksi TERAKHIR user.
@@ -329,7 +436,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
       if (player && finalTarget !== null && !isNaN(finalTarget)) {
         try {
           player.currentTime = Math.max(0, finalTarget);
-          if (shouldPlay) {
+          if (shouldPlay && isContinueState) {
             player.play();
           }
         } catch (e: any) {
@@ -344,7 +451,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
       seekDebounceTimerRef.current = null;
       pendingSeekTargetRef.current = null;
     }, 500);
-  }, [player]);
+  }, [player, isContinueState]);
 
   // Track playback time update & handle segment loop
   useEffect(() => {
@@ -358,44 +465,68 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
 
       const currentActiveId = activeClipIdRef.current || activeClipId;
       const currentActive = clipsRef.current.find((c) => c.id === currentActiveId) || activeClip;
+      const isLocalMode = currentSourceUriRef.current.startsWith('file://');
 
       const current = event.currentTime;
       const duration = currentActive.end - currentActive.start;
       if (duration > 0) {
-        const pct = Math.max(0, Math.min(100, ((current - currentActive.start) / duration) * 100));
-        setProgressPercent(pct);
-        const rel = Math.max(0, Math.min(duration, current - currentActive.start));
-        setCurrentClipTime(rel);
-
-        /*
-        // [WORK IN PROGRESS - COMMENTED OUT] Sinkronisasi teks subtitle aktif
-        if (isSubtitleVisible && subtitles.length > 0) {
-          const matchedCue = subtitles.find(
-            (cue) => rel >= cue.start && rel <= cue.end
-          );
-          setActiveSubtitleText(matchedCue ? matchedCue.text : '');
+        if (isLocalMode) {
+          const pct = Math.max(0, Math.min(100, (current / duration) * 100));
+          setProgressPercent(pct);
+          setCurrentClipTime(Math.max(0, Math.min(duration, current)));
+        } else {
+          const pct = Math.max(0, Math.min(100, ((current - currentActive.start) / duration) * 100));
+          setProgressPercent(pct);
+          const rel = Math.max(0, Math.min(duration, current - currentActive.start));
+          setCurrentClipTime(rel);
         }
-        */
       }
 
       // Loop current segment
-      if (current >= currentActive.end) {
-        player.currentTime = currentActive.start;
-        player.play();
+      if (isLocalMode) {
+        if (current >= duration) {
+          player.currentTime = 0;
+          if (isContinueState) {
+            player.play();
+          }
+        }
+      } else {
+        if (current >= currentActive.end) {
+          player.currentTime = currentActive.start;
+          if (isContinueState) {
+            player.play();
+          }
+        }
       }
     });
 
     const statusSub = player.addListener('statusChange', async () => {
-      // Auto-recovery: Jika stream URL kadaluwarsa (player status error), fetch ulang secara otomatis
       if (player.status === 'error') {
+        const isLocalMode = currentSourceUriRef.current.startsWith('file://');
+        if (isLocalMode) {
+          console.warn('[Feed] Local file playback error, falling back to stream...');
+          if (streamUrl) {
+            currentSourceUriRef.current = streamUrl;
+            player.replace(streamUrl);
+            player.currentTime = activeClip.start;
+            if (isContinueState) {
+              player.play();
+            }
+          }
+          return;
+        }
+
         console.warn('[Feed] Player error detected, stream URL mungkin kadaluwarsa. Mengambil URL baru...');
         try {
           const freshUrl = await fetchStreamUrl(videoId, true); // forceRefresh = true
           if (freshUrl) {
             setStreamUrl(freshUrl);
+            currentSourceUriRef.current = freshUrl;
             player.replace(freshUrl);
             player.currentTime = activeClip.start;
-            player.play();
+            if (isContinueState) {
+              player.play();
+            }
           }
         } catch (e: any) {
           ToastManager.show({
@@ -414,7 +545,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
       sub.remove();
       statusSub.remove();
     };
-  }, [player, activeClip.start, activeClip.end]);
+  }, [player, activeClip.start, activeClip.end, isContinueState, streamUrl, videoId]);
 
   /*
   // ============================================================================
@@ -491,33 +622,29 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
   };
 
   // Switch klip langsung instan (tanpa debounce) khusus carousel klip
-  const handleSelectClip = useCallback((clipId: string) => {
-    // Batalkan debounce seek yang mungkin sedang berjalan dari scrubber/crop
-    if (seekDebounceTimerRef.current) {
-      clearTimeout(seekDebounceTimerRef.current);
-      seekDebounceTimerRef.current = null;
-    }
-    pendingSeekTargetRef.current = null;
-
-    activeClipIdRef.current = clipId;
-    setActiveClipId(clipId);
-    // Optimistic: Progress bar seketika langsung balik ke 0
-    setProgressPercent(0);
-    setCurrentClipTime(0);
-
-    const targetClip = clipsRef.current.find((c) => c.id === clipId);
-    if (!targetClip) return;
-
-    // Langsung seek dan auto-play seketika tanpa antrean debounce
-    if (player) {
-      try {
-        player.currentTime = Math.max(0, targetClip.start);
-        player.play();
-      } catch (e: any) {
-        console.warn('[Feed] Direct seek clip error:', e);
+  const handleSelectClip = useCallback(
+    (clipId: string) => {
+      // Batalkan debounce seek yang mungkin sedang berjalan dari scrubber/crop
+      if (seekDebounceTimerRef.current) {
+        clearTimeout(seekDebounceTimerRef.current);
+        seekDebounceTimerRef.current = null;
       }
-    }
-  }, [player]);
+      pendingSeekTargetRef.current = null;
+
+      activeClipIdRef.current = clipId;
+      setActiveClipId(clipId);
+      // Optimistic: Progress bar seketika langsung balik ke 0
+      setProgressPercent(0);
+      setCurrentClipTime(0);
+
+      const targetClip = clipsRef.current.find((c) => c.id === clipId);
+      if (!targetClip) return;
+
+      // Pindahkan playback sumber secara dinamis (Lokal vs Stream)
+      syncPlayerSourceForClip(targetClip, true);
+    },
+    [syncPlayerSourceForClip]
+  );
 
   // Deteksi keberadaan file video saat klip aktif berstatus 'done'
   useEffect(() => {
@@ -532,28 +659,47 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
   }, [activeClipId, activeClip.status, activeClip.start, activeClip.end, videoId]);
 
   // Toggle clip Done status (hijau)
-  const handleToggleDone = () => {
+  const handleToggleDone = async () => {
     const currentActiveId = activeClipIdRef.current || activeClipId;
     let nextStatus: 'none' | 'done' = 'done';
+    let targetClip: ClipItem | undefined;
     const updated = clipsRef.current.map((c) => {
       if (c.id === currentActiveId) {
         nextStatus = (c.status === 'done' ? 'none' : 'done') as 'none' | 'done';
-        return { ...c, status: nextStatus };
+        targetClip = { ...c, status: nextStatus };
+        return targetClip;
       }
       return c;
     });
     clipsRef.current = updated;
     setClips(updated);
 
+    if (!targetClip) return;
+
     // Jika berubah jadi done, cek apakah filenya sudah pernah diunduh
     if (nextStatus === 'done') {
-      const active = updated.find((c) => c.id === currentActiveId);
-      if (active) {
-        const { fileUri } = getClipOutputFilePath(videoId, active.start, active.end, active.rank);
-        checkClipFileExists(fileUri).then((exists) => {
-          if (exists) {
-            setDownloadedClips((prev) => ({ ...prev, [active.id]: true }));
-          }
+      const { fileUri } = getClipOutputFilePath(videoId, targetClip.start, targetClip.end, targetClip.rank);
+      const exists = await checkClipFileExists(fileUri);
+      if (exists) {
+        setDownloadedClips((prev) => ({ ...prev, [targetClip!.id]: true }));
+        downloadedClipsRef.current[targetClip.id] = true;
+        syncPlayerSourceForClip(targetClip, true);
+        ToastManager.show({
+          type: 'success',
+          title: 'Memutar File Lokal',
+          message: 'Klip telah terunduh, beralih ke video lokal offline.',
+          duration: 2500,
+        });
+      }
+    } else {
+      // Jika di-toggle off dari done ke none, kembali ke stream YouTube jika sebelumnya memutar file lokal
+      if (currentSourceUriRef.current.startsWith('file://')) {
+        syncPlayerSourceForClip(targetClip, true);
+        ToastManager.show({
+          type: 'info',
+          title: 'Mode Stream',
+          message: 'Beralih kembali ke streaming YouTube.',
+          duration: 2000,
         });
       }
     }
@@ -610,11 +756,19 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
       const res = await downloadClip(videoId, activeClip.start, activeClip.end, activeClip.rank);
       setDownloadingClips((prev) => ({ ...prev, [clipId]: false }));
       setDownloadedClips((prev) => ({ ...prev, [clipId]: true }));
+      downloadedClipsRef.current[clipId] = true;
+
+      // Jika klip yang baru selesai diunduh adalah klip yang sedang aktif ditonton, langsung switch ke local playback
+      const currentActiveId = activeClipIdRef.current || activeClipId;
+      if (currentActiveId === clipId) {
+        syncPlayerSourceForClip({ ...activeClip, status: 'done' }, true);
+      }
+
       ToastManager.show({
         type: 'success',
         title: 'Klip Berhasil Diunduh',
-        message: `File MP4 tersimpan di: ${res.output_path}`,
-        duration: 4000,
+        message: 'Tersimpan di storage & otomatis beralih memutar file lokal.',
+        duration: 3500,
       });
     } catch (err: any) {
       setDownloadingClips((prev) => ({ ...prev, [clipId]: false }));
@@ -654,28 +808,44 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
   const skipSeconds = (seconds: number) => {
     const currentActiveId = activeClipIdRef.current || activeClipId;
     const currentActive = clipsRef.current.find((c) => c.id === currentActiveId) || activeClip;
-    
-    const baseTime =
-      pendingSeekTargetRef.current !== null
-        ? pendingSeekTargetRef.current
-        : player
-        ? player.currentTime
-        : currentActive.start;
-
-    let nextTime = baseTime + seconds;
-    if (nextTime < currentActive.start) nextTime = currentActive.start;
-    if (nextTime > currentActive.end) nextTime = currentActive.end;
-
-    // Optimistic: Scrubber langsung pindah ke posisi target seketika (0ms, tanpa animasi / delay)
+    const isLocalMode = currentSourceUriRef.current.startsWith('file://');
     const duration = currentActive.end - currentActive.start;
-    if (duration > 0) {
-      const pct = Math.max(0, Math.min(100, ((nextTime - currentActive.start) / duration) * 100));
-      setProgressPercent(pct);
-      const rel = Math.max(0, Math.min(duration, nextTime - currentActive.start));
-      setCurrentClipTime(rel);
-    }
 
-    centralizedSeek(nextTime, true);
+    if (isLocalMode) {
+      const baseTime =
+        pendingSeekTargetRef.current !== null
+          ? pendingSeekTargetRef.current
+          : player
+          ? player.currentTime
+          : 0;
+
+      const nextTime = Math.max(0, Math.min(duration, baseTime + seconds));
+      if (duration > 0) {
+        const pct = Math.max(0, Math.min(100, (nextTime / duration) * 100));
+        setProgressPercent(pct);
+        setCurrentClipTime(nextTime);
+      }
+      centralizedSeek(nextTime, true);
+    } else {
+      const baseTime =
+        pendingSeekTargetRef.current !== null
+          ? pendingSeekTargetRef.current
+          : player
+          ? player.currentTime
+          : currentActive.start;
+
+      let nextTime = baseTime + seconds;
+      if (nextTime < currentActive.start) nextTime = currentActive.start;
+      if (nextTime > currentActive.end) nextTime = currentActive.end;
+
+      if (duration > 0) {
+        const pct = Math.max(0, Math.min(100, ((nextTime - currentActive.start) / duration) * 100));
+        setProgressPercent(pct);
+        const rel = Math.max(0, Math.min(duration, nextTime - currentActive.start));
+        setCurrentClipTime(rel);
+      }
+      centralizedSeek(nextTime, true);
+    }
   };
 
   // Group clips into pairs (columns of 2 rows) sorted chronologically (memoized agar tidak di-recompute setiap tick)
@@ -768,6 +938,11 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
                 <Text style={[styles.timeNumberText, styles.timeMsText, styles.timeMsDim]}>
                   {formatTimeWithMs(activeClip.end - activeClip.start)}
                 </Text>
+                {downloadedClips[activeClip.id] && (
+                  <View style={styles.localBadge}>
+                    <Text style={styles.localBadgeText}>LOCAL MP4</Text>
+                  </View>
+                )}
               </View>
             ) : (
               <View style={styles.timeDisplay}>
@@ -874,7 +1049,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
 
       {/* 2. VIDEO PLAYER AREA (expo-video) */}
       <View style={styles.playerContainer}>
-        {streamUrl ? (
+        {streamUrl || (activeClip.status === 'done' && downloadedClips[activeClip.id]) ? (
           <VideoView
             style={styles.videoPlayer}
             player={player}
@@ -917,9 +1092,12 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
             const duration = currentActive.end - currentActive.start;
             if (duration <= 0 || trackWidthRef.current <= 0) return;
 
+            const isLocalMode = currentSourceUriRef.current.startsWith('file://');
             const locationX = e.nativeEvent.locationX;
             const pct = Math.max(0, Math.min(100, (locationX / trackWidthRef.current) * 100));
-            const targetTime = currentActive.start + (pct / 100) * duration;
+            const targetTime = isLocalMode
+              ? (pct / 100) * duration
+              : currentActive.start + (pct / 100) * duration;
 
             // Langsung pindah seketika (0ms, tanpa animasi / delay)
             setProgressPercent(pct);
@@ -1136,6 +1314,21 @@ const styles = StyleSheet.create({
   },
   timeMsDim: {
     color: 'rgba(255, 255, 255, 0.5)',
+  },
+  localBadge: {
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.4)',
+    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    marginLeft: 6,
+  },
+  localBadgeText: {
+    color: '#34d399',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   trashBtnInactive: {
     backgroundColor: 'rgba(239, 68, 68, 0.1)',
