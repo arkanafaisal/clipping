@@ -85,7 +85,7 @@ def get_heatmap(video_id=None):
 def download_clip(video_id=None):
     """
     Endpoint Pass-Through murni untuk mendownload rentang klip spesifik YouTube.
-    Front-end mengirimkan konfigurasi dinamis: video_id, start, end, output_path, ydl_opts.
+    Front-end mengirimkan konfigurasi dinamis: video_id, start, end, output_path, ydl_opts, stream_url.
     Server bertindak sebagai bridge pass-through minimal tanpa fallback / hardcoded config.
     """
     try:
@@ -95,6 +95,7 @@ def download_clip(video_id=None):
         end = body.get("end")
         output_path = body.get("output_path")
         ydl_opts_in = body.get("ydl_opts") or {}
+        stream_url = body.get("stream_url")
 
         # Validasi ketat kelengkapan parameter tanpa fallback
         if not vid or start is None or end is None or not output_path:
@@ -123,6 +124,7 @@ def download_clip(video_id=None):
         if output_dir and not os.path.exists(output_dir):
             os.makedirs(output_dir, exist_ok=True)
 
+        import json
         import yt_dlp
         from yt_dlp.utils import download_range_func
 
@@ -131,24 +133,38 @@ def download_clip(video_id=None):
         ydl_opts["download_ranges"] = download_range_func(None, [(start_num, end_num)])
         ydl_opts["force_keyframes_at_cuts"] = True
 
-        url = f"https://www.youtube.com/watch?v={vid}"
+        source_url = stream_url if stream_url else f"https://www.youtube.com/watch?v={vid}"
+        extracted_stream_url = stream_url
+        info_json_path = ydl_opts.get("load_info_filename")
+
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([url])
+            ydl.download([source_url])
+
+        if not extracted_stream_url and info_json_path and os.path.exists(info_json_path):
+            try:
+                with open(info_json_path, 'r', encoding='utf-8') as f:
+                    info_data = json.load(f)
+                    extracted_stream_url = info_data.get('url') or (info_data.get('formats', [{}])[-1].get('url'))
+            except Exception:
+                pass
 
         if not os.path.exists(output_path):
             return jsonify({
                 "message": "DOWNLOAD_FAILED",
-                "error": f"File output tidak ditemukan di '{output_path}' setelah eksekusi download selesai."
+                "error": f"File output tidak ditemukan di '{output_path}' setelah eksekusi download selesai.",
+                "stream_url": extracted_stream_url
             }), 500
 
         return jsonify({
             "status": "success",
-            "output_path": output_path
+            "output_path": output_path,
+            "stream_url": extracted_stream_url
         }), 200
     except Exception as e:
         return jsonify({
             "message": "DOWNLOAD_FAILED",
-            "error": str(e)
+            "error": str(e),
+            "stream_url": stream_url
         }), 500
 
 # ==============================================================================

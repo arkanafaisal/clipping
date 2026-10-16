@@ -86,7 +86,7 @@ def get_heatmap(video_id=None):
 def download_clip(video_id=None):
     """
     Endpoint Pass-Through murni untuk mendownload rentang klip spesifik YouTube.
-    Front-end mengirimkan konfigurasi dinamis: video_id, start, end, output_path, ydl_opts.
+    Front-end mengirimkan konfigurasi dinamis: video_id, start, end, output_path, ydl_opts, stream_url.
     Server bertindak sebagai bridge pass-through minimal yang mendelegasikan ke utils/clip_downloader.py.
     """
     try:
@@ -96,18 +96,21 @@ def download_clip(video_id=None):
         end = body.get("end")
         output_path = body.get("output_path")
         opts = body.get("ydl_opts")
+        stream_url = body.get("stream_url")
 
-        path, code, err = download_youtube_clip_range(vid, start, end, output_path, opts)
+        path, ret_url, code, err = download_youtube_clip_range(vid, start, end, output_path, opts, stream_url)
         if code or err:
             status_code = 400 if ("REQUIRED" in str(code) or "INVALID" in str(code)) else (429 if code == "RATE_LIMIT_EXCEEDED" else 500)
             return jsonify({
                 "message": code or "DOWNLOAD_FAILED",
-                "error": err or str(code)
+                "error": err or str(code),
+                "stream_url": ret_url
             }), status_code
 
         return jsonify({
             "status": "success",
-            "output_path": path
+            "output_path": path,
+            "stream_url": ret_url
         }), 200
     except Exception as e:
         return jsonify({

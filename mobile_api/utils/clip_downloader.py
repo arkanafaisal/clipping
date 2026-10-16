@@ -1,4 +1,5 @@
 import os
+import json
 import yt_dlp
 from yt_dlp.utils import download_range_func
 
@@ -9,30 +10,31 @@ def download_youtube_clip_range(
     start: float,
     end: float,
     output_path: str,
-    ydl_opts: dict = None
+    ydl_opts: dict = None,
+    stream_url: str = None
 ) -> tuple:
     """
     Download rentang klip spesifik YouTube secara murni pass-through menggunakan yt-dlp.
     Seluruh konfigurasi parameter dan opsi yt-dlp dikirim secara dinamis oleh frontend.
     
     Returns:
-        tuple: (output_path: str | None, code: str | None, error: str | None)
+        tuple: (output_path: str | None, stream_url: str | None, code: str | None, error: str | None)
     """
     if not video_id:
-        return None, "VIDEO_ID_REQUIRED", "Parameter 'video_id' wajib diisi."
+        return None, None, "VIDEO_ID_REQUIRED", "Parameter 'video_id' wajib diisi."
     if start is None or end is None:
-        return None, "INVALID_RANGE", "Parameter 'start' dan 'end' wajib disertakan."
+        return None, None, "INVALID_RANGE", "Parameter 'start' dan 'end' wajib disertakan."
     if not output_path:
-        return None, "OUTPUT_PATH_REQUIRED", "Parameter 'output_path' wajib disertakan."
+        return None, None, "OUTPUT_PATH_REQUIRED", "Parameter 'output_path' wajib disertakan."
 
     try:
         start_num = float(start)
         end_num = float(end)
     except (ValueError, TypeError):
-        return None, "INVALID_RANGE", "Parameter 'start' dan 'end' harus berupa angka waktu valid."
+        return None, None, "INVALID_RANGE", "Parameter 'start' dan 'end' harus berupa angka waktu valid."
 
     if end_num <= start_num:
-        return None, "INVALID_RANGE", f"Waktu 'end' ({end_num}) harus lebih besar daripada 'start' ({start_num})."
+        return None, None, "INVALID_RANGE", f"Waktu 'end' ({end_num}) harus lebih besar daripada 'start' ({start_num})."
 
     output_dir = os.path.dirname(output_path)
     if output_dir and not os.path.exists(output_dir):
@@ -48,32 +50,29 @@ def download_youtube_clip_range(
     if os.path.exists(cookie_path) and 'cookiefile' not in opts:
         opts['cookiefile'] = cookie_path
 
-    url = f"https://www.youtube.com/watch?v={video_id}"
+    # Prioritaskan stream_url jika dikirim oleh frontend, jika tidak gunakan URL YouTube
+    source_url = stream_url if stream_url else f"https://www.youtube.com/watch?v={video_id}"
+    extracted_stream_url = stream_url
+    info_json_path = opts.get("load_info_filename")
+
     try:
-        info_json_path = opts.get("load_info_filename")
-        if info_json_path and os.path.exists(info_json_path):
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            ydl.download([source_url])
+
+        # Ambil stream URL dari info_json jika tersedia untuk dikembalikan ke frontend
+        if not extracted_stream_url and info_json_path and os.path.exists(info_json_path):
             try:
-                with yt_dlp.YoutubeDL(opts) as ydl:
-                    ydl.download([url])
+                with open(info_json_path, 'r', encoding='utf-8') as f:
+                    info_data = json.load(f)
+                    extracted_stream_url = info_data.get('url') or (info_data.get('formats', [{}])[-1].get('url'))
             except Exception:
-                # Cache kedaluwarsa atau corrupt, hapus dan ambil baru langsung dari YouTube
-                try:
-                    os.remove(info_json_path)
-                except Exception:
-                    pass
-                opts_fresh = opts.copy()
-                opts_fresh.pop("load_info_filename", None)
-                with yt_dlp.YoutubeDL(opts_fresh) as ydl:
-                    ydl.download([url])
-        else:
-            with yt_dlp.YoutubeDL(opts) as ydl:
-                ydl.download([url])
+                pass
 
         if not os.path.exists(output_path):
-            return None, "DOWNLOAD_FAILED", f"File output tidak ditemukan di '{output_path}' setelah eksekusi download selesai."
+            return None, extracted_stream_url, "DOWNLOAD_FAILED", f"File output tidak ditemukan di '{output_path}' setelah eksekusi download selesai."
 
-        return output_path, None, None
+        return output_path, extracted_stream_url, None, None
     except Exception as e:
         error_msg = str(e)
         code = "RATE_LIMIT_EXCEEDED" if ("429" in error_msg or "rate limit" in error_msg.lower()) else "DOWNLOAD_FAILED"
-        return None, code, error_msg
+        return None, extracted_stream_url, code, error_msg
