@@ -99,7 +99,7 @@ const ClipCardItem = React.memo<ClipCardProps>(
           isActive && styles.clipCardActive,
           pressed && { opacity: 0.75 },
         ]}
-        onPressIn={() => onSelect(id)}
+        onPress={() => onSelect(id)}
       >
         {/* Rank Badge */}
         <View style={[styles.rankBadge, isTrash && styles.rankBadgeTrash]}>
@@ -490,8 +490,15 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     centralizedSeek(targetSeek, true);
   };
 
-  // Switch klip dengan debounce seek terpusat & optimistic UI update instan
+  // Switch klip langsung instan (tanpa debounce) khusus carousel klip
   const handleSelectClip = useCallback((clipId: string) => {
+    // Batalkan debounce seek yang mungkin sedang berjalan dari scrubber/crop
+    if (seekDebounceTimerRef.current) {
+      clearTimeout(seekDebounceTimerRef.current);
+      seekDebounceTimerRef.current = null;
+    }
+    pendingSeekTargetRef.current = null;
+
     activeClipIdRef.current = clipId;
     setActiveClipId(clipId);
     // Optimistic: Progress bar seketika langsung balik ke 0
@@ -500,8 +507,17 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
 
     const targetClip = clipsRef.current.find((c) => c.id === clipId);
     if (!targetClip) return;
-    centralizedSeek(targetClip.start, true);
-  }, [centralizedSeek]);
+
+    // Langsung seek dan auto-play seketika tanpa antrean debounce
+    if (player) {
+      try {
+        player.currentTime = Math.max(0, targetClip.start);
+        player.play();
+      } catch (e: any) {
+        console.warn('[Feed] Direct seek clip error:', e);
+      }
+    }
+  }, [player]);
 
   // Deteksi keberadaan file video saat klip aktif berstatus 'done'
   useEffect(() => {
