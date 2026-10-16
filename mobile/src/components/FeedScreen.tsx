@@ -136,8 +136,8 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
   const [loading, setLoading] = useState(true);
   const [loadingMessage, setLoadingMessage] = useState('Memuat data klip...');
 
-  // Playback state
-  const [isPlaying, setIsPlaying] = useState(false);
+  // Manual play/pause button state (decoupled from automated seek/freeze/loop events)
+  const [isContinueState, setIsContinueState] = useState<boolean>(true);
   const [progressPercent, setProgressPercent] = useState(0);
   const [currentClipTime, setCurrentClipTime] = useState<number>(0);
   const [downloadingClips, setDownloadingClips] = useState<Record<string, boolean>>({});
@@ -253,7 +253,6 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
             try {
               player.currentTime = firstClipStart;
               player.play();
-              setIsPlaying(true);
             } catch (playErr) {
               console.log('[Feed] Auto-play initial clip error:', playErr);
             }
@@ -314,11 +313,10 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
   const centralizedSeek = useCallback((targetTime: number, shouldPlay: boolean = true) => {
     pendingSeekTargetRef.current = targetTime;
 
-    // Auto-pause video seketika jika sedang berputar agar frame lama freeze
+    // Auto-pause video seketika jika sedang berputar agar frame lama freeze (tanpa mengubah state tombol)
     if (player && player.playing) {
       try {
         player.pause();
-        setIsPlaying(false);
       } catch (e) {}
     }
 
@@ -333,7 +331,6 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
           player.currentTime = Math.max(0, finalTarget);
           if (shouldPlay) {
             player.play();
-            setIsPlaying(true);
           }
         } catch (e: any) {
           ToastManager.show({
@@ -389,7 +386,6 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     });
 
     const statusSub = player.addListener('statusChange', async () => {
-      setIsPlaying(player.playing);
       // Auto-recovery: Jika stream URL kadaluwarsa (player status error), fetch ulang secara otomatis
       if (player.status === 'error') {
         console.warn('[Feed] Player error detected, stream URL mungkin kadaluwarsa. Mengambil URL baru...');
@@ -400,7 +396,6 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
             player.replace(freshUrl);
             player.currentTime = activeClip.start;
             player.play();
-            setIsPlaying(true);
           }
         } catch (e: any) {
           ToastManager.show({
@@ -618,15 +613,25 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     }
   };
 
-  // Playback Control Handlers
+  // Playback Control Handlers (Force manual control terisolasi dari auto-seek/auto-play)
   const togglePlayPause = () => {
     if (!player) return;
-    if (isPlaying) {
-      player.pause();
-      setIsPlaying(false);
+    if (isContinueState) {
+      // Pindah dari continue ke pause: force pause jika video sedang berputar
+      setIsContinueState(false);
+      if (player.playing) {
+        try {
+          player.pause();
+        } catch (e) {}
+      }
     } else {
-      player.play();
-      setIsPlaying(true);
+      // Pindah dari pause ke continue: force play jika video sedang berhenti
+      setIsContinueState(true);
+      if (!player.playing) {
+        try {
+          player.play();
+        } catch (e) {}
+      }
     }
   };
 
@@ -930,7 +935,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
             style={({ pressed }) => [styles.playPauseBtn, pressed && { transform: [{ scale: 0.95 }] }]}
             onPressIn={togglePlayPause}
           >
-            {isPlaying ? (
+            {isContinueState ? (
               <Pause size={22} color="#000000" fill="#000000" />
             ) : (
               <Play size={22} color="#000000" fill="#000000" style={{ marginLeft: 2 }} />
