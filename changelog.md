@@ -14,7 +14,16 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Eliminate Redundant Error Alert Dialogs in Favor of Soft Debug Toasts
+## [Unreleased] - Enforce Single Source of Truth for Python Scripts and Add Rule 22
+- **Konteks Struktural**:
+  1. Menetapkan alur kerja terpusat (*single source of truth*) untuk pengembangan skrip Python (di `mobile/scripts/utils/`), sehingga tidak lagi melakukan duplikasi atau modifikasi paralel ke folder modul internal (`modules/python-runner/android/src/main/python/`) maupun `mobile_api/` selama iterasi aktif.
+  2. Sinkronisasi penuh ke folder modul *native* untuk kebutuhan bundling APK hanya akan dilakukan saat ada konfirmasi eksplisit kesiapan build dari pengguna.
+  3. Menambahkan Rule 22 ke [GEMINI.md](file:///d:/projects/clipping/GEMINI.md).
+- **Perubahan Kode Penting**:
+  - [GEMINI.md](file:///d:/projects/clipping/GEMINI.md):
+    - Menambahkan Rule 22 terkait larangan duplikasi multi-direktori pada skrip Python dan kewajiban menjaga satu direktori sumber utama terpusat.
+
+## [178ee1a] - Eliminate Redundant Error Alert Dialogs in Favor of Soft Debug Toasts
 - **Konteks Struktural**:
   1. Mengeliminasi penggunaan dialog modal `Alert.alert` bawaan pada skenario error di [Dashboard.tsx](file:///d:/projects/clipping/mobile/src/components/Dashboard.tsx) dan [FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx) untuk mencegah notifikasi ganda (*double alert*) dan tampilan antarmuka yang mengganggu.
   2. Memusatkan seluruh notifikasi error, peringatan, dan kegagalan ekstraksi heatmap secara eksklusif melalui [ToastManager](file:///d:/projects/clipping/mobile/src/components/Toast.tsx), di mana pengguna tetap dapat mengakses log debug lengkap 100% mentah melalui tombol ikon kode `<Code2>`.
