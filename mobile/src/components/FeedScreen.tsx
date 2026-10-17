@@ -8,6 +8,8 @@ import {
   ActivityIndicator,
   Platform,
   BackHandler,
+  TextInput,
+  Keyboard,
 } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import {
@@ -70,6 +72,16 @@ function formatTimeWithMs(seconds: number): string {
   const ms = Math.floor((seconds % 1) * 1000);
   const pad = (num: number, size: number = 2) => num.toString().padStart(size, '0');
   return `${pad(m)}:${pad(s)}.${pad(ms, 3)}`;
+}
+
+function formatDisplayTime(seconds: number): string {
+  if (seconds === undefined || seconds === null || isNaN(seconds)) return '00:00';
+  const centis = Math.floor((seconds % 1) * 100);
+  const base = formatTime(seconds);
+  if (centis > 0) {
+    return `${base}.${centis.toString().padStart(2, '0')}`;
+  }
+  return base;
 }
 
 interface ClipCardProps {
@@ -150,6 +162,10 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
   const activeDownloadPollersRef = useRef<Record<string, ReturnType<typeof setInterval>>>({});
   const [cookiesModalVisible, setCookiesModalVisible] = useState(false);
   const [subtitleModalVisible, setSubtitleModalVisible] = useState(false);
+
+  // State Edit Presisi Milidetik (Mode Klip)
+  const [activeTimeEdit, setActiveTimeEdit] = useState<'start' | 'end' | null>(null);
+  const [tempTimeValue, setTempTimeValue] = useState<string>('');
 
   // State Subtitle & Overlay (Layer 1 Realtime Preview)
   const [subtitles, setSubtitles] = useState<SubtitleCue[]>([]);
@@ -839,9 +855,67 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     centralizedSeek(targetSeek, true);
   };
 
+  // Handler Edit Presisi Milidetik (Start / End)
+  // - Nilai input 1 digit otomatis dievaluasi sebagai ratusan (misal '6' -> '60' centiseconds = 600ms)
+  // - Nilai input 2 digit (misal '65' centiseconds = 650ms, digit ke-3 otomatis 0)
+  // - Seek otomatis mengikuti centralizedSeek yang sudah ter-debounce (500ms trailing)
+  const handleMsTimeChange = (type: 'start' | 'end', valStr: string) => {
+    const cleaned = valStr.replace(/[^0-9]/g, '').slice(0, 2);
+    setTempTimeValue(cleaned);
+
+    if (cleaned === '') return;
+
+    const msStr = cleaned.padEnd(2, '0').slice(0, 2);
+    const msValue = parseInt(msStr, 10);
+    if (isNaN(msValue)) return;
+
+    const currentActiveId = activeClipIdRef.current || activeClipId;
+    const currentClip = clipsRef.current.find((c) => c.id === currentActiveId);
+    if (!currentClip) return;
+
+    const baseSeconds = Math.floor(type === 'start' ? currentClip.start : currentClip.end);
+    const safeMs = Math.max(0, Math.min(99, msValue));
+    const newFinalValue = baseSeconds + safeMs / 100;
+
+    let targetSeek = 0;
+    const updated = clipsRef.current.map((c) => {
+      if (c.id === currentActiveId) {
+        if (type === 'start') {
+          const validStart = Math.max(0, Math.min(newFinalValue, c.end - 0.1));
+          targetSeek = validStart;
+          return { ...c, start: validStart };
+        } else {
+          const validEnd = Math.max(c.start + 0.1, newFinalValue);
+          targetSeek = Math.max(c.start, validEnd - 3);
+          return { ...c, end: validEnd };
+        }
+      }
+      return c;
+    });
+
+    clipsRef.current = updated;
+    setClips(updated);
+
+    if (type === 'start') {
+      setProgressPercent(0);
+      setCurrentClipTime(0);
+    } else {
+      const active = updated.find((c) => c.id === currentActiveId);
+      if (active && active.end > active.start) {
+        const pct = Math.max(0, Math.min(100, ((targetSeek - active.start) / (active.end - active.start)) * 100));
+        setProgressPercent(pct);
+        const rel = Math.max(0, Math.min(active.end - active.start, targetSeek - active.start));
+        setCurrentClipTime(rel);
+      }
+    }
+
+    centralizedSeek(targetSeek, true);
+  };
+
   // Switch klip langsung instan (tanpa debounce) khusus carousel klip
   const handleSelectClip = useCallback(
     (clipId: string) => {
+      setActiveTimeEdit(null);
       // Batalkan debounce seek yang mungkin sedang berjalan dari scrubber/crop
       if (seekDebounceTimerRef.current) {
         clearTimeout(seekDebounceTimerRef.current);
@@ -1160,6 +1234,17 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
 
   return (
     <View style={styles.container}>
+      {/* Overlay dismiss saat input milidetik aktif (ketika menekan sembarang area lainnya otomatis close) */}
+      {activeTimeEdit !== null && (
+        <Pressable
+          style={styles.dismissOverlay}
+          onPress={() => {
+            Keyboard.dismiss();
+            setActiveTimeEdit(null);
+          }}
+        />
+      )}
+
       {/* 1. TOP CONTROLS */}
       <View style={styles.topSection}>
         <View style={styles.timeRangeRow}>
@@ -1260,9 +1345,65 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
               </View>
             ) : (
               <View style={styles.timeDisplay}>
-                <Text style={styles.timeNumberText}>{formatTime(activeClip.start)}</Text>
+                {activeTimeEdit === 'start' ? (
+                  <TextInput
+                    style={[styles.timeInput, styles.timeInputStart]}
+                    value={tempTimeValue}
+                    onChangeText={(val) => handleMsTimeChange('start', val)}
+                    onBlur={() => setActiveTimeEdit(null)}
+                    keyboardType="number-pad"
+                    maxLength={2}
+                    autoFocus
+                    selectTextOnFocus
+                    placeholder="00"
+                    placeholderTextColor="rgba(52, 211, 153, 0.4)"
+                  />
+                ) : (
+                  <Pressable
+                    style={styles.timePressable}
+                    onPress={() => {
+                      setActiveTimeEdit('start');
+                      const curMs = Math.floor((activeClip.start % 1) * 100);
+                      setTempTimeValue(curMs.toString().padStart(2, '0'));
+                    }}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 6 }}
+                  >
+                    <Text style={[styles.timeNumberText, styles.timeStartText]}>
+                      {formatDisplayTime(activeClip.start)}
+                    </Text>
+                  </Pressable>
+                )}
+
                 <Text style={styles.timeSeparatorText}>-</Text>
-                <Text style={styles.timeNumberText}>{formatTime(activeClip.end)}</Text>
+
+                {activeTimeEdit === 'end' ? (
+                  <TextInput
+                    style={[styles.timeInput, styles.timeInputEnd]}
+                    value={tempTimeValue}
+                    onChangeText={(val) => handleMsTimeChange('end', val)}
+                    onBlur={() => setActiveTimeEdit(null)}
+                    keyboardType="number-pad"
+                    maxLength={2}
+                    autoFocus
+                    selectTextOnFocus
+                    placeholder="00"
+                    placeholderTextColor="rgba(244, 63, 94, 0.4)"
+                  />
+                ) : (
+                  <Pressable
+                    style={styles.timePressable}
+                    onPress={() => {
+                      setActiveTimeEdit('end');
+                      const curMs = Math.floor((activeClip.end % 1) * 100);
+                      setTempTimeValue(curMs.toString().padStart(2, '0'));
+                    }}
+                    hitSlop={{ top: 8, bottom: 8, left: 6, right: 8 }}
+                  >
+                    <Text style={[styles.timeNumberText, styles.timeEndText]}>
+                      {formatDisplayTime(activeClip.end)}
+                    </Text>
+                  </Pressable>
+                )}
               </View>
             )}
           </View>
@@ -1538,6 +1679,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#121212',
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.08)',
+    zIndex: 25,
   },
   timeRangeRow: {
     flexDirection: 'row',
@@ -1576,6 +1718,44 @@ const styles = StyleSheet.create({
   timeSeparatorText: {
     color: 'rgba(255, 255, 255, 0.4)',
     fontWeight: '700',
+  },
+  timePressable: {
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  timeStartText: {
+    color: '#34d399',
+  },
+  timeEndText: {
+    color: '#fb7185',
+  },
+  timeInput: {
+    minWidth: 44,
+    height: 28,
+    backgroundColor: '#18181b',
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 0,
+    textAlign: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  timeInputStart: {
+    borderWidth: 1.5,
+    borderColor: '#10b981',
+    color: '#34d399',
+  },
+  timeInputEnd: {
+    borderWidth: 1.5,
+    borderColor: '#f43f5e',
+    color: '#fb7185',
+  },
+  dismissOverlay: {
+    ...StyleSheet.absoluteFill,
+    zIndex: 15,
   },
   rightActionGroup: {
     flexDirection: 'row',

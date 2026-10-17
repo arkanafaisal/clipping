@@ -14,7 +14,29 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Fix Premature Clip End and Enable Instant Zero-Latency Local File Seek
+## [Unreleased] - Implement Millisecond Precision Time Range Editing in Clip Mode
+- **Konteks Struktural**:
+  1. Menghadirkan fitur penyuntingan presisi milidetik pada rentang klip di [FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx) untuk menyamakan mekanisme dengan antarmuka web:
+     - Angka waktu mulai (`start`) dan selesai (`end`) pada mode klip kini dapat ditekan (*pressable*) secara independen untuk mengaktifkan mode input numerik.
+     - Mode input hanya dapat aktif untuk salah satu sisi pada satu waktu (`start` atau `end`).
+     - Terdapat overlay latar belakang transparan (`dismissOverlay` pada zIndex 15) dan event `onBlur` pada TextInput sehingga saat user menekan sembarang area di luar baris rentang, mode input otomatis tertutup secara instan.
+  2. Logika Parsing dan Pembulatan Milidetik:
+     - Input dibatasi maksimal 2 digit numerik.
+     - Jika pengguna memasukkan 1 digit (misal `6`), nilai otomatis dievaluasi sebagai ratusan milidetik (`60` centiseconds = 600ms).
+     - Jika pengguna memasukkan 2 digit (misal `65` centiseconds = 650ms), digit ketiga otomatis bernilai 0.
+     - Format tampilan non-edit (`formatDisplayTime`) menampilkan milidetik dua digit (`mm:ss.cc`) hanya bila nilai klip memiliki pecahan desimal, dan tetap ringkas (`mm:ss`) bila detik bulat.
+  3. Integrasi Auto-Seek Terpusat:
+     - Mengikuti `centralizedSeek` yang sudah ter-debounce secara trailing (500ms untuk stream online, 0ms untuk file lokal) sehingga seeking pemutar video tetap sinkron tanpa membebani kuota atau terkena rate limit.
+- **Perubahan Kode Penting**:
+  - [mobile/src/components/FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
+    - Mengimpor `TextInput` dan `Keyboard` dari `react-native`.
+    - Menambahkan fungsi helper `formatDisplayTime(seconds: number): string`.
+    - Menambahkan state `activeTimeEdit` (`'start' | 'end' | null`) dan `tempTimeValue`.
+    - Mengimplementasikan handler `handleMsTimeChange(type, valStr)` dengan kalkulasi centiseconds dan integrasi `centralizedSeek`.
+    - Menambahkan `dismissOverlay` pada root JSX dan styling `timePressable`, `timeInput`, `timeInputStart`, `timeInputEnd`.
+    - Menambahkan reset `setActiveTimeEdit(null)` saat berpindah klip di carousel.
+
+## [dedcbc4] - Fix Premature Clip End and Enable Instant Zero-Latency Local File Seek
 - **Konteks Struktural**:
   1. Mengoptimalkan responsivitas pemutar video pada [FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
      - Menghilangkan *debounce* 500ms (menjadi 0ms instan) pada fungsi `centralizedSeek` ketika klip yang sedang diputar adalah file lokal fisik (`file://...`).
