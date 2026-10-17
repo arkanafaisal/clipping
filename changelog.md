@@ -14,7 +14,23 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Enforce Single Source of Truth for Python Scripts and Add Rule 22
+## [Unreleased] - Implement 2-Stage Keyframe Expanded Copy and Offline FFmpeg Cut for Clip Downloader
+- **Konteks Struktural**:
+  1. Merombak total [clip_downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/clip_downloader.py) dari awal menjadi pipeline 2-tahap yang mandiri dan bebas dari ketergantungan server proxy HTTP lokal:
+     - **Tahap 1**: Mengunduh segmen video sementara (*temporary file*) dengan metode copy cepat (`-c copy` pada keyframe terdekat) menggunakan rentang waktu yang diperluas (dimundurkan 5 detik dan dimajukan 5 detik) agar keyframe utuh tidak terpotong.
+     - **Tahap 2**: Melakukan pemotongan presisi berbasis frame (*frame-accurate*) dan ultrafast re-encode menggunakan FFmpeg secara offline dari file sementara lokal ke lokasi penyimpanan akhir yang ditentukan oleh frontend (`output_path`).
+     - **Tahap 3**: Membersihkan file sementara secara otomatis dan mengembalikan URL stream (Google Video link yang aktif/diperbarui) ke frontend untuk di-cache.
+  2. Meneruskan raw error dan traceback 100% utuh tanpa pengurangan format beserta standardized error code (`VIDEO_ID_REQUIRED`, `OUTPUT_PATH_REQUIRED`, `INVALID_RANGE`, `FFMPEG_CUT_ERROR`, `RATE_LIMIT_EXCEEDED`, dll.).
+  3. Memperbarui [api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts) untuk memprioritaskan ekstraksi error code dari `payload` Python runner dan menambahkan deskripsi error baru pada kamus `API_ERROR_MAP`.
+  4. Sepenuhnya mematuhi Rule 22: Pengeditan skrip Python difokuskan 100% pada direktori sumber tunggal di [mobile/scripts/utils/](file:///d:/projects/clipping/mobile/scripts/utils/).
+- **Perubahan Kode Penting**:
+  - [mobile/scripts/utils/clip_downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/clip_downloader.py):
+    - Mengganti seluruh implementasi lama dengan fungsi modular `download_clip_direct` berbasis 2-tahap (yt-dlp range copy + offline FFmpeg re-encode).
+  - [mobile/src/services/api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts):
+    - Menambahkan kode error `OUTPUT_PATH_REQUIRED` dan `FFMPEG_CUT_ERROR` pada `API_ERROR_MAP`.
+    - Memprioritaskan `payload?.code` saat menangkap kegagalan download klip.
+
+## [846f8e6] - Enforce Single Source of Truth for Python Scripts and Add Rule 22
 - **Konteks Struktural**:
   1. Menetapkan alur kerja terpusat (*single source of truth*) untuk pengembangan skrip Python (di `mobile/scripts/utils/`), sehingga tidak lagi melakukan duplikasi atau modifikasi paralel ke folder modul internal (`modules/python-runner/android/src/main/python/`) maupun `mobile_api/` selama iterasi aktif.
   2. Sinkronisasi penuh ke folder modul *native* untuk kebutuhan bundling APK hanya akan dilakukan saat ada konfirmasi eksplisit kesiapan build dari pengguna.

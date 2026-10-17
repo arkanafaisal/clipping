@@ -74,6 +74,8 @@ export const API_ERROR_MAP: Record<string, string> = {
   FORMAT_NOT_AVAILABLE: 'Format video yang diminta tidak tersedia di YouTube untuk video ini.',
   INVALID_PARAMS: 'Parameter permintaan tidak lengkap atau tidak valid.',
   INVALID_RANGE: 'Rentang waktu klip tidak valid.',
+  OUTPUT_PATH_REQUIRED: 'Lokasi tujuan penyimpanan file (output_path) wajib disertakan.',
+  FFMPEG_CUT_ERROR: 'Pemotongan presisi klip dengan FFmpeg gagal.',
   STORAGE_PERMISSION_DENIED: 'Akses penyimpanan perangkat ditolak (Permission Denied). Harap berikan izin "Akses Semua File" di Pengaturan HP untuk aplikasi Clipping.',
   DOWNLOAD_FAILED: 'Gagal mengunduh klip video dari YouTube.',
   SERVER_OFFLINE: 'Server internal Python belum aktif pada port 8080.',
@@ -987,17 +989,17 @@ export async function downloadClip(
         await clearCachedDownloadStreamUrl(videoId);
         FileSystem.deleteAsync(`file://${infoJsonPath}`, { idempotent: true }).catch(() => {});
 
-        let code = data.code || data.message || 'DOWNLOAD_FAILED';
+        let code = payload?.code || data?.code || data?.message || 'DOWNLOAD_FAILED';
 
         if (isPermissionError) {
           code = 'STORAGE_PERMISSION_DENIED';
         } else if (lowerRaw.includes('requested format is not available') || lowerRaw.includes('format is not available')) {
           code = 'FORMAT_NOT_AVAILABLE';
-        } else if (data.cookies_attempted) {
+        } else if (payload?.cookies_attempted || data?.cookies_attempted) {
           code = 'COOKIES_INVALID_OR_EXPIRED';
         } else if (!cookiePath) {
           code = 'RATE_LIMIT_EXCEEDED';
-        } else if (data.cookies_path && data.cookies_file_exists === false) {
+        } else if ((payload?.cookies_path || data?.cookies_path) && (payload?.cookies_file_exists === false || data?.cookies_file_exists === false)) {
           code = 'COOKIES_FILE_NOT_FOUND';
         } else if (isRateLimitOrRestrictedError({ message: rawError, rawError })) {
           code = cookiePath ? 'COOKIES_INVALID_OR_EXPIRED' : 'RATE_LIMIT_EXCEEDED';
