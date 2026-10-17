@@ -143,9 +143,9 @@ export const CookiesModal: React.FC<CookiesModalProps> = ({
               onPress={handleDeleteCookies}
               disabled={isSubmitting}
               activeOpacity={0.7}
+              accessibilityLabel="Hapus Cookies"
             >
-              <Trash2 size={15} color="#ef4444" style={{ marginRight: 6 }} />
-              <Text style={styles.deleteBtnText}>Hapus Cookies</Text>
+              <Trash2 size={18} color="#ef4444" />
             </TouchableOpacity>
 
             <View style={styles.rightActions}>
@@ -240,19 +240,14 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   deleteBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+    width: 40,
+    height: 40,
     borderRadius: 10,
     backgroundColor: 'rgba(239, 68, 68, 0.1)',
     borderWidth: 1,
     borderColor: 'rgba(239, 68, 68, 0.25)',
-  },
-  deleteBtnText: {
-    color: '#ef4444',
-    fontSize: 13,
-    fontWeight: '600',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   cancelBtn: {
     paddingVertical: 10,
