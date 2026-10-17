@@ -81,8 +81,16 @@ class ToastService {
 
 export const ToastManager = new ToastService();
 
+interface DebugErrorData {
+  title: string;
+  message?: string;
+  rawError?: string;
+  errorCode?: string;
+}
+
 export const ToastContainer: React.FC = () => {
   const [toast, setToast] = useState<ToastConfig | null>(null);
+  const [debugData, setDebugData] = useState<DebugErrorData | null>(null);
   const [debugModalVisible, setDebugModalVisible] = useState(false);
   const opacityAnim = useState(new Animated.Value(0))[0];
   const translateYAnim = useState(new Animated.Value(-20))[0];
@@ -122,9 +130,27 @@ export const ToastContainer: React.FC = () => {
     });
   }, [opacityAnim, translateYAnim]);
 
-  if (!toast) return null;
+  const handleOpenDebug = () => {
+    if (toast) {
+      setDebugData({
+        title: toast.title,
+        message: toast.message,
+        rawError: toast.rawError,
+        errorCode: toast.errorCode,
+      });
+      setDebugModalVisible(true);
+    }
+  };
+
+  const handleCloseDebug = () => {
+    setDebugModalVisible(false);
+    setDebugData(null);
+  };
+
+  if (!toast && !debugModalVisible) return null;
 
   const renderIcon = () => {
+    if (!toast) return null;
     switch (toast.type) {
       case 'loading':
         return <ActivityIndicator size="small" color="#60a5fa" style={styles.iconStyle} />;
@@ -139,6 +165,7 @@ export const ToastContainer: React.FC = () => {
   };
 
   const getBorderColor = () => {
+    if (!toast) return 'rgba(255, 255, 255, 0.15)';
     switch (toast.type) {
       case 'success':
         return 'rgba(16, 185, 129, 0.4)';
@@ -153,52 +180,54 @@ export const ToastContainer: React.FC = () => {
 
   return (
     <>
-      <Animated.View
-        style={[
-          styles.container,
-          {
-            borderColor: getBorderColor(),
-            opacity: opacityAnim,
-            transform: [{ translateY: translateYAnim }],
-          },
-        ]}
-        pointerEvents="box-none"
-      >
-        <View style={styles.contentRow}>
-          {renderIcon()}
-          <View style={styles.textContainer}>
-            <Text style={styles.titleText}>{toast.title}</Text>
-            {toast.message ? <Text style={styles.messageText}>{toast.message}</Text> : null}
-          </View>
+      {toast ? (
+        <Animated.View
+          style={[
+            styles.container,
+            {
+              borderColor: getBorderColor(),
+              opacity: opacityAnim,
+              transform: [{ translateY: translateYAnim }],
+            },
+          ]}
+          pointerEvents="box-none"
+        >
+          <View style={styles.contentRow}>
+            {renderIcon()}
+            <View style={styles.textContainer}>
+              <Text style={styles.titleText}>{toast.title}</Text>
+              {toast.message ? <Text style={styles.messageText}>{toast.message}</Text> : null}
+            </View>
 
-          {/* Icon Button Khusus Debug Modal (Hanya muncul jika terdapat rawError) */}
-          {toast.rawError ? (
+            {/* Icon Button Khusus Debug Modal (Hanya muncul jika terdapat rawError) */}
+            {toast.rawError ? (
+              <TouchableOpacity
+                style={styles.debugBtn}
+                onPress={handleOpenDebug}
+                activeOpacity={0.7}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Code2 size={15} color="#fca5a5" />
+              </TouchableOpacity>
+            ) : null}
+
             <TouchableOpacity
-              style={styles.debugBtn}
-              onPress={() => setDebugModalVisible(true)}
+              style={styles.closeBtn}
+              onPress={() => ToastManager.hide()}
               activeOpacity={0.7}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Code2 size={15} color="#fca5a5" />
+              <X size={14} color="rgba(255, 255, 255, 0.5)" />
             </TouchableOpacity>
-          ) : null}
+          </View>
+        </Animated.View>
+      ) : null}
 
-          <TouchableOpacity
-            style={styles.closeBtn}
-            onPress={() => ToastManager.hide()}
-            activeOpacity={0.7}
-          >
-            <X size={14} color="rgba(255, 255, 255, 0.5)" />
-          </TouchableOpacity>
-        </View>
-      </Animated.View>
-
-      {/* Modal Detail Debug Log Error */}
+      {/* Modal Detail Debug Log Error - Terisolasi dari timer auto-dismiss notifikasi toast */}
       <Modal
         visible={debugModalVisible}
         transparent={true}
         animationType="fade"
-        onRequestClose={() => setDebugModalVisible(false)}
+        onRequestClose={handleCloseDebug}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -208,7 +237,7 @@ export const ToastContainer: React.FC = () => {
                 <Text style={styles.modalTitle}>Detail Debug Error</Text>
               </View>
               <TouchableOpacity
-                onPress={() => setDebugModalVisible(false)}
+                onPress={handleCloseDebug}
                 style={styles.modalCloseBtn}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
@@ -216,15 +245,15 @@ export const ToastContainer: React.FC = () => {
               </TouchableOpacity>
             </View>
 
-            {toast.errorCode ? (
+            {debugData?.errorCode ? (
               <View style={styles.codeBadge}>
                 <Text style={styles.codeBadgeKey}>KODE:</Text>
-                <Text style={styles.codeBadgeVal}>{toast.errorCode}</Text>
+                <Text style={styles.codeBadgeVal}>{debugData.errorCode}</Text>
               </View>
             ) : null}
 
             <Text style={styles.sectionLabel}>Pesan Pengguna:</Text>
-            <Text style={styles.userMsgText}>{toast.message || toast.title}</Text>
+            <Text style={styles.userMsgText}>{debugData?.message || debugData?.title}</Text>
 
             <Text style={styles.sectionLabel}>Raw Error / Respon Server:</Text>
             <ScrollView
@@ -232,14 +261,14 @@ export const ToastContainer: React.FC = () => {
               contentContainerStyle={styles.rawErrorContent}
             >
               <Text style={styles.rawErrorText} selectable={true}>
-                {toast.rawError}
+                {debugData?.rawError}
               </Text>
             </ScrollView>
 
             <View style={styles.modalFooter}>
               <TouchableOpacity
                 style={styles.modalDismissBtn}
-                onPress={() => setDebugModalVisible(false)}
+                onPress={handleCloseDebug}
                 activeOpacity={0.8}
               >
                 <Text style={styles.modalDismissBtnText}>Tutup</Text>

@@ -361,19 +361,42 @@ let cachedCookiesPath: string | null = null;
 
 /**
  * Memeriksa dan mengambil path cookies yang valid.
- * Prioritas: In-Memory cache -> LocalStorage.
- * Mempertahankan path yang tersimpan tanpa menghapus LocalStorage secara agresif.
+ * Prioritas: In-Memory cache -> LocalStorage -> File Fisik Default (/storage/emulated/0/clipping/cookies.txt).
+ * Memverifikasi keberadaan fisik file di disk sebelum mengembalikan path ke pemanggil.
  */
 export async function getValidCookiesPath(): Promise<string | undefined> {
+  // 1. Tier 1: In-Memory cache (verifikasi keberadaan fisik file)
   if (cachedCookiesPath) {
-    return cachedCookiesPath;
+    try {
+      const fileInfo = await FileSystem.getInfoAsync(`file://${cachedCookiesPath}`);
+      if (fileInfo.exists && !fileInfo.isDirectory && (fileInfo.size === undefined || fileInfo.size > 0)) {
+        return cachedCookiesPath;
+      }
+    } catch {}
+    cachedCookiesPath = null;
   }
 
+  // 2. Tier 2: Path yang tersimpan di LocalStorage
   try {
     const savedPath = await LocalStorage.getItem(COOKIES_STORAGE_KEY);
     if (savedPath && typeof savedPath === 'string' && savedPath.trim().length > 0) {
-      cachedCookiesPath = savedPath.trim();
-      return cachedCookiesPath;
+      const cleanPath = savedPath.trim();
+      const fileInfo = await FileSystem.getInfoAsync(`file://${cleanPath}`);
+      if (fileInfo.exists && !fileInfo.isDirectory && (fileInfo.size === undefined || fileInfo.size > 0)) {
+        cachedCookiesPath = cleanPath;
+        return cachedCookiesPath;
+      }
+    }
+  } catch {}
+
+  // 3. Tier 3: Auto-detect file cookies fisik default di shared clipping folder (/storage/emulated/0/clipping/cookies.txt)
+  try {
+    const defaultPath = COOKIES_FILE_PATH;
+    const defaultInfo = await FileSystem.getInfoAsync(`file://${defaultPath}`);
+    if (defaultInfo.exists && !defaultInfo.isDirectory && (defaultInfo.size === undefined || defaultInfo.size > 0)) {
+      cachedCookiesPath = defaultPath;
+      await LocalStorage.setItem(COOKIES_STORAGE_KEY, defaultPath);
+      return defaultPath;
     }
   } catch {}
 
