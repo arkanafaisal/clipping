@@ -25,7 +25,8 @@ export interface StreamResponse {
   error?: string;
 }
 
-import { isPythonInitialized, setupPythonPaths, getNativeRunnerInfo } from '../../modules/python-runner';
+import { Platform } from 'react-native';
+import { isPythonInitialized, setupPythonPaths, getNativeRunnerInfo, executePythonScript } from '../../modules/python-runner';
 
 // 1. EMBEDDED INTERNAL SERVER (Port 8080):
 // Seluruh endpoint produksi tertanam di dalam build APK (Chaquopy):
@@ -228,31 +229,43 @@ export async function fetchStreamUrl(videoId: string, forceRefresh: boolean = fa
     }
   }
 
-  // 3. Tier 3: Fetch dari Server Python (Jika memori dan file fisik kosong, atau saat force refresh)
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 20000);
-
+  // 3. Tier 3: Eksekusi Skrip Python Langsung (Jika memori dan file fisik kosong, atau saat force refresh)
   try {
     const cookiePath = await getValidCookiesPath();
-    const response = await fetch(`${EMBEDDED_API_BASE_URL}/api/stream`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+    let data: any = null;
+    const isNative = Platform.OS === 'android' && isPythonInitialized();
+
+    if (isNative) {
+      data = await executePythonScript('utils.stream_extractor', 'extract_stream_url', {
         video_id: videoId,
         ydl_opts: STREAM_YTDL_OPTS,
         cookie_path: cookiePath,
-      }),
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
+      });
+    } else {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 20000);
+      try {
+        const response = await fetch(`${DEV_API_BASE_URL}/api/stream`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            video_id: videoId,
+            ydl_opts: STREAM_YTDL_OPTS,
+            cookie_path: cookiePath,
+          }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        data = await response.json().catch(() => ({}));
+      } catch (fetchErr) {
+        clearTimeout(timeoutId);
+        throw fetchErr;
+      }
+    }
 
-    const data = await response.json().catch(() => ({}));
-
-    if (!response.ok || !data.stream_url) {
-      const code = data.message || (response.status === 404 ? 'STREAM_NOT_FOUND' : 'EXTRACTOR_ERROR');
-      const rawError = data.error || `HTTP ${response.status}: ${response.statusText || 'Gagal mengekstrak stream'}`;
+    if (!data || data.status === 'error' || !data.stream_url) {
+      const code = data?.code || data?.message || 'STREAM_NOT_FOUND';
+      const rawError = data?.error || 'Gagal mengekstrak direct stream URL.';
       throw new ApiError(code, rawError);
     }
 
@@ -268,7 +281,6 @@ export async function fetchStreamUrl(videoId: string, forceRefresh: boolean = fa
 
     return streamUrl;
   } catch (error: any) {
-    clearTimeout(timeoutId);
     if (error instanceof ApiError) throw error;
     throw new ApiError(error.name === 'AbortError' ? 'NETWORK_ERROR' : 'EXTRACTOR_ERROR', error.message);
   }
@@ -284,30 +296,42 @@ export async function fetchHeatmap(
   numClips: number = 100,
   offset: number = 5
 ): Promise<HeatmapResponse> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 20000);
-
   try {
     const cookiePath = await getValidCookiesPath();
-    const response = await fetch(`${EMBEDDED_API_BASE_URL}/api/heatmap`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+    let data: any = null;
+    const isNative = Platform.OS === 'android' && isPythonInitialized();
+
+    if (isNative) {
+      data = await executePythonScript('utils.heatmap', 'extract_heatmap_data', {
         video_id: videoId,
         ydl_opts: HEATMAP_YTDL_OPTS,
         cookie_path: cookiePath,
-      }),
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
+      });
+    } else {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 20000);
+      try {
+        const response = await fetch(`${DEV_API_BASE_URL}/api/heatmap`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            video_id: videoId,
+            ydl_opts: HEATMAP_YTDL_OPTS,
+            cookie_path: cookiePath,
+          }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        data = await response.json().catch(() => ({}));
+      } catch (fetchErr) {
+        clearTimeout(timeoutId);
+        throw fetchErr;
+      }
+    }
 
-    const data = await response.json().catch(() => ({}));
-
-    if (!response.ok || !Array.isArray(data.heatmap)) {
-      const code = data.message || (response.status === 404 ? 'HEATMAP_NOT_FOUND' : 'EXTRACTOR_ERROR');
-      const rawError = data.error || `HTTP ${response.status}: ${response.statusText || 'Gagal mengambil heatmap'}`;
+    if (!data || data.status === 'error' || !Array.isArray(data.heatmap)) {
+      const code = data?.code || data?.message || 'HEATMAP_NOT_FOUND';
+      const rawError = data?.error || 'Gagal mengambil data heatmap dari YouTube.';
       throw new ApiError(code, rawError);
     }
 
@@ -347,7 +371,6 @@ export async function fetchHeatmap(
     };
 
   } catch (error: any) {
-    clearTimeout(timeoutId);
     if (error instanceof ApiError) throw error;
     throw new ApiError(error.name === 'AbortError' ? 'NETWORK_ERROR' : 'EXTRACTOR_ERROR', error.message);
   }
@@ -868,28 +891,22 @@ export async function downloadClip(
     }
 
     try {
-      let response: Response;
-      try {
-        // Prioritaskan EMBEDDED_API_BASE_URL (port 8080 / APK native)
-        response = await fetch(`${EMBEDDED_API_BASE_URL}/api/download-clip`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            video_id: videoId,
-            start,
-            end,
-            output_path: nativePath,
-            stream_url: cachedStreamUrl || undefined,
-            cookie_path: cookiePath,
-            ydl_opts: clipYdlOpts,
-          }),
-          signal: controller.signal,
+      let data: any = null;
+      const isNative = Platform.OS === 'android' && isPythonInitialized();
+
+      if (isNative) {
+        data = await executePythonScript('utils.clip_downloader', 'download_clip_direct', {
+          video_id: videoId,
+          start,
+          end,
+          output_path: nativePath,
+          ydl_opts: clipYdlOpts,
+          stream_url: cachedStreamUrl || undefined,
+          cookie_path: cookiePath,
         });
-      } catch {
+      } else {
         // Fallback ke DEV_API_BASE_URL (port 3006 / Termux) jika mode dev
-        response = await fetch(`${DEV_API_BASE_URL}/api/download-clip`, {
+        const response = await fetch(`${DEV_API_BASE_URL}/api/download-clip`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -905,18 +922,17 @@ export async function downloadClip(
           }),
           signal: controller.signal,
         });
+        clearTimeout(timeoutId);
+        data = await response.json().catch(() => ({}));
       }
-      clearTimeout(timeoutId);
 
-      const data = await response.json().catch(() => ({}));
-
-      // Tangkap download stream URL dari response server dan simpan jika baru / berbeda
-      if (data.stream_url && data.stream_url !== cachedStreamUrl) {
+      // Tangkap download stream URL dari response skrip dan simpan jika baru / berbeda
+      if (data?.stream_url && data.stream_url !== cachedStreamUrl) {
         await saveCachedDownloadStreamUrl(videoId, data.stream_url);
       }
 
-      if (!response.ok || data.status !== 'success') {
-        const rawError = data.error || `HTTP ${response.status}: Gagal mengunduh klip`;
+      if (!data || data.status !== 'success') {
+        const rawError = data?.error || 'Gagal mengunduh klip';
         const lowerRaw = rawError.toLowerCase();
 
         const isPermissionError =
@@ -958,6 +974,25 @@ export async function downloadClip(
       // Tandai pada in-memory cache untuk kedua URI (shared dan internal)
       DOWNLOADED_CLIPS_CACHE.set(fileUri, true);
       DOWNLOADED_CLIPS_CACHE.set(candidates[0].fileUri, true);
+
+      // Sinkronisasi otomatis ke Shared Storage jika tadi disimpan di internal sandbox
+      if (fileUri !== candidates[0].fileUri) {
+        try {
+          const sharedTargetUri = candidates[0].fileUri;
+          const targetDir = `file://${SHARED_CLIPPING_OUTPUT_DIR}/${videoId}`;
+          const targetDirInfo = await FileSystem.getInfoAsync(targetDir);
+          if (!targetDirInfo.exists) {
+            await FileSystem.makeDirectoryAsync(targetDir, { intermediates: true });
+          }
+          await FileSystem.copyAsync({
+            from: fileUri,
+            to: sharedTargetUri,
+          });
+          console.log(`[DownloadClip] Berhasil menduplikasi klip ke shared storage: ${sharedTargetUri}`);
+        } catch (copyErr) {
+          console.warn('[DownloadClip] Gagal menyalin ke shared storage:', copyErr);
+        }
+      }
 
       // Sinkronisasi file klip ke Galeri/Shared Storage perangkat via MediaStore (sesuai Rule 20)
       try {

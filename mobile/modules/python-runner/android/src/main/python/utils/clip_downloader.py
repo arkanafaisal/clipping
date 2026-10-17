@@ -271,3 +271,47 @@ def download_youtube_clip_range(
         "cookies_path": cookie_path
     }
     return None, result_url, code, final_error_detail, meta
+
+
+def download_clip_direct(
+    video_id: str,
+    start: float,
+    end: float,
+    output_path: str,
+    ydl_opts: dict = None,
+    stream_url: str = None,
+    cookie_path: str = None
+) -> dict:
+    """
+    Wrapper fungsi skrip murni yang dipanggil langsung oleh runner.py / Native Module.
+    Mengembalikan dictionary hasil atau error terstruktur.
+    """
+    path, ret_url, code, err, meta = download_youtube_clip_range(
+        video_id=video_id,
+        start=start,
+        end=end,
+        output_path=output_path,
+        ydl_opts=ydl_opts or {},
+        stream_url=stream_url,
+        cookie_path=cookie_path
+    )
+    if code or err:
+        res = {
+            "status": "error",
+            "code": code or "DOWNLOAD_FAILED",
+            "error": err or str(code),
+            "stream_url": ret_url
+        }
+        if meta:
+            res.update(meta)
+        return res
+
+    res = {
+        "status": "success",
+        "output_path": path,
+        "stream_url": ret_url
+    }
+    if meta:
+        res.update(meta)
+    return res
+

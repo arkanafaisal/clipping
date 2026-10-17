@@ -49,8 +49,26 @@ def get_direct_stream_url(video_id: str, ydl_opts: dict, cookie_path: str = None
             code = "RATE_LIMIT_EXCEEDED" if is_limit else "EXTRACTOR_ERROR"
             return None, code, error_msg
 
-    # Jika tidak ada cookies, kembalikan error dari percobaan anonim
     error_msg = first_error_msg or "Direct stream URL tidak ditemukan dalam respon metadata YouTube."
     is_limit = any(k in error_msg.lower() for k in ["429", "403", "forbidden", "access denied", "rate limit", "bot", "captcha", "sign in"])
     code = "RATE_LIMIT_EXCEEDED" if is_limit else ("STREAM_NOT_FOUND" if "not found" in error_msg.lower() else "EXTRACTOR_ERROR")
     return None, code, error_msg
+
+
+def extract_stream_url(video_id: str, ydl_opts: dict = None, cookie_path: str = None) -> dict:
+    """
+    Wrapper fungsi skrip murni yang dipanggil langsung oleh runner.py / Native Module.
+    Mengembalikan dictionary hasil atau error terstruktur.
+    """
+    url, code, err = get_direct_stream_url(video_id, ydl_opts or {}, cookie_path)
+    if code or err:
+        return {
+            "status": "error",
+            "code": code or "STREAM_ERROR",
+            "error": err or str(code)
+        }
+    return {
+        "status": "success",
+        "stream_url": url
+    }
+

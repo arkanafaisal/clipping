@@ -14,7 +14,24 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [PENDING_COMMIT_3] - Konfigurasi Dinamis Root Shared Storage dan Verifikasi Fisik Read/Write (hello.txt)
+## [5a40a9c] - Migrasi Pemanggilan Ekstraksi Stream, Heatmap, dan Unduhan Klip ke Skrip Python Langsung
+- **Konteks Struktural**:
+  1. Mengalihkan seluruh alur pemanggilan fitur utama (`fetchStreamUrl`, `fetchHeatmap`, dan `downloadClip`) di [mobile/src/services/api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts) dari yang sebelumnya menggunakan HTTP `fetch()` ke port lokal 8080 menjadi eksekusi langsung ke engine Python melalui `executePythonScript` (JSI/Chaquopy bridge).
+  2. Mengeliminasi seluruh kerentanan *Connection Aborted / Network Timeout* akibat pembatasan waktu HTTP perantara, sekaligus mempertahankan format respons terstruktur (`status`, `stream_url`, `heatmap`, `title`), kode error terstandarisasi, dan pesan error mentah lengkap (sesuai Rule 12 & Rule 19).
+  3. Memperbarui modul [stream_extractor.py](file:///d:/projects/clipping/mobile/modules/python-runner/android/src/main/python/utils/stream_extractor.py), [heatmap.py](file:///d:/projects/clipping/mobile/modules/python-runner/android/src/main/python/utils/heatmap.py), dan [clip_downloader.py](file:///d:/projects/clipping/mobile/modules/python-runner/android/src/main/python/utils/clip_downloader.py) (beserta versi `mobile_api/utils/` agar 100% selaras sesuai Rule 6) dengan wrapper fungsi skrip murni (`extract_stream_url`, `extract_heatmap_data`, dan `download_clip_direct`) yang mengembalikan dictionary terstruktur.
+  4. Menambahkan sinkronisasi otomatis via `FileSystem.copyAsync` di [api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts) setelah pengunduhan klip selesai, menjamin file klip selalu hadir di shared storage luar (`/storage/emulated/0/clipping/output/<videoId>/`).
+- **Perubahan Kode Penting**:
+  - [mobile/modules/python-runner/android/src/main/python/utils/stream_extractor.py](file:///d:/projects/clipping/mobile/modules/python-runner/android/src/main/python/utils/stream_extractor.py) & [mobile_api/utils/stream_extractor.py](file:///d:/projects/clipping/mobile_api/utils/stream_extractor.py):
+    - Menambahkan fungsi `extract_stream_url`.
+  - [mobile/modules/python-runner/android/src/main/python/utils/heatmap.py](file:///d:/projects/clipping/mobile/modules/python-runner/android/src/main/python/utils/heatmap.py) & [mobile_api/utils/heatmap.py](file:///d:/projects/clipping/mobile_api/utils/heatmap.py):
+    - Menambahkan fungsi `extract_heatmap_data`.
+  - [mobile/modules/python-runner/android/src/main/python/utils/clip_downloader.py](file:///d:/projects/clipping/mobile/modules/python-runner/android/src/main/python/utils/clip_downloader.py) & [mobile_api/utils/clip_downloader.py](file:///d:/projects/clipping/mobile_api/utils/clip_downloader.py):
+    - Menambahkan fungsi `download_clip_direct`.
+  - [mobile/src/services/api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts):
+    - Mengalihkan `fetchStreamUrl`, `fetchHeatmap`, dan `downloadClip` ke `executePythonScript` dengan fallback dev Termux.
+    - Menambahkan auto-copy ke shared storage saat download klip berhasil.
+
+## [45eff1b] - Konfigurasi Dinamis Root Shared Storage dan Verifikasi Fisik Read/Write (hello.txt)
 - **Konteks Struktural**:
   1. Mengimplementasikan konfigurasi dinamis untuk lokasi direktori root shared storage (default: `/storage/emulated/0/clipping`) yang tersimpan di `LocalStorage` dan dapat disesuaikan secara bebas untuk berbagai perangkat Android yang berbeda.
   2. Menyediakan modul [storageConfig.ts](file:///d:/projects/clipping/mobile/src/services/storageConfig.ts) yang mengelola struktur direktori standar (`/output`, `/scripts`, `/libs`, `/cookies.txt`) serta mengintegrasikan fungsi verifikasi disk fisik `verifyAndInitializeStorage`.

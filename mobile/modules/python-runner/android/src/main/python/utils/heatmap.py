@@ -55,3 +55,22 @@ def get_raw_heatmap(video_id: str, ydl_opts: dict, cookie_path: str = None) -> t
     is_limit = any(k in error_msg.lower() for k in ["429", "403", "forbidden", "access denied", "rate limit", "bot", "captcha", "sign in"])
     code = "RATE_LIMIT_EXCEEDED" if is_limit else ("HEATMAP_NOT_FOUND" if "heatmap" in error_msg.lower() else "EXTRACTOR_ERROR")
     return [], "", code, error_msg
+
+
+def extract_heatmap_data(video_id: str, ydl_opts: dict = None, cookie_path: str = None) -> dict:
+    """
+    Wrapper fungsi skrip murni yang dipanggil langsung oleh runner.py / Native Module.
+    Mengembalikan dictionary hasil atau error terstruktur.
+    """
+    heatmap, title, code, err = get_raw_heatmap(video_id, ydl_opts or {}, cookie_path)
+    if code or err:
+        return {
+            "status": "error",
+            "code": code or "HEATMAP_ERROR",
+            "error": err or str(code)
+        }
+    return {
+        "status": "success",
+        "title": title,
+        "heatmap": heatmap
+    }
