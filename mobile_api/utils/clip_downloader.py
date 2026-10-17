@@ -21,23 +21,23 @@ def download_youtube_clip_range(
     mencoba sekali lagi menggunakan cookies.
     
     Returns:
-        tuple: (output_path: str | None, stream_url: str | None, code: str | None, error: str | None)
+        tuple: (output_path: str | None, stream_url: str | None, code: str | None, error: str | None, meta: dict)
     """
     if not video_id:
-        return None, None, "VIDEO_ID_REQUIRED", "Parameter 'video_id' wajib diisi."
+        return None, None, "VIDEO_ID_REQUIRED", "Parameter 'video_id' wajib diisi.", {}
     if start is None or end is None:
-        return None, None, "INVALID_RANGE", "Parameter 'start' dan 'end' wajib disertakan."
+        return None, None, "INVALID_RANGE", "Parameter 'start' dan 'end' wajib disertakan.", {}
     if not output_path:
-        return None, None, "OUTPUT_PATH_REQUIRED", "Parameter 'output_path' wajib disertakan."
+        return None, None, "OUTPUT_PATH_REQUIRED", "Parameter 'output_path' wajib disertakan.", {}
 
     try:
         start_num = float(start)
         end_num = float(end)
     except (ValueError, TypeError):
-        return None, None, "INVALID_RANGE", "Parameter 'start' dan 'end' harus berupa angka waktu valid."
+        return None, None, "INVALID_RANGE", "Parameter 'start' dan 'end' harus berupa angka waktu valid.", {}
 
     if end_num <= start_num:
-        return None, None, "INVALID_RANGE", f"Waktu 'end' ({end_num}) harus lebih besar daripada 'start' ({start_num})."
+        return None, None, "INVALID_RANGE", f"Waktu 'end' ({end_num}) harus lebih besar daripada 'start' ({start_num}).", {}
 
     output_dir = os.path.dirname(output_path)
     if output_dir and not os.path.exists(output_dir):

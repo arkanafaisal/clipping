@@ -1,10 +1,9 @@
 from server import (
     app,
     get_stream,
-    download_to_gdrive,
-    get_active_gdrive_tasks,
-    proxy_stream,
     get_heatmap,
+    download_clip,
+    download_gdrive_file,
     start_server,
 )
 

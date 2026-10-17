@@ -26,10 +26,12 @@ export interface StreamResponse {
 import { startPythonServer } from '../../modules/python-runner';
 
 // 1. EMBEDDED INTERNAL SERVER (Port 8080):
-// Khusus endpoint stabil V1 yang sudah tertanam dan teruji di dalam APK build:
+// Seluruh endpoint produksi tertanam di dalam build APK (Chaquopy):
 // - GET /ping (koneksi internal Chaquopy)
 // - POST /api/stream (direct stream URL extraction)
 // - POST /api/heatmap (metadata & most replayed raw extraction)
+// - POST /api/download-clip (pengunduhan klip dinamis yt-dlp)
+// - POST /api/download-gdrive-file (sinkronisasi cookies Google Drive publik)
 export let EMBEDDED_API_BASE_URL = 'http://127.0.0.1:8080';
 
 export function setEmbeddedApiBaseUrl(url: string) {
@@ -37,9 +39,7 @@ export function setEmbeddedApiBaseUrl(url: string) {
 }
 
 // 2. MOBILE DEV / MOCK SERVER (Port 3006):
-// Khusus endpoint update baru & eksperimental yang dikembangkan terpisah di mobile_api (port 3006):
-// - POST /api/download-clip (pengunduhan klip dinamis yt-dlp)
-// - Fitur lanjutan berikutnya (subtitles, full download, mock)
+// Server pengembangan eksternal (Termux / PC lokal) sebagai fallback saat debugging tanpa APK native:
 export let DEV_API_BASE_URL = 'http://127.0.0.1:3006';
 
 export function setDevApiBaseUrl(url: string) {
@@ -431,8 +431,8 @@ export async function syncCookiesFromGoogleDrive(linkOrId: string): Promise<stri
   try {
     let response: Response;
     try {
-      // Prioritaskan DEV_API_BASE_URL (port 3006 / Termux)
-      response = await fetch(`${DEV_API_BASE_URL}/api/download-gdrive-file`, {
+      // Prioritaskan EMBEDDED_API_BASE_URL (port 8080 / APK native)
+      response = await fetch(`${EMBEDDED_API_BASE_URL}/api/download-gdrive-file`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -443,8 +443,8 @@ export async function syncCookiesFromGoogleDrive(linkOrId: string): Promise<stri
         signal: controller.signal,
       });
     } catch {
-      // Fallback ke EMBEDDED_API_BASE_URL (port 8000)
-      response = await fetch(`${EMBEDDED_API_BASE_URL}/api/download-gdrive-file`, {
+      // Fallback ke DEV_API_BASE_URL (port 3006 / Termux) jika mode dev
+      response = await fetch(`${DEV_API_BASE_URL}/api/download-gdrive-file`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -631,22 +631,44 @@ export async function downloadClip(
 
   try {
     const cookiePath = await getValidCookiesPath();
-    const response = await fetch(`${DEV_API_BASE_URL}/api/download-clip`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        video_id: videoId,
-        start,
-        end,
-        output_path: nativePath,
-        stream_url: cachedStreamUrl || undefined,
-        cookie_path: cookiePath,
-        ydl_opts: clipYdlOpts,
-      }),
-      signal: controller.signal,
-    });
+    let response: Response;
+    try {
+      // Prioritaskan EMBEDDED_API_BASE_URL (port 8080 / APK native)
+      response = await fetch(`${EMBEDDED_API_BASE_URL}/api/download-clip`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          video_id: videoId,
+          start,
+          end,
+          output_path: nativePath,
+          stream_url: cachedStreamUrl || undefined,
+          cookie_path: cookiePath,
+          ydl_opts: clipYdlOpts,
+        }),
+        signal: controller.signal,
+      });
+    } catch {
+      // Fallback ke DEV_API_BASE_URL (port 3006 / Termux) jika mode dev
+      response = await fetch(`${DEV_API_BASE_URL}/api/download-clip`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          video_id: videoId,
+          start,
+          end,
+          output_path: nativePath,
+          stream_url: cachedStreamUrl || undefined,
+          cookie_path: cookiePath,
+          ydl_opts: clipYdlOpts,
+        }),
+        signal: controller.signal,
+      });
+    }
     clearTimeout(timeoutId);
 
     const data = await response.json().catch(() => ({}));
