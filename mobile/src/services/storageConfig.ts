@@ -1,4 +1,4 @@
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { LocalStorage } from './storage';
 import { setupPythonPaths } from '../../modules/python-runner';
 
