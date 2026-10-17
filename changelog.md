@@ -14,7 +14,36 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Compensate Timeline Drift with Universal 500ms Tail Offset in Clip Downloader Cut
+## [Unreleased] - Modularize FeedScreen UI Components (TopControls, PlaybackControls, Carousel, SubtitleOverlay)
+- **Konteks Struktural**:
+  1. Pemisahan Modular UI [FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
+     - Memecah file berukuran monolith (>2,000 baris) menjadi modul-modul komponen UI terpisah di direktori [mobile/src/components/feed/](file:///d:/projects/clipping/mobile/src/components/feed/).
+     - Seluruh logika, state, callbacks, layout, dan styling dipindahkan 100% tanpa mengubah tampilan (*pixel-perfect / parity visual*).
+  2. Sub-Komponen yang Dibentuk:
+     - [timeUtils.ts](file:///d:/projects/clipping/mobile/src/components/feed/timeUtils.ts): Ekstraksi utility helper format waktu (`formatTime`, `formatTimeWithMs`, `formatDisplayTime`).
+     - [ClipCardItem.tsx](file:///d:/projects/clipping/mobile/src/components/feed/ClipCardItem.tsx): Komponen kartu klip independen yang di-memoize dengan styling badge rank, status card (active, done, trash), dan format waktu.
+     - [FeedClipCarousel.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedClipCarousel.tsx): Container grid horizontal 2 baris untuk kartu-kartu klip.
+     - [SubtitleOverlay.tsx](file:///d:/projects/clipping/mobile/src/components/feed/SubtitleOverlay.tsx): Realtime preview layer pill overlay subtitle di atas video player.
+     - [FeedPlaybackControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedPlaybackControls.tsx): Bagian kontrol playback bawah (scrubber track, progress fill, scrubber knob, dan tombol seek -15s, -3s, play/pause, +5s, +15s).
+     - [FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx): Bagian kontrol klip atas (baris time range, status/download/subtitle buttons, edit milidetik inline, baris fine-tune Extend +5/+1s dan Crop -5/-1s) lengkap beserta styles lokalnya.
+- **Perubahan Kode Penting**:
+  - [mobile/src/components/feed/timeUtils.ts](file:///d:/projects/clipping/mobile/src/components/feed/timeUtils.ts):
+    - Dibuat baru dengan fungsi pembantu pemformatan waktu.
+  - [mobile/src/components/feed/ClipCardItem.tsx](file:///d:/projects/clipping/mobile/src/components/feed/ClipCardItem.tsx):
+    - Dibuat baru dengan komponen kartu item klip dan styling terisolasi.
+  - [mobile/src/components/feed/FeedClipCarousel.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedClipCarousel.tsx):
+    - Dibuat baru sebagai pembungkus scroll carousel horizontal 2 baris.
+  - [mobile/src/components/feed/SubtitleOverlay.tsx](file:///d:/projects/clipping/mobile/src/components/feed/SubtitleOverlay.tsx):
+    - Dibuat baru untuk merender overlay subtitle realtime.
+  - [mobile/src/components/feed/FeedPlaybackControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedPlaybackControls.tsx):
+    - Dibuat baru untuk merender progress scrubber dan tombol pemutar.
+  - [mobile/src/components/feed/FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx):
+    - Dibuat baru untuk merender baris atas rentang waktu, download progress, fine-tuning, dan edit milidetik.
+  - [mobile/src/components/FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
+    - Mengimpor komponen-komponen baru dari `./feed/`.
+    - Menghapus komponen lokal, inline JSX lama, dan gaya-gaya spesifik yang telah dipindahkan ke masing-masing komponen.
+
+## [3a0bed5] - Compensate Timeline Drift with Universal 500ms Tail Offset in Clip Downloader Cut
 - **Konteks Struktural**:
   1. Mengatasi masalah pemotongan klip yang selesai prematur / adegan penutup terpotong pada [clip_downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/clip_downloader.py):
      - Ditemukan adanya *timeline drift* sistematis (~500ms) antara stream online preview progressive MP4 30fps dan segmen HLS 1080p 60fps dengan durasi paket pecahan acak dari YouTube.

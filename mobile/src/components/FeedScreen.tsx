@@ -4,26 +4,11 @@ import {
   Text,
   View,
   Pressable,
-  ScrollView,
   ActivityIndicator,
-  Platform,
   BackHandler,
-  TextInput,
   Keyboard,
 } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import {
-  Trash2,
-  CheckCircle2,
-  Play,
-  Pause,
-  Rewind,
-  FastForward,
-  ChevronLeft,
-  ChevronRight,
-  Download,
-  Subtitles,
-} from 'lucide-react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import {
   ClipItem,
@@ -45,6 +30,11 @@ import { LocalStorage } from '../services/storage';
 import { ToastManager } from './Toast';
 import { CookiesModal } from './CookiesModal';
 import { SubtitleEditModal } from './SubtitleEditModal';
+import { FeedTopControls } from './feed/FeedTopControls';
+import { FeedPlaybackControls } from './feed/FeedPlaybackControls';
+import { FeedClipCarousel } from './feed/FeedClipCarousel';
+import { SubtitleOverlay } from './feed/SubtitleOverlay';
+import { formatTime } from './feed/timeUtils';
 
 interface FeedScreenProps {
   videoId: string;
@@ -52,88 +42,6 @@ interface FeedScreenProps {
   onBack: () => void;
   onUpdateWorkshopDone?: (videoId: string, doneCount: number) => void;
 }
-
-function formatTime(seconds: number): string {
-  if (seconds === undefined || seconds === null || isNaN(seconds)) return '00:00';
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = Math.floor(seconds % 60);
-  const pad = (num: number) => num.toString().padStart(2, '0');
-  if (h > 0) {
-    return `${pad(h)}:${pad(m)}:${pad(s)}`;
-  }
-  return `${pad(m)}:${pad(s)}`;
-}
-
-function formatTimeWithMs(seconds: number): string {
-  if (seconds === undefined || seconds === null || isNaN(seconds)) return '00:00.000';
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  const ms = Math.floor((seconds % 1) * 1000);
-  const pad = (num: number, size: number = 2) => num.toString().padStart(size, '0');
-  return `${pad(m)}:${pad(s)}.${pad(ms, 3)}`;
-}
-
-function formatDisplayTime(seconds: number): string {
-  if (seconds === undefined || seconds === null || isNaN(seconds)) return '00:00';
-  const centis = Math.floor((seconds % 1) * 100);
-  const base = formatTime(seconds);
-  if (centis > 0) {
-    return `${base}.${centis.toString().padStart(2, '0')}`;
-  }
-  return base;
-}
-
-interface ClipCardProps {
-  id: string;
-  rank: number;
-  start: number;
-  clipNumber: number;
-  isActive: boolean;
-  status: 'none' | 'done' | 'trash';
-  onSelect: (id: string) => void;
-}
-
-/**
- * Komponen Card Klip ter-memoized 100%:
- * Mencegah re-render 50-100 kartu klip setiap kali progress bar bergerak (timeUpdate).
- * Menggunakan Pressable dengan delayPressIn={0} dan onPressIn agar merespons instan 0ms saat disentuh.
- */
-const ClipCardItem = React.memo<ClipCardProps>(
-  ({ id, rank, start, clipNumber, isActive, status, onSelect }) => {
-    const isDone = status === 'done';
-    const isTrash = status === 'trash';
-
-    return (
-      <Pressable
-        style={({ pressed }) => [
-          styles.clipCard,
-          isDone && styles.clipCardDone,
-          isTrash && styles.clipCardTrash,
-          isActive && styles.clipCardActive,
-          pressed && { opacity: 0.75 },
-        ]}
-        onPress={() => onSelect(id)}
-      >
-        {/* Rank Badge */}
-        <View style={[styles.rankBadge, isTrash && styles.rankBadgeTrash]}>
-          <Text style={styles.rankBadgeText}>#{rank || clipNumber}</Text>
-        </View>
-
-        <Text style={[styles.clipCardTitle, isTrash && styles.clipCardTitleTrash]}>
-          KLIP {clipNumber}
-        </Text>
-        <Text style={styles.clipCardTime}>{formatTime(start)}</Text>
-      </Pressable>
-    );
-  },
-  (prev, next) =>
-    prev.id === next.id &&
-    prev.isActive === next.isActive &&
-    prev.status === next.status &&
-    prev.start === next.start &&
-    prev.rank === next.rank
-);
 
 export const FeedScreen: React.FC<FeedScreenProps> = ({
   videoId,
@@ -1246,261 +1154,32 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
       )}
 
       {/* 1. TOP CONTROLS */}
-      <View style={styles.topSection}>
-        <View style={styles.timeRangeRow}>
-          {/* SISI KIRI: Jika Mode Done -> Tombol Unduh, Jika Mode Normal -> Tombol Trash */}
-          <View style={styles.leftActionGroup}>
-            {activeClip.status === 'done' ? (
-              <>
-                {!downloadedClips[activeClip.id] ? (
-                  /* Mode Belum Terdownload: Tampilkan Tombol Download */
-                  <Pressable
-                    style={({ pressed }) => [
-                      styles.statusBtn,
-                      styles.downloadBtn,
-                      Boolean(downloadingClips[activeClip.id]) && styles.downloadBtnActive,
-                      pressed && { opacity: 0.7 },
-                    ]}
-                    onPress={handleDownloadClip}
-                    disabled={Boolean(downloadingClips[activeClip.id])}
-                  >
-                    {downloadingClips[activeClip.id] ? (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <ActivityIndicator size="small" color="#38bdf8" />
-                        <Text style={styles.downloadProgressText}>
-                          {getDownloadProgressLabel(downloadProgress[activeClip.id])}
-                        </Text>
-                      </View>
-                    ) : (
-                      <Download size={18} color="#38bdf8" />
-                    )}
-                  </Pressable>
-                ) : (
-                  /* Mode Sudah Terdownload: Tombol Download disembunyikan, diganti Tombol Subtitle */
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Pressable
-                      style={({ pressed }) => [
-                        styles.statusBtn,
-                        styles.subtitleBtn,
-                        subtitles.length > 0 && styles.subtitleBtnActive,
-                        pressed && { opacity: 0.7 },
-                      ]}
-                      onPress={() => setSubtitleModalVisible(true)}
-                    >
-                      <Subtitles size={18} color={subtitles.length > 0 ? '#38bdf8' : '#94a3b8'} />
-                    </Pressable>
-
-                    {/* Tombol Toggle CC Overlay (jika subtitle sudah tersedia) */}
-                    {subtitles.length > 0 && (
-                      <Pressable
-                        style={({ pressed }) => [
-                          styles.statusBtn,
-                          styles.subtitleToggleBtn,
-                          isSubtitleVisible && styles.subtitleToggleBtnActive,
-                          pressed && { opacity: 0.7 },
-                        ]}
-                        onPress={() => setIsSubtitleVisible((prev) => !prev)}
-                      >
-                        <Text
-                          style={[
-                            styles.subtitleBtnText,
-                            isSubtitleVisible && { color: '#38bdf8' },
-                          ]}
-                        >
-                          CC
-                        </Text>
-                      </Pressable>
-                    )}
-                  </View>
-                )}
-              </>
-            ) : (
-              <Pressable
-                style={({ pressed }) => [
-                  styles.statusBtn,
-                  activeClip.status === 'trash' ? styles.trashBtnActive : styles.trashBtnInactive,
-                  pressed && { opacity: 0.7 },
-                ]}
-                onPressIn={handleToggleTrash}
-              >
-                <Trash2
-                  size={18}
-                  color={activeClip.status === 'trash' ? '#ffffff' : '#f87171'}
-                />
-              </Pressable>
-            )}
-          </View>
-
-          {/* SISI TENGAH: Jika Mode Done -> Durasi realtime presisi ms, Jika Normal -> Rentang Waktu */}
-          <View style={styles.centerTimeWrapper} pointerEvents="box-none">
-            {activeClip.status === 'done' ? (
-              <View style={styles.timeDisplay}>
-                <Text style={[styles.timeNumberText, styles.timeMsText]}>
-                  {formatTimeWithMs(currentClipTime)}
-                </Text>
-                <Text style={styles.timeSeparatorText}>/</Text>
-                <Text style={[styles.timeNumberText, styles.timeMsText, styles.timeMsDim]}>
-                  {formatTimeWithMs(activeClip.end - activeClip.start)}
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.timeDisplay}>
-                {activeTimeEdit === 'start' ? (
-                  <TextInput
-                    style={[styles.timeInput, styles.timeInputStart]}
-                    value={tempTimeValue}
-                    onChangeText={(val) => handleMsTimeChange('start', val)}
-                    onBlur={() => setActiveTimeEdit(null)}
-                    keyboardType="number-pad"
-                    maxLength={2}
-                    autoFocus
-                    selectTextOnFocus
-                    placeholder="00"
-                    placeholderTextColor="rgba(52, 211, 153, 0.4)"
-                  />
-                ) : (
-                  <Pressable
-                    style={styles.timePressable}
-                    onPress={() => {
-                      setActiveTimeEdit('start');
-                      const curMs = Math.floor((activeClip.start % 1) * 100);
-                      setTempTimeValue(curMs.toString().padStart(2, '0'));
-                    }}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 6 }}
-                  >
-                    <Text style={[styles.timeNumberText, styles.timeStartText]}>
-                      {formatDisplayTime(activeClip.start)}
-                    </Text>
-                  </Pressable>
-                )}
-
-                <Text style={styles.timeSeparatorText}>-</Text>
-
-                {activeTimeEdit === 'end' ? (
-                  <TextInput
-                    style={[styles.timeInput, styles.timeInputEnd]}
-                    value={tempTimeValue}
-                    onChangeText={(val) => handleMsTimeChange('end', val)}
-                    onBlur={() => setActiveTimeEdit(null)}
-                    keyboardType="number-pad"
-                    maxLength={2}
-                    autoFocus
-                    selectTextOnFocus
-                    placeholder="00"
-                    placeholderTextColor="rgba(244, 63, 94, 0.4)"
-                  />
-                ) : (
-                  <Pressable
-                    style={styles.timePressable}
-                    onPress={() => {
-                      setActiveTimeEdit('end');
-                      const curMs = Math.floor((activeClip.end % 1) * 100);
-                      setTempTimeValue(curMs.toString().padStart(2, '0'));
-                    }}
-                    hitSlop={{ top: 8, bottom: 8, left: 6, right: 8 }}
-                  >
-                    <Text style={[styles.timeNumberText, styles.timeEndText]}>
-                      {formatDisplayTime(activeClip.end)}
-                    </Text>
-                  </Pressable>
-                )}
-              </View>
-            )}
-          </View>
-
-          {/* SISI KANAN: Tombol Done (Tetap ada, jika diklik mengembalikan mode ke normal) */}
-          <View style={styles.rightActionGroup}>
-            <Pressable
-              style={({ pressed }) => [
-                styles.statusBtn,
-                activeClip.status === 'done' ? styles.doneBtnActive : styles.doneBtnInactive,
-                pressed && { opacity: 0.7 },
-              ]}
-              onPressIn={handleToggleDone}
-            >
-              <CheckCircle2
-                size={18}
-                color={activeClip.status === 'done' ? '#ffffff' : '#34d399'}
-              />
-            </Pressable>
-          </View>
-        </View>
-
-        {/* Baris Extend & Crop HANYA muncul saat klip belum berstatus 'done' */}
-        {activeClip.status !== 'done' && (
-          <>
-            {/* Row 2: Extend Row (Emerald) */}
-            <View style={styles.extendRow}>
-              <View style={styles.fineTuneGroup}>
-                <Pressable
-                  style={({ pressed }) => [styles.extendBtn, pressed && { opacity: 0.6 }]}
-                  onPressIn={() => handleUpdateStart(-5)}
-                >
-                  <Text style={styles.extendBtnText}>+5</Text>
-                </Pressable>
-                <Pressable
-                  style={({ pressed }) => [styles.extendBtn, pressed && { opacity: 0.6 }]}
-                  onPressIn={() => handleUpdateStart(-1)}
-                >
-                  <Text style={styles.extendBtnText}>+1</Text>
-                </Pressable>
-              </View>
-
-              <Text style={styles.extendLabel}>EXTEND</Text>
-
-              <View style={styles.fineTuneGroup}>
-                <Pressable
-                  style={({ pressed }) => [styles.extendBtn, pressed && { opacity: 0.6 }]}
-                  onPressIn={() => handleUpdateEnd(1)}
-                >
-                  <Text style={styles.extendBtnText}>+1</Text>
-                </Pressable>
-                <Pressable
-                  style={({ pressed }) => [styles.extendBtn, pressed && { opacity: 0.6 }]}
-                  onPressIn={() => handleUpdateEnd(5)}
-                >
-                  <Text style={styles.extendBtnText}>+5</Text>
-                </Pressable>
-              </View>
-            </View>
-
-            {/* Row 3: Crop Row (Rose/Red) */}
-            <View style={styles.cropRow}>
-              <View style={styles.fineTuneGroup}>
-                <Pressable
-                  style={({ pressed }) => [styles.cropBtn, pressed && { opacity: 0.6 }]}
-                  onPressIn={() => handleUpdateStart(5)}
-                >
-                  <Text style={styles.cropBtnText}>-5</Text>
-                </Pressable>
-                <Pressable
-                  style={({ pressed }) => [styles.cropBtn, pressed && { opacity: 0.6 }]}
-                  onPressIn={() => handleUpdateStart(1)}
-                >
-                  <Text style={styles.cropBtnText}>-1</Text>
-                </Pressable>
-              </View>
-
-              <Text style={styles.cropLabel}>CROP</Text>
-
-              <View style={styles.fineTuneGroup}>
-                <Pressable
-                  style={({ pressed }) => [styles.cropBtn, pressed && { opacity: 0.6 }]}
-                  onPressIn={() => handleUpdateEnd(-1)}
-                >
-                  <Text style={styles.cropBtnText}>-1</Text>
-                </Pressable>
-                <Pressable
-                  style={({ pressed }) => [styles.cropBtn, pressed && { opacity: 0.6 }]}
-                  onPressIn={() => handleUpdateEnd(-5)}
-                >
-                  <Text style={styles.cropBtnText}>-5</Text>
-                </Pressable>
-              </View>
-            </View>
-          </>
-        )}
-      </View>
+      <FeedTopControls
+        activeClip={activeClip}
+        currentClipTime={currentClipTime}
+        isDownloaded={Boolean(downloadedClips[activeClip.id])}
+        isDownloading={Boolean(downloadingClips[activeClip.id])}
+        downloadProgressInfo={downloadProgress[activeClip.id]}
+        hasSubtitles={subtitles.length > 0}
+        isSubtitleVisible={isSubtitleVisible}
+        activeTimeEdit={activeTimeEdit}
+        tempTimeValue={tempTimeValue}
+        getDownloadProgressLabel={getDownloadProgressLabel}
+        onToggleTrash={handleToggleTrash}
+        onToggleDone={handleToggleDone}
+        onDownloadClip={handleDownloadClip}
+        onOpenSubtitleModal={() => setSubtitleModalVisible(true)}
+        onToggleSubtitleVisibility={() => setIsSubtitleVisible((prev) => !prev)}
+        onStartEditTime={(type) => {
+          setActiveTimeEdit(type);
+          const curMs = Math.floor((activeClip[type] % 1) * 100);
+          setTempTimeValue(curMs.toString().padStart(2, '0'));
+        }}
+        onMsTimeChange={handleMsTimeChange}
+        onBlurTimeEdit={() => setActiveTimeEdit(null)}
+        onUpdateStart={handleUpdateStart}
+        onUpdateEnd={handleUpdateEnd}
+      />
 
       {/* 2. VIDEO PLAYER AREA (expo-video) */}
       <View style={styles.playerContainer}>
@@ -1521,118 +1200,46 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
         )}
 
         {/* Subtitle Layer 1 (Realtime Non-Destructive Preview) */}
-        {isSubtitleVisible && activeSubtitleText ? (
-          <View style={styles.subtitleOverlayContainer} pointerEvents="none">
-            <View style={styles.subtitlePill}>
-              <Text style={styles.subtitleText}>{activeSubtitleText}</Text>
-            </View>
-          </View>
-        ) : null}
+        <SubtitleOverlay
+          isVisible={isSubtitleVisible}
+          subtitleText={activeSubtitleText}
+        />
       </View>
 
       {/* 3. BOTTOM PLAYBACK CONTROLS (Fixed Height) */}
-      <View style={styles.bottomPlayback}>
-        {/* Scrubber Progress Bar (Direct click to seek, zero animation, instant jump) */}
-        <Pressable
-          style={styles.progressBarTrack}
-          hitSlop={{ top: 12, bottom: 12, left: 0, right: 0 }}
-          onLayout={(e) => {
-            trackWidthRef.current = e.nativeEvent.layout.width;
-          }}
-          onPressIn={(e) => {
-            const currentActiveId = activeClipIdRef.current || activeClipId;
-            const currentActive = clipsRef.current.find((c) => c.id === currentActiveId) || activeClip;
-            const duration = currentActive.end - currentActive.start;
-            if (duration <= 0 || trackWidthRef.current <= 0) return;
+      <FeedPlaybackControls
+        progressPercent={progressPercent}
+        isContinueState={isContinueState}
+        onScrubberPress={(e) => {
+          const currentActiveId = activeClipIdRef.current || activeClipId;
+          const currentActive = clipsRef.current.find((c) => c.id === currentActiveId) || activeClip;
+          const duration = currentActive.end - currentActive.start;
+          if (duration <= 0 || trackWidthRef.current <= 0) return;
 
-            const isLocalMode = currentSourceUriRef.current.startsWith('file://');
-            const locationX = e.nativeEvent.locationX;
-            const pct = Math.max(0, Math.min(100, (locationX / trackWidthRef.current) * 100));
-            const targetTime = isLocalMode
-              ? (pct / 100) * duration
-              : currentActive.start + (pct / 100) * duration;
+          const isLocalMode = currentSourceUriRef.current.startsWith('file://');
+          const locationX = e.nativeEvent.locationX;
+          const pct = Math.max(0, Math.min(100, (locationX / trackWidthRef.current) * 100));
+          const targetTime = isLocalMode
+            ? (pct / 100) * duration
+            : currentActive.start + (pct / 100) * duration;
 
-            // Langsung pindah seketika (0ms, tanpa animasi / delay)
-            setProgressPercent(pct);
-            setCurrentClipTime((pct / 100) * duration);
-            centralizedSeek(targetTime, true);
-          }}
-        >
-          <View style={[styles.progressBarFill, { width: `${progressPercent}%` }]} />
-          <View style={[styles.progressKnob, { left: `${progressPercent}%` }]} />
-        </Pressable>
-
-        {/* Playback Buttons (-10s, -3s, Play/Pause, +5s, +15s) */}
-        <View style={styles.playbackControlsRow}>
-          <Pressable
-            style={({ pressed }) => [styles.skipBtn, pressed && { opacity: 0.5 }]}
-            onPressIn={() => skipSeconds(-10)}
-          >
-            <Rewind size={20} color="rgba(255, 255, 255, 0.6)" />
-          </Pressable>
-
-          <Pressable
-            style={({ pressed }) => [styles.skipBtn, pressed && { opacity: 0.5 }]}
-            onPressIn={() => skipSeconds(-3)}
-          >
-            <ChevronLeft size={24} color="rgba(255, 255, 255, 0.6)" />
-          </Pressable>
-
-          <Pressable
-            style={({ pressed }) => [styles.playPauseBtn, pressed && { transform: [{ scale: 0.95 }] }]}
-            onPressIn={togglePlayPause}
-          >
-            {isContinueState ? (
-              <Pause size={22} color="#000000" fill="#000000" />
-            ) : (
-              <Play size={22} color="#000000" fill="#000000" style={{ marginLeft: 2 }} />
-            )}
-          </Pressable>
-
-          <Pressable
-            style={({ pressed }) => [styles.skipBtn, pressed && { opacity: 0.5 }]}
-            onPressIn={() => skipSeconds(5)}
-          >
-            <ChevronRight size={24} color="rgba(255, 255, 255, 0.6)" />
-          </Pressable>
-
-          <Pressable
-            style={({ pressed }) => [styles.skipBtn, pressed && { opacity: 0.5 }]}
-            onPressIn={() => skipSeconds(15)}
-          >
-            <FastForward size={20} color="rgba(255, 255, 255, 0.6)" />
-          </Pressable>
-        </View>
-      </View>
+          setProgressPercent(pct);
+          setCurrentClipTime((pct / 100) * duration);
+          centralizedSeek(targetTime, true);
+        }}
+        onLayoutTrack={(e) => {
+          trackWidthRef.current = e.nativeEvent.layout.width;
+        }}
+        onTogglePlayPause={togglePlayPause}
+        onSkipSeconds={skipSeconds}
+      />
 
       {/* 4. 2-ROW HORIZONTAL CLIP GRID */}
-      <View style={styles.clipGridContainer}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.clipGridScrollContent}
-        >
-          {clipColumns.map((col, colIdx) => (
-            <View key={colIdx} style={styles.clipColumn}>
-              {col.map((clip, rowIdx) => {
-                const clipNumber = colIdx * 2 + rowIdx + 1;
-                return (
-                  <ClipCardItem
-                    key={clip.id}
-                    id={clip.id}
-                    rank={clip.rank}
-                    start={clip.start}
-                    clipNumber={clipNumber}
-                    isActive={clip.id === activeClipId}
-                    status={clip.status || 'none'}
-                    onSelect={handleSelectClip}
-                  />
-                );
-              })}
-            </View>
-          ))}
-        </ScrollView>
-      </View>
+      <FeedClipCarousel
+        clipColumns={clipColumns}
+        activeClipId={activeClipId}
+        onSelectClip={handleSelectClip}
+      />
       {/* 5. Cookies Modal for Rate Limits */}
       <CookiesModal
         visible={cookiesModalVisible}
@@ -1675,269 +1282,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
   },
-  topSection: {
-    backgroundColor: '#121212',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.08)',
-    zIndex: 25,
-  },
-  timeRangeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    minHeight: 46,
-    position: 'relative',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  leftActionGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    zIndex: 10,
-  },
-  centerTimeWrapper: {
-    ...StyleSheet.absoluteFill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 5,
-  },
-  timeDisplay: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  timeNumberText: {
-    color: 'rgba(255, 255, 255, 0.95)',
-    fontSize: 14,
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
-  timeSeparatorText: {
-    color: 'rgba(255, 255, 255, 0.4)',
-    fontWeight: '700',
-  },
-  timePressable: {
-    paddingHorizontal: 4,
-    paddingVertical: 2,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.15)',
-  },
-  timeStartText: {
-    color: '#34d399',
-  },
-  timeEndText: {
-    color: '#fb7185',
-  },
-  timeInput: {
-    minWidth: 44,
-    height: 28,
-    backgroundColor: '#18181b',
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 0,
-    textAlign: 'center',
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  timeInputStart: {
-    borderWidth: 1.5,
-    borderColor: '#10b981',
-    color: '#34d399',
-  },
-  timeInputEnd: {
-    borderWidth: 1.5,
-    borderColor: '#f43f5e',
-    color: '#fb7185',
-  },
   dismissOverlay: {
     ...StyleSheet.absoluteFill,
     zIndex: 15,
-  },
-  rightActionGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    zIndex: 10,
-  },
-  statusBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  downloadBtn: {
-    backgroundColor: 'rgba(56, 189, 248, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(56, 189, 248, 0.3)',
-  },
-  downloadBtnActive: {
-    width: 'auto',
-    paddingHorizontal: 8,
-    flexDirection: 'row',
-  },
-  downloadProgressText: {
-    color: '#38bdf8',
-    fontSize: 11,
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-    fontWeight: '700',
-    letterSpacing: 0.2,
-  },
-  downloadBtnSuccess: {
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-    borderColor: 'rgba(16, 185, 129, 0.4)',
-  },
-  subtitleBtn: {
-    backgroundColor: 'rgba(148, 163, 184, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(148, 163, 184, 0.25)',
-  },
-  subtitleBtnActive: {
-    backgroundColor: 'rgba(56, 189, 248, 0.15)',
-    borderColor: 'rgba(56, 189, 248, 0.4)',
-  },
-  subtitleOverlayContainer: {
-    position: 'absolute',
-    bottom: 24,
-    left: 16,
-    right: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 10,
-  },
-  subtitlePill: {
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    maxWidth: '90%',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  subtitleText: {
-    color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '600',
-    textAlign: 'center',
-    lineHeight: 20,
-    textShadowColor: 'rgba(0, 0, 0, 0.9)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 3,
-  },
-  subtitleToggleBtn: {
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  subtitleToggleBtnActive: {
-    backgroundColor: 'rgba(56, 189, 248, 0.2)',
-    borderColor: '#38bdf8',
-  },
-  subtitleBtnText: {
-    color: '#ffffff',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  timeMsText: {
-    fontSize: 13,
-    letterSpacing: 0.2,
-  },
-  timeMsDim: {
-    color: 'rgba(255, 255, 255, 0.5)',
-  },
-  trashBtnInactive: {
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.25)',
-  },
-  trashBtnActive: {
-    backgroundColor: '#dc2626',
-    shadowColor: '#ef4444',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 10,
-    elevation: 4,
-  },
-  doneBtnInactive: {
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.25)',
-  },
-  doneBtnActive: {
-    backgroundColor: '#059669',
-    shadowColor: '#10b981',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 10,
-    elevation: 4,
-  },
-  extendRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    backgroundColor: 'rgba(16, 185, 129, 0.08)',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.04)',
-  },
-  cropRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    backgroundColor: 'rgba(225, 29, 72, 0.08)',
-  },
-  fineTuneGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  extendBtn: {
-    width: 38,
-    height: 28,
-    borderRadius: 6,
-    backgroundColor: 'rgba(16, 185, 129, 0.2)',
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.35)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  extendBtnText: {
-    color: '#34d399',
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  extendLabel: {
-    color: '#10b981',
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 1.5,
-  },
-  cropBtn: {
-    width: 38,
-    height: 28,
-    borderRadius: 6,
-    backgroundColor: 'rgba(225, 29, 72, 0.2)',
-    borderWidth: 1,
-    borderColor: 'rgba(225, 29, 72, 0.35)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cropBtnText: {
-    color: '#fb7185',
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  cropLabel: {
-    color: '#f43f5e',
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 1.5,
   },
   playerContainer: {
     flex: 1,
@@ -1961,130 +1308,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: 'center',
     lineHeight: 18,
-  },
-  bottomPlayback: {
-    backgroundColor: '#121212',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.08)',
-  },
-  progressBarTrack: {
-    width: '100%',
-    height: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
-    position: 'relative',
-  },
-  progressBarFill: {
-    height: '100%',
-    backgroundColor: '#ef4444',
-  },
-  progressKnob: {
-    position: 'absolute',
-    top: -4,
-    marginLeft: -7,
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: '#ef4444',
-    borderWidth: 2,
-    borderColor: '#ffffff',
-  },
-  playbackControlsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 22,
-    paddingVertical: 10,
-  },
-  skipBtn: {
-    padding: 6,
-  },
-  playPauseBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#ffffff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#ffffff',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 4,
-  },
-  clipGridContainer: {
-    backgroundColor: '#000000',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.08)',
-    paddingVertical: 10,
-    height: 146,
-  },
-  clipGridScrollContent: {
-    paddingHorizontal: 12,
-    gap: 10,
-  },
-  clipColumn: {
-    flexDirection: 'column',
-    gap: 8,
-    justifyContent: 'center',
-  },
-  clipCard: {
-    width: 84,
-    height: 54,
-    borderRadius: 10,
-    backgroundColor: '#171717',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-    padding: 4,
-  },
-  clipCardActive: {
-    borderColor: '#ffffff',
-    backgroundColor: '#262626',
-    borderWidth: 1.5,
-  },
-  clipCardDone: {
-    backgroundColor: 'rgba(6, 78, 59, 0.6)',
-    borderColor: '#10b981',
-  },
-  clipCardTrash: {
-    backgroundColor: 'rgba(127, 29, 29, 0.65)',
-    borderColor: '#ef4444',
-  },
-  rankBadge: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    backgroundColor: '#dc2626',
-    borderRadius: 999,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.4)',
-  },
-  rankBadgeTrash: {
-    backgroundColor: '#7f1d1d',
-  },
-  rankBadgeText: {
-    color: '#ffffff',
-    fontSize: 8,
-    fontWeight: '900',
-  },
-  clipCardTitle: {
-    color: 'rgba(255, 255, 255, 0.5)',
-    fontSize: 9,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    marginBottom: 2,
-  },
-  clipCardTitleTrash: {
-    color: '#fca5a5',
-  },
-  clipCardTime: {
-    color: '#ffffff',
-    fontSize: 11,
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-    fontWeight: '800',
   },
 });
