@@ -664,8 +664,37 @@ export async function deleteCookies(): Promise<void> {
 }
 
 /**
+ * Memformat durasi detik ke format waktu string yang aman untuk sistem file (titik '.' sebagai pemisah).
+ * Menghilangkan prefix/wrapper agar konsisten dengan tampilan waktu pada card klip di UI:
+ * - Jika h > 0: "hh.mm.ss" (contoh: "01.15.30")
+ * - Jika h === 0: "mm.ss" (contoh: "00.12", "01.35")
+ */
+export function formatTimeForFilename(seconds: number): string {
+  if (seconds === undefined || seconds === null || isNaN(seconds)) return '00.00';
+  const totalSeconds = Math.round(seconds);
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = Math.floor(totalSeconds % 60);
+  const pad = (num: number) => num.toString().padStart(2, '0');
+  if (h > 0) {
+    return `${pad(h)}.${pad(m)}.${pad(s)}`;
+  }
+  return `${pad(m)}.${pad(s)}`;
+}
+
+/**
+ * Menghasilkan nama file klip berbasis rentang waktu yang sudah terformat:
+ * "<start_terformat> - <end_terformat>.mp4" (contoh: "00.12 - 01.35.mp4").
+ */
+export function getClipFilename(start: number, end: number): string {
+  const startFormatted = formatTimeForFilename(start);
+  const endFormatted = formatTimeForFilename(end);
+  return `${startFormatted} - ${endFormatted}.mp4`;
+}
+
+/**
  * Menghasilkan alokasi lokasi file tujuan download klip pada shared storage (/storage/emulated/0/clipping/output/).
- * Frontend memegang kendali 100% path & nama folder, backend Termux hanya menerima path final.
+ * Nama file menggunakan format rentang waktu murni tanpa prefix: "<start> - <end>.mp4".
  */
 export function getClipOutputFilePath(
   videoId: string,
@@ -673,11 +702,7 @@ export function getClipOutputFilePath(
   end: number,
   rank?: number
 ): { fileUri: string; nativePath: string } {
-  const startStr = Math.round(start);
-  const endStr = Math.round(end);
-  const filename = rank
-    ? `clip_${rank}_${startStr}_${endStr}.mp4`
-    : `clip_${videoId}_${startStr}_${endStr}.mp4`;
+  const filename = getClipFilename(start, end);
   const nativePath = `${SHARED_CLIPPING_OUTPUT_DIR}/${videoId}/${filename}`;
   const fileUri = `file://${nativePath}`;
   return { fileUri, nativePath };
@@ -693,11 +718,7 @@ export function getClipInternalOutputFilePath(
   end: number,
   rank?: number
 ): { fileUri: string; nativePath: string } {
-  const startStr = Math.round(start);
-  const endStr = Math.round(end);
-  const filename = rank
-    ? `clip_${rank}_${startStr}_${endStr}.mp4`
-    : `clip_${videoId}_${startStr}_${endStr}.mp4`;
+  const filename = getClipFilename(start, end);
   const nativePath = `${INTERNAL_CLIPPING_OUTPUT_DIR}/${videoId}/${filename}`;
   const fileUri = `file://${nativePath}`;
   return { fileUri, nativePath };
@@ -705,7 +726,7 @@ export function getClipInternalOutputFilePath(
 
 /**
  * Menyelesaikan fileUri yang valid dan dapat diputar untuk klip lokal.
- * Memeriksa shared storage terlebih dahulu, lalu beralih ke internal sandbox jika diperlukan.
+ * Mendeteksi format baru "<start> - <end>.mp4" terlebih dahulu, dengan fallback backward-compatible ke format lama.
  */
 export async function resolvePlayableClipUri(
   videoId: string,
@@ -713,20 +734,31 @@ export async function resolvePlayableClipUri(
   end: number,
   rank?: number
 ): Promise<string> {
+  // 1. Cek format baru di shared storage
   const shared = getClipOutputFilePath(videoId, start, end, rank);
   try {
     const info = await FileSystem.getInfoAsync(shared.fileUri);
     if (info.exists) return shared.fileUri;
   } catch {}
 
+  // 2. Cek format baru di internal sandbox
   const internal = getClipInternalOutputFilePath(videoId, start, end, rank);
   try {
     const internalInfo = await FileSystem.getInfoAsync(internal.fileUri);
     if (internalInfo.exists) return internal.fileUri;
   } catch {}
 
+  // 3. Fallback format lama (clip_${rank}_${start}_${end}.mp4 & clip_${videoId}_${start}_${end}.mp4)
   const startStr = Math.round(start).toString();
   const endStr = Math.round(end).toString();
+  if (rank) {
+    const legacyRankShared = `file://${SHARED_CLIPPING_OUTPUT_DIR}/${videoId}/clip_${rank}_${startStr}_${endStr}.mp4`;
+    try {
+      const fbInfo = await FileSystem.getInfoAsync(legacyRankShared);
+      if (fbInfo.exists) return legacyRankShared;
+    } catch {}
+  }
+
   const fallbackShared = `file://${SHARED_CLIPPING_OUTPUT_DIR}/${videoId}/clip_${videoId}_${startStr}_${endStr}.mp4`;
   try {
     const fbInfo = await FileSystem.getInfoAsync(fallbackShared);

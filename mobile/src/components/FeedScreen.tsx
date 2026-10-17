@@ -28,6 +28,8 @@ import {
   fetchHeatmap,
   downloadClip,
   getClipOutputFilePath,
+  getClipFilename,
+  formatTimeForFilename,
   resolvePlayableClipUri,
   checkClipFileExists,
   isRateLimitOrRestrictedError,
@@ -307,24 +309,31 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
 
         for (let i = 0; i < loadedClips.length; i++) {
           const clip = loadedClips[i];
+          const filename = getClipFilename(clip.start, clip.end);
           const startStr = Math.round(clip.start).toString();
           const endStr = Math.round(clip.end).toString();
+          const startFormatted = formatTimeForFilename(clip.start);
+          const endFormatted = formatTimeForFilename(clip.end);
 
-          // 1. Pencocokan nama file di direktori (berdasarkan timestamp start & end)
-          const fileMatchInDir = dirFiles.find((f) =>
-            f.endsWith('.mp4') && f.includes(`_${startStr}_${endStr}.mp4`)
-          );
+          // 1. Pencocokan nama file di direktori (Format baru: "00.12 - 01.35.mp4", atau format lama)
+          const fileMatchInDir = dirFiles.find((f) => {
+            if (!f.endsWith('.mp4')) return false;
+            if (f === filename || (f.includes(startFormatted) && f.includes(endFormatted))) {
+              return true;
+            }
+            return f.includes(`_${startStr}_${endStr}.mp4`);
+          });
 
           let exists = false;
           if (fileMatchInDir) {
             exists = true;
           } else {
-            // 2. Pencocokan langsung format baku rank & videoId
+            // 2. Pencocokan langsung format baru & fallback
             const { fileUri } = getClipOutputFilePath(videoId, clip.start, clip.end, clip.rank);
             exists = await checkClipFileExists(fileUri);
             if (!exists) {
-              const fallbackUri = `file://${SHARED_CLIPPING_OUTPUT_DIR}/${videoId}/clip_${videoId}_${startStr}_${endStr}.mp4`;
-              exists = await checkClipFileExists(fallbackUri);
+              const legacyUri = await resolvePlayableClipUri(videoId, clip.start, clip.end, clip.rank);
+              exists = await checkClipFileExists(legacyUri);
             }
           }
 

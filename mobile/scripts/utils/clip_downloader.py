@@ -90,12 +90,17 @@ def download_clip_direct(
                 "traceback": traceback.format_exc()
             }
 
-    temp_path = f"{output_path}.temp.mp4"
-    if os.path.exists(temp_path):
-        try:
-            os.remove(temp_path)
-        except Exception:
-            pass
+    def cleanup_temp_files():
+        """Hapus seluruh file sementara (.temp.mp4, .part) agar tidak membebani storage."""
+        for p in [temp_path, f"{temp_path}.part", f"{output_path}.part"]:
+            if os.path.exists(p):
+                try:
+                    os.remove(p)
+                except Exception:
+                    pass
+
+    # Bersihkan file temporary sisa proses sebelumnya jika ada
+    cleanup_temp_files()
 
     # 3. Konfigurasi FFmpeg Binary
     opts = (ydl_opts or {}).copy()
@@ -214,6 +219,8 @@ def download_clip_direct(
         else:
             code = "DOWNLOAD_FAILED"
 
+        # Bersihkan file temporary jika unduhan tahap 1 gagal
+        cleanup_temp_files()
         return {
             "status": "error",
             "code": code,
@@ -250,12 +257,8 @@ def download_clip_direct(
             "stream_url": captured_stream_url
         }
     finally:
-        # Bersihkan file temporary setelah pemotongan selesai
-        if os.path.exists(temp_path):
-            try:
-                os.remove(temp_path)
-            except Exception:
-                pass
+        # Bersihkan file temporary (.temp.mp4, .part) secara otomatis setelah pemotongan selesai
+        cleanup_temp_files()
 
     if proc.returncode != 0 or not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
         return {

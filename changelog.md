@@ -14,7 +14,24 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Implement 2-Stage Keyframe Expanded Copy and Offline FFmpeg Cut for Clip Downloader
+## [Unreleased] - Standardize Formatted Clip Filenames and Enforce Immediate Temp File Cleanup
+- **Konteks Struktural**:
+  1. Menghilangkan prefix/wrapper nama file klip (`clip_<rank>_` atau `clip_<videoId>_`) yang tidak objektif, menggantikannya dengan format rentang waktu murni yang konsisten dengan tampilan waktu pada card klip di UI: `<start_terformat> - <end_terformat>.mp4` (misal: `00.12 - 01.35.mp4` atau `01.15.30 - 01.16.00.mp4`).
+  2. Menggunakan karakter titik (`.`) sebagai pengganti titik dua (`:`) pada komponen waktu agar aman dan kompatibel 100% dengan seluruh sistem file (FAT32/exFAT di Android Shared Storage, Windows NTFS, dan Linux).
+  3. Memperbarui [FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx) dan [api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts) untuk mendeteksi file klip berformat baru saat memuat mode klip, dengan tetap menjaga fallback backward-compatible ke format lama.
+  4. Menambahkan fungsi pembersih `cleanup_temp_files()` di [clip_downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/clip_downloader.py) untuk memastikan file temporary (`.temp.mp4` dan `.part`) 100% langsung dihapus secara otomatis baik saat selesai maupun jika terjadi kegagalan.
+- **Perubahan Kode Penting**:
+  - [mobile/src/services/api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts):
+    - Menambahkan fungsi `formatTimeForFilename(seconds)` dan `getClipFilename(start, end)`.
+    - Memperbarui `getClipOutputFilePath` dan `getClipInternalOutputFilePath` menggunakan `getClipFilename`.
+    - Memperbarui `resolvePlayableClipUri` untuk mendeteksi format baru terlebih dahulu sebelum fallback format lama.
+  - [mobile/src/components/FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
+    - Mengimpor `getClipFilename` dan `formatTimeForFilename`.
+    - Memperbarui pemindaian file lokal pada `loadData()` agar mencocokkan nama file format baru `<start> - <end>.mp4`.
+  - [mobile/scripts/utils/clip_downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/clip_downloader.py):
+    - Menambahkan `cleanup_temp_files()` dan memanggilnya di inisialisasi, saat kegagalan tahap 1, dan blok `finally` tahap 2.
+
+## [fe8f32c] - Implement 2-Stage Keyframe Expanded Copy and Offline FFmpeg Cut for Clip Downloader
 - **Konteks Struktural**:
   1. Merombak total [clip_downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/clip_downloader.py) dari awal menjadi pipeline 2-tahap yang mandiri dan bebas dari ketergantungan server proxy HTTP lokal:
      - **Tahap 1**: Mengunduh segmen video sementara (*temporary file*) dengan metode copy cepat (`-c copy` pada keyframe terdekat) menggunakan rentang waktu yang diperluas (dimundurkan 5 detik dan dimajukan 5 detik) agar keyframe utuh tidak terpotong.
