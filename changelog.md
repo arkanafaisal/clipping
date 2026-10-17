@@ -14,6 +14,47 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
+## [PENDING_COMMIT] - Eliminasi Total Konstanta Mati FFMPEG_FIXED_CONFIG (Pembersihan Artefak Copy)
+- **Konteks Struktural**:
+  1. Menghapus total konstanta mati `FFMPEG_FIXED_CONFIG` dari [mobile/src/constants/ytdlp.ts](file:///d:/projects/clipping/mobile/src/constants/ytdlp.ts). Konstanta ini merupakan artefak sisa lama dari commit awal (`13fa2a0`) yang berisi `videoCodec: 'copy'` dan tidak pernah diimpor maupun digunakan di bagian mana pun dalam aplikasi.
+  2. Memastikan seluruh konfigurasi dan pipeline klip 100% steril dari referensi stream copy (`-c copy`), menegaskan bahwa satu-satunya konfigurasi aktif adalah `PRIME_CLIP_DOWNLOAD_OPTS` dengan re-encode penuh `libx264` + `aac`.
+- **Perubahan Kode Penting**:
+  - [mobile/src/constants/ytdlp.ts](file:///d:/projects/clipping/mobile/src/constants/ytdlp.ts):
+    - Menghapus deklarasi konstanta `FFMPEG_FIXED_CONFIG`.
+
+## [30d157b] - Penegakan Re-encode Presisi Frame-by-Frame, Konversi Otomatis AAC dan Sinkronisasi PTS
+- **Konteks Struktural**:
+  1. Menjamin metode pemotongan klip 100% menggunakan re-encode penuh (`libx264`/`h264_mediacodec` + `aac`) dan bukan stream copy (`-c copy`). Stream copy pada video YouTube DASH hanya memotong pada Keyframe (I-frame) yang berjarak tiap 2-5 detik sehingga tidak presisi. Dengan re-encode, pemotongan dilakukan pada tingkat frame/milidetik yang akurat sesuai target crop pengguna.
+  2. Menambahkan jaminan otomatis pada [clip_downloader.py](file:///d:/projects/clipping/mobile/modules/python-runner/android/src/main/python/utils/clip_downloader.py) dan [mobile_api/utils/clip_downloader.py](file:///d:/projects/clipping/mobile_api/utils/clip_downloader.py) agar selalu menyertakan `-c:a aac` (mengonversi stream audio Opus/WebM menjadi AAC yang kompatibel dengan kontainer MP4) dan `-avoid_negative_ts make_zero` (menghindari PTS negatif sehingga video dan audio mulai tepat pada timestamp 00:00:00.000 tanpa jeda atau desinkronisasi).
+  3. Memperbarui `PRIME_CLIP_DOWNLOAD_OPTS` di [mobile/src/constants/ytdlp.ts](file:///d:/projects/clipping/mobile/src/constants/ytdlp.ts) untuk secara eksplisit mengirimkan argumen `-c:a aac` dan `-avoid_negative_ts make_zero` dari frontend ke backend.
+- **Perubahan Kode Penting**:
+  - [mobile/modules/python-runner/android/src/main/python/utils/clip_downloader.py](file:///d:/projects/clipping/mobile/modules/python-runner/android/src/main/python/utils/clip_downloader.py) & [mobile_api/utils/clip_downloader.py](file:///d:/projects/clipping/mobile_api/utils/clip_downloader.py):
+    - Menyuntikkan fallback guard `-c:a aac` dan `-avoid_negative_ts make_zero` pada `encoder_args` jika belum disertakan frontend.
+  - [mobile/src/constants/ytdlp.ts](file:///d:/projects/clipping/mobile/src/constants/ytdlp.ts):
+    - `PRIME_CLIP_DOWNLOAD_OPTS`: Menambahkan `-c:a aac` dan `-avoid_negative_ts make_zero` pada `ffmpeg` options.
+
+## [09ac5be] - Arsitektur Localhost Range Proxy FFmpeg untuk Eliminasi Exit Code 8 dan Kualitas Prime 1080p 60fps
+- **Konteks Struktural**:
+  1. Mengatasi fatal error `FFmpeg exited with code 8` pada platform Android. Masalah ini berakar pada YouTube CDN (Google Video) yang memblokir koneksi HTTPS langsung dari HTTP demuxer bawaan FFmpeg (`Lavf`) karena penolakan User-Agent, kegagalan negosiasi TLS/SSL cert bundle pada binary statis, serta terbuangnya header autentikasi saat YouTube melakukan HTTP 302 redirects.
+  2. Menerapkan Arsitektur Opsi 2 (Localhost Range Proxy Downloader):
+     - Membuka endpoint internal `/api/proxy_stream` pada [server.py](file:///d:/projects/clipping/mobile/modules/python-runner/android/src/main/python/server.py) dan [main.py](file:///d:/projects/clipping/mobile_api/main.py).
+     - Mengubah alur input FFmpeg di [clip_downloader.py](file:///d:/projects/clipping/mobile/modules/python-runner/android/src/main/python/utils/clip_downloader.py) agar membaca stream melalui URL loopback lokal internal perangkat (`http://127.0.0.1:8080/api/proxy_stream?url=...`).
+     - Komunikasi HTTP demuxer FFmpeg dialihkan 100% ke server Python lokal (bebas dari penolakan TLS, bot challenges, dan blokir header). Server Python menangkap request `Range: bytes=X-Y` dari FFmpeg, menyedot chunk byte spesifik dari YouTube CDN menggunakan stack `requests`/`certifi` dengan User-Agent browser lengkap serta meneruskan sesi cookies (jika tersedia), lalu mengalirkannya langsung kembali ke FFmpeg secara streaming.
+     - Mode threaded (`threaded=True`) pada server Flask menjamin dua stream terpisah (DASH video 1080p dan DASH audio) dapat dibaca secara bersamaan (konkuren) tanpa deadlock.
+  3. Memprioritaskan format Prime YouTube (1080p 60fps):
+     - Menghitung scoring format video (`v_score`) berdasarkan tinggi (hingga 1080p), frame rate (60fps > 30fps), kontainer MP4/AVC (dekoding hardware cepat pada CPU ARM), dan bitrate (`tbr`).
+     - Menghitung scoring format audio (`a_score`) untuk mendapatkan kualitas audio terbaik (`abr`, AAC/m4a).
+     - Menggunakan pemotongan durasi `-t (end - start)` yang universal dan akurat frame-by-frame.
+  4. Rich Logging dan Diagnosis Error Menyeluruh:
+     - Mengimplementasikan `YtLogger` kustom di [clip_downloader.py](file:///d:/projects/clipping/mobile/modules/python-runner/android/src/main/python/utils/clip_downloader.py) untuk menangkap seluruh baris pesan `stderr` dari proses FFmpeg dan yt-dlp.
+     - Menyertakan log detail tersebut pada payload respons error sehingga pengguna dapat langsung melihat diagnosis mendalam melalui modal debug log pada frontend Toast.
+- **Perubahan Kode Penting**:
+  - [mobile/modules/python-runner/android/src/main/python/server.py](file:///d:/projects/clipping/mobile/modules/python-runner/android/src/main/python/server.py) & [mobile_api/main.py](file:///d:/projects/clipping/mobile_api/main.py):
+    - Menambahkan endpoint `/api/proxy_stream` yang menerima parameter query `url` dan `cookie_path` opsional, membaca header `Range`, dan mengalirkan chunk byte dari Google Video CDN dengan browser User-Agent.
+  - [mobile/modules/python-runner/android/src/main/python/utils/clip_downloader.py](file:///d:/projects/clipping/mobile/modules/python-runner/android/src/main/python/utils/clip_downloader.py) & [mobile_api/utils/clip_downloader.py](file:///d:/projects/clipping/mobile_api/utils/clip_downloader.py):
+    - Menambahkan kelas `YtLogger` untuk menangkap tail log stderr yt-dlp dan FFmpeg.
+    - Mengimplementasikan fungsi `try_proxy_clipping` dengan pemilihan format Prime (1080p 60fps), proxy streaming loopback, dan penangkapan detail stderr FFmpeg secara transparan.
+
 ## [6b37458] - Bundling Binary Statis FFmpeg ARM64 ke dalam APK dan Integrasi Ekstraksi Native Library (W^X Compliant)
 - **Konteks Struktural**:
   1. Mem-bundle binary executable statis FFmpeg ARM64 (`arm64-v8a`) langsung ke dalam proyek modul native Android di `mobile/modules/python-runner/android/src/main/jniLibs/arm64-v8a/libffmpeg.so`.

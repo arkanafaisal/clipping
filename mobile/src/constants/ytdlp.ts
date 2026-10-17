@@ -91,20 +91,21 @@ export const PRIME_CLIP_DOWNLOAD_OPTS: YtdlOpts = {
       '-reconnect_delay_max',
       '5',
     ],
-    ffmpeg: ['-c:v', 'libx264', '-preset', 'ultrafast', '-loglevel', 'warning'],
+    ffmpeg: [
+      '-c:v',
+      'libx264',
+      '-preset',
+      'ultrafast',
+      '-c:a',
+      'aac',
+      '-avoid_negative_ts',
+      'make_zero',
+      '-loglevel',
+      'warning',
+    ],
   },
 };
 
-/**
- * Konfigurasi Fixed FFmpeg (Tanpa Fallback):
- * Pemotongan presisi tinggi menggunakan filter seek
- */
-export const FFMPEG_FIXED_CONFIG = {
-  videoCodec: 'copy',
-  audioCodec: 'copy',
-  preset: 'ultrafast',
-  avoidNegativeTs: 'make_zero',
-};
 
 // ==============================================================================
 // [WORK IN PROGRESS - COMMENTED OUT]

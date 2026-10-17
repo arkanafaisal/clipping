@@ -323,13 +323,54 @@ def download_gdrive_file():
 #         }), 500
 
 
-# ==============================================================================
-# [COMMENTED OUT - TIDAK DIGUNAKAN DI MOBILE NATIVE]
-# 1. /api/proxy_stream:
-#    Pemutar video native Android (ExoPlayer / expo-video) langsung memutar
-#    direct URL HTTPS Google Video tanpa terhambat CORS browser.
-# 2. /api/download-to-gdrive & Full video downloader.
-# ==============================================================================
+@app.route("/api/proxy_stream", methods=["GET"])
+def proxy_stream():
+    """
+    Endpoint proxy internal untuk membypass pemblokiran HTTPS / TLS / CORS Google Video.
+    Meneruskan Range requests ke Google Video CDN menggunakan Python requests stack.
+    Digunakan oleh internal FFmpeg untuk range clipping tanpa terkena blokir Exit Code 8.
+    """
+    url = request.args.get("url")
+    if not url:
+        return jsonify({"message": "INVALID_PARAMS", "error": "Missing 'url' query parameter"}), 400
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+    }
+    range_header = request.headers.get("Range")
+    if range_header:
+        headers["Range"] = range_header
+
+    try:
+        import requests
+        from flask import Response
+
+        session = requests.Session()
+        cookie_path = request.args.get("cookie_path")
+        if cookie_path and os.path.exists(cookie_path):
+            import http.cookiejar
+            cj = http.cookiejar.MozillaCookieJar(cookie_path)
+            try:
+                cj.load(ignore_discard=True, ignore_expires=True)
+                session.cookies = cj
+            except Exception:
+                pass
+
+        req = session.get(url, headers=headers, stream=True, timeout=20)
+
+        def iterfile():
+            for chunk in req.iter_content(chunk_size=65536):
+                if chunk:
+                    yield chunk
+
+        res_headers = {}
+        for k in ["Content-Type", "Content-Range", "Content-Length", "Accept-Ranges"]:
+            if k in req.headers:
+                res_headers[k] = req.headers[k]
+
+        return Response(iterfile(), status=req.status_code, headers=res_headers)
+    except Exception as e:
+        return jsonify({"message": "PROXY_STREAM_ERROR", "error": str(e)}), 500
 
 def start_server(port=8080, native_lib_dir=None):
     print(f"[Native Python] Starting Pure Pass-Through Server di port {port}...")
