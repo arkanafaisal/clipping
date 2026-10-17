@@ -14,7 +14,20 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Unwrap Nested Python Runner Payload and Bypass Expo Sandbox via Python Storage Verifier
+## [Unreleased] - Eliminate Redundant Error Alert Dialogs in Favor of Soft Debug Toasts
+- **Konteks Struktural**:
+  1. Mengeliminasi penggunaan dialog modal `Alert.alert` bawaan pada skenario error di [Dashboard.tsx](file:///d:/projects/clipping/mobile/src/components/Dashboard.tsx) dan [FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx) untuk mencegah notifikasi ganda (*double alert*) dan tampilan antarmuka yang mengganggu.
+  2. Memusatkan seluruh notifikasi error, peringatan, dan kegagalan ekstraksi heatmap secara eksklusif melalui [ToastManager](file:///d:/projects/clipping/mobile/src/components/Toast.tsx), di mana pengguna tetap dapat mengakses log debug lengkap 100% mentah melalui tombol ikon kode `<Code2>`.
+  3. Mempertahankan dialog konfirmasi `Alert.alert` hanya untuk aksi destruktif yang memerlukan konfirmasi pengguna (`handleDeleteWorkshop`).
+- **Perubahan Kode Penting**:
+  - [mobile/src/components/Dashboard.tsx](file:///d:/projects/clipping/mobile/src/components/Dashboard.tsx):
+    - Menghapus panggilan `Alert.alert('Gagal Membuka Workshop', ...)` pada blok catch `handleExtractHeatmap`.
+    - Menghapus panggilan `Alert.alert('Tidak Dapat Masuk ke Kamar', ...)` pada blok catch `handleOpenExisting`.
+    - Mengganti peringatan `Alert.alert` pada `handleBulkWA` dan `handleImportJSON` menjadi `ToastManager.show`.
+  - [mobile/src/components/FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
+    - Mengganti `Alert.alert('Gagal Membuka Workshop', err.message)` pada blok catch `loadData` menjadi `ToastManager.show` dan menghapus impor `Alert`.
+
+## [70cbc6e] - Unwrap Nested Python Runner Payload and Bypass Expo Sandbox via Python Storage Verifier
 - **Konteks Struktural**:
   1. Memperbaiki *false error* pada ekstraksi YouTube heatmap di mana respons sukses dari Python (`extract_heatmap_data`) terbungkus ganda oleh generic runner `{ status: "success", data: { ... } }`, menyebabkan `fetchHeatmap` gagal membaca array `heatmap` di level root objek.
   2. Mengimplementasikan mekanisme *automatic unwrapping* di [index.ts](file:///d:/projects/clipping/mobile/modules/python-runner/index.ts) (`executePythonScript`) dan secara defensif di [api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts) (`fetchHeatmap`, `fetchStreamUrl`, `downloadClip`).

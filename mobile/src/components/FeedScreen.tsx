@@ -8,7 +8,6 @@ import {
   ActivityIndicator,
   Platform,
   BackHandler,
-  Alert,
 } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import {
@@ -422,7 +421,14 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
       } catch (err: any) {
         if (isMounted) {
           setLoading(false);
-          Alert.alert('Gagal Membuka Workshop', err.message);
+          ToastManager.show({
+            type: 'error',
+            title: 'Gagal Membuka Workshop',
+            message: err.message || 'Gagal memuat data workshop.',
+            rawError: err.rawError || err.stack || err.message,
+            errorCode: err.code || 'LOAD_ERROR',
+            duration: 6000,
+          });
           onBack();
         }
       }

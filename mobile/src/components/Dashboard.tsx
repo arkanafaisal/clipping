@@ -163,12 +163,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
         errorCode: err.code || 'WORKSHOP_ERROR',
         duration: 8000,
       });
-
-      const detailSnippet = err.rawError ? `\n\nDetail Error:\n${err.rawError.slice(0, 350)}` : '';
-      Alert.alert(
-        'Gagal Membuka Workshop',
-        `${err.message || 'Koneksi ke backend gagal.'}${detailSnippet}\n\n(Klik ikon kode di toast atas untuk membuka log debug lengkap)`
-      );
     }
   };
 
@@ -223,14 +217,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
         type: 'error',
         title: 'Gagal Membuka Workshop',
         message: err.message || 'Server sedang offline.',
-        rawError: err.rawError,
+        rawError: err.rawError || err.stack || err.message,
         errorCode: err.code,
         duration: 5000,
       });
-      Alert.alert(
-        'Tidak Dapat Masuk ke Kamar',
-        `${err.message || 'Koneksi ke server gagal.'}\n\nAplikasi tetap berada di Dashboard karena backend belum siap.`
-      );
     }
   };
 
@@ -258,7 +248,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
   const handleBulkWA = async (videoId: string) => {
     const stored = await LocalStorage.getItem(`clips_draft_${videoId}`);
     if (!stored) {
-      Alert.alert('Perhatian', 'Tidak ada draft klip untuk video ini.');
+      ToastManager.show({
+        type: 'info',
+        title: 'Perhatian',
+        message: 'Tidak ada draft klip untuk video ini.',
+      });
       return;
     }
 
@@ -269,7 +263,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
         .sort((a: any, b: any) => a.start - b.start);
 
       if (doneClips.length === 0) {
-        Alert.alert('Perhatian', 'Tidak ada klip yang ditandai Selesai (Hijau) pada video ini.');
+        ToastManager.show({
+          type: 'info',
+          title: 'Perhatian',
+          message: 'Tidak ada klip yang ditandai Selesai (Hijau) pada video ini.',
+        });
         return;
       }
 
@@ -292,7 +290,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
       }
     } catch (err: any) {
       console.error(err);
-      Alert.alert('Gagal', 'Gagal memproses draft klip untuk WhatsApp.');
+      ToastManager.show({
+        type: 'error',
+        title: 'Gagal',
+        message: 'Gagal memproses draft klip untuk WhatsApp.',
+        rawError: err?.stack || err?.message,
+      });
     }
   };
 
@@ -321,8 +324,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
         message: `Workshop ${wsData.videoId} berhasil di-import.`,
       });
       loadSavedWorkshops();
-    } catch (err) {
-      Alert.alert('Gagal', 'Format data JSON yang Anda paste tidak valid.');
+    } catch (err: any) {
+      ToastManager.show({
+        type: 'error',
+        title: 'Format Tidak Valid',
+        message: 'Format data JSON yang Anda paste tidak valid.',
+        rawError: err instanceof Error ? err.message : String(err),
+      });
     }
   };
 
