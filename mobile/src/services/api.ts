@@ -1,6 +1,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import * as MediaLibrary from 'expo-media-library';
 import { LocalStorage } from './storage';
+import { getCurrentStorageRoot, getStorageRootPath, getStorageStructure } from './storageConfig';
 import { STREAM_YTDL_OPTS, HEATMAP_YTDL_OPTS, PRIME_CLIP_DOWNLOAD_OPTS } from '../constants/ytdlp';
 import { DEFAULT_GDRIVE_DOWNLOAD_CONFIG } from '../constants/gdrive';
 
@@ -358,8 +359,13 @@ export const DOWNLOADED_CLIPS_CACHE = new Map<string, boolean>();
 // Shared clipping output directory:
 // fileUri: file:///storage/emulated/0/clipping/output/<videoId>/clip_<rank>_<start>_<end>.mp4
 // nativePath: /storage/emulated/0/clipping/output/<videoId>/clip_<rank>_<start>_<end>.mp4
-export const SHARED_CLIPPING_ROOT = '/storage/emulated/0/clipping';
-export const SHARED_CLIPPING_OUTPUT_DIR = `${SHARED_CLIPPING_ROOT}/output`;
+export let SHARED_CLIPPING_ROOT = getCurrentStorageRoot();
+export let SHARED_CLIPPING_OUTPUT_DIR = `${SHARED_CLIPPING_ROOT}/output`;
+
+export function syncSharedStorageConfig(root: string) {
+  SHARED_CLIPPING_ROOT = root;
+  SHARED_CLIPPING_OUTPUT_DIR = `${root}/output`;
+}
 
 /**
  * Mengambil path direktori internal sandbox aplikasi (tanpa prefix file://).

@@ -13,6 +13,7 @@ import { WorkshopCard, WorkshopItem } from './WorkshopCard';
 import { WorkshopInputForm } from './WorkshopInputForm';
 import { ImportWorkshopModal } from './ImportWorkshopModal';
 import { CookiesModal } from './CookiesModal';
+import { StorageConfigSection } from './StorageConfigSection';
 import { LocalStorage } from '../services/storage';
 import { ToastManager } from './Toast';
 import { fetchHeatmap, fetchStreamUrl, isRateLimitOrRestrictedError } from '../services/api';
@@ -331,6 +332,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
         <Text style={styles.titleGradient}>Clipping Workshop</Text>
         <Text style={styles.subtitle}>Buat dan kelola video klip dari AI Heatmap</Text>
       </View>
+
+      {/* 1b. Konfigurasi Shared Storage & Verifikasi hello.txt */}
+      <StorageConfigSection />
 
       {/* 2. Input Form (Link & Klip) */}
       <WorkshopInputForm

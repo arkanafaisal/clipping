@@ -14,7 +14,23 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [PENDING_COMMIT_2] - Penegasan Izin Akses Penyimpanan File Penuh (MANAGE_EXTERNAL_STORAGE) dan Modal Interaktif
+## [PENDING_COMMIT_3] - Konfigurasi Dinamis Root Shared Storage dan Verifikasi Fisik Read/Write (hello.txt)
+- **Konteks Struktural**:
+  1. Mengimplementasikan konfigurasi dinamis untuk lokasi direktori root shared storage (default: `/storage/emulated/0/clipping`) yang tersimpan di `LocalStorage` dan dapat disesuaikan secara bebas untuk berbagai perangkat Android yang berbeda.
+  2. Menyediakan modul [storageConfig.ts](file:///d:/projects/clipping/mobile/src/services/storageConfig.ts) yang mengelola struktur direktori standar (`/output`, `/scripts`, `/libs`, `/cookies.txt`) serta mengintegrasikan fungsi verifikasi disk fisik `verifyAndInitializeStorage`.
+  3. Memastikan verifikasi hak akses penyimpanan dilakukan secara nyata ke disk: menulis file `hello.txt` ke shared storage, membaca ulang fisik langsung dari filesystem tanpa cache RAM, serta membandingkan konten untuk memastikan izin baca & tulis 100% aktif.
+  4. Menambahkan komponen UI [StorageConfigSection.tsx](file:///d:/projects/clipping/mobile/src/components/StorageConfigSection.tsx) di [Dashboard.tsx](file:///d:/projects/clipping/mobile/src/components/Dashboard.tsx) yang menampilkan status verifikasi disk, jalur penyimpanan aktif, dan tombol uji/ubah jalur.
+- **Perubahan Kode Penting**:
+  - [mobile/src/services/storageConfig.ts](file:///d:/projects/clipping/mobile/src/services/storageConfig.ts):
+    - Dibuat baru dengan fungsi `getStorageRootPath`, `setStorageRootPath`, `getStorageStructure`, dan `verifyAndInitializeStorage`.
+  - [mobile/src/components/StorageConfigSection.tsx](file:///d:/projects/clipping/mobile/src/components/StorageConfigSection.tsx):
+    - Komponen UI untuk konfigurasi jalur root dan indikator status verifikasi fisik `hello.txt`.
+  - [mobile/src/components/Dashboard.tsx](file:///d:/projects/clipping/mobile/src/components/Dashboard.tsx):
+    - Memasang `<StorageConfigSection />` di bawah header Dashboard.
+  - [mobile/src/services/api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts):
+    - Menyelaraskan `SHARED_CLIPPING_ROOT` dan `SHARED_CLIPPING_OUTPUT_DIR` agar dinamis mengikuti konfigurasi storage.
+
+## [c4bd9fb] - Penegasan Izin Akses Penyimpanan File Penuh (MANAGE_EXTERNAL_STORAGE) dan Modal Interaktif
 - **Konteks Struktural**:
   1. Menegaskan verifikasi dan permintaan izin `MANAGE_EXTERNAL_STORAGE` (All Files Access) langsung dari sistem native Android (Kotlin) menggunakan `Environment.isExternalStorageManager()`.
   2. Menyediakan built-in native function `checkStoragePermission` dan `requestStoragePermission` di [PythonRunnerModule.kt](file:///d:/projects/clipping/mobile/modules/python-runner/android/src/main/java/expo/modules/pythonrunner/PythonRunnerModule.kt) yang secara otomatis membuka layar pengaturan sistem Android "Special App Access -> All Files Access" dengan filter package aplikasi saat izin belum aktif.
