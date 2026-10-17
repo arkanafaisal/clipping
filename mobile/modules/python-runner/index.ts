@@ -11,16 +11,9 @@ try {
   console.log('[PythonRunner] Native module not loaded yet:', e);
 }
 
-export function startPythonServer(): string {
-  if (NativePythonRunner && typeof NativePythonRunner.startServer === 'function') {
-    return NativePythonRunner.startServer();
-  }
-  return 'FALLBACK';
-}
-
-export function isPythonRunning(): boolean {
-  if (NativePythonRunner && typeof NativePythonRunner.isServerRunning === 'function') {
-    return NativePythonRunner.isServerRunning();
+export function isPythonInitialized(): boolean {
+  if (NativePythonRunner && typeof NativePythonRunner.isInitialized === 'function') {
+    return NativePythonRunner.isInitialized();
   }
   return false;
 }
@@ -30,6 +23,32 @@ export function getPythonLastError(): string | null {
     return NativePythonRunner.getLastError();
   }
   return null;
+}
+
+export function setupPythonPaths(customRootPath: string): string {
+  if (NativePythonRunner && typeof NativePythonRunner.setupPaths === 'function') {
+    return NativePythonRunner.setupPaths(customRootPath);
+  }
+  return 'FALLBACK';
+}
+
+export async function executePythonScript(
+  moduleName: string,
+  funcName: string,
+  args: Record<string, any> = {}
+): Promise<any> {
+  if (!NativePythonRunner || typeof NativePythonRunner.executeScript !== 'function') {
+    throw new Error('Native PythonRunner module is not available on this platform.');
+  }
+
+  const argsJson = JSON.stringify(args);
+  const rawResult = await NativePythonRunner.executeScript(moduleName, funcName, argsJson);
+
+  try {
+    return JSON.parse(rawResult);
+  } catch {
+    return rawResult;
+  }
 }
 
 export interface NativeRunnerInfo {
@@ -49,5 +68,3 @@ export function getNativeRunnerInfo(): NativeRunnerInfo | null {
   }
   return null;
 }
-
-export const SERVER_HOST = 'http://127.0.0.1:8080';

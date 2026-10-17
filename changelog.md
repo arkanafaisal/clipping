@@ -14,7 +14,20 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [3383adb] - Penerusan User-Agent Dinamis pada Proxy Stream untuk Mengatasi HTTP 403 Forbidden
+## [c1e7a01] - Clean Up Total Server Flask Menjadi Runner Skrip Python Mandiri
+- **Konteks Struktural**:
+  1. Membersihkan total arsitektur server Flask lokal (`server.py`) dan dependensi `flask` dari [mobile/modules/python-runner/android/build.gradle](file:///d:/projects/clipping/mobile/modules/python-runner/android/build.gradle). Mengeliminasi seluruh endpoint HTTP lokal, overhead port 8080, serta masalah connection timeout/aborted.
+  2. Menyisakan hanya bundle binary statis ARM64 FFmpeg (`libffmpeg.so` 17.7 MB dengan 154 encoder lengkap) dan interpreter CPython Chaquopy di dalam APK.
+  3. Mengimplementasikan [runner.py](file:///d:/projects/clipping/mobile/modules/python-runner/android/src/main/python/runner.py) sebagai eksekutor skrip dinamis non-server yang mengarahkan `sys.path` ke shared storage luar (`/storage/emulated/0/clipping/scripts` dan `/libs`), sehingga logika skrip dan library Python dapat di-update kapan saja tanpa perlu me-rebuild APK.
+  4. Memperbarui [PythonRunnerModule.kt](file:///d:/projects/clipping/mobile/modules/python-runner/android/src/main/java/expo/modules/pythonrunner/PythonRunnerModule.kt) dan [index.ts](file:///d:/projects/clipping/mobile/modules/python-runner/index.ts) dengan native methods `setupPaths` dan `executeScript` (asynchronous background execution) menggantikan `startServerInternal`.
+- **Perubahan Kode Penting**:
+  - [mobile/modules/python-runner/android/build.gradle](file:///d:/projects/clipping/mobile/modules/python-runner/android/build.gradle): Menghapus instalasi paket pip `flask`.
+  - `mobile/modules/python-runner/android/src/main/python/server.py`: Dihapus secara permanen.
+  - `mobile/modules/python-runner/android/src/main/python/api/`: Dihapus secara permanen.
+  - [mobile/modules/python-runner/android/src/main/python/runner.py](file:///d:/projects/clipping/mobile/modules/python-runner/android/src/main/python/runner.py): Dibuat baru dengan fungsi `setup_paths` dan `execute_function`.
+  - [mobile/modules/python-runner/android/src/main/java/expo/modules/pythonrunner/PythonRunnerModule.kt](file:///d:/projects/clipping/mobile/modules/python-runner/android/src/main/java/expo/modules/pythonrunner/PythonRunnerModule.kt): Mengganti lifecycle server Flask dengan `AsyncFunction("executeScript")` dan `Function("setupPaths")`.
+  - [mobile/modules/python-runner/index.ts](file:///d:/projects/clipping/mobile/modules/python-runner/index.ts): Menghapus `startPythonServer` dan mengekspor `setupPythonPaths` serta `executePythonScript`.
+  - [mobile/src/services/api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts): Menyelaraskan impor modul `python-runner`.
 - **Konteks Struktural**:
   1. Mengatasi error `HTTP error 403 FORBIDDEN` saat internal FFmpeg mengakses endpoint `/api/proxy_stream`. Error ini terjadi karena Google Video CDN memeriksa konsistensi antara User-Agent request dengan player client YouTube (misal `c=VISIONOS`). Sebelumnya, [server.py](file:///d:/projects/clipping/mobile/modules/python-runner/android/src/main/python/server.py) menggunakan hardcoded User-Agent Chrome 128 yang tidak cocok dengan format streaming VisionOS/iOS.
   2. Memperbarui [clip_downloader.py](file:///d:/projects/clipping/mobile/modules/python-runner/android/src/main/python/utils/clip_downloader.py) agar mengekstrak User-Agent asli dari `format.get('http_headers')` dan meneruskannya sebagai parameter query `&ua=...` ke proxy stream.

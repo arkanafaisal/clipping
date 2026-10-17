@@ -3,6 +3,7 @@ package expo.modules.pythonrunner
 import android.util.Log
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
+import expo.modules.kotlin.Promise
 import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
 import kotlin.concurrent.thread
@@ -11,7 +12,7 @@ class PythonRunnerModule : Module() {
     companion object {
         private const val TAG = "PythonRunner"
         @Volatile
-        var isServerRunning: Boolean = false
+        var isPythonInitialized: Boolean = false
         @Volatile
         var lastError: String? = null
     }
@@ -20,16 +21,21 @@ class PythonRunnerModule : Module() {
         Name("PythonRunner")
 
         OnCreate {
-            // Auto start Python server on app launch
-            startServerInternal()
+            val context = appContext.reactContext
+            if (context != null && !Python.isStarted()) {
+                try {
+                    Python.start(AndroidPlatform(context))
+                    isPythonInitialized = true
+                    Log.i(TAG, "Python engine successfully started via Chaquopy.")
+                } catch (e: Exception) {
+                    lastError = e.message ?: e.toString()
+                    Log.e(TAG, "Failed to initialize Python engine: ${e.message}", e)
+                }
+            }
         }
 
-        Function("startServer") {
-            return@Function startServerInternal()
-        }
-
-        Function("isServerRunning") {
-            return@Function isServerRunning
+        Function("isInitialized") {
+            return@Function isPythonInitialized
         }
 
         Function("getLastError") {
@@ -47,48 +53,49 @@ class PythonRunnerModule : Module() {
                 "ffmpegCanExecute" to (ffmpegFile?.canExecute() ?: false)
             )
         }
-    }
 
-    private fun startServerInternal(): String {
-        if (isServerRunning) {
-            return "ALREADY_RUNNING"
+        Function("setupPaths") { customRootPath: String ->
+            val context = appContext.reactContext ?: return@Function "NO_CONTEXT"
+            ensurePythonStarted(context)
+            try {
+                val py = Python.getInstance()
+                val runnerModule = py.getModule("runner")
+                val result = runnerModule.callAttr("setup_paths", customRootPath).toString()
+                return@Function result
+            } catch (e: Exception) {
+                lastError = e.message ?: e.toString()
+                Log.e(TAG, "setupPaths failed: ${e.message}", e)
+                return@Function "ERROR: ${e.message}"
+            }
         }
-        val context = appContext.reactContext ?: return "NO_CONTEXT"
 
-        try {
-            if (!Python.isStarted()) {
-                Python.start(AndroidPlatform(context))
+        AsyncFunction("executeScript") { moduleName: String, funcName: String, argsJson: String, promise: Promise ->
+            val context = appContext.reactContext
+            if (context == null) {
+                promise.reject("NO_CONTEXT", "Android ReactContext is null", null)
+                return@AsyncFunction
             }
 
-            thread(isDaemon = false, name = "PythonLocalServerThread") {
+            thread(isDaemon = false, name = "PythonScriptThread") {
                 try {
-                    Log.i(TAG, "Getting Python instance...")
+                    ensurePythonStarted(context)
                     val py = Python.getInstance()
-                    Log.i(TAG, "Loading server.py module...")
-                    val serverModule = py.getModule("server")
-                    isServerRunning = true
-                    lastError = null
-                    val nativeLibDir = context.applicationInfo.nativeLibraryDir
-                    val ffmpegFile = java.io.File(nativeLibDir, "libffmpeg.so")
-                    if (ffmpegFile.exists()) {
-                        Log.i(TAG, "Bundled FFmpeg found: ${ffmpegFile.absolutePath} (canExecute=${ffmpegFile.canExecute()})")
-                    } else {
-                        Log.w(TAG, "Bundled libffmpeg.so not found in: $nativeLibDir")
-                    }
-                    Log.i(TAG, "Calling start_server(8080, nativeLibDir)...")
-                    serverModule.callAttr("start_server", 8080, nativeLibDir)
+                    val runnerModule = py.getModule("runner")
+                    val resultJson = runnerModule.callAttr("execute_function", moduleName, funcName, argsJson).toString()
+                    promise.resolve(resultJson)
                 } catch (e: Exception) {
-                    isServerRunning = false
                     lastError = e.message ?: e.toString()
-                    Log.e(TAG, "Python server thread crashed: ${e.message}", e)
+                    Log.e(TAG, "executeScript failed: ${e.message}", e)
+                    promise.reject("EXECUTION_ERROR", e.message ?: e.toString(), e)
                 }
             }
+        }
+    }
 
-            return "STARTED"
-        } catch (e: Exception) {
-            lastError = e.message ?: e.toString()
-            Log.e(TAG, "Failed to start Python runtime: ${e.message}", e)
-            return "ERROR: " + e.message
+    private fun ensurePythonStarted(context: android.content.Context) {
+        if (!Python.isStarted()) {
+            Python.start(AndroidPlatform(context))
+            isPythonInitialized = true
         }
     }
 }

@@ -24,7 +24,7 @@ export interface StreamResponse {
   error?: string;
 }
 
-import { startPythonServer, getNativeRunnerInfo } from '../../modules/python-runner';
+import { isPythonInitialized, setupPythonPaths, getNativeRunnerInfo } from '../../modules/python-runner';
 
 // 1. EMBEDDED INTERNAL SERVER (Port 8080):
 // Seluruh endpoint produksi tertanam di dalam build APK (Chaquopy):
@@ -163,11 +163,11 @@ export async function pingServer(): Promise<{ status: string; port: number; mess
     return { status: 'ok', port: 8080, message: res8080.message || 'Server internal Chaquopy aktif (port 8080)' };
   } catch {}
 
-  // 2. Beri "percikan" startPythonServer() jika di Android native
+  // 2. Beri "percikan" inisialisasi paths jika di Android native
   try {
-    startPythonServer();
+    setupPythonPaths('/storage/emulated/0/clipping');
   } catch (err) {
-    console.log('[Api] Gagal memicu startPythonServer:', err);
+    console.log('[Api] Gagal memicu setupPythonPaths:', err);
   }
 
   // Tunggu sejenak agar thread Python siap mendengarkan port
