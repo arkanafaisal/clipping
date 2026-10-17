@@ -14,7 +14,24 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Fix A/V Desync and Initial Video Freeze Using FFmpeg filter_complex trim and setpts
+## [Unreleased] - Implement SubtitleEditModal, Realtime CC Overlay, and Download-to-Subtitle Button Transition
+- **Konteks Struktural**:
+  1. Menghubungkan alur pasca-download pada [FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
+     - Ketika klip berstatus `done` dan belum diunduh: menampilkan tombol download (`Download` icon atau spinner loading).
+     - Ketika klip sudah selesai diunduh: tombol download disembunyikan sepenuhnya (bukan tombol centang mati) dan digantikan oleh tombol Subtitle (`Subtitles` icon) serta tombol toggle Closed Caption (`CC`).
+  2. Membuat komponen modal baru [SubtitleEditModal.tsx](file:///d:/projects/clipping/mobile/src/components/SubtitleEditModal.tsx) untuk me-review, menyunting, menambah/menghapus baris cue subtitle, mengatur waktu per-baris (-0.2s / +0.2s), me-reset ke teks asli YouTube, dan menyimpan ke file shared storage (`<start> - <end>.json`).
+  3. Mengaktifkan Subtitle Layer 1 (Realtime Non-Destructive Preview) di atas pemutar video: teks subtitle aktif disinkronkan secara instan (0ms latency) dengan posisi putar video (`timeUpdate`), dengan pill overlay hitam transparan yang elegan.
+  4. Memperbaiki pemfilteran track subtitle di [subtitle_fetcher.py](file:///d:/projects/clipping/mobile/scripts/utils/subtitle_fetcher.py) agar mengabaikan track `live_chat` (chat replay) dan memprioritaskan subtitle ucapan aktual (`id`, `en`, atau automatic captions terstruktur `json3`).
+- **Perubahan Kode Penting**:
+  - [mobile/scripts/utils/subtitle_fetcher.py](file:///d:/projects/clipping/mobile/scripts/utils/subtitle_fetcher.py):
+    - Mengabaikan `live_chat` dari dictionary `subtitles` dan `automatic_captions`.
+  - [mobile/src/components/SubtitleEditModal.tsx](file:///d:/projects/clipping/mobile/src/components/SubtitleEditModal.tsx):
+    - Komponen modal editor subtitle lengkap dengan cue list, text input, time adjuster, reset, dan auto-save.
+  - [mobile/src/components/FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
+    - Mengganti tombol download menjadi tombol Subtitle & CC setelah klip terunduh.
+    - Menghubungkan pembacaan subtitle otomatis saat perpindahan klip dan sinkronisasi overlay teks di atas `<VideoView />`.
+
+## [29399ea] - Fix A/V Desync and Initial Video Freeze Using FFmpeg filter_complex trim and setpts
 - **Konteks Struktural**:
   1. Mengatasi masalah video klip yang nge-freeze pada bagian awal serta audio yang selesai lebih awal (desync) pada [clip_downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/clip_downloader.py).
   2. Penyebab: Penggunaan input seeking (`-ss <offset> -i ...`) pada container stream MPEG-TS (`.ts`) menyebabkan FFmpeg mencari keyframe I-frame terdekat sebelum titik offset sehingga timestamp PTS video tidak ter-reset ke 0. Sebaliknya, audio stream AAC (ADTS) mulai dari PTS 0. Akibatnya terjadi celah timestamp (gap PTS ~3 detik) antara video dan audio; pemutar video mem-freeze video di awal menunggu audio, dan saat audio selesai, video masih terus berjalan melebihi batas semestinya.

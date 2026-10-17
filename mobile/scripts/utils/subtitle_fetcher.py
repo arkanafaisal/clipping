@@ -100,8 +100,9 @@ def extract_subtitles_data(video_id: str, ydl_opts: dict = None, cookie_path: st
 
 def _process_extraction(ydl, url: str, video_id: str, preferred_lang: str = None) -> dict:
     info = ydl.extract_info(url, download=False)
-    manual_subs = info.get('subtitles') or {}
-    auto_subs = info.get('automatic_captions') or {}
+    # Filter keluar 'live_chat' karena live_chat replay bukan track subtitle/caption
+    manual_subs = {k: v for k, v in (info.get('subtitles') or {}).items() if k != 'live_chat'}
+    auto_subs = {k: v for k, v in (info.get('automatic_captions') or {}).items() if k != 'live_chat'}
 
     if not manual_subs and not auto_subs:
         return {

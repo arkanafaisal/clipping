@@ -20,6 +20,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
+  Subtitles,
 } from 'lucide-react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import {
@@ -35,19 +36,13 @@ import {
   isRateLimitOrRestrictedError,
   SHARED_CLIPPING_OUTPUT_DIR,
   INTERNAL_CLIPPING_OUTPUT_DIR,
-} from '../services/api';
-/*
-// [WORK IN PROGRESS - COMMENTED OUT] Subtitle imports
-import {
   SubtitleCue,
-  SUBTITLE_CUES_CACHE,
-  fetchSubtitles,
-  sliceCuesForClip,
+  loadClipSubtitle,
 } from '../services/api';
-*/
 import { LocalStorage } from '../services/storage';
 import { ToastManager } from './Toast';
 import { CookiesModal } from './CookiesModal';
+import { SubtitleEditModal } from './SubtitleEditModal';
 
 interface FeedScreenProps {
   videoId: string;
@@ -150,15 +145,17 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
   const [downloadingClips, setDownloadingClips] = useState<Record<string, boolean>>({});
   const [downloadedClips, setDownloadedClips] = useState<Record<string, boolean>>({});
   const [cookiesModalVisible, setCookiesModalVisible] = useState(false);
+  const [subtitleModalVisible, setSubtitleModalVisible] = useState(false);
 
-  // ============================================================================
-  // [WORK IN PROGRESS - COMMENTED OUT] State Subtitle & Overlay (Layer 1)
-  // ============================================================================
-  /*
+  // State Subtitle & Overlay (Layer 1 Realtime Preview)
   const [subtitles, setSubtitles] = useState<SubtitleCue[]>([]);
   const [activeSubtitleText, setActiveSubtitleText] = useState<string>('');
   const [isSubtitleVisible, setIsSubtitleVisible] = useState<boolean>(true);
-  */
+  const subtitlesRef = useRef<SubtitleCue[]>(subtitles);
+
+  useEffect(() => {
+    subtitlesRef.current = subtitles;
+  }, [subtitles]);
 
   // Debounce refs for smooth, leak-proof UI adjustments & storage sync
   const seekDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -604,6 +601,20 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
           const rel = Math.max(0, Math.min(duration, current - currentActive.start));
           setCurrentClipTime(rel);
         }
+
+        // Sinkronisasi teks subtitle secara realtime dengan frame video
+        const currentRel = isLocalMode
+          ? Math.max(0, Math.min(duration, current))
+          : Math.max(0, Math.min(duration, current - currentActive.start));
+
+        if (subtitlesRef.current.length > 0) {
+          const matchCue = subtitlesRef.current.find(
+            (c) => currentRel >= c.start && currentRel <= c.end
+          );
+          setActiveSubtitleText(matchCue ? matchCue.text : '');
+        } else {
+          setActiveSubtitleText('');
+        }
       }
 
       // Loop current segment & boundary enforcement
@@ -712,29 +723,29 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     };
   }, [player, videoId, setPendingSeek]);
 
-  /*
-  // ============================================================================
-  // [WORK IN PROGRESS - COMMENTED OUT] Auto-load & Slicing Subtitle Klip Aktif
-  // ============================================================================
+  // Auto-load subtitle yang sudah tersimpan untuk klip aktif
   useEffect(() => {
-    async function loadSubtitlesForActiveClip() {
+    let isCurrent = true;
+    async function checkSavedSubtitle() {
       if (!activeClip || !activeClip.videoId) return;
       try {
-        if (SUBTITLE_CUES_CACHE.has(activeClip.id)) {
-          setSubtitles(SUBTITLE_CUES_CACHE.get(activeClip.id) || []);
-          return;
+        const saved = await loadClipSubtitle(activeClip.videoId, activeClip.start, activeClip.end);
+        if (isCurrent) {
+          if (saved && Array.isArray(saved.cues)) {
+            setSubtitles(saved.cues);
+          } else {
+            setSubtitles([]);
+          }
         }
-        const allCues = await fetchSubtitles(activeClip.videoId, 'id');
-        const sliced = sliceCuesForClip(allCues, activeClip.start, activeClip.end);
-        SUBTITLE_CUES_CACHE.set(activeClip.id, sliced);
-        setSubtitles(sliced);
-      } catch (err) {
-        console.warn('[Feed] Gagal memuat subtitle klip:', err);
+      } catch {
+        if (isCurrent) setSubtitles([]);
       }
     }
-    loadSubtitlesForActiveClip();
-  }, [activeClip.id, activeClip.start, activeClip.end]);
-  */
+    checkSavedSubtitle();
+    return () => {
+      isCurrent = false;
+    };
+  }, [activeClip.videoId, activeClip.start, activeClip.end]);
 
   // Extend & Crop Handlers:
   // - UI langsung ter-update secara instan 0ms tanpa animasi/delay
@@ -1066,40 +1077,61 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
           <View style={styles.leftActionGroup}>
             {activeClip.status === 'done' ? (
               <>
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.statusBtn,
-                    styles.downloadBtn,
-                    downloadedClips[activeClip.id] && styles.downloadBtnSuccess,
-                    pressed && !downloadedClips[activeClip.id] && { opacity: 0.7 },
-                  ]}
-                  onPress={downloadedClips[activeClip.id] ? undefined : handleDownloadClip}
-                  disabled={Boolean(downloadedClips[activeClip.id] || downloadingClips[activeClip.id])}
-                >
-                  {downloadingClips[activeClip.id] ? (
-                    <ActivityIndicator size="small" color="#38bdf8" />
-                  ) : downloadedClips[activeClip.id] ? (
-                    <CheckCircle2 size={18} color="#34d399" />
-                  ) : (
-                    <Download size={18} color="#38bdf8" />
-                  )}
-                </Pressable>
+                {!downloadedClips[activeClip.id] ? (
+                  /* Mode Belum Terdownload: Tampilkan Tombol Download */
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.statusBtn,
+                      styles.downloadBtn,
+                      pressed && { opacity: 0.7 },
+                    ]}
+                    onPress={handleDownloadClip}
+                    disabled={Boolean(downloadingClips[activeClip.id])}
+                  >
+                    {downloadingClips[activeClip.id] ? (
+                      <ActivityIndicator size="small" color="#38bdf8" />
+                    ) : (
+                      <Download size={18} color="#38bdf8" />
+                    )}
+                  </Pressable>
+                ) : (
+                  /* Mode Sudah Terdownload: Tombol Download disembunyikan, diganti Tombol Subtitle */
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.statusBtn,
+                        styles.subtitleBtn,
+                        subtitles.length > 0 && styles.subtitleBtnActive,
+                        pressed && { opacity: 0.7 },
+                      ]}
+                      onPress={() => setSubtitleModalVisible(true)}
+                    >
+                      <Subtitles size={18} color={subtitles.length > 0 ? '#38bdf8' : '#94a3b8'} />
+                    </Pressable>
 
-                {/*
-                // [WORK IN PROGRESS - COMMENTED OUT] Tombol Toggle Subtitle di Mode Review
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.statusBtn,
-                    styles.subtitleToggleBtn,
-                    pressed && { opacity: 0.7 },
-                  ]}
-                  onPressIn={() => setIsSubtitleVisible((prev) => !prev)}
-                >
-                  <Text style={styles.subtitleBtnText}>
-                    {isSubtitleVisible ? 'CC' : 'CC Off'}
-                  </Text>
-                </Pressable>
-                */}
+                    {/* Tombol Toggle CC Overlay (jika subtitle sudah tersedia) */}
+                    {subtitles.length > 0 && (
+                      <Pressable
+                        style={({ pressed }) => [
+                          styles.statusBtn,
+                          styles.subtitleToggleBtn,
+                          isSubtitleVisible && styles.subtitleToggleBtnActive,
+                          pressed && { opacity: 0.7 },
+                        ]}
+                        onPress={() => setIsSubtitleVisible((prev) => !prev)}
+                      >
+                        <Text
+                          style={[
+                            styles.subtitleBtnText,
+                            isSubtitleVisible && { color: '#38bdf8' },
+                          ]}
+                        >
+                          CC
+                        </Text>
+                      </Pressable>
+                    )}
+                  </View>
+                )}
               </>
             ) : (
               <Pressable
@@ -1251,8 +1283,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
           </View>
         )}
 
-        {/*
-        // [WORK IN PROGRESS - COMMENTED OUT] Subtitle Layer 1 (Realtime Non-Destructive Preview)
+        {/* Subtitle Layer 1 (Realtime Non-Destructive Preview) */}
         {isSubtitleVisible && activeSubtitleText ? (
           <View style={styles.subtitleOverlayContainer} pointerEvents="none">
             <View style={styles.subtitlePill}>
@@ -1260,7 +1291,6 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
             </View>
           </View>
         ) : null}
-        */}
       </View>
 
       {/* 3. BOTTOM PLAYBACK CONTROLS (Fixed Height) */}
@@ -1371,6 +1401,20 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
         visible={cookiesModalVisible}
         onClose={() => setCookiesModalVisible(false)}
       />
+
+      {/* 6. Subtitle Edit Modal */}
+      <SubtitleEditModal
+        visible={subtitleModalVisible}
+        onClose={() => setSubtitleModalVisible(false)}
+        videoId={videoId}
+        clip={activeClip}
+        onSave={(newCues) => {
+          setSubtitles(newCues);
+        }}
+        onSeekTo={(timeSec) => {
+          centralizedSeek(timeSec, true);
+        }}
+      />
     </View>
   );
 };
@@ -1458,8 +1502,15 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(16, 185, 129, 0.15)',
     borderColor: 'rgba(16, 185, 129, 0.4)',
   },
-  /*
-  // [WORK IN PROGRESS - COMMENTED OUT] Styles Subtitle Overlay & Toggle
+  subtitleBtn: {
+    backgroundColor: 'rgba(148, 163, 184, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.25)',
+  },
+  subtitleBtnActive: {
+    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+    borderColor: 'rgba(56, 189, 248, 0.4)',
+  },
   subtitleOverlayContainer: {
     position: 'absolute',
     bottom: 24,
@@ -1493,12 +1544,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.2)',
   },
+  subtitleToggleBtnActive: {
+    backgroundColor: 'rgba(56, 189, 248, 0.2)',
+    borderColor: '#38bdf8',
+  },
   subtitleBtnText: {
     color: '#ffffff',
     fontSize: 11,
     fontWeight: '700',
   },
-  */
   timeMsText: {
     fontSize: 13,
     letterSpacing: 0.2,
