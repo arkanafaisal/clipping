@@ -820,12 +820,23 @@ export async function downloadClip(
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 menit timeout download klip
 
-    const outputDir = isShared ? `${SHARED_CLIPPING_OUTPUT_DIR}/${videoId}` : `${INTERNAL_CLIPPING_OUTPUT_DIR}/${videoId}`;
-    const infoJsonPath = `${outputDir}/video_info.json`;
+    // Simpan cache metadata video_info.json murni di internal sandbox privat
+    // agar pembacaan & penulisan JSON tidak melanggar Scoped Storage Android di shared storage
+    const internalVideoDir = `${INTERNAL_CLIPPING_OUTPUT_DIR}/${videoId}`;
+    const infoJsonPath = `${internalVideoDir}/video_info.json`;
+
+    try {
+      const internalDirUri = `file://${internalVideoDir}`;
+      const dirInfo = await FileSystem.getInfoAsync(internalDirUri);
+      if (!dirInfo.exists) {
+        await FileSystem.makeDirectoryAsync(internalDirUri, { intermediates: true });
+      }
+    } catch {}
+
     const clipYdlOpts = {
       ...PRIME_CLIP_DOWNLOAD_OPTS,
       load_info_filename: infoJsonPath,
-      writeinfojson: true,
+      writeinfojson: false, // Matikan pembuatan file .info.json di shared storage agar folder bersih & tidak ditolak izin storage
     };
 
     if (!isShared) {
