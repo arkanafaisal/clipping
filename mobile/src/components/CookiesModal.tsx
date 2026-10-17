@@ -10,7 +10,8 @@ import {
   Platform,
   ActivityIndicator,
 } from 'react-native';
-import { syncCookiesFromGoogleDrive, extractGoogleDriveFileId, isGoogleDriveFolderLink } from '../services/api';
+import { Trash2 } from 'lucide-react-native';
+import { syncCookiesFromGoogleDrive, extractGoogleDriveFileId, isGoogleDriveFolderLink, deleteCookies } from '../services/api';
 import { ToastManager } from './Toast';
 
 interface CookiesModalProps {
@@ -27,6 +28,25 @@ export const CookiesModal: React.FC<CookiesModalProps> = ({
   const [driveLink, setDriveLink] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const handleDeleteCookies = async () => {
+    setIsSubmitting(true);
+    try {
+      await deleteCookies();
+      setIsSubmitting(false);
+      ToastManager.show({
+        type: 'info',
+        title: 'Cookies Dihapus',
+        message: 'File cookies telah dihapus. Sistem kembali ke Mode Anonim.',
+        duration: 3500,
+      });
+      onSuccess?.('');
+      onClose();
+    } catch (err: any) {
+      setIsSubmitting(false);
+      setErrorMessage(err.message || 'Gagal menghapus cookies.');
+    }
+  };
 
   const handleSubmit = async () => {
     setErrorMessage(null);
@@ -54,8 +74,8 @@ export const CookiesModal: React.FC<CookiesModalProps> = ({
       setDriveLink('');
       ToastManager.show({
         type: 'success',
-        title: 'Cookies Berhasil Diimpor',
-        message: 'File cookies.txt tersimpan dan siap digunakan untuk retry request.',
+        title: 'Cookies Berhasil Diperbarui',
+        message: 'File cookies.txt berhasil ditimpa di penyimpanan privat dan siap digunakan.',
         duration: 4000,
       });
       onSuccess?.(savedPath);
@@ -94,9 +114,9 @@ export const CookiesModal: React.FC<CookiesModalProps> = ({
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <View style={styles.modalCard}>
-          <Text style={styles.title}>Batas Permintaan YouTube</Text>
+          <Text style={styles.title}>Batas YouTube / Cookies Kedaluwarsa</Text>
           <Text style={styles.subtitle}>
-            Batas permintaan YouTube terlampaui (Error 429). Tolong kirimkan link file cookies Anda dari Google Drive (akses publik) untuk melanjutkan.
+            Batas permintaan YouTube terlampaui atau cookies kedaluwarsa. Tolong masukkan link file cookies.txt terbaru dari Google Drive (akses publik) untuk menimpa cookies lama.
           </Text>
 
           <TextInput
@@ -119,26 +139,38 @@ export const CookiesModal: React.FC<CookiesModalProps> = ({
 
           <View style={styles.buttonRow}>
             <TouchableOpacity
-              style={styles.cancelBtn}
-              onPress={handleClose}
+              style={styles.deleteBtn}
+              onPress={handleDeleteCookies}
               disabled={isSubmitting}
               activeOpacity={0.7}
             >
-              <Text style={styles.cancelBtnText}>Batal</Text>
+              <Trash2 size={15} color="#ef4444" style={{ marginRight: 6 }} />
+              <Text style={styles.deleteBtnText}>Hapus Cookies</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.submitBtn, isSubmitting && styles.submitBtnDisabled]}
-              onPress={handleSubmit}
-              disabled={isSubmitting}
-              activeOpacity={0.85}
-            >
-              {isSubmitting ? (
-                <ActivityIndicator size="small" color="#ffffff" />
-              ) : (
-                <Text style={styles.submitBtnText}>Unduh & Terapkan</Text>
-              )}
-            </TouchableOpacity>
+            <View style={styles.rightActions}>
+              <TouchableOpacity
+                style={styles.cancelBtn}
+                onPress={handleClose}
+                disabled={isSubmitting}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.cancelBtnText}>Batal</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.submitBtn, isSubmitting && styles.submitBtnDisabled]}
+                onPress={handleSubmit}
+                disabled={isSubmitting}
+                activeOpacity={0.85}
+              >
+                {isSubmitting ? (
+                  <ActivityIndicator size="small" color="#ffffff" />
+                ) : (
+                  <Text style={styles.submitBtnText}>Unduh & Terapkan</Text>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -198,9 +230,29 @@ const styles = StyleSheet.create({
   },
   buttonRow: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 10,
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginTop: 4,
+  },
+  rightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  deleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.25)',
+  },
+  deleteBtnText: {
+    color: '#ef4444',
+    fontSize: 13,
+    fontWeight: '600',
   },
   cancelBtn: {
     paddingVertical: 10,

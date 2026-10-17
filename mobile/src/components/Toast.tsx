@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Modal,
   ScrollView,
+  Linking,
 } from 'react-native';
 import {
   CheckCircle2,
@@ -266,6 +267,16 @@ export const ToastContainer: React.FC = () => {
             </ScrollView>
 
             <View style={styles.modalFooter}>
+              {(debugData?.errorCode === 'STORAGE_PERMISSION_DENIED' ||
+                debugData?.rawError?.toLowerCase().includes('permission denied')) ? (
+                <TouchableOpacity
+                  style={styles.settingsActionBtn}
+                  onPress={() => Linking.openSettings()}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.settingsActionBtnText}>Buka Pengaturan HP</Text>
+                </TouchableOpacity>
+              ) : null}
               <TouchableOpacity
                 style={styles.modalDismissBtn}
                 onPress={handleCloseDebug}
@@ -433,6 +444,19 @@ const styles = StyleSheet.create({
   modalFooter: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
+    alignItems: 'center',
+  },
+  settingsActionBtn: {
+    backgroundColor: '#dc2626',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    marginRight: 10,
+  },
+  settingsActionBtnText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '600',
   },
   modalDismissBtn: {
     backgroundColor: '#27272a',

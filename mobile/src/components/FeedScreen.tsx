@@ -29,9 +29,11 @@ import {
   fetchHeatmap,
   downloadClip,
   getClipOutputFilePath,
+  resolvePlayableClipUri,
   checkClipFileExists,
   isRateLimitOrRestrictedError,
   SHARED_CLIPPING_OUTPUT_DIR,
+  INTERNAL_CLIPPING_OUTPUT_DIR,
 } from '../services/api';
 /*
 // [WORK IN PROGRESS - COMMENTED OUT] Subtitle imports
@@ -283,16 +285,24 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
           setLoading(false);
         }
 
-        // Pre-scan keberadaan file klip di shared storage untuk SEMUA klip (universal & tahan banting)
+        // Pre-scan keberadaan file klip di shared dan internal sandbox storage untuk SEMUA klip
         const existingDownloadMap: Record<string, boolean> = {};
         let hasNewDone = false;
 
         const videoDirUri = `file://${SHARED_CLIPPING_OUTPUT_DIR}/${videoId}`;
+        const internalVideoDirUri = `file://${INTERNAL_CLIPPING_OUTPUT_DIR}/${videoId}`;
         let dirFiles: string[] = [];
         try {
           const dirInfo = await FileSystem.getInfoAsync(videoDirUri);
           if (dirInfo.exists && dirInfo.isDirectory) {
             dirFiles = await FileSystem.readDirectoryAsync(videoDirUri);
+          }
+        } catch {}
+        try {
+          const internalDirInfo = await FileSystem.getInfoAsync(internalVideoDirUri);
+          if (internalDirInfo.exists && internalDirInfo.isDirectory) {
+            const internalFiles = await FileSystem.readDirectoryAsync(internalVideoDirUri);
+            dirFiles = [...dirFiles, ...internalFiles];
           }
         } catch {}
 
@@ -447,7 +457,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
    *   putar direct stream online YouTube dan seek ke detik clip.start.
    */
   const syncPlayerSourceForClip = useCallback(
-    (clip: ClipItem, autoPlay: boolean = true) => {
+    async (clip: ClipItem, autoPlay: boolean = true) => {
       if (!player) return;
       const isDownloaded = Boolean(downloadedClipsRef.current[clip.id]);
       const isLocalMode = clip.status === 'done' && isDownloaded;
@@ -457,7 +467,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
       setPendingSeek(targetTime);
 
       if (isLocalMode) {
-        const { fileUri } = getClipOutputFilePath(videoId, clip.start, clip.end, clip.rank);
+        const fileUri = await resolvePlayableClipUri(videoId, clip.start, clip.end, clip.rank);
         if (currentSourceUriRef.current !== fileUri) {
           currentSourceUriRef.current = fileUri;
           isSourceSwitchingRef.current = true;
@@ -924,16 +934,18 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
       });
     } catch (err: any) {
       setDownloadingClips((prev) => ({ ...prev, [clipId]: false }));
-      if (isRateLimitOrRestrictedError(err)) {
+      if (isRateLimitOrRestrictedError(err) || err.code === 'COOKIES_INVALID_OR_EXPIRED') {
         setCookiesModalVisible(true);
       }
-      const title = err.code === 'COOKIES_INVALID_OR_EXPIRED'
-        ? 'Cookies Tidak Valid / Kedaluwarsa'
-        : (err.code === 'COOKIES_FILE_NOT_FOUND'
-          ? 'File Cookies Tidak Ditemukan'
-          : (err.code === 'RATE_LIMIT_EXCEEDED'
-            ? 'Batas Permintaan YouTube (Mode Anonim)'
-            : 'Gagal Mengunduh Klip'));
+      const title = err.code === 'STORAGE_PERMISSION_DENIED'
+        ? 'Izin Akses Penyimpanan Ditolak'
+        : (err.code === 'COOKIES_INVALID_OR_EXPIRED'
+          ? 'Cookies Tidak Valid / Kedaluwarsa'
+          : (err.code === 'COOKIES_FILE_NOT_FOUND'
+            ? 'File Cookies Tidak Ditemukan'
+            : (err.code === 'RATE_LIMIT_EXCEEDED'
+              ? 'Batas Permintaan YouTube (Mode Anonim)'
+              : 'Gagal Mengunduh Klip')));
 
       ToastManager.show({
         type: 'error',

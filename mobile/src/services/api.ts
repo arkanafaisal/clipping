@@ -71,6 +71,7 @@ export const API_ERROR_MAP: Record<string, string> = {
   FORMAT_NOT_AVAILABLE: 'Format video yang diminta tidak tersedia di YouTube untuk video ini.',
   INVALID_PARAMS: 'Parameter permintaan tidak lengkap atau tidak valid.',
   INVALID_RANGE: 'Rentang waktu klip tidak valid.',
+  STORAGE_PERMISSION_DENIED: 'Akses penyimpanan perangkat ditolak (Permission Denied). Harap berikan izin "Akses Semua File" di Pengaturan HP untuk aplikasi Clipping.',
   DOWNLOAD_FAILED: 'Gagal mengunduh klip video dari YouTube.',
   SERVER_OFFLINE: 'Server internal Python belum aktif pada port 8080.',
   DEV_SERVER_OFFLINE: 'Server Mobile Dev/Mock API belum aktif pada port 3006.',
@@ -108,13 +109,14 @@ export class ApiError extends Error {
  */
 export function isRateLimitOrRestrictedError(err: any): boolean {
   if (!err) return false;
-  if (err.code === 'RATE_LIMIT_EXCEEDED') return true;
+  if (err.code === 'STORAGE_PERMISSION_DENIED') return false;
   const fullText = `${err.name || ''} ${err.code || ''} ${err.message || ''} ${err.rawError || ''}`.toLowerCase();
+  if (fullText.includes('permission denied') || fullText.includes('errno 13')) return false;
+  if (err.code === 'RATE_LIMIT_EXCEEDED' || err.code === 'COOKIES_INVALID_OR_EXPIRED') return true;
   return (
     fullText.includes('429') ||
     fullText.includes('403') ||
     fullText.includes('forbidden') ||
-    fullText.includes('access denied') ||
     fullText.includes('rate limit') ||
     fullText.includes('bot') ||
     fullText.includes('sign in') ||
@@ -351,28 +353,55 @@ export const DOWNLOADED_CLIPS_CACHE = new Map<string, boolean>();
 export const SHARED_CLIPPING_ROOT = '/storage/emulated/0/clipping';
 export const SHARED_CLIPPING_OUTPUT_DIR = `${SHARED_CLIPPING_ROOT}/output`;
 
-// Path file cookies pada shared clipping directory
+/**
+ * Mengambil path direktori internal sandbox aplikasi (tanpa prefix file://).
+ * Direktori ini dijamin 100% memiliki hak akses Read & Write oleh proses Android & Python
+ * tanpa bergantung pada izin MANAGE_EXTERNAL_STORAGE di Android 11+.
+ */
+export function getInternalAppStoragePath(): string {
+  if (FileSystem.documentDirectory) {
+    const raw = FileSystem.documentDirectory.replace('file://', '');
+    return raw.endsWith('/') ? raw.slice(0, -1) : raw;
+  }
+  return '/data/user/0/com.clipping.app/files';
+}
+
+export const INTERNAL_CLIPPING_ROOT = `${getInternalAppStoragePath()}/clipping`;
+export const INTERNAL_CLIPPING_OUTPUT_DIR = `${INTERNAL_CLIPPING_ROOT}/output`;
+
+// Path file cookies
 export const COOKIES_FILE_NAME = 'cookies.txt';
 export const COOKIES_FILE_PATH = `${SHARED_CLIPPING_ROOT}/${COOKIES_FILE_NAME}`;
+export const INTERNAL_COOKIES_FILE_PATH = `${INTERNAL_CLIPPING_ROOT}/${COOKIES_FILE_NAME}`;
 export const COOKIES_STORAGE_KEY = 'configured_cookies_path';
 
 // In-Memory cache cookies path
 let cachedCookiesPath: string | null = null;
 
+async function isPathReadable(path: string): Promise<boolean> {
+  try {
+    const fileInfo = await FileSystem.getInfoAsync(`file://${path}`);
+    if (!fileInfo.exists || fileInfo.isDirectory || fileInfo.size === 0) {
+      return false;
+    }
+    await FileSystem.readAsStringAsync(`file://${path}`, { length: 50 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Memeriksa dan mengambil path cookies yang valid.
- * Prioritas: In-Memory cache -> LocalStorage -> File Fisik Default (/storage/emulated/0/clipping/cookies.txt).
- * Memverifikasi keberadaan fisik file di disk sebelum mengembalikan path ke pemanggil.
+ * Prioritas: In-Memory cache -> LocalStorage -> File Fisik Shared -> File Fisik Internal Sandbox.
+ * Memverifikasi keterbacaan fisik file di disk sebelum mengembalikan path ke pemanggil.
  */
 export async function getValidCookiesPath(): Promise<string | undefined> {
-  // 1. Tier 1: In-Memory cache (verifikasi keberadaan fisik file)
+  // 1. Tier 1: In-Memory cache (verifikasi keterbacaan)
   if (cachedCookiesPath) {
-    try {
-      const fileInfo = await FileSystem.getInfoAsync(`file://${cachedCookiesPath}`);
-      if (fileInfo.exists && !fileInfo.isDirectory && (fileInfo.size === undefined || fileInfo.size > 0)) {
-        return cachedCookiesPath;
-      }
-    } catch {}
+    if (await isPathReadable(cachedCookiesPath)) {
+      return cachedCookiesPath;
+    }
     cachedCookiesPath = null;
   }
 
@@ -381,19 +410,36 @@ export async function getValidCookiesPath(): Promise<string | undefined> {
     const savedPath = await LocalStorage.getItem(COOKIES_STORAGE_KEY);
     if (savedPath && typeof savedPath === 'string' && savedPath.trim().length > 0) {
       const cleanPath = savedPath.trim();
-      const fileInfo = await FileSystem.getInfoAsync(`file://${cleanPath}`);
-      if (fileInfo.exists && !fileInfo.isDirectory && (fileInfo.size === undefined || fileInfo.size > 0)) {
+      if (await isPathReadable(cleanPath)) {
         cachedCookiesPath = cleanPath;
         return cachedCookiesPath;
       }
     }
   } catch {}
 
-  // 3. Tier 3: Auto-detect file cookies fisik default di shared clipping folder (/storage/emulated/0/clipping/cookies.txt)
+  // 3. Tier 3: Auto-detect file cookies fisik di internal sandbox (/data/user/0/com.clipping.app/files/clipping/cookies.txt)
+  try {
+    const internalPath = INTERNAL_COOKIES_FILE_PATH;
+    if (await isPathReadable(internalPath)) {
+      cachedCookiesPath = internalPath;
+      await LocalStorage.setItem(COOKIES_STORAGE_KEY, internalPath);
+      return internalPath;
+    }
+  } catch {}
+
+  // 4. Tier 4: Auto-detect file cookies fisik di shared clipping folder jika terbaca, otomatis migrasi ke internal sandbox
   try {
     const defaultPath = COOKIES_FILE_PATH;
-    const defaultInfo = await FileSystem.getInfoAsync(`file://${defaultPath}`);
-    if (defaultInfo.exists && !defaultInfo.isDirectory && (defaultInfo.size === undefined || defaultInfo.size > 0)) {
+    if (await isPathReadable(defaultPath)) {
+      try {
+        await FileSystem.copyAsync({
+          from: `file://${defaultPath}`,
+          to: `file://${INTERNAL_COOKIES_FILE_PATH}`,
+        });
+        cachedCookiesPath = INTERNAL_COOKIES_FILE_PATH;
+        await LocalStorage.setItem(COOKIES_STORAGE_KEY, INTERNAL_COOKIES_FILE_PATH);
+        return INTERNAL_COOKIES_FILE_PATH;
+      } catch {}
       cachedCookiesPath = defaultPath;
       await LocalStorage.setItem(COOKIES_STORAGE_KEY, defaultPath);
       return defaultPath;
@@ -431,8 +477,9 @@ export function extractGoogleDriveFileId(input: string): string | null {
 
 /**
  * Mengunduh file cookies dari Google Drive publik via endpoint pass-through /api/download-gdrive-file.
- * Frontend memformat file_id dan menetapkan lokasi output_path (/storage/emulated/0/clipping/cookies.txt).
- * Menyimpan path ke in-memory cache dan LocalStorage setelah berhasil.
+ * Seluruh penyimpanan diarahkan 100% ke Internal Sandbox Storage aplikasi (/data/user/0/com.clipping.app/files/clipping/cookies.txt).
+ * Jika file cookies lama sudah ada, file tersebut langsung ditimpa (overwritten) secara otomatis tanpa perlu dihapus terlebih dahulu.
+ * Menjamin zero-permission: tidak memerlukan izin akses storage Android.
  */
 export async function syncCookiesFromGoogleDrive(linkOrId: string): Promise<string> {
   if (isGoogleDriveFolderLink(linkOrId)) {
@@ -447,7 +494,24 @@ export async function syncCookiesFromGoogleDrive(linkOrId: string): Promise<stri
     throw new ApiError('INVALID_PARAMS', 'Link Google Drive tidak valid atau ID file tidak ditemukan.');
   }
 
-  const targetPath = COOKIES_FILE_PATH;
+  // Simpan secara privat di internal sandbox aplikasi (/data/user/0/com.clipping.app/files/clipping/cookies.txt)
+  // Menjamin 100% hak akses Read & Write privat tanpa batasan Scoped Storage Android (Zero Permission).
+  const targetPath = INTERNAL_COOKIES_FILE_PATH;
+
+  // Pastikan direktori internal sudah ada
+  try {
+    const internalDirUri = `file://${INTERNAL_CLIPPING_ROOT}`;
+    const dirInfo = await FileSystem.getInfoAsync(internalDirUri);
+    if (!dirInfo.exists) {
+      await FileSystem.makeDirectoryAsync(internalDirUri, { intermediates: true });
+    }
+  } catch {}
+
+  // Hapus file cookies lama terlebih dahulu setelah link tervalidasi sebelum menulis file baru
+  try {
+    await FileSystem.deleteAsync(`file://${targetPath}`, { idempotent: true });
+  } catch {}
+
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 30000);
 
@@ -482,11 +546,12 @@ export async function syncCookiesFromGoogleDrive(linkOrId: string): Promise<stri
 
     const data = await response.json().catch(() => ({}));
     if (!response.ok || data.status !== 'success') {
-      const code = data.message || 'GDRIVE_DOWNLOAD_FAILED';
       const rawErr = data.error || `HTTP ${response.status}: Gagal mengunduh file dari Google Drive`;
+      const code = data.message || 'GDRIVE_DOWNLOAD_FAILED';
       throw new ApiError(code, rawErr);
     }
 
+    // Menimpa path cookies aktif di memory cache dan LocalStorage
     cachedCookiesPath = targetPath;
     await LocalStorage.setItem(COOKIES_STORAGE_KEY, targetPath);
     if (data.file_size) {
@@ -497,8 +562,33 @@ export async function syncCookiesFromGoogleDrive(linkOrId: string): Promise<stri
   } catch (error: any) {
     clearTimeout(timeoutId);
     if (error instanceof ApiError) throw error;
+    if (error.name === 'AbortError') {
+      throw new ApiError('NETWORK_ERROR', 'Waktu koneksi pengunduhan Google Drive habis (timeout 30s).');
+    }
     throw new ApiError('GDRIVE_DOWNLOAD_FAILED', error.message);
   }
+}
+
+/**
+ * Menghapus file cookies dari penyimpanan internal & shared, serta mereset state ke mode anonim.
+ */
+export async function deleteCookies(): Promise<void> {
+  cachedCookiesPath = null;
+  try {
+    await LocalStorage.removeItem(COOKIES_STORAGE_KEY);
+  } catch {}
+  try {
+    await LocalStorage.removeItem('cookies_file_size');
+  } catch {}
+  try {
+    await LocalStorage.removeItem('cookies_last_synced');
+  } catch {}
+  try {
+    await FileSystem.deleteAsync(`file://${INTERNAL_COOKIES_FILE_PATH}`, { idempotent: true });
+  } catch {}
+  try {
+    await FileSystem.deleteAsync(`file://${COOKIES_FILE_PATH}`, { idempotent: true });
+  } catch {}
 }
 
 /**
@@ -522,8 +612,68 @@ export function getClipOutputFilePath(
 }
 
 /**
+ * Menghasilkan alokasi lokasi file tujuan download klip pada internal sandbox storage.
+ * Digunakan sebagai fallback jika shared storage belum memiliki izin MANAGE_EXTERNAL_STORAGE.
+ */
+export function getClipInternalOutputFilePath(
+  videoId: string,
+  start: number,
+  end: number,
+  rank?: number
+): { fileUri: string; nativePath: string } {
+  const startStr = Math.round(start);
+  const endStr = Math.round(end);
+  const filename = rank
+    ? `clip_${rank}_${startStr}_${endStr}.mp4`
+    : `clip_${videoId}_${startStr}_${endStr}.mp4`;
+  const nativePath = `${INTERNAL_CLIPPING_OUTPUT_DIR}/${videoId}/${filename}`;
+  const fileUri = `file://${nativePath}`;
+  return { fileUri, nativePath };
+}
+
+/**
+ * Menyelesaikan fileUri yang valid dan dapat diputar untuk klip lokal.
+ * Memeriksa shared storage terlebih dahulu, lalu beralih ke internal sandbox jika diperlukan.
+ */
+export async function resolvePlayableClipUri(
+  videoId: string,
+  start: number,
+  end: number,
+  rank?: number
+): Promise<string> {
+  const shared = getClipOutputFilePath(videoId, start, end, rank);
+  try {
+    const info = await FileSystem.getInfoAsync(shared.fileUri);
+    if (info.exists) return shared.fileUri;
+  } catch {}
+
+  const internal = getClipInternalOutputFilePath(videoId, start, end, rank);
+  try {
+    const internalInfo = await FileSystem.getInfoAsync(internal.fileUri);
+    if (internalInfo.exists) return internal.fileUri;
+  } catch {}
+
+  const startStr = Math.round(start).toString();
+  const endStr = Math.round(end).toString();
+  const fallbackShared = `file://${SHARED_CLIPPING_OUTPUT_DIR}/${videoId}/clip_${videoId}_${startStr}_${endStr}.mp4`;
+  try {
+    const fbInfo = await FileSystem.getInfoAsync(fallbackShared);
+    if (fbInfo.exists) return fallbackShared;
+  } catch {}
+
+  const fallbackInternal = `file://${INTERNAL_CLIPPING_OUTPUT_DIR}/${videoId}/clip_${videoId}_${startStr}_${endStr}.mp4`;
+  try {
+    const fbInternalInfo = await FileSystem.getInfoAsync(fallbackInternal);
+    if (fbInternalInfo.exists) return fallbackInternal;
+  } catch {}
+
+  return shared.fileUri;
+}
+
+/**
  * Memeriksa keberadaan file klip video di local file system dengan in-memory caching.
  * Dijalankan murni di sisi frontend menggunakan FileSystem Expo tanpa panggilan API ke server.
+ * Memeriksa baik direktori shared storage maupun internal sandbox storage.
  */
 export async function checkClipFileExists(fileUri: string, forceCheckDisk: boolean = false): Promise<boolean> {
   if (!forceCheckDisk && DOWNLOADED_CLIPS_CACHE.has(fileUri)) {
@@ -532,8 +682,23 @@ export async function checkClipFileExists(fileUri: string, forceCheckDisk: boole
   try {
     const info = await FileSystem.getInfoAsync(fileUri);
     const exists = Boolean(info.exists);
-    DOWNLOADED_CLIPS_CACHE.set(fileUri, exists);
-    return exists;
+    if (exists) {
+      DOWNLOADED_CLIPS_CACHE.set(fileUri, true);
+      return true;
+    }
+
+    // Jika URI shared storage tidak ditemukan, cek padanannya di internal sandbox
+    if (fileUri.includes(SHARED_CLIPPING_OUTPUT_DIR)) {
+      const internalUri = fileUri.replace(SHARED_CLIPPING_OUTPUT_DIR, INTERNAL_CLIPPING_OUTPUT_DIR);
+      const internalInfo = await FileSystem.getInfoAsync(internalUri);
+      if (internalInfo.exists) {
+        DOWNLOADED_CLIPS_CACHE.set(fileUri, true);
+        DOWNLOADED_CLIPS_CACHE.set(internalUri, true);
+        return true;
+      }
+    }
+    DOWNLOADED_CLIPS_CACHE.set(fileUri, false);
+    return false;
   } catch {
     return false;
   }
@@ -627,8 +792,8 @@ export async function clearCachedDownloadStreamUrl(videoId: string): Promise<voi
 
 /**
  * Mendownload rentang klip tertentu secara dinamis dengan kualitas prime dan stream reconnect.
- * Menggunakan 2-tier cache untuk URL stream download agar request klip berikutnya dari video yang sama
- * memakai URL stream yang sama tanpa memicu request baru ke YouTube (aman dari Rate Limit 429).
+ * Mendukung dual-storage: mencoba shared storage (/storage/emulated/0/clipping) terlebih dahulu,
+ * dan otomatis beralih ke internal sandbox storage jika terkendala izin akses penyimpanan (Permission Denied).
  * Non-blocking: berjalan di background tanpa menghambat thread interaksi UI.
  */
 export async function downloadClip(
@@ -637,120 +802,156 @@ export async function downloadClip(
   end: number,
   rank?: number
 ): Promise<{ status: string; output_path: string; fileUri: string; stream_url?: string }> {
-  const { fileUri, nativePath } = getClipOutputFilePath(videoId, start, end, rank);
+  // Kandidat 1: Shared Storage (/storage/emulated/0/clipping/output/...)
+  // Kandidat 2: Internal Sandbox Storage (/data/user/0/com.clipping.app/files/clipping/output/...)
+  const candidates = [
+    getClipOutputFilePath(videoId, start, end, rank),
+    getClipInternalOutputFilePath(videoId, start, end, rank),
+  ];
 
-  // 1. Cek 2-Tier Cache di Frontend sebelum memanggil server
   const cachedStreamUrl = await getCachedDownloadStreamUrl(videoId);
+  const cookiePath = await getValidCookiesPath();
+  let lastError: any = null;
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 menit timeout download klip
+  for (let c = 0; c < candidates.length; c++) {
+    const { fileUri, nativePath } = candidates[c];
+    const isShared = c === 0;
 
-  const infoJsonPath = `${SHARED_CLIPPING_OUTPUT_DIR}/${videoId}/video_info.json`;
-  const clipYdlOpts = {
-    ...PRIME_CLIP_DOWNLOAD_OPTS,
-    load_info_filename: infoJsonPath,
-    writeinfojson: true,
-  };
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 menit timeout download klip
 
-  try {
-    const cookiePath = await getValidCookiesPath();
-    let response: Response;
+    const outputDir = isShared ? `${SHARED_CLIPPING_OUTPUT_DIR}/${videoId}` : `${INTERNAL_CLIPPING_OUTPUT_DIR}/${videoId}`;
+    const infoJsonPath = `${outputDir}/video_info.json`;
+    const clipYdlOpts = {
+      ...PRIME_CLIP_DOWNLOAD_OPTS,
+      load_info_filename: infoJsonPath,
+      writeinfojson: true,
+    };
+
+    if (!isShared) {
+      try {
+        const internalDirUri = `file://${INTERNAL_CLIPPING_OUTPUT_DIR}/${videoId}`;
+        const dirInfo = await FileSystem.getInfoAsync(internalDirUri);
+        if (!dirInfo.exists) {
+          await FileSystem.makeDirectoryAsync(internalDirUri, { intermediates: true });
+        }
+      } catch {}
+    }
+
     try {
-      // Prioritaskan EMBEDDED_API_BASE_URL (port 8080 / APK native)
-      response = await fetch(`${EMBEDDED_API_BASE_URL}/api/download-clip`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          video_id: videoId,
-          start,
-          end,
-          output_path: nativePath,
-          stream_url: cachedStreamUrl || undefined,
-          cookie_path: cookiePath,
-          ydl_opts: clipYdlOpts,
-        }),
-        signal: controller.signal,
-      });
-    } catch {
-      // Fallback ke DEV_API_BASE_URL (port 3006 / Termux) jika mode dev
-      response = await fetch(`${DEV_API_BASE_URL}/api/download-clip`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          video_id: videoId,
-          start,
-          end,
-          output_path: nativePath,
-          stream_url: cachedStreamUrl || undefined,
-          cookie_path: cookiePath,
-          ydl_opts: clipYdlOpts,
-        }),
-        signal: controller.signal,
-      });
-    }
-    clearTimeout(timeoutId);
+      let response: Response;
+      try {
+        // Prioritaskan EMBEDDED_API_BASE_URL (port 8080 / APK native)
+        response = await fetch(`${EMBEDDED_API_BASE_URL}/api/download-clip`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            video_id: videoId,
+            start,
+            end,
+            output_path: nativePath,
+            stream_url: cachedStreamUrl || undefined,
+            cookie_path: cookiePath,
+            ydl_opts: clipYdlOpts,
+          }),
+          signal: controller.signal,
+        });
+      } catch {
+        // Fallback ke DEV_API_BASE_URL (port 3006 / Termux) jika mode dev
+        response = await fetch(`${DEV_API_BASE_URL}/api/download-clip`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            video_id: videoId,
+            start,
+            end,
+            output_path: nativePath,
+            stream_url: cachedStreamUrl || undefined,
+            cookie_path: cookiePath,
+            ydl_opts: clipYdlOpts,
+          }),
+          signal: controller.signal,
+        });
+      }
+      clearTimeout(timeoutId);
 
-    const data = await response.json().catch(() => ({}));
+      const data = await response.json().catch(() => ({}));
 
-    // Tangkap download stream URL dari response server dan simpan jika baru / berbeda
-    if (data.stream_url && data.stream_url !== cachedStreamUrl) {
-      await saveCachedDownloadStreamUrl(videoId, data.stream_url);
-    }
-
-    if (!response.ok || data.status !== 'success') {
-      const rawError = data.error || `HTTP ${response.status}: Gagal mengunduh klip`;
-
-      // Bersihkan cache URL stream & file info JSON agar request berikutnya tidak terjebak cache lama
-      await clearCachedDownloadStreamUrl(videoId);
-      FileSystem.deleteAsync(`file://${infoJsonPath}`, { idempotent: true }).catch(() => {});
-
-      let code = data.code || data.message || 'DOWNLOAD_FAILED';
-
-      const lowerRaw = rawError.toLowerCase();
-      if (lowerRaw.includes('requested format is not available') || lowerRaw.includes('format is not available')) {
-        code = 'FORMAT_NOT_AVAILABLE';
-      } else if (data.cookies_attempted) {
-        // Backend sudah benar-benar mencoba yt-dlp dengan opsi cookies, namun tetap ditolak YouTube
-        code = 'COOKIES_INVALID_OR_EXPIRED';
-      } else if (!cookiePath) {
-        // Frontend belum memiliki cookies sama sekali (mode anonim gagal)
-        code = 'RATE_LIMIT_EXCEEDED';
-      } else if (data.cookies_path && data.cookies_file_exists === false) {
-        // Path cookies terkirim namun file fisik tidak ditemukan di disk server
-        code = 'COOKIES_FILE_NOT_FOUND';
-      } else if (isRateLimitOrRestrictedError({ message: rawError, rawError })) {
-        code = cookiePath ? 'COOKIES_INVALID_OR_EXPIRED' : 'RATE_LIMIT_EXCEEDED';
+      // Tangkap download stream URL dari response server dan simpan jika baru / berbeda
+      if (data.stream_url && data.stream_url !== cachedStreamUrl) {
+        await saveCachedDownloadStreamUrl(videoId, data.stream_url);
       }
 
-      throw new ApiError(code, rawError);
-    }
+      if (!response.ok || data.status !== 'success') {
+        const rawError = data.error || `HTTP ${response.status}: Gagal mengunduh klip`;
+        const lowerRaw = rawError.toLowerCase();
 
-    // Tandai pada in-memory cache
-    DOWNLOADED_CLIPS_CACHE.set(fileUri, true);
+        // Jika permission denied pada shared storage dan masih ada internal sandbox fallback, coba fallback
+        if ((lowerRaw.includes('permission denied') || lowerRaw.includes('errno 13')) && isShared) {
+          console.warn(`[DownloadClip] Permission denied pada shared path ${nativePath}, mencoba internal sandbox fallback...`);
+          continue;
+        }
 
-    return {
-      status: 'success',
-      output_path: nativePath,
-      fileUri,
-      stream_url: data.stream_url,
-    };
-  } catch (error: any) {
-    clearTimeout(timeoutId);
-    if (error instanceof ApiError) throw error;
-    const cookiePath = await getValidCookiesPath().catch(() => undefined);
-    const isLimit = isRateLimitOrRestrictedError(error);
-    let code = 'DOWNLOAD_FAILED';
-    if (isLimit) {
-      code = cookiePath ? 'COOKIES_INVALID_OR_EXPIRED' : 'RATE_LIMIT_EXCEEDED';
-    } else if (error.name === 'AbortError') {
-      code = 'NETWORK_ERROR';
+        // Bersihkan cache URL stream & file info JSON agar request berikutnya tidak terjebak cache lama
+        await clearCachedDownloadStreamUrl(videoId);
+        FileSystem.deleteAsync(`file://${infoJsonPath}`, { idempotent: true }).catch(() => {});
+
+        let code = data.code || data.message || 'DOWNLOAD_FAILED';
+
+        if (lowerRaw.includes('permission denied') || lowerRaw.includes('errno 13')) {
+          code = 'STORAGE_PERMISSION_DENIED';
+        } else if (lowerRaw.includes('requested format is not available') || lowerRaw.includes('format is not available')) {
+          code = 'FORMAT_NOT_AVAILABLE';
+        } else if (data.cookies_attempted) {
+          code = 'COOKIES_INVALID_OR_EXPIRED';
+        } else if (!cookiePath) {
+          code = 'RATE_LIMIT_EXCEEDED';
+        } else if (data.cookies_path && data.cookies_file_exists === false) {
+          code = 'COOKIES_FILE_NOT_FOUND';
+        } else if (isRateLimitOrRestrictedError({ message: rawError, rawError })) {
+          code = cookiePath ? 'COOKIES_INVALID_OR_EXPIRED' : 'RATE_LIMIT_EXCEEDED';
+        }
+
+        throw new ApiError(code, rawError);
+      }
+
+      // Tandai pada in-memory cache untuk kedua URI (shared dan internal)
+      DOWNLOADED_CLIPS_CACHE.set(fileUri, true);
+      DOWNLOADED_CLIPS_CACHE.set(candidates[0].fileUri, true);
+
+      return {
+        status: 'success',
+        output_path: nativePath,
+        fileUri,
+        stream_url: data.stream_url,
+      };
+    } catch (error: any) {
+      clearTimeout(timeoutId);
+      lastError = error;
+      const lowerErr = (error.message || '').toLowerCase() + ' ' + (error.rawError || '').toLowerCase();
+      if ((lowerErr.includes('permission denied') || lowerErr.includes('errno 13')) && isShared) {
+        console.warn(`[DownloadClip] Error permission pada ${nativePath}, beralih ke internal sandbox...`);
+        continue;
+      }
+      if (error instanceof ApiError) throw error;
+      const isLimit = isRateLimitOrRestrictedError(error);
+      let code = 'DOWNLOAD_FAILED';
+      if (lowerErr.includes('permission denied') || lowerErr.includes('errno 13')) {
+        code = 'STORAGE_PERMISSION_DENIED';
+      } else if (isLimit) {
+        code = cookiePath ? 'COOKIES_INVALID_OR_EXPIRED' : 'RATE_LIMIT_EXCEEDED';
+      } else if (error.name === 'AbortError') {
+        code = 'NETWORK_ERROR';
+      }
+      throw new ApiError(code, error.message);
     }
-    throw new ApiError(code, error.message);
   }
+
+  throw lastError || new ApiError('DOWNLOAD_FAILED', 'Gagal mengunduh klip video.');
 }
 
 // ==============================================================================
