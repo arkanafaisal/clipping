@@ -2,6 +2,8 @@ import os
 import sys
 import traceback
 import subprocess
+import urllib.request
+import http.cookiejar
 import yt_dlp
 from yt_dlp.utils import download_range_func
 
@@ -91,10 +93,12 @@ def download_clip_direct(
             }
 
     temp_path = f"{output_path}.temp.mp4"
+    temp_v = f"{output_path}.temp_v.ts"
+    temp_a = f"{output_path}.temp_a.ts"
 
     def cleanup_temp_files():
-        """Hapus seluruh file sementara (.temp.mp4, .part) agar tidak membebani storage."""
-        for p in [temp_path, f"{temp_path}.part", f"{output_path}.part"]:
+        """Hapus seluruh file sementara (.temp.mp4, .temp_v.ts, .temp_a.ts, .part) agar tidak membebani storage."""
+        for p in [temp_path, temp_v, temp_a, f"{temp_path}.part", f"{temp_v}.part", f"{temp_a}.part", f"{output_path}.part"]:
             if os.path.exists(p):
                 try:
                     os.remove(p)
@@ -117,92 +121,170 @@ def download_clip_direct(
         if ffmpeg_dir and ffmpeg_dir not in os.environ.get("PATH", ""):
             os.environ["PATH"] = ffmpeg_dir + os.pathsep + os.environ.get("PATH", "")
 
-    # Daftarkan binary ffmpeg kustom (misal: libffmpeg.so pada Android native) ke yt-dlp
-    # agar dikenali oleh FFmpegFD dan FFmpegPostProcessor saat mengunduh time ranges
-    try:
-        from yt_dlp.downloader.external import FFmpegFD
-        from yt_dlp.postprocessor.ffmpeg import FFmpegPostProcessor
-
-        FFmpegFD.available = classmethod(lambda cls, path=None: True)
-        FFmpegFD.EXE_NAME = ffmpeg_bin
-
-        original_determine = FFmpegPostProcessor._determine_executables
-        def _patched_determine_executables(self):
-            paths = original_determine(self)
-            if ffmpeg_bin:
-                paths["ffmpeg"] = ffmpeg_bin
-            return paths
-        FFmpegPostProcessor._determine_executables = _patched_determine_executables
-    except Exception as e_patch:
-        print(f"[ClipDownloader] Warning patch ffmpeg: {e_patch}")
-
-    # 4. Perhitungan Rentang Keyframe Diperluas (Stage 1)
-    # Rentang dimundurkan 5 detik dan dimajukan 5 detik agar keyframe utuh tercakup
-    EXPAND_OFFSET = 5.0
-    expanded_start = max(0.0, start_num - EXPAND_OFFSET)
-    expanded_end = end_num + EXPAND_OFFSET
-
-    # 5. Persiapan yt-dlp Options untuk Download Temporary (Copy Method)
-    yt_logger = YtLogger()
-    opts["outtmpl"] = temp_path
-    opts["download_ranges"] = download_range_func(None, [(expanded_start, expanded_end)])
-    opts["force_keyframes_at_cuts"] = True
-    opts["ffmpeg_location"] = ffmpeg_bin
-    opts["external_downloader"] = {"default": "ffmpeg"}
-    opts["logger"] = yt_logger
-    opts["quiet"] = False
-    opts["no_warnings"] = True
-
-    # External downloader args untuk stream reconnect dan copy tanpa re-encode
-    ext_args = opts.get("external_downloader_args", {})
-    if not isinstance(ext_args, dict):
-        ext_args = {}
-
-    ffmpeg_i_args = list(ext_args.get("ffmpeg_i") or [
-        "-reconnect", "1",
-        "-reconnect_streamed", "1",
-        "-reconnect_delay_max", "5",
-    ])
-    ffmpeg_args = list(ext_args.get("ffmpeg") or [
-        "-c", "copy",
-        "-loglevel", "warning"
-    ])
-    opts["external_downloader_args"] = {
-        "ffmpeg_i": ffmpeg_i_args,
-        "ffmpeg": ffmpeg_args
-    }
-
-    if "format" not in opts:
-        opts["format"] = "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best"
-    opts["merge_output_format"] = "mp4"
-
     youtube_url = f"https://www.youtube.com/watch?v={video_id}"
     captured_stream_url = stream_url
     cookies_available = bool(cookie_path and os.path.exists(cookie_path))
     cookies_attempted = False
     captured_errors = []
 
+    stage1_type = None
+    stage1_offsets = None
+
+    def make_urllib_request(target_url: str, headers: dict = None, active_cookie: str = None) -> urllib.request.Request:
+        req_headers = (headers or {}).copy()
+        if active_cookie and os.path.exists(active_cookie):
+            try:
+                import http.cookiejar
+                cj = http.cookiejar.MozillaCookieJar(active_cookie)
+                cj.load(ignore_discard=True, ignore_expires=True)
+                cookie_strs = []
+                for c in cj:
+                    if "youtube.com" in c.domain or "googlevideo.com" in c.domain:
+                        cookie_strs.append(f"{c.name}={c.value}")
+                if cookie_strs:
+                    req_headers["Cookie"] = "; ".join(cookie_strs)
+            except Exception:
+                pass
+        return urllib.request.Request(target_url, headers=req_headers)
+
+    def parse_m3u8_playlist(m3u8_url: str, headers: dict = None, active_cookie: str = None) -> list:
+        req = make_urllib_request(m3u8_url, headers, active_cookie)
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            content = resp.read().decode("utf-8", errors="replace")
+
+        # Cek jika playlist adalah master playlist (sub-streams)
+        if "#EXT-X-STREAM-INF" in content:
+            lines = content.splitlines()
+            for idx, l in enumerate(lines):
+                if l.startswith("#EXT-X-STREAM-INF"):
+                    sub_url = lines[idx + 1].strip()
+                    return parse_m3u8_playlist(sub_url, headers, active_cookie)
+
+        segments = []
+        elapsed = 0.0
+        current_dur = 0.0
+        for line in content.splitlines():
+            line = line.strip()
+            if line.startswith("#EXTINF:"):
+                val = line[8:].split(",")[0].strip()
+                try:
+                    current_dur = float(val)
+                except ValueError:
+                    current_dur = 0.0
+            elif line and not line.startswith("#"):
+                segments.append({
+                    "url": line,
+                    "start": elapsed,
+                    "end": elapsed + current_dur,
+                    "duration": current_dur
+                })
+                elapsed += current_dur
+        return segments
+
+    def download_file_segments(segments: list, headers: dict, dest_path: str, active_cookie: str = None):
+        with open(dest_path, "wb") as f_out:
+            for s in segments:
+                req = make_urllib_request(s["url"], headers, active_cookie)
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    while True:
+                        chunk = resp.read(65536)
+                        if not chunk:
+                            break
+                        f_out.write(chunk)
+
     def run_stage1_download(use_cookie: bool) -> bool:
-        nonlocal captured_stream_url, cookies_attempted
+        nonlocal captured_stream_url, cookies_attempted, stage1_type, stage1_offsets
+        yt_logger = YtLogger()
         run_opts = opts.copy()
+        run_opts["quiet"] = True
+        run_opts["no_warnings"] = True
+        run_opts["logger"] = yt_logger
+        run_opts.pop("download_ranges", None)
+        run_opts.pop("external_downloader", None)
+
         if use_cookie and cookies_available:
             cookies_attempted = True
             run_opts["cookiefile"] = cookie_path
+            active_cookie = cookie_path
         else:
             run_opts.pop("cookiefile", None)
+            active_cookie = None
 
         try:
             with yt_dlp.YoutubeDL(run_opts) as ydl:
-                info = ydl.extract_info(youtube_url, download=True)
-                if info:
-                    # Tangkap direct URL dari format yang dipilih
-                    req_fmts = info.get("requested_formats")
-                    if req_fmts and len(req_fmts) > 0:
-                        captured_stream_url = req_fmts[0].get("url") or captured_stream_url
-                    else:
-                        captured_stream_url = info.get("url") or captured_stream_url
+                info = ydl.extract_info(youtube_url, download=False)
 
-            return os.path.exists(temp_path) and os.path.getsize(temp_path) > 0
+            if not info:
+                raise Exception("Metadata video tidak dapat diekstrak dari YouTube.")
+
+            formats = info.get("formats", [])
+
+            # 1. Prioritas Utama: Format HLS 1080p / 720p 60fps (MPEG-TS Native Segments)
+            hls_v_formats = [
+                f for f in formats
+                if f.get("protocol") in ("m3u8", "m3u8_native") and f.get("vcodec") != "none" and (f.get("height") or 0) <= 1080
+            ]
+            hls_v_formats.sort(key=lambda f: (f.get("height") or 0, f.get("fps") or 0), reverse=True)
+            v_fmt = hls_v_formats[0] if hls_v_formats else None
+
+            hls_a_formats = [
+                f for f in formats
+                if f.get("protocol") in ("m3u8", "m3u8_native") and (f.get("acodec") != "none" or f.get("vcodec") == "none")
+            ]
+            hls_a_formats.sort(key=lambda f: f.get("abr") or 0, reverse=True)
+            a_fmt = hls_a_formats[0] if hls_a_formats else None
+
+            if v_fmt and a_fmt:
+                v_segs = parse_m3u8_playlist(v_fmt["url"], v_fmt.get("http_headers", {}), active_cookie)
+                a_segs = parse_m3u8_playlist(a_fmt["url"], a_fmt.get("http_headers", {}), active_cookie)
+
+                pad = 4.0
+                req_s = max(0.0, start_num - pad)
+                req_e = end_num + pad
+
+                sel_v = [x for x in v_segs if x["end"] > req_s and x["start"] < req_e]
+                sel_a = [x for x in a_segs if x["end"] > req_s and x["start"] < req_e]
+
+                if not sel_v or not sel_a:
+                    raise Exception(f"Tidak ada segmen HLS pada rentang {start_num}s - {end_num}s.")
+
+                v_offset = start_num - sel_v[0]["start"]
+                a_offset = start_num - sel_a[0]["start"]
+                duration = end_num - start_num
+
+                print(f"[ClipDownloader] Mengunduh {len(sel_v)} segmen video ({v_fmt.get('height')}p {v_fmt.get('fps')}fps) dan {len(sel_a)} segmen audio via Python...")
+                download_file_segments(sel_v, v_fmt.get("http_headers", {}), temp_v, active_cookie)
+                download_file_segments(sel_a, a_fmt.get("http_headers", {}), temp_a, active_cookie)
+
+                if os.path.exists(temp_v) and os.path.getsize(temp_v) > 0 and os.path.exists(temp_a) and os.path.getsize(temp_a) > 0:
+                    captured_stream_url = v_fmt.get("url") or captured_stream_url
+                    stage1_type = "hls"
+                    stage1_offsets = (v_offset, a_offset, duration)
+                    return True
+
+            # 2. Alternatif: Format Progressive MP4
+            prog_formats = [
+                f for f in formats
+                if f.get("url") and f.get("vcodec") != "none" and f.get("acodec") != "none" and f.get("ext") == "mp4"
+            ]
+            if prog_formats:
+                prog_fmt = prog_formats[0]
+                req = make_urllib_request(prog_fmt["url"], prog_fmt.get("http_headers", {}), active_cookie)
+                with urllib.request.urlopen(req, timeout=30) as resp, open(temp_path, "wb") as f_out:
+                    while True:
+                        chunk = resp.read(65536)
+                        if not chunk:
+                            break
+                        f_out.write(chunk)
+
+                if os.path.exists(temp_path) and os.path.getsize(temp_path) > 0:
+                    captured_stream_url = prog_fmt.get("url") or captured_stream_url
+                    stage1_type = "prog"
+                    stage1_offsets = (start_num, 0, end_num - start_num)
+                    return True
+
+            raise Exception("Tidak ditemukan format video/audio HLS atau progressive yang valid.")
+
         except Exception as e:
             tail = yt_logger.get_tail()
             err_msg = f"{str(e)}\n\nLog yt-dlp:\n{tail}" if tail else str(e)
@@ -217,7 +299,7 @@ def download_clip_direct(
         print("[ClipDownloader] Unduhan anonim gagal, mencoba kembali dengan cookies...")
         stage1_success = run_stage1_download(use_cookie=True)
 
-    if not stage1_success or not os.path.exists(temp_path) or os.path.getsize(temp_path) == 0:
+    if not stage1_success or not stage1_type:
         full_err_text = "\n\n".join(captured_errors) if captured_errors else "Gagal mengunduh segmen video sementara dari YouTube."
         eval_err = captured_errors[-1].lower() if captured_errors else full_err_text.lower()
 
@@ -232,7 +314,6 @@ def download_clip_direct(
         else:
             code = "DOWNLOAD_FAILED"
 
-        # Bersihkan file temporary jika unduhan tahap 1 gagal
         cleanup_temp_files()
         return {
             "status": "error",
@@ -242,22 +323,38 @@ def download_clip_direct(
             "stream_url": captured_stream_url
         }
 
-    # 6. Tahap 2: Pemotongan Presisi Menggunakan FFmpeg (Offline Re-encode)
-    cut_start = start_num - expanded_start
-    cut_duration = end_num - start_num
-
-    ffmpeg_cut_cmd = [
-        ffmpeg_bin, "-y",
-        "-ss", str(cut_start),
-        "-t", str(cut_duration),
-        "-i", temp_path,
-        "-c:v", "libx264",
-        "-preset", "ultrafast",
-        "-c:a", "aac",
-        "-avoid_negative_ts", "make_zero",
-        "-loglevel", "warning",
-        output_path
-    ]
+    # 4. Tahap 2: Pemotongan Presisi Menggunakan FFmpeg 100% Offline dari File Disk Lokal
+    if stage1_type == "hls":
+        v_offset, a_offset, cut_dur = stage1_offsets
+        ffmpeg_cut_cmd = [
+            ffmpeg_bin, "-y",
+            "-ss", str(v_offset),
+            "-t", str(cut_dur),
+            "-i", temp_v,
+            "-ss", str(a_offset),
+            "-t", str(cut_dur),
+            "-i", temp_a,
+            "-c:v", "libx264",
+            "-preset", "ultrafast",
+            "-c:a", "aac",
+            "-avoid_negative_ts", "make_zero",
+            "-loglevel", "warning",
+            output_path
+        ]
+    else:
+        cut_start, _, cut_dur = stage1_offsets
+        ffmpeg_cut_cmd = [
+            ffmpeg_bin, "-y",
+            "-ss", str(cut_start),
+            "-t", str(cut_dur),
+            "-i", temp_path,
+            "-c:v", "libx264",
+            "-preset", "ultrafast",
+            "-c:a", "aac",
+            "-avoid_negative_ts", "make_zero",
+            "-loglevel", "warning",
+            output_path
+        ]
 
     try:
         proc = subprocess.run(ffmpeg_cut_cmd, capture_output=True, text=True, timeout=120)
@@ -270,7 +367,6 @@ def download_clip_direct(
             "stream_url": captured_stream_url
         }
     finally:
-        # Bersihkan file temporary (.temp.mp4, .part) secara otomatis setelah pemotongan selesai
         cleanup_temp_files()
 
     if proc.returncode != 0 or not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
@@ -282,7 +378,7 @@ def download_clip_direct(
             "stream_url": captured_stream_url
         }
 
-    # 7. Berhasil: Kembalikan Path Hasil dan Stream URL (Baik Sama Maupun Baru)
+    # 5. Berhasil: Kembalikan Path Hasil dan Stream URL
     return {
         "status": "success",
         "output_path": output_path,

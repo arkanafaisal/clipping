@@ -14,7 +14,20 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Remove Forced iOS/Android Client in Clip Downloader to Enable 1080p60 Prime Video
+## [Unreleased] - Implement Native Python HLS Segment Downloader to Bypass FFmpeg Android Network Limitation
+- **Konteks Struktural**:
+  1. Mengatasi error fatal `ffmpeg exited with code 1` (Protocol not found: https) saat melakukan download rentang waktu video klip di Android.
+  2. Penyebab: Biner native `libffmpeg.so` pada Android dikompilasi tanpa protokol jaringan (`ff_https_protocol`, `ff_tls_protocol`, dan `ff_tcp_protocol` tidak tersedia), hanya mendukung protokol `file:` dan `pipe:`. Ketika yt-dlp mendelegasikan pemotongan rentang waktu via `external_downloader = ffmpeg`, FFmpeg berusaha membuka URL HTTPS secara langsung dari internet sehingga langsung crash.
+  3. Solusi: Mengubah arsitektur [clip_downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/clip_downloader.py) menjadi arsitektur 2-tahap:
+     - **Tahap 1 (Python Native Network Worker)**: Menggunakan `urllib.request` bawaan Python untuk mem-parse playlist m3u8 YouTube (format video AVC 1080p 60fps / 720p 60fps dan audio AAC), memilih segmen-segmen waktu yang relevan dengan padding, lalu mengunduh dan menyatukannya ke file MPEG-TS sementara (`temp_v.ts` dan `temp_a.ts`) di disk lokal. Jika HLS tidak tersedia, terdapat fallback stream progressive MP4 via Python.
+     - **Tahap 2 (Offline FFmpeg Precision Trim & Mux)**: Biner `libffmpeg.so` mengeksekusi pemotongan dan muxing offline murni dari disk lokal (`-i temp_v.ts -i temp_a.ts -c:v libx264 -preset ultrafast -c:a aac output.mp4`) tanpa pernah menyentuh koneksi internet sama sekali.
+- **Perubahan Kode Penting**:
+  - [mobile/scripts/utils/clip_downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/clip_downloader.py):
+    - Menambahkan fungsi parser playlist HLS `parse_m3u8_playlist()` dan downloader segmen `download_file_segments()` berbasis `urllib.request`.
+    - Mengatur delegasi ekstraksi format HLS dan progressive murni ke Python, lalu memanggil FFmpeg untuk pemotongan presisi secara offline dari file lokal.
+    - Menjamin pembersihan otomatis file-file sementara (`temp_v`, `temp_a`, `temp_path`).
+
+## [3f530fd] - Remove Forced iOS/Android Client in Clip Downloader to Enable 1080p60 Prime Video
 - **Konteks Struktural**:
   1. Mengatasi masalah penurunan resolusi video klip ke 360p 30fps pada [clip_downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/clip_downloader.py).
   2. Penyebab: Adanya fallback paksa `if "extractor_args" not in opts: opts["extractor_args"] = {"youtube": {"player_client": ["ios", "android"]}}`. Pada klien `ios` dan `android`, YouTube mengaktifkan eksperimen SABR yang menghilangkan direct HTTPS stream URL untuk format video terpisah (DASH 1080p, 1080p60, 720p). Akibatnya, pemilih format `bestvideo+bestaudio` gagal dan yt-dlp secara diam-diam jatuh ke fallback Format 18 (progressive 360p 30fps).
