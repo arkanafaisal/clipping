@@ -14,6 +14,25 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
+## [Unreleased] - Pemindahan Skrip Utilitas Python ke Folder mobile/scripts Demi Arsitektur Zero-Bundle
+- **Konteks Struktural**:
+  1. Memindahkan seluruh skrip utilitas bisnis (`utils/` dan `cookies.txt`) dari folder Android native bundle [mobile/modules/python-runner/android/src/main/python/](file:///d:/projects/clipping/mobile/modules/python-runner/android/src/main/python/) ke [mobile/scripts/utils/](file:///d:/projects/clipping/mobile/scripts/utils/).
+  2. Memastikan APK hasil build 100% bebas dari skrip logika bisnis (zero-bundle) dan hanya menyisakan interpreter CPython (Chaquopy), `libffmpeg.so`, serta satu file jembatan generik [runner.py](file:///d:/projects/clipping/mobile/modules/python-runner/android/src/main/python/runner.py).
+  3. Memungkinkan pembaruan skrip Python secara instan di perangkat fisik melalui `git pull` tanpa perlu melakukan rebuild atau re-bundle APK. File skrip di `mobile/scripts` dapat langsung disinkronkan ke shared storage menggunakan helper script [mobile/scripts/sync.sh](file:///d:/projects/clipping/mobile/scripts/sync.sh).
+  4. Menyempurnakan [runner.py](file:///d:/projects/clipping/mobile/modules/python-runner/android/src/main/python/runner.py) dengan fitur fallback modul dinamis (`utils.<modul>` <-> `<modul>`) dan pendaftaran otomatis subfolder `scripts/utils` ke `sys.path`.
+- **Perubahan Kode Penting**:
+  - [mobile/modules/python-runner/android/src/main/python/runner.py](file:///d:/projects/clipping/mobile/modules/python-runner/android/src/main/python/runner.py):
+    - Mendaftarkan subfolder `utils` di dalam `scripts_dir` ke `sys.path`.
+    - Menambahkan mekanisme fallback resolusi modul antara format `utils.<modul>` dan `<modul>`.
+  - [mobile/modules/python-runner/android/src/main/python/utils/](file:///d:/projects/clipping/mobile/modules/python-runner/android/src/main/python/utils/):
+    - Dihapus total dari bundle Android untuk menjamin 0% business logic di dalam APK.
+  - [mobile/scripts/utils/](file:///d:/projects/clipping/mobile/scripts/utils/):
+    - Dibuat sebagai direktori penampung skrip utilitas Python di level repository (tidak terkena bundle APK oleh Gradle/Chaquopy).
+  - [mobile/scripts/sync.sh](file:///d:/projects/clipping/mobile/scripts/sync.sh):
+    - Dibuat sebagai helper script untuk menyalin file skrip ke shared storage perangkat saat `git pull`.
+  - [mobile_api/utils/rate_limiter.py](file:///d:/projects/clipping/mobile_api/utils/rate_limiter.py):
+    - Menyelaraskan error handling penyimpanan timestamp rate limit.
+
 ## [5a40a9c] - Migrasi Pemanggilan Ekstraksi Stream, Heatmap, dan Unduhan Klip ke Skrip Python Langsung
 - **Konteks Struktural**:
   1. Mengalihkan seluruh alur pemanggilan fitur utama (`fetchStreamUrl`, `fetchHeatmap`, dan `downloadClip`) di [mobile/src/services/api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts) dari yang sebelumnya menggunakan HTTP `fetch()` ke port lokal 8080 menjadi eksekusi langsung ke engine Python melalui `executePythonScript` (JSI/Chaquopy bridge).

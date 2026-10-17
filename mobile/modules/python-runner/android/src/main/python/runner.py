@@ -13,16 +13,23 @@ def setup_paths(custom_root_path: str = None) -> dict:
     """
     Mendaftarkan folder scripts dan libs dari shared storage secara dinamis ke sys.path.
     Prioritas pencarian (index 0) diberikan ke folder shared storage agar skrip luar
-    bisa langsung menimpa skrip bawaan tanpa perlu build ulang APK.
+    bisa langsung dieksekusi tanpa perlu build ulang APK.
     """
     added_paths = []
     if custom_root_path and os.path.exists(custom_root_path):
         scripts_dir = os.path.join(custom_root_path, "scripts")
         libs_dir = os.path.join(custom_root_path, "libs")
 
-        if os.path.exists(scripts_dir) and scripts_dir not in sys.path:
-            sys.path.insert(0, scripts_dir)
-            added_paths.append(scripts_dir)
+        if os.path.exists(scripts_dir):
+            if scripts_dir not in sys.path:
+                sys.path.insert(0, scripts_dir)
+                added_paths.append(scripts_dir)
+
+            # Dukung juga subfolder utils di dalam scripts
+            utils_dir = os.path.join(scripts_dir, "utils")
+            if os.path.exists(utils_dir) and utils_dir not in sys.path:
+                sys.path.insert(0, utils_dir)
+                added_paths.append(utils_dir)
 
         if os.path.exists(libs_dir):
             if libs_dir not in sys.path:
@@ -47,17 +54,36 @@ def execute_function(module_name: str, func_name: str, args_json: str = "{}") ->
     """
     Eksekutor skrip dinamis berbasis fungsi.
     Menerima nama modul, nama fungsi, dan argumen JSON dari Kotlin/JavaScript.
-    Mengembalikan string JSON dengan format standar:
-    { "status": "success", "data": ... } atau { "status": "error", "code": ..., "error": ... }
+    Mendukung fallback otomatis antara 'utils.<modul>' dan '<modul>' agar
+    skrip bisa ditaruh baik langsung di /scripts maupun di /scripts/utils.
     """
     try:
         kwargs = json.loads(args_json) if args_json else {}
 
-        # Import atau reload modul secara dinamis
-        if module_name in sys.modules:
-            mod = importlib.reload(sys.modules[module_name])
+        # Kandidat nama modul: nama asli, dan alternatif dengan/tanpa prefix 'utils.'
+        candidates = [module_name]
+        if module_name.startswith("utils."):
+            candidates.append(module_name[len("utils."):])
         else:
-            mod = importlib.import_module(module_name)
+            candidates.append(f"utils.{module_name}")
+
+        mod = None
+        last_import_err = None
+        for cand in candidates:
+            try:
+                if cand in sys.modules:
+                    mod = importlib.reload(sys.modules[cand])
+                else:
+                    mod = importlib.import_module(cand)
+                break
+            except ModuleNotFoundError as mnfe:
+                last_import_err = mnfe
+                continue
+
+        if mod is None:
+            if last_import_err:
+                raise last_import_err
+            raise ModuleNotFoundError(f"Modul '{module_name}' tidak ditemukan.")
 
         if not hasattr(mod, func_name):
             return json.dumps({
