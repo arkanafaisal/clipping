@@ -324,34 +324,43 @@ def download_clip_direct(
         }
 
     # 4. Tahap 2: Pemotongan Presisi Menggunakan FFmpeg 100% Offline dari File Disk Lokal
+    # Menggunakan filter_complex (trim + setpts & atrim + asetpts) agar pemotongan
+    # benar-benar frame-accurate dan audio-video terkunci sinkron sempurna dari t=0.0s
+    # tanpa freeze di awal atau drift/looping di akhir akibat desync PTS container MPEG-TS.
     if stage1_type == "hls":
         v_offset, a_offset, cut_dur = stage1_offsets
+        filter_str = (
+            f"[0:v]trim=start={v_offset}:duration={cut_dur},setpts=PTS-STARTPTS[v];"
+            f"[1:a]atrim=start={a_offset}:duration={cut_dur},asetpts=PTS-STARTPTS[a]"
+        )
         ffmpeg_cut_cmd = [
             ffmpeg_bin, "-y",
-            "-ss", str(v_offset),
-            "-t", str(cut_dur),
             "-i", temp_v,
-            "-ss", str(a_offset),
-            "-t", str(cut_dur),
             "-i", temp_a,
+            "-filter_complex", filter_str,
+            "-map", "[v]",
+            "-map", "[a]",
             "-c:v", "libx264",
             "-preset", "ultrafast",
             "-c:a", "aac",
-            "-avoid_negative_ts", "make_zero",
             "-loglevel", "warning",
             output_path
         ]
     else:
         cut_start, _, cut_dur = stage1_offsets
+        filter_str = (
+            f"[0:v]trim=start={cut_start}:duration={cut_dur},setpts=PTS-STARTPTS[v];"
+            f"[0:a]atrim=start={cut_start}:duration={cut_dur},asetpts=PTS-STARTPTS[a]"
+        )
         ffmpeg_cut_cmd = [
             ffmpeg_bin, "-y",
-            "-ss", str(cut_start),
-            "-t", str(cut_dur),
             "-i", temp_path,
+            "-filter_complex", filter_str,
+            "-map", "[v]",
+            "-map", "[a]",
             "-c:v", "libx264",
             "-preset", "ultrafast",
             "-c:a", "aac",
-            "-avoid_negative_ts", "make_zero",
             "-loglevel", "warning",
             output_path
         ]

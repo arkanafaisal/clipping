@@ -14,7 +14,21 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Implement Native Python HLS Segment Downloader to Bypass FFmpeg Android Network Limitation
+## [Unreleased] - Fix A/V Desync and Initial Video Freeze Using FFmpeg filter_complex trim and setpts
+- **Konteks Struktural**:
+  1. Mengatasi masalah video klip yang nge-freeze pada bagian awal serta audio yang selesai lebih awal (desync) pada [clip_downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/clip_downloader.py).
+  2. Penyebab: Penggunaan input seeking (`-ss <offset> -i ...`) pada container stream MPEG-TS (`.ts`) menyebabkan FFmpeg mencari keyframe I-frame terdekat sebelum titik offset sehingga timestamp PTS video tidak ter-reset ke 0. Sebaliknya, audio stream AAC (ADTS) mulai dari PTS 0. Akibatnya terjadi celah timestamp (gap PTS ~3 detik) antara video dan audio; pemutar video mem-freeze video di awal menunggu audio, dan saat audio selesai, video masih terus berjalan melebihi batas semestinya.
+  3. Solusi: Mengganti input seeking dengan filter chain `filter_complex`:
+     - Video filter: `[0:v]trim=start={v_offset}:duration={cut_dur},setpts=PTS-STARTPTS[v]`
+     - Audio filter: `[1:a]atrim=start={a_offset}:duration={cut_dur},asetpts=PTS-STARTPTS[a]`
+     - Filter ini mendekode dari segmen lokal dan secara mutlak mengunci PTS awal video dan audio tepat di `0.000000s`, menjamin sinkronisasi frame-accurate tanpa freeze di awal maupun drift di akhir.
+  4. Menambahkan import eksplisit modul Python bawaan `urllib.request` dan `http.cookiejar`.
+- **Perubahan Kode Penting**:
+  - [mobile/scripts/utils/clip_downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/clip_downloader.py):
+    - Mengimpor `urllib.request` dan `http.cookiejar`.
+    - Menerapkan `-filter_complex` dengan `trim`/`atrim` dan `setpts`/`asetpts` pada eksekusi FFmpeg tahap 2 baik untuk format HLS maupun progressive MP4.
+
+## [dc2c0b8] - Implement Native Python HLS Segment Downloader to Bypass FFmpeg Android Network Limitation
 - **Konteks Struktural**:
   1. Mengatasi error fatal `ffmpeg exited with code 1` (Protocol not found: https) saat melakukan download rentang waktu video klip di Android.
   2. Penyebab: Biner native `libffmpeg.so` pada Android dikompilasi tanpa protokol jaringan (`ff_https_protocol`, `ff_tls_protocol`, dan `ff_tcp_protocol` tidak tersedia), hanya mendukung protokol `file:` dan `pipe:`. Ketika yt-dlp mendelegasikan pemotongan rentang waktu via `external_downloader = ffmpeg`, FFmpeg berusaha membuka URL HTTPS secara langsung dari internet sehingga langsung crash.
