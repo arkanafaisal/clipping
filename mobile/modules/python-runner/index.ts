@@ -44,11 +44,21 @@ export async function executePythonScript(
   const argsJson = JSON.stringify(args);
   try {
     const rawResult = await NativePythonRunner.executeScript(moduleName, funcName, argsJson);
+    let parsed: any;
     try {
-      return JSON.parse(rawResult);
+      parsed = JSON.parse(rawResult);
     } catch {
-      return rawResult;
+      parsed = rawResult;
     }
+
+    // Automatically unwrap if wrapped by runner: { status: 'success', data: { ... } }
+    if (parsed && typeof parsed === 'object' && parsed.status === 'success' && parsed.data !== undefined) {
+      if (typeof parsed.data === 'object' && parsed.data !== null) {
+        return parsed.data;
+      }
+    }
+
+    return parsed;
   } catch (nativeErr: any) {
     return {
       status: 'error',

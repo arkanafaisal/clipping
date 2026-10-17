@@ -14,7 +14,23 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Penangkapan Error 100% Mentah ke Modal Debug Toast dan Perbaikan Tampilan Verifikasi Storage
+## [Unreleased] - Unwrap Nested Python Runner Payload and Bypass Expo Sandbox via Python Storage Verifier
+- **Konteks Struktural**:
+  1. Memperbaiki *false error* pada ekstraksi YouTube heatmap di mana respons sukses dari Python (`extract_heatmap_data`) terbungkus ganda oleh generic runner `{ status: "success", data: { ... } }`, menyebabkan `fetchHeatmap` gagal membaca array `heatmap` di level root objek.
+  2. Mengimplementasikan mekanisme *automatic unwrapping* di [index.ts](file:///d:/projects/clipping/mobile/modules/python-runner/index.ts) (`executePythonScript`) dan secara defensif di [api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts) (`fetchHeatmap`, `fetchStreamUrl`, `downloadClip`).
+  3. Memecahkan error `ExponentFileSystem.makeDirectoryAsync isn't writable` pada pengujian shared storage dengan mengalihkan pembuatan direktori fisik dan uji tulis/baca `hello.txt` ke fungsi Python native [verify_storage](file:///d:/projects/clipping/mobile/scripts/utils/file_utils.py) di [storageConfig.ts](file:///d:/projects/clipping/mobile/src/services/storageConfig.ts), sehingga 100% membypass restriksi sandbox Expo FileSystem.
+  4. Menambahkan Rule 21 ke [GEMINI.md](file:///d:/projects/clipping/GEMINI.md).
+- **Perubahan Kode Penting**:
+  - [mobile/modules/python-runner/index.ts](file:///d:/projects/clipping/mobile/modules/python-runner/index.ts):
+    - Otomatis melakukan unwrapping jika respons terbungkus dalam `parsed.status === 'success' && parsed.data`.
+  - [mobile/src/services/api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts):
+    - Mengurai `payload` dari `data?.data || data` pada `fetchHeatmap`, `fetchStreamUrl`, dan `downloadClip`.
+  - [mobile/scripts/utils/file_utils.py](file:///d:/projects/clipping/mobile/scripts/utils/file_utils.py) & [mobile_api/utils/file_utils.py](file:///d:/projects/clipping/mobile_api/utils/file_utils.py):
+    - Menambahkan fungsi `verify_storage` berbasis kernel syscall OS (melewati `os.makedirs`, `open(..., 'w')`, dan `open(..., 'r')`).
+  - [mobile/src/services/storageConfig.ts](file:///d:/projects/clipping/mobile/src/services/storageConfig.ts):
+    - Memanggil `utils.file_utils.verify_storage` saat berjalan di platform Android dengan engine Python aktif.
+
+## [26a84b3] - Penangkapan Error 100% Mentah ke Modal Debug Toast dan Perbaikan Tampilan Verifikasi Storage
 - **Konteks Struktural**:
   1. Memastikan seluruh fungsi pemanggil skrip Python di [api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts) (`fetchHeatmap`, `fetchStreamUrl`, `downloadClip`) dan [index.ts](file:///d:/projects/clipping/mobile/modules/python-runner/index.ts) (`executePythonScript`) mempertahankan dan meneruskan pesan error mentah serta full traceback 100% tanpa filtering ke objek `ApiError` dan `ToastManager`.
   2. Memperbarui [Toast.tsx](file:///d:/projects/clipping/mobile/src/components/Toast.tsx) agar ikon kode debug `<Code2>` selalu tampil pada setiap notifikasi error, dengan modal debug yang menampilkan traceback mentah secara utuh dan mudah disalin.

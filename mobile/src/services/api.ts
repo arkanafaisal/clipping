@@ -271,23 +271,25 @@ export async function fetchStreamUrl(videoId: string, forceRefresh: boolean = fa
       }
     }
 
-    if (!data) {
+    const payload = (data?.data && typeof data.data === 'object') ? data.data : data;
+
+    if (!payload) {
       throw new ApiError('EMPTY_RESPONSE', 'Python engine tidak mengembalikan respons stream.');
     }
 
-    if (data.status === 'error') {
-      const code = data.code || 'PYTHON_EXECUTION_ERROR';
-      const rawError = data.traceback || data.error || JSON.stringify(data, null, 2);
+    if (payload.status === 'error') {
+      const code = payload.code || 'PYTHON_EXECUTION_ERROR';
+      const rawError = payload.traceback || payload.error || JSON.stringify(payload, null, 2);
       throw new ApiError(code, rawError);
     }
 
-    if (!data.stream_url) {
-      const code = data.code || 'STREAM_NOT_FOUND';
-      const rawError = data.error || (data.message ? String(data.message) : JSON.stringify(data, null, 2));
+    if (!payload.stream_url) {
+      const code = payload.code || 'STREAM_NOT_FOUND';
+      const rawError = payload.error || (payload.message ? String(payload.message) : JSON.stringify(payload, null, 2));
       throw new ApiError(code, rawError);
     }
 
-    const streamUrl = data.stream_url;
+    const streamUrl = payload.stream_url;
     
     // Simpan ke In-Memory Map
     STREAM_MEMORY_MAP.set(videoId, streamUrl);
@@ -347,24 +349,27 @@ export async function fetchHeatmap(
       }
     }
 
-    if (!data) {
+    // Unwrap nested data payload if wrapped by generic runner
+    const payload = (data?.data && typeof data.data === 'object' && !Array.isArray(data.data)) ? data.data : data;
+
+    if (!payload) {
       throw new ApiError('EMPTY_RESPONSE', 'Python engine tidak mengembalikan data apa pun.');
     }
 
-    if (data.status === 'error') {
-      const code = data.code || 'PYTHON_EXECUTION_ERROR';
-      const rawError = data.traceback || data.error || JSON.stringify(data, null, 2);
+    if (payload.status === 'error') {
+      const code = payload.code || 'PYTHON_EXECUTION_ERROR';
+      const rawError = payload.traceback || payload.error || JSON.stringify(payload, null, 2);
       throw new ApiError(code, rawError);
     }
 
-    if (!Array.isArray(data.heatmap)) {
-      const code = data.code || 'HEATMAP_NOT_FOUND';
-      const rawError = data.error || (data.message ? String(data.message) : JSON.stringify(data, null, 2));
+    if (!Array.isArray(payload.heatmap)) {
+      const code = payload.code || 'HEATMAP_NOT_FOUND';
+      const rawError = payload.error || (payload.message ? String(payload.message) : JSON.stringify(payload, null, 2));
       throw new ApiError(code, rawError);
     }
 
     // Olah raw heatmap 100% di Frontend TypeScript
-    const topMoments = [...data.heatmap]
+    const topMoments = [...payload.heatmap]
       .sort((a: any, b: any) => (b.value || 0) - (a.value || 0))
       .slice(0, numClips);
 
@@ -394,7 +399,7 @@ export async function fetchHeatmap(
     });
 
     return {
-      title: data.title || '',
+      title: payload.title || data.title || '',
       clips: formattedClips,
     };
 
@@ -954,13 +959,15 @@ export async function downloadClip(
         data = await response.json().catch(() => ({}));
       }
 
+      const payload = (data?.data && typeof data.data === 'object') ? data.data : data;
+
       // Tangkap download stream URL dari response skrip dan simpan jika baru / berbeda
-      if (data?.stream_url && data.stream_url !== cachedStreamUrl) {
-        await saveCachedDownloadStreamUrl(videoId, data.stream_url);
+      if (payload?.stream_url && payload.stream_url !== cachedStreamUrl) {
+        await saveCachedDownloadStreamUrl(videoId, payload.stream_url);
       }
 
-      if (!data || data.status !== 'success') {
-        const rawError = data?.error || 'Gagal mengunduh klip';
+      if (!payload || payload.status !== 'success') {
+        const rawError = payload?.traceback || payload?.error || (payload ? JSON.stringify(payload, null, 2) : 'Gagal mengunduh klip');
         const lowerRaw = rawError.toLowerCase();
 
         const isPermissionError =

@@ -1,6 +1,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
+import { Platform } from 'react-native';
 import { LocalStorage } from './storage';
-import { setupPythonPaths } from '../../modules/python-runner';
+import { setupPythonPaths, isPythonInitialized, executePythonScript } from '../../modules/python-runner';
 
 export const STORAGE_ROOT_KEY = 'clipping_custom_root_path';
 export const DEFAULT_SHARED_ROOT = '/storage/emulated/0/clipping';
@@ -64,13 +65,54 @@ export async function verifyAndInitializeStorage(
 ): Promise<StorageVerificationResult> {
   const root = targetRoot || (await getStorageRootPath());
   const structure = getStorageStructure(root);
+
+  // 1. Pada Android dengan engine Python aktif, gunakan Python untuk verifikasi fisik disk.
+  // Ini 100% membypass pembatasan sandbox Expo FileSystem (java.io.IOException isn't writable)
+  if (Platform.OS === 'android' && isPythonInitialized()) {
+    try {
+      const pyRes = await executePythonScript('utils.file_utils', 'verify_storage', {
+        root_path: structure.root,
+      });
+
+      const payload = (pyRes?.data && typeof pyRes.data === 'object') ? pyRes.data : pyRes;
+
+      if (payload?.success) {
+        try {
+          setupPythonPaths(structure.root);
+        } catch {}
+
+        return {
+          success: true,
+          rootPath: structure.root,
+          canWrite: true,
+          canRead: true,
+          message: payload.message || 'Akses Read & Write fisik ke shared storage 100% Berhasil!',
+          testFileUri: payload.testFileUri,
+          contentRead: payload.contentRead,
+        };
+      } else if (payload?.status === 'error') {
+        return {
+          success: false,
+          rootPath: structure.root,
+          canWrite: false,
+          canRead: false,
+          message: payload.message || payload.error || 'Gagal verifikasi storage via Python engine.',
+          error: payload.error || payload.message,
+          traceback: payload.traceback,
+        };
+      }
+    } catch (pyErr: any) {
+      console.warn('[StorageConfig] Python verify_storage gagal, mencoba fallback:', pyErr);
+    }
+  }
+
+  // 2. Fallback untuk non-Android / dev web:
   const testFileName = 'hello.txt';
   const testFileUri = `file://${structure.root}/${testFileName}`;
   const timestamp = new Date().toISOString();
   const testContent = `Hello from Clipping! Physical disk write verified at ${timestamp}`;
 
   try {
-    // 1. Buat struktur direktori jika belum ada
     for (const dir of [structure.root, structure.outputDir, structure.scriptsDir, structure.libsDir]) {
       const dirUri = `file://${dir}`;
       const dirInfo = await FileSystem.getInfoAsync(dirUri);
@@ -79,14 +121,10 @@ export async function verifyAndInitializeStorage(
       }
     }
 
-    // 2. Tulis file hello.txt ke disk fisik
     await FileSystem.writeAsStringAsync(testFileUri, testContent);
-
-    // 3. Baca ulang langsung dari disk fisik (bypass cache)
     const readBack = await FileSystem.readAsStringAsync(testFileUri);
 
     if (readBack.trim() === testContent.trim()) {
-      // Inisialisasi sys.path Python dengan root baru
       try {
         setupPythonPaths(structure.root);
       } catch {}
