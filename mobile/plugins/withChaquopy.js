@@ -1,4 +1,4 @@
-const { withProjectBuildGradle, withSettingsGradle } = require('@expo/config-plugins');
+const { withProjectBuildGradle, withSettingsGradle, withAndroidManifest } = require('@expo/config-plugins');
 
 /**
  * Expo Config Plugin for Chaquopy 17.1.0
@@ -53,6 +53,15 @@ function withChaquopy(config) {
     }
 
     mod.modResults.contents = contents;
+    return mod;
+  });
+
+  // 3. Set android:extractNativeLibs="true" so bundled binaries in jniLibs (libffmpeg.so) are extracted to nativeLibraryDir with execution permissions
+  config = withAndroidManifest(config, (mod) => {
+    const mainApplication = mod.modResults.manifest.application?.[0];
+    if (mainApplication) {
+      mainApplication.$['android:extractNativeLibs'] = 'true';
+    }
     return mod;
   });
 

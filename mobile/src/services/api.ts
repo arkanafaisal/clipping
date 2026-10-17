@@ -23,7 +23,7 @@ export interface StreamResponse {
   error?: string;
 }
 
-import { startPythonServer } from '../../modules/python-runner';
+import { startPythonServer, getNativeRunnerInfo } from '../../modules/python-runner';
 
 // 1. EMBEDDED INTERNAL SERVER (Port 8080):
 // Seluruh endpoint produksi tertanam di dalam build APK (Chaquopy):
@@ -833,10 +833,14 @@ export async function downloadClip(
       }
     } catch {}
 
+    const nativeInfo = getNativeRunnerInfo();
+    const nativeFfmpeg = nativeInfo?.ffmpegExists ? nativeInfo.ffmpegPath : undefined;
+
     const clipYdlOpts = {
       ...PRIME_CLIP_DOWNLOAD_OPTS,
       load_info_filename: infoJsonPath,
       writeinfojson: false, // Matikan pembuatan file .info.json di shared storage agar folder bersih & tidak ditolak izin storage
+      ...(nativeFfmpeg ? { ffmpeg_location: nativeFfmpeg } : {}),
     };
 
     if (!isShared) {

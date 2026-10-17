@@ -331,8 +331,49 @@ def download_gdrive_file():
 # 2. /api/download-to-gdrive & Full video downloader.
 # ==============================================================================
 
-def start_server(port=8080):
+def start_server(port=8080, native_lib_dir=None):
     print(f"[Native Python] Starting Pure Pass-Through Server di port {port}...")
+    if not native_lib_dir:
+        try:
+            from com.chaquo.python import Python as ChaquoPython
+            app_context = ChaquoPython.getPlatform().getApplication()
+            if app_context:
+                native_lib_dir = str(app_context.getApplicationInfo().nativeLibraryDir)
+        except Exception:
+            pass
+
+    if native_lib_dir:
+        os.environ["NATIVE_LIB_DIR"] = native_lib_dir
+        ffmpeg_bin = os.path.join(native_lib_dir, "libffmpeg.so")
+        if os.path.exists(ffmpeg_bin):
+            os.environ["FFMPEG_BINARY"] = ffmpeg_bin
+            if native_lib_dir not in os.environ.get("PATH", ""):
+                os.environ["PATH"] = native_lib_dir + os.pathsep + os.environ.get("PATH", "")
+            print(f"[Native Python] Bundled FFmpeg configured at: {ffmpeg_bin}")
+
+            # Buat symlink 'ffmpeg' di internal files/bin agar tool CLI standar dapat menemukan nama 'ffmpeg'
+            try:
+                from com.chaquo.python import Python as ChaquoPython
+                app_context = ChaquoPython.getPlatform().getApplication()
+                if app_context:
+                    files_dir = str(app_context.getFilesDir().getAbsolutePath())
+                    bin_dir = os.path.join(files_dir, "bin")
+                    os.makedirs(bin_dir, exist_ok=True)
+                    symlink_path = os.path.join(bin_dir, "ffmpeg")
+                    if os.path.islink(symlink_path) or os.path.exists(symlink_path):
+                        try:
+                            os.remove(symlink_path)
+                        except Exception:
+                            pass
+                    try:
+                        os.symlink(ffmpeg_bin, symlink_path)
+                    except Exception:
+                        pass
+                    if bin_dir not in os.environ.get("PATH", ""):
+                        os.environ["PATH"] = bin_dir + os.pathsep + os.environ.get("PATH", "")
+            except Exception as e_sym:
+                print(f"[Native Python] Note on symlink creation: {e_sym}")
+
     app.run(host="127.0.0.1", port=port, debug=False, use_reloader=False, threaded=True)
 
 if __name__ == "__main__":

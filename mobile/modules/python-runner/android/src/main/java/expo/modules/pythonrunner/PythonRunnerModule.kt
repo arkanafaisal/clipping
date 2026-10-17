@@ -35,6 +35,18 @@ class PythonRunnerModule : Module() {
         Function("getLastError") {
             return@Function lastError
         }
+
+        Function("getNativeInfo") {
+            val context = appContext.reactContext
+            val nativeLibDir = context?.applicationInfo?.nativeLibraryDir ?: ""
+            val ffmpegFile = if (nativeLibDir.isNotEmpty()) java.io.File(nativeLibDir, "libffmpeg.so") else null
+            return@Function mapOf(
+                "nativeLibDir" to nativeLibDir,
+                "ffmpegPath" to (ffmpegFile?.absolutePath ?: ""),
+                "ffmpegExists" to (ffmpegFile?.exists() ?: false),
+                "ffmpegCanExecute" to (ffmpegFile?.canExecute() ?: false)
+            )
+        }
     }
 
     private fun startServerInternal(): String {
@@ -56,8 +68,15 @@ class PythonRunnerModule : Module() {
                     val serverModule = py.getModule("server")
                     isServerRunning = true
                     lastError = null
-                    Log.i(TAG, "Calling start_server()...")
-                    serverModule.callAttr("start_server")
+                    val nativeLibDir = context.applicationInfo.nativeLibraryDir
+                    val ffmpegFile = java.io.File(nativeLibDir, "libffmpeg.so")
+                    if (ffmpegFile.exists()) {
+                        Log.i(TAG, "Bundled FFmpeg found: ${ffmpegFile.absolutePath} (canExecute=${ffmpegFile.canExecute()})")
+                    } else {
+                        Log.w(TAG, "Bundled libffmpeg.so not found in: $nativeLibDir")
+                    }
+                    Log.i(TAG, "Calling start_server(8080, nativeLibDir)...")
+                    serverModule.callAttr("start_server", 8080, nativeLibDir)
                 } catch (e: Exception) {
                     isServerRunning = false
                     lastError = e.message ?: e.toString()

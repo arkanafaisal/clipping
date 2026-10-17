@@ -48,6 +48,11 @@ def download_youtube_clip_range(
     opts["download_ranges"] = download_range_func(None, [(start_num, end_num)])
     opts["force_keyframes_at_cuts"] = True
 
+    if "ffmpeg_location" not in opts:
+        ffmpeg_bin = os.getenv("FFMPEG_BINARY")
+        if ffmpeg_bin and os.path.exists(ffmpeg_bin):
+            opts["ffmpeg_location"] = ffmpeg_bin
+
     info_json_path = opts.get("load_info_filename")
     youtube_url = f"https://www.youtube.com/watch?v={video_id}"
 

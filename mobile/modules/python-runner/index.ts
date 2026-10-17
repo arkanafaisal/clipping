@@ -32,4 +32,22 @@ export function getPythonLastError(): string | null {
   return null;
 }
 
+export interface NativeRunnerInfo {
+  nativeLibDir: string;
+  ffmpegPath: string;
+  ffmpegExists: boolean;
+  ffmpegCanExecute: boolean;
+}
+
+export function getNativeRunnerInfo(): NativeRunnerInfo | null {
+  if (NativePythonRunner && typeof NativePythonRunner.getNativeInfo === 'function') {
+    try {
+      return NativePythonRunner.getNativeInfo() as NativeRunnerInfo;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
 export const SERVER_HOST = 'http://127.0.0.1:8080';
