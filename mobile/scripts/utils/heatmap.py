@@ -30,6 +30,7 @@ def get_raw_heatmap(video_id: str, ydl_opts: dict, cookie_path: str = None) -> t
             title = info.get('title') or ""
             if heatmap:
                 return heatmap, title, None, None
+            first_error_msg = "Heatmap tidak ditemukan. Video ini mungkin belum memiliki data 'Most Replayed'."
     except Exception as e:
         first_error_msg = str(e)
 
@@ -43,13 +44,22 @@ def get_raw_heatmap(video_id: str, ydl_opts: dict, cookie_path: str = None) -> t
                 heatmap = info.get('heatmap') or []
                 title = info.get('title') or ""
                 if not heatmap:
-                    return [], title, "HEATMAP_NOT_FOUND", "Heatmap tidak ditemukan. Video ini mungkin belum memiliki data 'Most Replayed'."
+                    second_error = "Heatmap tidak ditemukan. Video ini mungkin belum memiliki data 'Most Replayed'."
+                    combined_error = f"[Anonim]: {first_error_msg}\n\n[Cookies]: {second_error}" if first_error_msg else second_error
+                    return [], title, "HEATMAP_NOT_FOUND", combined_error
                 return heatmap, title, None, None
         except Exception as e:
-            error_msg = str(e)
-            is_limit = any(k in error_msg.lower() for k in ["429", "403", "forbidden", "access denied", "rate limit", "bot", "captcha", "sign in"])
-            code = "RATE_LIMIT_EXCEEDED" if is_limit else "EXTRACTOR_ERROR"
-            return [], "", code, error_msg
+            second_error = str(e)
+            is_limit = any(k in second_error.lower() for k in ["429", "rate limit", "too many requests"])
+            is_cookie_err = any(k in second_error.lower() for k in ["403", "forbidden", "access denied", "bot", "captcha", "sign in"])
+            if is_limit:
+                code = "RATE_LIMIT_EXCEEDED"
+            elif is_cookie_err:
+                code = "COOKIES_INVALID_OR_EXPIRED"
+            else:
+                code = "EXTRACTOR_ERROR"
+            combined_error = f"[Anonim]: {first_error_msg}\n\n[Cookies]: {second_error}" if first_error_msg else second_error
+            return [], "", code, combined_error
 
     error_msg = first_error_msg or "Heatmap tidak ditemukan. Video ini mungkin belum memiliki data 'Most Replayed'."
     is_limit = any(k in error_msg.lower() for k in ["429", "403", "forbidden", "access denied", "rate limit", "bot", "captcha", "sign in"])

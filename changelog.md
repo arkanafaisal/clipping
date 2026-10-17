@@ -14,7 +14,27 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Patch yt-dlp FFmpegFD and PostProcessor to Support Android libffmpeg.so Binary
+## [Unreleased] - Remove Delete Cookies Button and Combine Anon and Cookies Error Messages
+- **Konteks Struktural**:
+  1. Membersihkan UI dan DOM pada [CookiesModal.tsx](file:///d:/projects/clipping/mobile/src/components/CookiesModal.tsx):
+     - Menghapus tombol "Hapus Cookies" berserta seluruh logika dan import terkait (`deleteCookies`, `Trash2`).
+     - Alur pembaruan cookies kini sepenuhnya mengandalkan sistem penimpaan (overwrite) otomatis saat pengguna memasukkan link Google Drive baru.
+  2. Menggabungkan pesan error mentah (raw error) antara mode Anonim dan mode Cookies pada seluruh skrip backend yang memiliki mekanisme fallback otomatis ([heatmap.py](file:///d:/projects/clipping/mobile/scripts/utils/heatmap.py), [stream_extractor.py](file:///d:/projects/clipping/mobile/scripts/utils/stream_extractor.py), [subtitle_fetcher.py](file:///d:/projects/clipping/mobile/scripts/utils/subtitle_fetcher.py), dan [clip_downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/clip_downloader.py)):
+     - Jika mode anonim gagal DAN mode cookies juga gagal: respon error menggabungkan raw error message dari kedua percobaan (`[Anonim]: ...` dan `[Cookies]: ...`), sementara penentuan kode status terstandarisasi (`code`) tetap diprioritaskan dari hasil percobaan kedua (cookies).
+     - Jika mode anonim gagal namun fallback cookies berhasil: respon sukses murni dikembalikan tanpa memperlihatkan error mode anonim (silent success).
+- **Perubahan Kode Penting**:
+  - [mobile/src/components/CookiesModal.tsx](file:///d:/projects/clipping/mobile/src/components/CookiesModal.tsx):
+    - Menghapus tombol delete cookies, import `deleteCookies`, dan `handleDeleteCookies`.
+  - [mobile/scripts/utils/heatmap.py](file:///d:/projects/clipping/mobile/scripts/utils/heatmap.py):
+    - Menggabungkan raw error anonim dan cookies jika keduanya gagal, serta menentukan `code` berdasarkan percobaan cookies.
+  - [mobile/scripts/utils/stream_extractor.py](file:///d:/projects/clipping/mobile/scripts/utils/stream_extractor.py):
+    - Menggabungkan raw error anonim dan cookies jika keduanya gagal, serta menentukan `code` berdasarkan percobaan cookies.
+  - [mobile/scripts/utils/subtitle_fetcher.py](file:///d:/projects/clipping/mobile/scripts/utils/subtitle_fetcher.py):
+    - Menggabungkan raw error dan raw traceback anonim dan cookies jika keduanya gagal, serta menentukan `code` berdasarkan percobaan cookies.
+  - [mobile/scripts/utils/clip_downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/clip_downloader.py):
+    - Menentukan `code` error tahap 1 berdasarkan percobaan terakhir (`captured_errors[-1]`) dengan tetap menggabungkan seluruh raw log pada `full_err_text`.
+
+## [e06fe46] - Patch yt-dlp FFmpegFD and PostProcessor to Support Android libffmpeg.so Binary
 - **Konteks Struktural**:
   1. Mengatasi error `ERROR: You have requested downloading the video partially, but ffmpeg is not installed. Aborting` pada tahap 1 [clip_downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/clip_downloader.py).
   2. Penyebab: Pada Android APK native, binary statis FFmpeg dinamai `libffmpeg.so` dan ditempatkan di `nativeLibraryDir` aplikasi agar lolos aturan keamanan Android W^X. Namun modul bawaan yt-dlp (`FFmpegFD` dan `FFmpegPostProcessor`) hanya mencari string biner mentah bernama `'ffmpeg'` di variable sistem `PATH`, sehingga mengabaikan binary kustom berakhiran `.so`.

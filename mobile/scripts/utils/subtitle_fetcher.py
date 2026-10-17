@@ -38,7 +38,11 @@ def extract_subtitles_data(video_id: str, ydl_opts: dict = None, cookie_path: st
     
     try:
         with yt_dlp.YoutubeDL(opts_anon) as ydl:
-            return _process_extraction(ydl, url, video_id, preferred_lang)
+            res = _process_extraction(ydl, url, video_id, preferred_lang)
+            if res.get("status") == "success":
+                return res
+            first_error = res.get("error")
+            first_tb = res.get("traceback") or ""
     except Exception as e:
         first_error = str(e)
         first_tb = traceback.format_exc()
@@ -49,16 +53,38 @@ def extract_subtitles_data(video_id: str, ydl_opts: dict = None, cookie_path: st
         opts_cookies['cookiefile'] = cookie_path
         try:
             with yt_dlp.YoutubeDL(opts_cookies) as ydl:
-                return _process_extraction(ydl, url, video_id, preferred_lang)
+                res = _process_extraction(ydl, url, video_id, preferred_lang)
+                if res.get("status") == "success":
+                    return res
+                second_error = res.get("error")
+                second_tb = res.get("traceback") or ""
+                code = res.get("code") or "SUBTITLE_NOT_FOUND"
+                combined_error = f"[Anonim]: {first_error}\n\n[Cookies]: {second_error}" if first_error else second_error
+                combined_tb = f"[Anonim Traceback]:\n{first_tb}\n\n[Cookies Traceback]:\n{second_tb}" if first_tb else second_tb
+                return {
+                    "status": "error",
+                    "code": code,
+                    "error": combined_error,
+                    "traceback": combined_tb
+                }
         except Exception as e:
-            err_msg = str(e)
-            is_limit = any(k in err_msg.lower() for k in ["429", "403", "forbidden", "access denied", "rate limit", "bot", "captcha", "sign in"])
-            code = "RATE_LIMIT_EXCEEDED" if is_limit else "EXTRACTOR_ERROR"
+            second_error = str(e)
+            second_tb = traceback.format_exc()
+            is_limit = any(k in second_error.lower() for k in ["429", "rate limit", "too many requests"])
+            is_cookie_err = any(k in second_error.lower() for k in ["403", "forbidden", "access denied", "bot", "captcha", "sign in"])
+            if is_limit:
+                code = "RATE_LIMIT_EXCEEDED"
+            elif is_cookie_err:
+                code = "COOKIES_INVALID_OR_EXPIRED"
+            else:
+                code = "EXTRACTOR_ERROR"
+            combined_error = f"[Anonim]: {first_error}\n\n[Cookies]: {second_error}" if first_error else second_error
+            combined_tb = f"[Anonim Traceback]:\n{first_tb}\n\n[Cookies Traceback]:\n{second_tb}" if first_tb else second_tb
             return {
                 "status": "error",
                 "code": code,
-                "error": err_msg,
-                "traceback": traceback.format_exc()
+                "error": combined_error,
+                "traceback": combined_tb
             }
 
     err_msg = first_error or "Gagal mengekstrak data subtitle dari YouTube."

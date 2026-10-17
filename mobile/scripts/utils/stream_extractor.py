@@ -29,6 +29,7 @@ def get_direct_stream_url(video_id: str, ydl_opts: dict, cookie_path: str = None
             result_url = info.get('url')
             if result_url:
                 return result_url, None, None
+            first_error_msg = "Direct stream URL tidak ditemukan dalam respon metadata YouTube."
     except Exception as e:
         first_error_msg = str(e)
 
@@ -42,12 +43,21 @@ def get_direct_stream_url(video_id: str, ydl_opts: dict, cookie_path: str = None
                 result_url = info.get('url')
                 if result_url:
                     return result_url, None, None
-                return None, "STREAM_NOT_FOUND", "Direct stream URL tidak ditemukan dalam respon metadata YouTube."
+                second_error = "Direct stream URL tidak ditemukan dalam respon metadata YouTube."
+                combined_error = f"[Anonim]: {first_error_msg}\n\n[Cookies]: {second_error}" if first_error_msg else second_error
+                return None, "STREAM_NOT_FOUND", combined_error
         except Exception as e:
-            error_msg = str(e)
-            is_limit = any(k in error_msg.lower() for k in ["429", "403", "forbidden", "access denied", "rate limit", "bot", "captcha", "sign in"])
-            code = "RATE_LIMIT_EXCEEDED" if is_limit else "EXTRACTOR_ERROR"
-            return None, code, error_msg
+            second_error = str(e)
+            is_limit = any(k in second_error.lower() for k in ["429", "rate limit", "too many requests"])
+            is_cookie_err = any(k in second_error.lower() for k in ["403", "forbidden", "access denied", "bot", "captcha", "sign in"])
+            if is_limit:
+                code = "RATE_LIMIT_EXCEEDED"
+            elif is_cookie_err:
+                code = "COOKIES_INVALID_OR_EXPIRED"
+            else:
+                code = "EXTRACTOR_ERROR"
+            combined_error = f"[Anonim]: {first_error_msg}\n\n[Cookies]: {second_error}" if first_error_msg else second_error
+            return None, code, combined_error
 
     error_msg = first_error_msg or "Direct stream URL tidak ditemukan dalam respon metadata YouTube."
     is_limit = any(k in error_msg.lower() for k in ["429", "403", "forbidden", "access denied", "rate limit", "bot", "captcha", "sign in"])

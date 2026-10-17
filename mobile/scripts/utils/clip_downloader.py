@@ -227,15 +227,15 @@ def download_clip_direct(
 
     if not stage1_success or not os.path.exists(temp_path) or os.path.getsize(temp_path) == 0:
         full_err_text = "\n\n".join(captured_errors) if captured_errors else "Gagal mengunduh segmen video sementara dari YouTube."
-        lower_err = full_err_text.lower()
+        eval_err = captured_errors[-1].lower() if captured_errors else full_err_text.lower()
 
-        if any(k in lower_err for k in ["429", "rate limit", "too many requests"]):
+        if any(k in eval_err for k in ["429", "rate limit", "too many requests"]):
             code = "RATE_LIMIT_EXCEEDED"
-        elif any(k in lower_err for k in ["403", "forbidden", "access denied", "bot", "captcha", "sign in"]):
+        elif any(k in eval_err for k in ["403", "forbidden", "access denied", "bot", "captcha", "sign in"]):
             code = "COOKIES_INVALID_OR_EXPIRED" if cookies_attempted else "RATE_LIMIT_EXCEEDED"
-        elif "requested format is not available" in lower_err:
+        elif "requested format is not available" in eval_err:
             code = "FORMAT_NOT_AVAILABLE"
-        elif any(k in lower_err for k in ["permission denied", "errno 13", "operation not permitted"]):
+        elif any(k in eval_err for k in ["permission denied", "errno 13", "operation not permitted"]):
             code = "STORAGE_PERMISSION_DENIED"
         else:
             code = "DOWNLOAD_FAILED"

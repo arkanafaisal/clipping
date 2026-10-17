@@ -10,8 +10,7 @@ import {
   Platform,
   ActivityIndicator,
 } from 'react-native';
-import { Trash2 } from 'lucide-react-native';
-import { syncCookiesFromGoogleDrive, extractGoogleDriveFileId, isGoogleDriveFolderLink, deleteCookies } from '../services/api';
+import { syncCookiesFromGoogleDrive, extractGoogleDriveFileId, isGoogleDriveFolderLink } from '../services/api';
 import { ToastManager } from './Toast';
 
 interface CookiesModalProps {
@@ -28,25 +27,6 @@ export const CookiesModal: React.FC<CookiesModalProps> = ({
   const [driveLink, setDriveLink] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  const handleDeleteCookies = async () => {
-    setIsSubmitting(true);
-    try {
-      await deleteCookies();
-      setIsSubmitting(false);
-      ToastManager.show({
-        type: 'info',
-        title: 'Cookies Dihapus',
-        message: 'File cookies telah dihapus. Sistem kembali ke Mode Anonim.',
-        duration: 3500,
-      });
-      onSuccess?.('');
-      onClose();
-    } catch (err: any) {
-      setIsSubmitting(false);
-      setErrorMessage(err.message || 'Gagal menghapus cookies.');
-    }
-  };
 
   const handleSubmit = async () => {
     setErrorMessage(null);
@@ -139,38 +119,26 @@ export const CookiesModal: React.FC<CookiesModalProps> = ({
 
           <View style={styles.buttonRow}>
             <TouchableOpacity
-              style={styles.deleteBtn}
-              onPress={handleDeleteCookies}
+              style={styles.cancelBtn}
+              onPress={handleClose}
               disabled={isSubmitting}
               activeOpacity={0.7}
-              accessibilityLabel="Hapus Cookies"
             >
-              <Trash2 size={18} color="#ef4444" />
+              <Text style={styles.cancelBtnText}>Batal</Text>
             </TouchableOpacity>
 
-            <View style={styles.rightActions}>
-              <TouchableOpacity
-                style={styles.cancelBtn}
-                onPress={handleClose}
-                disabled={isSubmitting}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.cancelBtnText}>Batal</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.submitBtn, isSubmitting && styles.submitBtnDisabled]}
-                onPress={handleSubmit}
-                disabled={isSubmitting}
-                activeOpacity={0.85}
-              >
-                {isSubmitting ? (
-                  <ActivityIndicator size="small" color="#ffffff" />
-                ) : (
-                  <Text style={styles.submitBtnText}>Unduh & Terapkan</Text>
-                )}
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity
+              style={[styles.submitBtn, isSubmitting && styles.submitBtnDisabled]}
+              onPress={handleSubmit}
+              disabled={isSubmitting}
+              activeOpacity={0.85}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator size="small" color="#ffffff" />
+              ) : (
+                <Text style={styles.submitBtnText}>Unduh & Terapkan</Text>
+              )}
+            </TouchableOpacity>
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -230,24 +198,10 @@ const styles = StyleSheet.create({
   },
   buttonRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  rightActions: {
-    flexDirection: 'row',
+    justifyContent: 'flex-end',
     alignItems: 'center',
     gap: 10,
-  },
-  deleteBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.25)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    marginTop: 4,
   },
   cancelBtn: {
     paddingVertical: 10,
