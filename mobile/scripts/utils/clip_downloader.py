@@ -1,5 +1,7 @@
 import os
 import sys
+import time
+import json
 import traceback
 import subprocess
 import urllib.request
@@ -36,7 +38,8 @@ def download_clip_direct(
     output_path: str,
     stream_url: str = None,
     cookie_path: str = None,
-    ydl_opts: dict = None
+    ydl_opts: dict = None,
+    progress_path: str = None
 ) -> dict:
     """
     Mendownload satu klip video YouTube secara mandiri menggunakan metode 2-tahap:
@@ -79,6 +82,35 @@ def download_clip_direct(
             "error": f"Waktu 'end' ({end_num}) harus lebih besar daripada 'start' ({start_num})."
         }
 
+    # Mekanisme Realtime Progress Throttling (250ms)
+    last_write_time = 0.0
+
+    def write_progress(stage: str, code: str, percent: int = 0, force: bool = False):
+        nonlocal last_write_time
+        if not progress_path:
+            return
+        now = time.time()
+        # Throttled write minimal 250ms interval agar tidak membebani I/O flash memory
+        if not force and (now - last_write_time) < 0.25:
+            return
+        last_write_time = now
+        try:
+            payload = {
+                "stage": stage,
+                "code": code,
+                "percent": max(0, min(100, int(percent))),
+                "time": now
+            }
+            tmp_prog = f"{progress_path}.tmp"
+            with open(tmp_prog, "w", encoding="utf-8") as f:
+                json.dump(payload, f)
+            if os.path.exists(tmp_prog):
+                os.replace(tmp_prog, progress_path)
+        except Exception:
+            pass
+
+    write_progress("STAGE_INIT", "PREPARING_METADATA", 0, force=True)
+
     # 2. Persiapan Direktori Tujuan & File Temporary
     output_dir = os.path.dirname(output_path)
     if output_dir:
@@ -95,10 +127,16 @@ def download_clip_direct(
     temp_path = f"{output_path}.temp.mp4"
     temp_v = f"{output_path}.temp_v.ts"
     temp_a = f"{output_path}.temp_a.ts"
+    ffmpeg_prog_file = f"{output_path}.ffprog"
+    ffmpeg_err_file = f"{output_path}.fferr"
 
     def cleanup_temp_files():
-        """Hapus seluruh file sementara (.temp.mp4, .temp_v.ts, .temp_a.ts, .part) agar tidak membebani storage."""
-        for p in [temp_path, temp_v, temp_a, f"{temp_path}.part", f"{temp_v}.part", f"{temp_a}.part", f"{output_path}.part"]:
+        """Hapus seluruh file sementara (.temp.mp4, .temp_v.ts, .temp_a.ts, .part, .ffprog, .fferr) agar tidak membebani storage."""
+        for p in [
+            temp_path, temp_v, temp_a,
+            f"{temp_path}.part", f"{temp_v}.part", f"{temp_a}.part", f"{output_path}.part",
+            ffmpeg_prog_file, ffmpeg_err_file
+        ]:
             if os.path.exists(p):
                 try:
                     os.remove(p)
@@ -181,16 +219,28 @@ def download_clip_direct(
                 elapsed += current_dur
         return segments
 
-    def download_file_segments(segments: list, headers: dict, dest_path: str, active_cookie: str = None):
+    def download_file_segments(segments: list, headers: dict, dest_path: str, active_cookie: str = None, start_idx: int = 0, total_segs: int = 1):
         with open(dest_path, "wb") as f_out:
-            for s in segments:
+            for seg_idx, s in enumerate(segments):
+                current_seg_num = start_idx + seg_idx
                 req = make_urllib_request(s["url"], headers, active_cookie)
                 with urllib.request.urlopen(req, timeout=30) as resp:
+                    cl = resp.headers.get("Content-Length")
+                    seg_total = int(cl) if cl and cl.isdigit() else 0
+                    seg_bytes = 0
                     while True:
                         chunk = resp.read(65536)
                         if not chunk:
                             break
                         f_out.write(chunk)
+                        seg_bytes += len(chunk)
+                        if total_segs > 0:
+                            frac = (seg_bytes / seg_total) if seg_total > 0 else 0.5
+                            pct = int(((current_seg_num + frac) / total_segs) * 100)
+                            write_progress("STAGE_1_COPY", "DOWNLOADING_SEGMENTS", pct)
+                if total_segs > 0:
+                    pct = int(((current_seg_num + 1) / total_segs) * 100)
+                    write_progress("STAGE_1_COPY", "DOWNLOADING_SEGMENTS", pct)
 
     def run_stage1_download(use_cookie: bool) -> bool:
         nonlocal captured_stream_url, cookies_attempted, stage1_type, stage1_offsets
@@ -211,6 +261,7 @@ def download_clip_direct(
             active_cookie = None
 
         try:
+            write_progress("STAGE_1_COPY", "FETCHING_PLAYLIST", 0, force=True)
             with yt_dlp.YoutubeDL(run_opts) as ydl:
                 info = ydl.extract_info(youtube_url, download=False)
 
@@ -251,15 +302,17 @@ def download_clip_direct(
                 v_offset = start_num - sel_v[0]["start"]
                 a_offset = start_num - sel_a[0]["start"]
                 duration = end_num - start_num
+                total_segs = len(sel_v) + len(sel_a)
 
                 print(f"[ClipDownloader] Mengunduh {len(sel_v)} segmen video ({v_fmt.get('height')}p {v_fmt.get('fps')}fps) dan {len(sel_a)} segmen audio via Python...")
-                download_file_segments(sel_v, v_fmt.get("http_headers", {}), temp_v, active_cookie)
-                download_file_segments(sel_a, a_fmt.get("http_headers", {}), temp_a, active_cookie)
+                download_file_segments(sel_v, v_fmt.get("http_headers", {}), temp_v, active_cookie, start_idx=0, total_segs=total_segs)
+                download_file_segments(sel_a, a_fmt.get("http_headers", {}), temp_a, active_cookie, start_idx=len(sel_v), total_segs=total_segs)
 
                 if os.path.exists(temp_v) and os.path.getsize(temp_v) > 0 and os.path.exists(temp_a) and os.path.getsize(temp_a) > 0:
                     captured_stream_url = v_fmt.get("url") or captured_stream_url
                     stage1_type = "hls"
                     stage1_offsets = (v_offset, a_offset, duration)
+                    write_progress("STAGE_1_COPY", "COPY_COMPLETED", 100, force=True)
                     return True
 
             # 2. Alternatif: Format Progressive MP4
@@ -271,16 +324,24 @@ def download_clip_direct(
                 prog_fmt = prog_formats[0]
                 req = make_urllib_request(prog_fmt["url"], prog_fmt.get("http_headers", {}), active_cookie)
                 with urllib.request.urlopen(req, timeout=30) as resp, open(temp_path, "wb") as f_out:
+                    cl = resp.headers.get("Content-Length")
+                    total_bytes = int(cl) if cl and cl.isdigit() else 0
+                    read_bytes = 0
                     while True:
                         chunk = resp.read(65536)
                         if not chunk:
                             break
                         f_out.write(chunk)
+                        read_bytes += len(chunk)
+                        if total_bytes > 0:
+                            pct = int((read_bytes / total_bytes) * 100)
+                            write_progress("STAGE_1_COPY", "DOWNLOADING_SEGMENTS", pct)
 
                 if os.path.exists(temp_path) and os.path.getsize(temp_path) > 0:
                     captured_stream_url = prog_fmt.get("url") or captured_stream_url
                     stage1_type = "prog"
                     stage1_offsets = (start_num, 0, end_num - start_num)
+                    write_progress("STAGE_1_COPY", "COPY_COMPLETED", 100, force=True)
                     return True
 
             raise Exception("Tidak ditemukan format video/audio HLS atau progressive yang valid.")
@@ -327,6 +388,8 @@ def download_clip_direct(
     # Menggunakan filter_complex (trim + setpts & atrim + asetpts) agar pemotongan
     # benar-benar frame-accurate dan audio-video terkunci sinkron sempurna dari t=0.0s
     # tanpa freeze di awal atau drift/looping di akhir akibat desync PTS container MPEG-TS.
+    write_progress("STAGE_2_CUT", "STARTING_FFMPEG", 0, force=True)
+
     if stage1_type == "hls":
         v_offset, a_offset, cut_dur = stage1_offsets
         filter_str = (
@@ -343,6 +406,8 @@ def download_clip_direct(
             "-c:v", "libx264",
             "-preset", "ultrafast",
             "-c:a", "aac",
+            "-progress", ffmpeg_prog_file,
+            "-nostats",
             "-loglevel", "warning",
             output_path
         ]
@@ -361,13 +426,34 @@ def download_clip_direct(
             "-c:v", "libx264",
             "-preset", "ultrafast",
             "-c:a", "aac",
+            "-progress", ffmpeg_prog_file,
+            "-nostats",
             "-loglevel", "warning",
             output_path
         ]
 
     try:
-        proc = subprocess.run(ffmpeg_cut_cmd, capture_output=True, text=True, timeout=120)
+        with open(ffmpeg_err_file, "w", encoding="utf-8", errors="replace") as err_f:
+            proc = subprocess.Popen(ffmpeg_cut_cmd, stdout=subprocess.DEVNULL, stderr=err_f, text=True)
+            while proc.poll() is None:
+                time.sleep(0.25)
+                if os.path.exists(ffmpeg_prog_file):
+                    try:
+                        with open(ffmpeg_prog_file, "r", encoding="utf-8", errors="replace") as f_p:
+                            lines = f_p.read().splitlines()
+                        for line in reversed(lines):
+                            if line.startswith("out_time_us="):
+                                val = line.split("=")[1].strip()
+                                us = int(val)
+                                dur_us = cut_dur * 1000000.0
+                                pct = int((us / dur_us) * 100) if dur_us > 0 else 50
+                                write_progress("STAGE_2_CUT", "CUTTING_PRECISION", pct)
+                                break
+                    except Exception:
+                        pass
+            proc.wait(timeout=120)
     except Exception as e_proc:
+        cleanup_temp_files()
         return {
             "status": "error",
             "code": "FFMPEG_CUT_ERROR",
@@ -375,17 +461,27 @@ def download_clip_direct(
             "traceback": traceback.format_exc(),
             "stream_url": captured_stream_url
         }
-    finally:
-        cleanup_temp_files()
+
+    err_output = ""
+    if os.path.exists(ffmpeg_err_file):
+        try:
+            with open(ffmpeg_err_file, "r", encoding="utf-8", errors="replace") as err_f:
+                err_output = err_f.read()
+        except Exception:
+            pass
+
+    cleanup_temp_files()
 
     if proc.returncode != 0 or not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
         return {
             "status": "error",
             "code": "FFMPEG_CUT_ERROR",
-            "error": f"Pemotongan FFmpeg gagal (exit code {proc.returncode}):\n{proc.stderr or ''}",
-            "traceback": proc.stderr or f"Exit code {proc.returncode}",
+            "error": f"Pemotongan FFmpeg gagal (exit code {proc.returncode}):\n{err_output}",
+            "traceback": err_output or f"Exit code {proc.returncode}",
             "stream_url": captured_stream_url
         }
+
+    write_progress("STAGE_COMPLETE", "COMPLETED", 100, force=True)
 
     # 5. Berhasil: Kembalikan Path Hasil dan Stream URL
     return {

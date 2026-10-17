@@ -915,7 +915,8 @@ export async function downloadClip(
   videoId: string,
   start: number,
   end: number,
-  rank?: number
+  rank?: number,
+  progressPath?: string
 ): Promise<{ status: string; output_path: string; fileUri: string; stream_url?: string }> {
   // Kandidat 1: Shared Storage (/storage/emulated/0/clipping/output/...)
   // Kandidat 2: Internal Sandbox Storage (/data/user/0/com.clipping.app/files/clipping/output/...)
@@ -981,6 +982,7 @@ export async function downloadClip(
           ydl_opts: clipYdlOpts,
           stream_url: cachedStreamUrl || undefined,
           cookie_path: cookiePath,
+          progress_path: progressPath,
         });
       } else {
         // Fallback ke DEV_API_BASE_URL (port 3006 / Termux) jika mode dev
@@ -997,6 +999,7 @@ export async function downloadClip(
             stream_url: cachedStreamUrl || undefined,
             cookie_path: cookiePath,
             ydl_opts: clipYdlOpts,
+            progress_path: progressPath,
           }),
           signal: controller.signal,
         });

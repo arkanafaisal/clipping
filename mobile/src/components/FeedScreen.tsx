@@ -144,6 +144,10 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
   const [currentClipTime, setCurrentClipTime] = useState<number>(0);
   const [downloadingClips, setDownloadingClips] = useState<Record<string, boolean>>({});
   const [downloadedClips, setDownloadedClips] = useState<Record<string, boolean>>({});
+  const [downloadProgress, setDownloadProgress] = useState<
+    Record<string, { stage: string; code: string; percent: number }>
+  >({});
+  const activeDownloadPollersRef = useRef<Record<string, ReturnType<typeof setInterval>>>({});
   const [cookiesModalVisible, setCookiesModalVisible] = useState(false);
   const [subtitleModalVisible, setSubtitleModalVisible] = useState(false);
 
@@ -156,6 +160,33 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
   useEffect(() => {
     subtitlesRef.current = subtitles;
   }, [subtitles]);
+
+  useEffect(() => {
+    return () => {
+      Object.values(activeDownloadPollersRef.current).forEach((intervalId) => clearInterval(intervalId));
+    };
+  }, []);
+
+  const getDownloadProgressLabel = (info?: { stage: string; code: string; percent: number }): string => {
+    if (!info) return 'Proses...';
+    const { stage, code, percent } = info;
+    const pct = Math.max(0, Math.min(100, Math.round(percent)));
+
+    switch (stage) {
+      case 'STAGE_INIT':
+        return 'Siap...';
+      case 'STAGE_1_COPY':
+        if (code === 'FETCHING_PLAYLIST') return 'Ambil...';
+        return `Unduh ${pct}%`;
+      case 'STAGE_2_CUT':
+        if (code === 'STARTING_FFMPEG') return 'Potong 0%';
+        return `Potong ${pct}%`;
+      case 'STAGE_COMPLETE':
+        return 'Selesai';
+      default:
+        return `${pct}%`;
+    }
+  };
 
   // Debounce refs for smooth, leak-proof UI adjustments & storage sync
   const seekDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -894,7 +925,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     setClips(updated);
   };
 
-  // Download clip handler (Non-blocking background download dengan in-memory cache)
+  // Download clip handler (Non-blocking background download dengan in-memory cache & progress polling)
   const handleDownloadClip = async () => {
     if (!activeClip || activeClip.status !== 'done') return;
     const clipId = activeClip.id;
@@ -919,7 +950,43 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
       return;
     }
 
+    const progressFile = `${FileSystem.cacheDirectory}clip_progress_${clipId}.json`;
+    const nativeProgressPath = progressFile.replace('file://', '');
+
     setDownloadingClips((prev) => ({ ...prev, [clipId]: true }));
+    setDownloadProgress((prev) => ({
+      ...prev,
+      [clipId]: { stage: 'STAGE_INIT', code: 'PREPARING_METADATA', percent: 0 },
+    }));
+
+    // Polling realtime progress file setiap 300ms dari background Python engine
+    let isFinished = false;
+    const pollInterval = setInterval(async () => {
+      if (isFinished) return;
+      try {
+        const info = await FileSystem.getInfoAsync(progressFile);
+        if (info.exists) {
+          const raw = await FileSystem.readAsStringAsync(progressFile);
+          if (raw) {
+            const data = JSON.parse(raw);
+            if (data && data.stage) {
+              setDownloadProgress((prev) => ({
+                ...prev,
+                [clipId]: {
+                  stage: data.stage,
+                  code: data.code,
+                  percent: typeof data.percent === 'number' ? data.percent : 0,
+                },
+              }));
+            }
+          }
+        }
+      } catch (e) {
+        // Abaikan sementara jika file sedang di-replace secara atomik oleh Python
+      }
+    }, 300);
+    activeDownloadPollersRef.current[clipId] = pollInterval;
+
     ToastManager.show({
       type: 'info',
       title: 'Memulai Unduhan Klip',
@@ -928,7 +995,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     });
 
     try {
-      const res = await downloadClip(videoId, activeClip.start, activeClip.end, activeClip.rank);
+      const res = await downloadClip(videoId, activeClip.start, activeClip.end, activeClip.rank, nativeProgressPath);
       setDownloadingClips((prev) => ({ ...prev, [clipId]: false }));
       setDownloadedClips((prev) => ({ ...prev, [clipId]: true }));
       downloadedClipsRef.current[clipId] = true;
@@ -980,6 +1047,18 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
         rawError: err.rawError,
         errorCode: err.code,
         duration: 5000,
+      });
+    } finally {
+      isFinished = true;
+      if (activeDownloadPollersRef.current[clipId]) {
+        clearInterval(activeDownloadPollersRef.current[clipId]);
+        delete activeDownloadPollersRef.current[clipId];
+      }
+      FileSystem.deleteAsync(progressFile, { idempotent: true }).catch(() => {});
+      setDownloadProgress((prev) => {
+        const next = { ...prev };
+        delete next[clipId];
+        return next;
       });
     }
   };
@@ -1083,13 +1162,19 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
                     style={({ pressed }) => [
                       styles.statusBtn,
                       styles.downloadBtn,
+                      Boolean(downloadingClips[activeClip.id]) && styles.downloadBtnActive,
                       pressed && { opacity: 0.7 },
                     ]}
                     onPress={handleDownloadClip}
                     disabled={Boolean(downloadingClips[activeClip.id])}
                   >
                     {downloadingClips[activeClip.id] ? (
-                      <ActivityIndicator size="small" color="#38bdf8" />
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <ActivityIndicator size="small" color="#38bdf8" />
+                        <Text style={styles.downloadProgressText}>
+                          {getDownloadProgressLabel(downloadProgress[activeClip.id])}
+                        </Text>
+                      </View>
                     ) : (
                       <Download size={18} color="#38bdf8" />
                     )}
@@ -1497,6 +1582,18 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(56, 189, 248, 0.12)',
     borderWidth: 1,
     borderColor: 'rgba(56, 189, 248, 0.3)',
+  },
+  downloadBtnActive: {
+    width: 'auto',
+    paddingHorizontal: 8,
+    flexDirection: 'row',
+  },
+  downloadProgressText: {
+    color: '#38bdf8',
+    fontSize: 11,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
   downloadBtnSuccess: {
     backgroundColor: 'rgba(16, 185, 129, 0.15)',
