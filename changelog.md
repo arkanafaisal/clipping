@@ -14,7 +14,19 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Implement Millisecond Precision Time Range Editing in Clip Mode
+## [Unreleased] - Compensate Timeline Drift with Universal 500ms Tail Offset in Clip Downloader Cut
+- **Konteks Struktural**:
+  1. Mengatasi masalah pemotongan klip yang selesai prematur / adegan penutup terpotong pada [clip_downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/clip_downloader.py):
+     - Ditemukan adanya *timeline drift* sistematis (~500ms) antara stream online preview progressive MP4 30fps dan segmen HLS 1080p 60fps dengan durasi paket pecahan acak dari YouTube.
+     - Menambahkan kompensasi offset universal sebesar +500ms (+0.5 detik) langsung pada rentang `end_num`.
+  2. Dampak Pemotongan FFmpeg:
+     - Segmen unduhan sementara di tahap 1 (HLS copy) dan durasi pemotongan offline presisi di tahap 2 (FFmpeg filter `trim`/`atrim`) secara otomatis mencakup durasi tambahan +500ms.
+     - Hal ini menjamin bahwa seluruh adegan, dialog, dan kalimat terakhir yang didengar pengguna saat mode klip di feed tidak terpotong prematur saat file fisik diputar.
+- **Perubahan Kode Penting**:
+  - [mobile/scripts/utils/clip_downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/clip_downloader.py):
+    - Menambahkan `end_num += 0.5` tepat setelah validasi rentang waktu `start` dan `end`.
+
+## [ce906c0] - Implement Millisecond Precision Time Range Editing in Clip Mode
 - **Konteks Struktural**:
   1. Menghadirkan fitur penyuntingan presisi milidetik pada rentang klip di [FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx) untuk menyamakan mekanisme dengan antarmuka web:
      - Angka waktu mulai (`start`) dan selesai (`end`) pada mode klip kini dapat ditekan (*pressable*) secara independen untuk mengaktifkan mode input numerik.

@@ -82,6 +82,11 @@ def download_clip_direct(
             "error": f"Waktu 'end' ({end_num}) harus lebih besar daripada 'start' ({start_num})."
         }
 
+    # Kompensasi universal timeline drift HLS vs preview:
+    # Tambahkan 500ms (+0.5s) pada rentang akhir agar pemotongan FFmpeg
+    # mencakup frame dan audio penutup klip secara presisi tanpa terpotong prematur.
+    end_num += 0.5
+
     # Mekanisme Realtime Progress Throttling (250ms)
     last_write_time = 0.0
 
