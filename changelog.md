@@ -14,7 +14,23 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Fix temp_path Scope NameError in Clip Downloader and Implement Backend Subtitle Fetcher
+## [Unreleased] - Implement Dynamic Google Drive Public Downloader Script and Wire Frontend Caller
+- **Konteks Struktural**:
+  1. Membuat modul skrip Python baru [gdrive_downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/gdrive_downloader.py) secara murni pass-through dan 100% dinamis (Rule 12, Rule 16, Rule 22):
+     - Menangkap parameter `file_id`, `output_path`, dan `config` (URL templates, headers, timeout).
+     - Mengunduh file publik Google Drive secara streaming menggunakan session requests dan menangani token konfirmasi virus scan Google Drive secara dinamis.
+     - Melakukan validasi non-HTML agar file cookies.txt yang tersimpan bukan halaman web error/folder Google Drive.
+     - Menerapkan standardized error codes (`INVALID_PARAMS`, `GDRIVE_DOWNLOAD_FAILED`, `GDRIVE_FILE_EMPTY`, `GDRIVE_HTML_CONTENT`, `STORAGE_PERMISSION_DENIED`).
+  2. Memperbarui fungsi `syncCookiesFromGoogleDrive()` di [mobile/src/services/api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts):
+     - Menggantikan pemanggilan endpoint HTTP usang (`/api/download-gdrive-file` di port 8080) dengan eksekusi langsung via `executePythonScript('utils.gdrive_downloader', 'download_gdrive_public_file', ...)`.
+     - Menyimpan file cookies langsung ke internal sandbox aplikasi (`INTERNAL_COOKIES_FILE_PATH`), sekaligus menduplikasi salinan ke shared storage (`/storage/emulated/0/clipping/cookies.txt`) untuk kompatibilitas lintas hari/sesi.
+- **Perubahan Kode Penting**:
+  - [mobile/scripts/utils/gdrive_downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/gdrive_downloader.py):
+    - Modul baru fungsi `download_gdrive_public_file(file_id, output_path, config)` pass-through murni.
+  - [mobile/src/services/api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts):
+    - Menghubungkan `syncCookiesFromGoogleDrive()` ke `utils.gdrive_downloader` via `executePythonScript` dengan fallback server dev port 3006.
+
+## [a75a2d8] - Fix temp_path Scope NameError in Clip Downloader and Implement Backend Subtitle Fetcher
 - **Konteks Struktural**:
   1. Memperbaiki bug scope `NameError: name 'temp_path' is not defined` pada [clip_downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/clip_downloader.py) dengan mendefinisikan variabel `temp_path = f"{output_path}.temp.mp4"` sebelum pemanggilan fungsi pembersih `cleanup_temp_files()`.
   2. Mengimplementasikan modul skrip backend baru [subtitle_fetcher.py](file:///d:/projects/clipping/mobile/scripts/utils/subtitle_fetcher.py) secara murni pass-through dan dynamic (Rule 12, Rule 16, Rule 22):

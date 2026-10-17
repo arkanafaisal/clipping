@@ -587,55 +587,63 @@ export async function syncCookiesFromGoogleDrive(linkOrId: string): Promise<stri
     await FileSystem.deleteAsync(`file://${targetPath}`, { idempotent: true });
   } catch {}
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 30000);
+  let data: any = null;
+  const isNative = Platform.OS === 'android' && isPythonInitialized();
 
   try {
-    let response: Response;
-    try {
-      // Prioritaskan EMBEDDED_API_BASE_URL (port 8080 / APK native)
-      response = await fetch(`${EMBEDDED_API_BASE_URL}/api/download-gdrive-file`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          file_id: fileId,
-          output_path: targetPath,
-          config: DEFAULT_GDRIVE_DOWNLOAD_CONFIG,
-        }),
-        signal: controller.signal,
+    if (isNative) {
+      data = await executePythonScript('utils.gdrive_downloader', 'download_gdrive_public_file', {
+        file_id: fileId,
+        output_path: targetPath,
+        config: DEFAULT_GDRIVE_DOWNLOAD_CONFIG,
       });
-    } catch {
-      // Fallback ke DEV_API_BASE_URL (port 3006 / Termux) jika mode dev
-      response = await fetch(`${DEV_API_BASE_URL}/api/download-gdrive-file`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          file_id: fileId,
-          output_path: targetPath,
-          config: DEFAULT_GDRIVE_DOWNLOAD_CONFIG,
-        }),
-        signal: controller.signal,
-      });
+    } else {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      try {
+        const response = await fetch(`${DEV_API_BASE_URL}/api/download-gdrive-file`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            file_id: fileId,
+            output_path: targetPath,
+            config: DEFAULT_GDRIVE_DOWNLOAD_CONFIG,
+          }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        data = await response.json().catch(() => ({}));
+      } catch (fetchErr) {
+        clearTimeout(timeoutId);
+        throw fetchErr;
+      }
     }
-    clearTimeout(timeoutId);
 
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok || data.status !== 'success') {
-      const rawErr = data.error || `HTTP ${response.status}: Gagal mengunduh file dari Google Drive`;
-      const code = data.message || 'GDRIVE_DOWNLOAD_FAILED';
+    const payload = (data?.data && typeof data.data === 'object' && !Array.isArray(data.data)) ? data.data : data;
+
+    if (!payload || payload.status !== 'success') {
+      const code = payload?.code || payload?.message || 'GDRIVE_DOWNLOAD_FAILED';
+      const rawErr = payload?.error || payload?.traceback || JSON.stringify(payload, null, 2);
       throw new ApiError(code, rawErr);
     }
+
+    // Salin juga file cookies ke shared storage (/storage/emulated/0/clipping/cookies.txt) jika memungkinkan
+    try {
+      await FileSystem.copyAsync({
+        from: `file://${targetPath}`,
+        to: `file://${COOKIES_FILE_PATH}`,
+      });
+    } catch {}
 
     // Menimpa path cookies aktif di memory cache dan LocalStorage
     cachedCookiesPath = targetPath;
     await LocalStorage.setItem(COOKIES_STORAGE_KEY, targetPath);
-    if (data.file_size) {
-      await LocalStorage.setItem('cookies_file_size', String(data.file_size));
+    if (payload.file_size) {
+      await LocalStorage.setItem('cookies_file_size', String(payload.file_size));
     }
     await LocalStorage.setItem('cookies_last_synced', String(Date.now()));
     return targetPath;
   } catch (error: any) {
-    clearTimeout(timeoutId);
     if (error instanceof ApiError) throw error;
     if (error.name === 'AbortError') {
       throw new ApiError('NETWORK_ERROR', 'Waktu koneksi pengunduhan Google Drive habis (timeout 30s).');
