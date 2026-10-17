@@ -159,6 +159,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
 
   // Debounce refs for smooth, leak-proof UI adjustments & storage sync
   const seekDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const seekSafetyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingSeekTargetRef = useRef<number | null>(null);
   const trackWidthRef = useRef<number>(1);
   const storageDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -166,6 +167,9 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
   const activeClipIdRef = useRef<string | null>(activeClipId);
   const currentSourceUriRef = useRef<string>('');
   const downloadedClipsRef = useRef<Record<string, boolean>>(downloadedClips);
+  const isContinueStateRef = useRef<boolean>(isContinueState);
+  const streamUrlRef = useRef<string | null>(streamUrl);
+  const isSourceSwitchingRef = useRef<boolean>(false);
 
   useEffect(() => {
     clipsRef.current = clips;
@@ -179,6 +183,14 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     downloadedClipsRef.current = downloadedClips;
   }, [downloadedClips]);
 
+  useEffect(() => {
+    isContinueStateRef.current = isContinueState;
+  }, [isContinueState]);
+
+  useEffect(() => {
+    streamUrlRef.current = streamUrl;
+  }, [streamUrl]);
+
   // Active clip reference
   const activeClip = clips.find((c) => c.id === activeClipId) || clips[0] || {
     id: 'temp',
@@ -190,10 +202,24 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
   };
 
   // Video Player instance via expo-video (100ms interval for smooth millisecond UI)
-  const player = useVideoPlayer(streamUrl || '', (p) => {
+  // Gunakan null agar player instance stabil dan tidak di-recreate berulang kali saat streamUrl terisi
+  const player = useVideoPlayer(null, (p) => {
     p.loop = false;
     p.timeUpdateEventInterval = 0.1;
   });
+
+  // Helper untuk lock seek target dan auto-release safety timeout
+  const setPendingSeek = useCallback((targetTime: number) => {
+    pendingSeekTargetRef.current = targetTime;
+    if (seekSafetyTimeoutRef.current) {
+      clearTimeout(seekSafetyTimeoutRef.current);
+    }
+    seekSafetyTimeoutRef.current = setTimeout(() => {
+      if (pendingSeekTargetRef.current === targetTime) {
+        pendingSeekTargetRef.current = null;
+      }
+    }, 1500);
+  }, []);
 
   // Handle Android hardware back button (No on-screen back button)
   useEffect(() => {
@@ -209,6 +235,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
   useEffect(() => {
     return () => {
       if (seekDebounceTimerRef.current) clearTimeout(seekDebounceTimerRef.current);
+      if (seekSafetyTimeoutRef.current) clearTimeout(seekSafetyTimeoutRef.current);
       if (storageDebounceTimerRef.current) clearTimeout(storageDebounceTimerRef.current);
     };
   }, []);
@@ -318,6 +345,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
           const directUrl = await fetchStreamUrl(videoId);
           if (isMounted && directUrl) {
             setStreamUrl(directUrl);
+            streamUrlRef.current = directUrl;
             const isFirstClipLocal = Boolean(
               initialActiveClip &&
                 initialActiveClip.status === 'done' &&
@@ -332,6 +360,8 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
                 initialActiveClip.rank
               );
               currentSourceUriRef.current = fileUri;
+              setPendingSeek(0);
+              isSourceSwitchingRef.current = true;
               player.replace(fileUri);
               try {
                 player.currentTime = 0;
@@ -347,6 +377,8 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
               });
             } else {
               currentSourceUriRef.current = directUrl;
+              setPendingSeek(firstClipStart);
+              isSourceSwitchingRef.current = true;
               player.replace(directUrl);
               // AUTO PLAY: Mulai putar langsung dari posisi start klip pertama
               try {
@@ -419,55 +451,66 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
       if (!player) return;
       const isDownloaded = Boolean(downloadedClipsRef.current[clip.id]);
       const isLocalMode = clip.status === 'done' && isDownloaded;
+      const targetTime = isLocalMode ? 0 : Math.max(0, clip.start);
+
+      // Kunci target seek agar timeUpdate tidak menimpa UI sebelum player tiba di target
+      setPendingSeek(targetTime);
 
       if (isLocalMode) {
         const { fileUri } = getClipOutputFilePath(videoId, clip.start, clip.end, clip.rank);
         if (currentSourceUriRef.current !== fileUri) {
           currentSourceUriRef.current = fileUri;
+          isSourceSwitchingRef.current = true;
           try {
             player.replace(fileUri);
           } catch (err) {
             console.warn('[Feed] Replace local file error:', err);
           }
-        }
-        try {
-          player.currentTime = 0;
-          if (autoPlay && isContinueState) {
-            player.play();
+        } else {
+          // File lokal sama: seek langsung ke 0
+          try {
+            player.currentTime = 0;
+            if (autoPlay && isContinueStateRef.current) {
+              player.play();
+            }
+          } catch (err) {
+            console.warn('[Feed] Play local error:', err);
           }
-        } catch (err) {
-          console.warn('[Feed] Play local error:', err);
         }
       } else {
-        if (streamUrl && currentSourceUriRef.current !== streamUrl) {
-          currentSourceUriRef.current = streamUrl;
+        const activeStream = streamUrlRef.current;
+        if (activeStream && currentSourceUriRef.current !== activeStream) {
+          currentSourceUriRef.current = activeStream;
+          isSourceSwitchingRef.current = true;
           try {
-            player.replace(streamUrl);
+            player.replace(activeStream);
           } catch (err) {
             console.warn('[Feed] Replace stream error:', err);
           }
-        }
-        try {
-          player.currentTime = Math.max(0, clip.start);
-          if (autoPlay && isContinueState) {
-            player.play();
+        } else {
+          // Stream sama: seek langsung ke start klip
+          try {
+            player.currentTime = targetTime;
+            if (autoPlay && isContinueStateRef.current) {
+              player.play();
+            }
+          } catch (err) {
+            console.warn('[Feed] Play stream error:', err);
           }
-        } catch (err) {
-          console.warn('[Feed] Play stream error:', err);
         }
       }
     },
-    [player, streamUrl, videoId, isContinueState]
+    [player, videoId, setPendingSeek]
   );
 
   /**
    * Centralized universal debounced seek handler:
-   * Menampung SEMUA seek (crop, extend, skip waktu, pindah klip, tap scrubber) ke dalam 1 gerbang terpusat.
+   * Menampung SEMUA seek (crop, extend, skip waktu, tap scrubber) ke dalam 1 gerbang terpusat.
    * Debounce trailing edge: 500ms sejak interaksi TERAKHIR user.
    * UI (progress bar, angka rentang, active card) langsung di-update secara instan 0ms tanpa animasi/delay.
    */
   const centralizedSeek = useCallback((targetTime: number, shouldPlay: boolean = true) => {
-    pendingSeekTargetRef.current = targetTime;
+    setPendingSeek(targetTime);
 
     // Auto-pause video seketika jika sedang berputar agar frame lama freeze (tanpa mengubah state tombol)
     if (player && player.playing) {
@@ -485,7 +528,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
       if (player && finalTarget !== null && !isNaN(finalTarget)) {
         try {
           player.currentTime = Math.max(0, finalTarget);
-          if (shouldPlay && isContinueState) {
+          if (shouldPlay && isContinueStateRef.current) {
             player.play();
           }
         } catch (e: any) {
@@ -498,26 +541,33 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
         }
       }
       seekDebounceTimerRef.current = null;
-      pendingSeekTargetRef.current = null;
     }, 500);
-  }, [player, isContinueState]);
+  }, [player, setPendingSeek]);
 
   // Track playback time update & handle segment loop
   useEffect(() => {
     if (!player) return;
 
     const sub = player.addListener('timeUpdate', (event) => {
-      // Jika debounce sedang aktif, jangan timpa progress bar
-      if (pendingSeekTargetRef.current !== null) {
-        return;
-      }
-
       const currentActiveId = activeClipIdRef.current || activeClipId;
       const currentActive = clipsRef.current.find((c) => c.id === currentActiveId) || activeClip;
       const isLocalMode = currentSourceUriRef.current.startsWith('file://');
 
       const current = event.currentTime;
       const duration = currentActive.end - currentActive.start;
+
+      // Cek apakah player sedang dalam proses seek menuju targetTime
+      if (pendingSeekTargetRef.current !== null) {
+        const diff = Math.abs(current - pendingSeekTargetRef.current);
+        if (diff < 1.0) {
+          // Player sudah tiba di sekitar target seek, buka kembali kunci update UI
+          pendingSeekTargetRef.current = null;
+        } else {
+          // Masih dalam transisi seek: jangan biarkan frame lama menimpa progress UI atau mentrigger loop
+          return;
+        }
+      }
+
       if (duration > 0) {
         if (isLocalMode) {
           const pct = Math.max(0, Math.min(100, (current / duration) * 100));
@@ -531,18 +581,21 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
         }
       }
 
-      // Loop current segment
+      // Loop current segment & boundary enforcement
       if (isLocalMode) {
         if (current >= duration) {
           player.currentTime = 0;
-          if (isContinueState) {
+          if (isContinueStateRef.current) {
             player.play();
           }
         }
       } else {
-        if (current >= currentActive.end) {
+        // Enforce boundary klip stream:
+        // 1. Loop jika mencapai batas akhir klip (current >= end)
+        // 2. Koreksi seketika jika video meleset atau nyangkut di luar rentang klip (misal detik nol: current < start - 0.5s)
+        if (current >= currentActive.end || current < currentActive.start - 0.5) {
           player.currentTime = currentActive.start;
-          if (isContinueState) {
+          if (isContinueStateRef.current) {
             player.play();
           }
         }
@@ -550,15 +603,47 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     });
 
     const statusSub = player.addListener('statusChange', async () => {
+      if (player.status === 'readyToPlay') {
+        // HANYA snap posisi jika sedang terjadi pergantian media source (player.replace),
+        // JANGAN snap pada seek biasa (crop/extend/skip/scrubber) agar posisi seek user tidak tertimpa ke awal klip!
+        if (isSourceSwitchingRef.current) {
+          isSourceSwitchingRef.current = false;
+          const currentActiveId = activeClipIdRef.current || activeClipId;
+          const currentActive = clipsRef.current.find((c) => c.id === currentActiveId) || activeClip;
+          const isLocalMode = currentSourceUriRef.current.startsWith('file://');
+          const targetTime =
+            pendingSeekTargetRef.current !== null
+              ? pendingSeekTargetRef.current
+              : isLocalMode
+              ? 0
+              : Math.max(0, currentActive.start);
+
+          if (Math.abs(player.currentTime - targetTime) > 0.5) {
+            try {
+              player.currentTime = targetTime;
+            } catch (e) {}
+          }
+          if (isContinueStateRef.current && !player.playing) {
+            try {
+              player.play();
+            } catch (e) {}
+          }
+        }
+        return;
+      }
+
       if (player.status === 'error') {
         const isLocalMode = currentSourceUriRef.current.startsWith('file://');
         if (isLocalMode) {
           console.warn('[Feed] Local file playback error, falling back to stream...');
-          if (streamUrl) {
-            currentSourceUriRef.current = streamUrl;
-            player.replace(streamUrl);
+          const activeStream = streamUrlRef.current;
+          if (activeStream) {
+            currentSourceUriRef.current = activeStream;
+            setPendingSeek(activeClip.start);
+            isSourceSwitchingRef.current = true;
+            player.replace(activeStream);
             player.currentTime = activeClip.start;
-            if (isContinueState) {
+            if (isContinueStateRef.current) {
               player.play();
             }
           }
@@ -570,10 +655,13 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
           const freshUrl = await fetchStreamUrl(videoId, true); // forceRefresh = true
           if (freshUrl) {
             setStreamUrl(freshUrl);
+            streamUrlRef.current = freshUrl;
             currentSourceUriRef.current = freshUrl;
+            setPendingSeek(activeClip.start);
+            isSourceSwitchingRef.current = true;
             player.replace(freshUrl);
             player.currentTime = activeClip.start;
-            if (isContinueState) {
+            if (isContinueStateRef.current) {
               player.play();
             }
           }
@@ -597,7 +685,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
       sub.remove();
       statusSub.remove();
     };
-  }, [player, activeClip.start, activeClip.end, isContinueState, streamUrl, videoId]);
+  }, [player, videoId, setPendingSeek]);
 
   /*
   // ============================================================================
@@ -681,7 +769,6 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
         clearTimeout(seekDebounceTimerRef.current);
         seekDebounceTimerRef.current = null;
       }
-      pendingSeekTargetRef.current = null;
 
       activeClipIdRef.current = clipId;
       setActiveClipId(clipId);
@@ -692,7 +779,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
       const targetClip = clipsRef.current.find((c) => c.id === clipId);
       if (!targetClip) return;
 
-      // Pindahkan playback sumber secara dinamis (Lokal vs Stream)
+      // Pindahkan playback sumber secara dinamis (Lokal vs Stream) dan lakukan seek seketika
       syncPlayerSourceForClip(targetClip, true);
     },
     [syncPlayerSourceForClip]
@@ -895,7 +982,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
           ? player.currentTime
           : 0;
 
-      const nextTime = Math.max(0, Math.min(duration, baseTime + seconds));
+      const nextTime = Math.max(0, Math.min(Math.max(0, duration - 0.2), baseTime + seconds));
       if (duration > 0) {
         const pct = Math.max(0, Math.min(100, (nextTime / duration) * 100));
         setProgressPercent(pct);
@@ -912,7 +999,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
 
       let nextTime = baseTime + seconds;
       if (nextTime < currentActive.start) nextTime = currentActive.start;
-      if (nextTime > currentActive.end) nextTime = currentActive.end;
+      if (nextTime >= currentActive.end) nextTime = Math.max(currentActive.start, currentActive.end - 0.2);
 
       if (duration > 0) {
         const pct = Math.max(0, Math.min(100, ((nextTime - currentActive.start) / duration) * 100));
