@@ -69,7 +69,7 @@ export const StorageConfigSection: React.FC = () => {
       <View style={styles.headerRow}>
         <View style={styles.titleGroup}>
           <Folder size={18} color="#60A5FA" />
-          <Text style={styles.title}>Penyimpanan Shared Storage</Text>
+          <Text style={styles.title}>Shared Storage</Text>
         </View>
 
         <TouchableOpacity
@@ -120,7 +120,7 @@ export const StorageConfigSection: React.FC = () => {
           <View style={styles.successBadge}>
             <CheckCircle size={14} color="#10B981" />
             <Text style={styles.successBadgeText}>
-              Read & Write Aktif (hello.txt fisik terverifikasi)
+              Read & Write Aktif
             </Text>
           </View>
         ) : (
