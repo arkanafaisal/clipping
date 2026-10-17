@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Dashboard } from '../components/Dashboard';
 import { FeedScreen } from '../components/FeedScreen';
 import { ToastContainer, ToastManager } from '../components/Toast';
+import { StoragePermissionModal } from '../components/StoragePermissionModal';
 import { pingServer } from '../services/api';
 
 interface ActiveWorkshop {
@@ -67,6 +68,8 @@ export default function HomeScreen() {
       </View>
       {/* Toast Notification Container (Sonner-like) */}
       <ToastContainer />
+      {/* Modal Izin Akses Penyimpanan File Penuh (MANAGE_EXTERNAL_STORAGE) */}
+      <StoragePermissionModal />
     </SafeAreaView>
   );
 }

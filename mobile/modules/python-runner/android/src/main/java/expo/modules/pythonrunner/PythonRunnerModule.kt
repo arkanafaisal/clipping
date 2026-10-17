@@ -1,6 +1,11 @@
 package expo.modules.pythonrunner
 
 import android.util.Log
+import android.os.Build
+import android.os.Environment
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import expo.modules.kotlin.Promise
@@ -52,6 +57,41 @@ class PythonRunnerModule : Module() {
                 "ffmpegExists" to (ffmpegFile?.exists() ?: false),
                 "ffmpegCanExecute" to (ffmpegFile?.canExecute() ?: false)
             )
+        }
+
+        Function("checkStoragePermission") {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                return@Function Environment.isExternalStorageManager()
+            }
+            return@Function true
+        }
+
+        Function("requestStoragePermission") {
+            val context = appContext.reactContext ?: return@Function false
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                if (!Environment.isExternalStorageManager()) {
+                    try {
+                        val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+                            data = Uri.parse("package:" + context.packageName)
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        context.startActivity(intent)
+                        return@Function true
+                    } catch (e: Exception) {
+                        try {
+                            val fallbackIntent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION).apply {
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            context.startActivity(fallbackIntent)
+                            return@Function true
+                        } catch (err: Exception) {
+                            Log.e(TAG, "Failed to launch storage settings: ${err.message}", err)
+                            return@Function false
+                        }
+                    }
+                }
+            }
+            return@Function true
         }
 
         Function("setupPaths") { customRootPath: String ->

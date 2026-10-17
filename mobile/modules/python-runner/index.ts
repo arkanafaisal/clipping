@@ -68,3 +68,25 @@ export function getNativeRunnerInfo(): NativeRunnerInfo | null {
   }
   return null;
 }
+export function checkStoragePermission(): boolean {
+  if (NativePythonRunner && typeof NativePythonRunner.checkStoragePermission === 'function') {
+    try {
+      return Boolean(NativePythonRunner.checkStoragePermission());
+    } catch {
+      return false;
+    }
+  }
+  return true;
+}
+
+export function requestStoragePermission(): boolean {
+  if (NativePythonRunner && typeof NativePythonRunner.requestStoragePermission === 'function') {
+    try {
+      return Boolean(NativePythonRunner.requestStoragePermission());
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+

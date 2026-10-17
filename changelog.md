@@ -14,7 +14,22 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [c1e7a01] - Clean Up Total Server Flask Menjadi Runner Skrip Python Mandiri
+## [PENDING_COMMIT_2] - Penegasan Izin Akses Penyimpanan File Penuh (MANAGE_EXTERNAL_STORAGE) dan Modal Interaktif
+- **Konteks Struktural**:
+  1. Menegaskan verifikasi dan permintaan izin `MANAGE_EXTERNAL_STORAGE` (All Files Access) langsung dari sistem native Android (Kotlin) menggunakan `Environment.isExternalStorageManager()`.
+  2. Menyediakan built-in native function `checkStoragePermission` dan `requestStoragePermission` di [PythonRunnerModule.kt](file:///d:/projects/clipping/mobile/modules/python-runner/android/src/main/java/expo/modules/pythonrunner/PythonRunnerModule.kt) yang secara otomatis membuka layar pengaturan sistem Android "Special App Access -> All Files Access" dengan filter package aplikasi saat izin belum aktif.
+  3. Mengimplementasikan [StoragePermissionModal.tsx](file:///d:/projects/clipping/mobile/src/components/StoragePermissionModal.tsx) yang memantau siklus hidup aplikasi (`AppState`), mendeteksi status izin saat pertama kali dibuka, dan otomatis tertutup ketika izin telah berhasil diberikan oleh pengguna.
+- **Perubahan Kode Penting**:
+  - [mobile/modules/python-runner/android/src/main/java/expo/modules/pythonrunner/PythonRunnerModule.kt](file:///d:/projects/clipping/mobile/modules/python-runner/android/src/main/java/expo/modules/pythonrunner/PythonRunnerModule.kt):
+    - Menambahkan `Function("checkStoragePermission")` dan `Function("requestStoragePermission")`.
+  - [mobile/modules/python-runner/index.ts](file:///d:/projects/clipping/mobile/modules/python-runner/index.ts):
+    - Mengekspor `checkStoragePermission()` dan `requestStoragePermission()`.
+  - [mobile/src/components/StoragePermissionModal.tsx](file:///d:/projects/clipping/mobile/src/components/StoragePermissionModal.tsx):
+    - Komponen modal reaktif untuk meminta izin penyimpanan saat aplikasi startup.
+  - [mobile/src/app/index.tsx](file:///d:/projects/clipping/mobile/src/app/index.tsx):
+    - Memasang `<StoragePermissionModal />` di root view aplikasi.
+
+## [b2d7d94] - Clean Up Total Server Flask Menjadi Runner Skrip Python Mandiri
 - **Konteks Struktural**:
   1. Membersihkan total arsitektur server Flask lokal (`server.py`) dan dependensi `flask` dari [mobile/modules/python-runner/android/build.gradle](file:///d:/projects/clipping/mobile/modules/python-runner/android/build.gradle). Mengeliminasi seluruh endpoint HTTP lokal, overhead port 8080, serta masalah connection timeout/aborted.
   2. Menyisakan hanya bundle binary statis ARM64 FFmpeg (`libffmpeg.so` 17.7 MB dengan 154 encoder lengkap) dan interpreter CPython Chaquopy di dalam APK.
