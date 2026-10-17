@@ -576,7 +576,12 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
       clearTimeout(seekDebounceTimerRef.current);
     }
 
-    seekDebounceTimerRef.current = setTimeout(() => {
+    // Jika memutar file lokal fisik (file://), matikan debounce (seek instan 0ms)
+    // karena file disk lokal tidak terkena rate limit YouTube
+    const isLocalMode = currentSourceUriRef.current.startsWith('file://');
+    const debounceMs = isLocalMode ? 0 : 500;
+
+    const executeSeek = () => {
       const finalTarget = pendingSeekTargetRef.current;
       if (player && finalTarget !== null && !isNaN(finalTarget)) {
         try {
@@ -594,7 +599,13 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
         }
       }
       seekDebounceTimerRef.current = null;
-    }, 500);
+    };
+
+    if (debounceMs === 0) {
+      executeSeek();
+    } else {
+      seekDebounceTimerRef.current = setTimeout(executeSeek, debounceMs);
+    }
   }, [player, setPendingSeek]);
 
   // Track playback time update & handle segment loop
