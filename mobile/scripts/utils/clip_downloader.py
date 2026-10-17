@@ -90,6 +90,8 @@ def download_clip_direct(
                 "traceback": traceback.format_exc()
             }
 
+    temp_path = f"{output_path}.temp.mp4"
+
     def cleanup_temp_files():
         """Hapus seluruh file sementara (.temp.mp4, .part) agar tidak membebani storage."""
         for p in [temp_path, f"{temp_path}.part", f"{output_path}.part"]:

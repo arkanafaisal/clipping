@@ -2,7 +2,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as MediaLibrary from 'expo-media-library';
 import { LocalStorage } from './storage';
 import { getCurrentStorageRoot, getStorageRootPath, getStorageStructure } from './storageConfig';
-import { STREAM_YTDL_OPTS, HEATMAP_YTDL_OPTS, PRIME_CLIP_DOWNLOAD_OPTS } from '../constants/ytdlp';
+import { STREAM_YTDL_OPTS, HEATMAP_YTDL_OPTS, PRIME_CLIP_DOWNLOAD_OPTS, SUBTITLE_YTDL_OPTS } from '../constants/ytdlp';
 import { DEFAULT_GDRIVE_DOWNLOAD_CONFIG } from '../constants/gdrive';
 
 export interface ClipItem {
@@ -78,6 +78,9 @@ export const API_ERROR_MAP: Record<string, string> = {
   FFMPEG_CUT_ERROR: 'Pemotongan presisi klip dengan FFmpeg gagal.',
   STORAGE_PERMISSION_DENIED: 'Akses penyimpanan perangkat ditolak (Permission Denied). Harap berikan izin "Akses Semua File" di Pengaturan HP untuk aplikasi Clipping.',
   DOWNLOAD_FAILED: 'Gagal mengunduh klip video dari YouTube.',
+  SUBTITLE_NOT_FOUND: 'Subtitle maupun automatic caption tidak ditemukan pada video YouTube ini.',
+  SUBTITLE_URL_MISSING: 'Track subtitle tidak memiliki URL unduhan yang valid.',
+  SUBTITLE_ERROR: 'Gagal mengambil data subtitle dari video.',
   SERVER_OFFLINE: 'Server internal Python belum aktif pada port 8080.',
   DEV_SERVER_OFFLINE: 'Server Mobile Dev/Mock API belum aktif pada port 3006.',
   INTERNAL_ERROR: 'Terjadi kesalahan internal pada server Python.',
@@ -1117,42 +1120,121 @@ export async function downloadClip(
 }
 
 // ==============================================================================
-// [WORK IN PROGRESS - COMMENTED OUT] LOGIKA EKSTRAKSI & SLICING SUBTITLE
-// 1. SubtitleCue interface (format cue dengan start & end ternormalisasi per klip)
-// 2. parseTimestampToSeconds (parser string timestamp VTT/SRT ke float detik)
-// 3. parseVttToCues (parser raw file WebVTT teks menjadi cue terstruktur)
-// 4. sliceCuesForClip (filter & normalisasi cue relatif 0.000s sesuai start klip)
-// 5. fetchSubtitles (pass-through request ke server internal Python)
+// LOGIKA EKSTRAKSI, CACHING, & MANAJEMEN SUBTITLE DINAMIS (SHARED STORAGE)
 // ==============================================================================
-/*
+
 export interface SubtitleCue {
   id: string;
-  start: number;    // Detik relatif terhadap awal klip (0.000s)
+  start: number;    // Detik relatif terhadap awal klip (mulai dari 0.00s)
   end: number;      // Detik relatif terhadap awal klip
-  rawStart: number; // Detik absolut pada video penuh YouTube
-  rawEnd: number;   // Detik absolut pada video penuh YouTube
-  text: string;     // Teks caption yang sudah dibersihkan dari tag VTT
+  rawStart: number; // Detik absolut pada video YouTube utuh
+  rawEnd: number;   // Detik absolut pada video YouTube utuh
+  text: string;     // Teks subtitle bersih
 }
 
-// In-Memory cache subtitle per klip: key = clipId, value = SubtitleCue[]
-export const SUBTITLE_CUES_CACHE = new Map<string, SubtitleCue[]>();
+export interface SubtitleStyle {
+  fontSize: number;          // Default 22 (sesuai rendering FFmpeg)
+  color: string;             // Hex color misal '#FFFFFF'
+  backgroundColor: string;   // Background pill misal 'rgba(0,0,0,0.65)'
+  strokeColor?: string;      // Outline color misal '#000000'
+  strokeWidth?: number;      // Default 1
+  fontWeight: 'normal' | 'bold' | '600' | '700'; // Default 'bold'
+  positionY: number;         // Persentase posisi vertikal 0.0 - 1.0 (default 0.82)
+  positionX: number;         // Persentase posisi horizontal 0.0 - 1.0 (default 0.5)
+}
 
-export function parseTimestampToSeconds(timestamp: string): number {
-  const clean = timestamp.trim().replace(',', '.');
-  const parts = clean.split(':');
-  if (parts.length === 3) {
-    const hours = parseFloat(parts[0]) || 0;
-    const minutes = parseFloat(parts[1]) || 0;
-    const seconds = parseFloat(parts[2]) || 0;
-    return hours * 3600 + minutes * 60 + seconds;
-  } else if (parts.length === 2) {
-    const minutes = parseFloat(parts[0]) || 0;
-    const seconds = parseFloat(parts[1]) || 0;
-    return minutes * 60 + seconds;
+export interface ClipSubtitleData {
+  videoId: string;
+  start: number;
+  end: number;
+  lang: string;
+  isAuto?: boolean;
+  style: SubtitleStyle;
+  cues: SubtitleCue[];
+  updatedAt: number;
+}
+
+export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
+  fontSize: 22,
+  color: '#FFFFFF',
+  backgroundColor: 'rgba(0,0,0,0.65)',
+  strokeColor: '#000000',
+  strokeWidth: 1,
+  fontWeight: 'bold',
+  positionY: 0.82,
+  positionX: 0.5,
+};
+
+/**
+ * Menghasilkan nama file subtitle klip sesuai format waktu yang sudah terformat:
+ * "<start> - <end>.json" (contoh: "00.12 - 01.35.json").
+ */
+export function getClipSubtitleFilename(start: number, end: number): string {
+  const startFormatted = formatTimeForFilename(start);
+  const endFormatted = formatTimeForFilename(end);
+  return `${startFormatted} - ${endFormatted}.json`;
+}
+
+/**
+ * Menghasilkan path file subtitle per-klip di shared storage.
+ */
+export function getClipSubtitleFilePath(
+  videoId: string,
+  start: number,
+  end: number
+): { fileUri: string; nativePath: string } {
+  const filename = getClipSubtitleFilename(start, end);
+  const nativePath = `${SHARED_CLIPPING_OUTPUT_DIR}/${videoId}/${filename}`;
+  return { fileUri: `file://${nativePath}`, nativePath };
+}
+
+/**
+ * Menghasilkan path cache subtitle mentah video utuh di shared storage.
+ */
+export function getRawSubtitlesCacheFilePath(videoId: string): { fileUri: string; nativePath: string } {
+  const nativePath = `${SHARED_CLIPPING_OUTPUT_DIR}/${videoId}/raw_subtitles.json`;
+  return { fileUri: `file://${nativePath}`, nativePath };
+}
+
+// In-Memory cache subtitle video utuh (Key = videoId)
+const RAW_SUBTITLES_MEMORY_MAP = new Map<string, { cues: SubtitleCue[]; lang: string; isAuto: boolean }>();
+
+/**
+ * Parse data YouTube json3 menjadi daftar SubtitleCue terstruktur.
+ */
+export function parseJson3ToCues(json3Data: any): SubtitleCue[] {
+  if (!json3Data || !Array.isArray(json3Data.events)) return [];
+  const cues: SubtitleCue[] = [];
+  let index = 0;
+
+  for (const ev of json3Data.events) {
+    if (!ev || typeof ev.tStartMs !== 'number') continue;
+    const startSec = ev.tStartMs / 1000;
+    const durSec = (typeof ev.dDurationMs === 'number' && ev.dDurationMs > 0) ? ev.dDurationMs / 1000 : 2.0;
+    const endSec = startSec + durSec;
+
+    let text = '';
+    if (Array.isArray(ev.segs)) {
+      text = ev.segs.map((s: any) => s?.utf8 || '').join('');
+    }
+    const cleanText = text.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!cleanText) continue;
+
+    cues.push({
+      id: `cue_${index++}`,
+      start: startSec,
+      end: endSec,
+      rawStart: startSec,
+      rawEnd: endSec,
+      text: cleanText,
+    });
   }
-  return parseFloat(clean) || 0;
+  return cues;
 }
 
+/**
+ * Parse string WebVTT teks menjadi daftar SubtitleCue terstruktur.
+ */
 export function parseVttToCues(vttContent: string): SubtitleCue[] {
   const lines = vttContent.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
   const cues: SubtitleCue[] = [];
@@ -1163,6 +1245,17 @@ export function parseVttToCues(vttContent: string): SubtitleCue[] {
   let isParsingCue = false;
 
   const timeRegex = /((?:\d{2}:)?\d{2}:\d{2}[\.,]\d{3})\s*-->\s*((?:\d{2}:)?\d{2}:\d{2}[\.,]\d{3})/;
+
+  const parseTime = (timestamp: string): number => {
+    const clean = timestamp.trim().replace(',', '.');
+    const parts = clean.split(':');
+    if (parts.length === 3) {
+      return (parseFloat(parts[0]) || 0) * 3600 + (parseFloat(parts[1]) || 0) * 60 + (parseFloat(parts[2]) || 0);
+    } else if (parts.length === 2) {
+      return (parseFloat(parts[0]) || 0) * 60 + (parseFloat(parts[1]) || 0);
+    }
+    return parseFloat(clean) || 0;
+  };
 
   for (const line of lines) {
     const trimmed = line.trim();
@@ -1195,8 +1288,8 @@ export function parseVttToCues(vttContent: string): SubtitleCue[] {
         });
         currentTextLines = [];
       }
-      currentStart = parseTimestampToSeconds(match[1]);
-      currentEnd = parseTimestampToSeconds(match[2]);
+      currentStart = parseTime(match[1]);
+      currentEnd = parseTime(match[2]);
       isParsingCue = true;
       continue;
     }
@@ -1220,6 +1313,9 @@ export function parseVttToCues(vttContent: string): SubtitleCue[] {
   return cues;
 }
 
+/**
+ * Filter dan normalisasi cue subtitle agar pas dengan rentang waktu klip (relatif 0.00s).
+ */
 export function sliceCuesForClip(
   allCues: SubtitleCue[],
   clipStart: number,
@@ -1227,63 +1323,215 @@ export function sliceCuesForClip(
 ): SubtitleCue[] {
   const clipDuration = clipEnd - clipStart;
   const filtered: SubtitleCue[] = [];
+  let index = 0;
 
   for (const cue of allCues) {
     if (cue.rawEnd > clipStart && cue.rawStart < clipEnd) {
       const relStart = Math.max(0, cue.rawStart - clipStart);
       const relEnd = Math.min(clipDuration, cue.rawEnd - clipStart);
-      filtered.push({
-        ...cue,
-        start: relStart,
-        end: relEnd,
-      });
+      if (relEnd > relStart) {
+        filtered.push({
+          id: `clip_cue_${index++}`,
+          start: Math.round(relStart * 100) / 100,
+          end: Math.round(relEnd * 100) / 100,
+          rawStart: cue.rawStart,
+          rawEnd: cue.rawEnd,
+          text: cue.text,
+        });
+      }
     }
   }
 
   return filtered;
 }
 
-export async function fetchSubtitles(
+/**
+ * Mengambil track subtitle video utuh dari YouTube dengan arsitektur 2-Tier Caching di Frontend:
+ * 1. Tier 1: In-Memory Map (0ms latency)
+ * 2. Tier 2: File raw_subtitles.json di Shared Storage (/storage/emulated/0/clipping/output/<videoId>/)
+ * 3. Eksekusi Python jika belum ada cache.
+ */
+export async function fetchSubtitlesForVideo(
   videoId: string,
-  lang: string = 'id'
-): Promise<SubtitleCue[]> {
-  const subDir = new File(Paths.document, 'output', videoId, 'subtitles');
-  const nativeSubDir = subDir.uri.replace(/^file:\/\//, '');
+  preferredLang?: string
+): Promise<{ cues: SubtitleCue[]; lang: string; isAuto: boolean }> {
+  // 1. Cek Tier 1 In-Memory
+  if (RAW_SUBTITLES_MEMORY_MAP.has(videoId)) {
+    const cached = RAW_SUBTITLES_MEMORY_MAP.get(videoId);
+    if (cached) return cached;
+  }
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 30000);
-
+  // 2. Cek Tier 2 File Fisik di Shared Storage
+  const cachePath = getRawSubtitlesCacheFilePath(videoId);
   try {
-    const response = await fetch(`${DEV_API_BASE_URL}/api/subtitles`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        video_id: videoId,
-        output_dir: nativeSubDir,
-        lang,
-      }),
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
-
-    const data = await response.json().catch(() => ({}));
-
-    if (!response.ok || !data.content) {
-      const code = data.message || 'SUBTITLE_NOT_FOUND';
-      const rawError = data.error || 'Gagal mengekstrak subtitle';
-      throw new ApiError(code, rawError);
+    const info = await FileSystem.getInfoAsync(cachePath.fileUri);
+    if (info.exists && !info.isDirectory) {
+      const rawJson = await FileSystem.readAsStringAsync(cachePath.fileUri);
+      const parsed = JSON.parse(rawJson);
+      if (parsed && Array.isArray(parsed.cues)) {
+        const result = {
+          cues: parsed.cues as SubtitleCue[],
+          lang: parsed.lang || 'id',
+          isAuto: Boolean(parsed.isAuto),
+        };
+        RAW_SUBTITLES_MEMORY_MAP.set(videoId, result);
+        return result;
+      }
     }
+  } catch {}
 
-    return parseVttToCues(data.content);
-  } catch (error: any) {
-    clearTimeout(timeoutId);
-    if (error instanceof ApiError) throw error;
-    throw new ApiError(
-      error.name === 'AbortError' ? 'NETWORK_ERROR' : 'SUBTITLE_ERROR',
-      error.message
-    );
+  // 3. Eksekusi Skrip Python Native Chaquopy
+  const cookiePath = await getValidCookiesPath();
+  let data: any = null;
+  const isNative = Platform.OS === 'android' && isPythonInitialized();
+
+  if (isNative) {
+    data = await executePythonScript('utils.subtitle_fetcher', 'extract_subtitles_data', {
+      video_id: videoId,
+      ydl_opts: SUBTITLE_YTDL_OPTS,
+      cookie_path: cookiePath,
+      preferred_lang: preferredLang,
+    });
+  } else {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 25000);
+    try {
+      const response = await fetch(`${DEV_API_BASE_URL}/api/subtitles`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          video_id: videoId,
+          ydl_opts: SUBTITLE_YTDL_OPTS,
+          cookie_path: cookiePath,
+          preferred_lang: preferredLang,
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      data = await response.json().catch(() => ({}));
+    } catch (fetchErr) {
+      clearTimeout(timeoutId);
+      throw fetchErr;
+    }
+  }
+
+  const payload = (data?.data && typeof data.data === 'object' && !Array.isArray(data.data)) ? data.data : data;
+
+  if (!payload) {
+    throw new ApiError('EMPTY_RESPONSE', 'Python engine tidak mengembalikan data subtitle.');
+  }
+
+  if (payload.status === 'error') {
+    const code = payload.code || 'SUBTITLE_ERROR';
+    const rawError = payload.traceback || payload.error || JSON.stringify(payload, null, 2);
+    throw new ApiError(code, rawError);
+  }
+
+  let cues: SubtitleCue[] = [];
+  if (payload.format === 'json3' && typeof payload.raw_data === 'object') {
+    cues = parseJson3ToCues(payload.raw_data);
+  } else if (typeof payload.raw_data === 'string') {
+    if (payload.raw_data.trim().startsWith('{')) {
+      try {
+        const parsedJson = JSON.parse(payload.raw_data);
+        cues = parseJson3ToCues(parsedJson);
+      } catch {
+        cues = parseVttToCues(payload.raw_data);
+      }
+    } else {
+      cues = parseVttToCues(payload.raw_data);
+    }
+  }
+
+  if (!cues || cues.length === 0) {
+    throw new ApiError('SUBTITLE_NOT_FOUND', 'Track subtitle kosong atau tidak memiliki caption yang dapat diparse.');
+  }
+
+  const result = {
+    cues,
+    lang: payload.lang || 'id',
+    isAuto: Boolean(payload.is_auto),
+  };
+
+  // Simpan ke Tier 1 In-Memory
+  RAW_SUBTITLES_MEMORY_MAP.set(videoId, result);
+
+  // Simpan ke Tier 2 File Fisik Shared Storage secara asynchronous
+  try {
+    const folderUri = cachePath.fileUri.substring(0, cachePath.fileUri.lastIndexOf('/'));
+    await FileSystem.makeDirectoryAsync(folderUri, { intermediates: true });
+    await FileSystem.writeAsStringAsync(cachePath.fileUri, JSON.stringify(result, null, 2));
+  } catch (err) {
+    console.warn('[SubtitleCache] Gagal menyimpan raw_subtitles.json ke shared storage:', err);
+  }
+
+  return result;
+}
+
+/**
+ * Membaca data subtitle yang sudah disimpan untuk klip tertentu dari shared storage.
+ */
+export async function loadClipSubtitle(
+  videoId: string,
+  start: number,
+  end: number
+): Promise<ClipSubtitleData | null> {
+  const { fileUri } = getClipSubtitleFilePath(videoId, start, end);
+  try {
+    const info = await FileSystem.getInfoAsync(fileUri);
+    if (!info.exists || info.isDirectory) return null;
+    const content = await FileSystem.readAsStringAsync(fileUri);
+    const parsed = JSON.parse(content);
+    if (parsed && Array.isArray(parsed.cues)) {
+      return parsed as ClipSubtitleData;
+    }
+  } catch {}
+  return null;
+}
+
+/**
+ * Menyimpan data subtitle klip ke file JSON di shared storage.
+ */
+export async function saveClipSubtitle(data: ClipSubtitleData): Promise<void> {
+  const { fileUri } = getClipSubtitleFilePath(data.videoId, data.start, data.end);
+  const folderUri = fileUri.substring(0, fileUri.lastIndexOf('/'));
+  await FileSystem.makeDirectoryAsync(folderUri, { intermediates: true });
+  await FileSystem.writeAsStringAsync(fileUri, JSON.stringify(data, null, 2));
+}
+
+/**
+ * Menghapus file subtitle klip dari shared storage.
+ */
+export async function deleteClipSubtitle(
+  videoId: string,
+  start: number,
+  end: number
+): Promise<boolean> {
+  const { fileUri } = getClipSubtitleFilePath(videoId, start, end);
+  try {
+    await FileSystem.deleteAsync(fileUri, { idempotent: true });
+    return true;
+  } catch {
+    return false;
   }
 }
-*/
+
+/**
+ * Memeriksa apakah subtitle klip sudah tersimpan di shared storage.
+ */
+export async function checkClipSubtitleExists(
+  videoId: string,
+  start: number,
+  end: number
+): Promise<boolean> {
+  const { fileUri } = getClipSubtitleFilePath(videoId, start, end);
+  try {
+    const info = await FileSystem.getInfoAsync(fileUri);
+    return Boolean(info.exists && !info.isDirectory);
+  } catch {
+    return false;
+  }
+}
+
 
 

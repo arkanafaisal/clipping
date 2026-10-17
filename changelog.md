@@ -14,7 +14,26 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Standardize Formatted Clip Filenames and Enforce Immediate Temp File Cleanup
+## [Unreleased] - Fix temp_path Scope NameError in Clip Downloader and Implement Backend Subtitle Fetcher
+- **Konteks Struktural**:
+  1. Memperbaiki bug scope `NameError: name 'temp_path' is not defined` pada [clip_downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/clip_downloader.py) dengan mendefinisikan variabel `temp_path = f"{output_path}.temp.mp4"` sebelum pemanggilan fungsi pembersih `cleanup_temp_files()`.
+  2. Mengimplementasikan modul skrip backend baru [subtitle_fetcher.py](file:///d:/projects/clipping/mobile/scripts/utils/subtitle_fetcher.py) secara murni pass-through dan dynamic (Rule 12, Rule 16, Rule 22):
+     - Menangkap parameter `video_id`, `ydl_opts`, `cookie_path`, dan `preferred_lang`.
+     - Mendukung mode anonim terlebih dahulu dan fallback cookies jika dibatasi.
+     - Mengekstrak track subtitle/caption (manual maupun auto ASR) dan mengunduh format `json3` / `vtt` menggunakan `ydl.urlopen`.
+     - Mengembalikan data mentah utuh tanpa proses pemotongan atau pemformatan di server.
+  3. Memperbarui [api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts) dan [ytdlp.ts](file:///d:/projects/clipping/mobile/src/constants/ytdlp.ts) untuk konfigurasi `SUBTITLE_YTDL_OPTS`, standardized error codes (`SUBTITLE_NOT_FOUND`, dll.), parser `json3` / `vtt`, penataan path file subtitle per-klip (`<start> - <end>.json`), serta 2-tier caching di frontend.
+- **Perubahan Kode Penting**:
+  - [mobile/scripts/utils/clip_downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/clip_downloader.py):
+    - Mendefinisikan `temp_path = f"{output_path}.temp.mp4"` sebelum inisialisasi dan pemanggilan `cleanup_temp_files()`.
+  - [mobile/scripts/utils/subtitle_fetcher.py](file:///d:/projects/clipping/mobile/scripts/utils/subtitle_fetcher.py):
+    - Modul baru untuk ekstraksi raw subtitle data dari YouTube dengan error code terstandarisasi.
+  - [mobile/src/constants/ytdlp.ts](file:///d:/projects/clipping/mobile/src/constants/ytdlp.ts):
+    - Mengaktifkan ekspor `SUBTITLE_YTDL_OPTS`.
+  - [mobile/src/services/api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts):
+    - Menambahkan tipe `SubtitleCue`, `SubtitleStyle`, `ClipSubtitleData`, error handling, helper path, dan fungsi operasional subtitle.
+
+## [0b2ca7f] - Standardize Formatted Clip Filenames and Enforce Immediate Temp File Cleanup
 - **Konteks Struktural**:
   1. Menghilangkan prefix/wrapper nama file klip (`clip_<rank>_` atau `clip_<videoId>_`) yang tidak objektif, menggantikannya dengan format rentang waktu murni yang konsisten dengan tampilan waktu pada card klip di UI: `<start_terformat> - <end_terformat>.mp4` (misal: `00.12 - 01.35.mp4` atau `01.15.30 - 01.16.00.mp4`).
   2. Menggunakan karakter titik (`.`) sebagai pengganti titik dua (`:`) pada komponen waktu agar aman dan kompatibel 100% dengan seluruh sistem file (FAT32/exFAT di Android Shared Storage, Windows NTFS, dan Linux).
