@@ -14,7 +14,16 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Implement Dynamic Google Drive Public Downloader Script and Wire Frontend Caller
+## [Unreleased] - Patch yt-dlp FFmpegFD and PostProcessor to Support Android libffmpeg.so Binary
+- **Konteks Struktural**:
+  1. Mengatasi error `ERROR: You have requested downloading the video partially, but ffmpeg is not installed. Aborting` pada tahap 1 [clip_downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/clip_downloader.py).
+  2. Penyebab: Pada Android APK native, binary statis FFmpeg dinamai `libffmpeg.so` dan ditempatkan di `nativeLibraryDir` aplikasi agar lolos aturan keamanan Android W^X. Namun modul bawaan yt-dlp (`FFmpegFD` dan `FFmpegPostProcessor`) hanya mencari string biner mentah bernama `'ffmpeg'` di variable sistem `PATH`, sehingga mengabaikan binary kustom berakhiran `.so`.
+  3. Solusi: Menerapkan monkey-patch runtime pada `FFmpegFD.available`, `FFmpegFD.EXE_NAME = ffmpeg_bin`, dan `FFmpegPostProcessor._determine_executables` agar secara native mengenali file biner Android `libffmpeg.so` sebagai executable FFmpeg yang valid saat melakukan download parsial/rentang waktu.
+- **Perubahan Kode Penting**:
+  - [mobile/scripts/utils/clip_downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/clip_downloader.py):
+    - Mendaftarkan `ffmpeg_bin` ke `FFmpegFD` dan `FFmpegPostProcessor` yt-dlp agar proses unduh time range copy berjalan lancar.
+
+## [9fa844d] - Implement Dynamic Google Drive Public Downloader Script and Wire Frontend Caller
 - **Konteks Struktural**:
   1. Membuat modul skrip Python baru [gdrive_downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/gdrive_downloader.py) secara murni pass-through dan 100% dinamis (Rule 12, Rule 16, Rule 22):
      - Menangkap parameter `file_id`, `output_path`, dan `config` (URL templates, headers, timeout).

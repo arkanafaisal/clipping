@@ -117,6 +117,25 @@ def download_clip_direct(
         if ffmpeg_dir and ffmpeg_dir not in os.environ.get("PATH", ""):
             os.environ["PATH"] = ffmpeg_dir + os.pathsep + os.environ.get("PATH", "")
 
+    # Daftarkan binary ffmpeg kustom (misal: libffmpeg.so pada Android native) ke yt-dlp
+    # agar dikenali oleh FFmpegFD dan FFmpegPostProcessor saat mengunduh time ranges
+    try:
+        from yt_dlp.downloader.external import FFmpegFD
+        from yt_dlp.postprocessor.ffmpeg import FFmpegPostProcessor
+
+        FFmpegFD.available = classmethod(lambda cls, path=None: True)
+        FFmpegFD.EXE_NAME = ffmpeg_bin
+
+        original_determine = FFmpegPostProcessor._determine_executables
+        def _patched_determine_executables(self):
+            paths = original_determine(self)
+            if ffmpeg_bin:
+                paths["ffmpeg"] = ffmpeg_bin
+            return paths
+        FFmpegPostProcessor._determine_executables = _patched_determine_executables
+    except Exception as e_patch:
+        print(f"[ClipDownloader] Warning patch ffmpeg: {e_patch}")
+
     # 4. Perhitungan Rentang Keyframe Diperluas (Stage 1)
     # Rentang dimundurkan 5 detik dan dimajukan 5 detik agar keyframe utuh tercakup
     EXPAND_OFFSET = 5.0
