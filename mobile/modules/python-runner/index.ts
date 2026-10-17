@@ -42,12 +42,20 @@ export async function executePythonScript(
   }
 
   const argsJson = JSON.stringify(args);
-  const rawResult = await NativePythonRunner.executeScript(moduleName, funcName, argsJson);
-
   try {
-    return JSON.parse(rawResult);
-  } catch {
-    return rawResult;
+    const rawResult = await NativePythonRunner.executeScript(moduleName, funcName, argsJson);
+    try {
+      return JSON.parse(rawResult);
+    } catch {
+      return rawResult;
+    }
+  } catch (nativeErr: any) {
+    return {
+      status: 'error',
+      code: nativeErr.code || 'NATIVE_EXECUTION_ERROR',
+      error: nativeErr.message || String(nativeErr),
+      traceback: nativeErr.stack || String(nativeErr),
+    };
   }
 }
 

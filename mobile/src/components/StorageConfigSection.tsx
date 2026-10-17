@@ -47,8 +47,10 @@ export const StorageConfigSection: React.FC = () => {
         ToastManager.show({
           type: 'error',
           title: 'Verifikasi Gagal',
-          message: result.message,
-          duration: 4000,
+          message: 'Akses shared storage ditolak oleh sistem. Klik ikon kode di kanan untuk melihat detail debug.',
+          rawError: result.traceback || result.error || result.message,
+          errorCode: 'STORAGE_VERIFICATION_FAILED',
+          duration: 7000,
         });
       }
     }

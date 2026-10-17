@@ -14,7 +14,28 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Migrasi Impor FileSystem ke expo-file-system/legacy di storageConfig.ts
+## [Unreleased] - Penangkapan Error 100% Mentah ke Modal Debug Toast dan Perbaikan Tampilan Verifikasi Storage
+- **Konteks Struktural**:
+  1. Memastikan seluruh fungsi pemanggil skrip Python di [api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts) (`fetchHeatmap`, `fetchStreamUrl`, `downloadClip`) dan [index.ts](file:///d:/projects/clipping/mobile/modules/python-runner/index.ts) (`executePythonScript`) mempertahankan dan meneruskan pesan error mentah serta full traceback 100% tanpa filtering ke objek `ApiError` dan `ToastManager`.
+  2. Memperbarui [Toast.tsx](file:///d:/projects/clipping/mobile/src/components/Toast.tsx) agar ikon kode debug `<Code2>` selalu tampil pada setiap notifikasi error, dengan modal debug yang menampilkan traceback mentah secara utuh dan mudah disalin.
+  3. Memperbaiki tampilan notifikasi kegagalan verifikasi storage di [StorageConfigSection.tsx](file:///d:/projects/clipping/mobile/src/components/StorageConfigSection.tsx) agar ringkas dan rapi (tidak memanjang ke bawah), serta mengalirkan seluruh pesan Java IOException ke Modal Debug Error.
+  4. Menyematkan cuplikan detail error pada alert di [Dashboard.tsx](file:///d:/projects/clipping/mobile/src/components/Dashboard.tsx) agar pengguna dapat langsung membaca dan menyalin penyebab error secara transparan.
+- **Perubahan Kode Penting**:
+  - [mobile/src/components/Toast.tsx](file:///d:/projects/clipping/mobile/src/components/Toast.tsx):
+    - Mengaktifkan tombol debug modal untuk setiap toast bertipe `error`.
+    - Menyediakan fallback `rawError` otomatis ke `toast.message`.
+  - [mobile/src/components/StorageConfigSection.tsx](file:///d:/projects/clipping/mobile/src/components/StorageConfigSection.tsx):
+    - Meringkas pesan toast dan menyalurkan `result.traceback || result.error` ke `rawError`.
+  - [mobile/src/services/storageConfig.ts](file:///d:/projects/clipping/mobile/src/services/storageConfig.ts):
+    - Mengisi field `error` dan `traceback` pada interface `StorageVerificationResult`.
+  - [mobile/src/services/api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts):
+    - Memastikan `data.traceback || data.error` selalu diteruskan ke `ApiError` pada `fetchHeatmap` dan `fetchStreamUrl`.
+  - [mobile/modules/python-runner/index.ts](file:///d:/projects/clipping/mobile/modules/python-runner/index.ts):
+    - Membungkus pemanggilan native `executeScript` dengan try-catch terstruktur yang mengembalikan stack trace.
+  - [mobile/src/components/Dashboard.tsx](file:///d:/projects/clipping/mobile/src/components/Dashboard.tsx):
+    - Menambahkan cuplikan detail error pada `Alert.alert` dan meningkatkan durasi toast.
+
+## [f214ba8] - Migrasi Impor FileSystem ke expo-file-system/legacy di storageConfig.ts
 - **Konteks Struktural**:
   1. Memperbarui impor `FileSystem` di [mobile/src/services/storageConfig.ts](file:///d:/projects/clipping/mobile/src/services/storageConfig.ts) menjadi `expo-file-system/legacy` agar selaras dengan file lainnya ([storage.ts](file:///d:/projects/clipping/mobile/src/services/storage.ts), [api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts), dan [FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx)).
   2. Mengeliminasi deprecation warning Expo SDK 54 (`Method getInfoAsync imported from "expo-file-system" is deprecated`).

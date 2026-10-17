@@ -136,8 +136,8 @@ export const ToastContainer: React.FC = () => {
       setDebugData({
         title: toast.title,
         message: toast.message,
-        rawError: toast.rawError,
-        errorCode: toast.errorCode,
+        rawError: toast.rawError || toast.message || 'Tidak ada detail raw error tambahan.',
+        errorCode: toast.errorCode || 'UNKNOWN_ERROR',
       });
       setDebugModalVisible(true);
     }
@@ -200,8 +200,8 @@ export const ToastContainer: React.FC = () => {
               {toast.message ? <Text style={styles.messageText}>{toast.message}</Text> : null}
             </View>
 
-            {/* Icon Button Khusus Debug Modal (Hanya muncul jika terdapat rawError) */}
-            {toast.rawError ? (
+            {/* Icon Button Khusus Debug Modal (Selalu muncul untuk tipe error atau jika ada rawError) */}
+            {(toast.type === 'error' || toast.rawError) ? (
               <TouchableOpacity
                 style={styles.debugBtn}
                 onPress={handleOpenDebug}

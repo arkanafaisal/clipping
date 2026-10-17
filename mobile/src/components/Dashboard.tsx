@@ -159,14 +159,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
         type: 'error',
         title: 'Gagal Membuat Workshop',
         message: err.message || 'Server gagal mengambil data.',
-        rawError: err.rawError,
-        errorCode: err.code,
-        duration: 5000,
+        rawError: err.rawError || err.stack || err.message,
+        errorCode: err.code || 'WORKSHOP_ERROR',
+        duration: 8000,
       });
 
+      const detailSnippet = err.rawError ? `\n\nDetail Error:\n${err.rawError.slice(0, 350)}` : '';
       Alert.alert(
         'Gagal Membuka Workshop',
-        `${err.message || 'Koneksi ke backend gagal.'}\n\nAplikasi tetap berada di Dashboard karena data klip atau stream belum siap.`
+        `${err.message || 'Koneksi ke backend gagal.'}${detailSnippet}\n\n(Klik ikon kode di toast atas untuk membuka log debug lengkap)`
       );
     }
   };

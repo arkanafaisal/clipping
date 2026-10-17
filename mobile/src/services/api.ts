@@ -271,9 +271,19 @@ export async function fetchStreamUrl(videoId: string, forceRefresh: boolean = fa
       }
     }
 
-    if (!data || data.status === 'error' || !data.stream_url) {
-      const code = data?.code || data?.message || 'STREAM_NOT_FOUND';
-      const rawError = data?.error || 'Gagal mengekstrak direct stream URL.';
+    if (!data) {
+      throw new ApiError('EMPTY_RESPONSE', 'Python engine tidak mengembalikan respons stream.');
+    }
+
+    if (data.status === 'error') {
+      const code = data.code || 'PYTHON_EXECUTION_ERROR';
+      const rawError = data.traceback || data.error || JSON.stringify(data, null, 2);
+      throw new ApiError(code, rawError);
+    }
+
+    if (!data.stream_url) {
+      const code = data.code || 'STREAM_NOT_FOUND';
+      const rawError = data.error || (data.message ? String(data.message) : JSON.stringify(data, null, 2));
       throw new ApiError(code, rawError);
     }
 
@@ -337,9 +347,19 @@ export async function fetchHeatmap(
       }
     }
 
-    if (!data || data.status === 'error' || !Array.isArray(data.heatmap)) {
-      const code = data?.code || data?.message || 'HEATMAP_NOT_FOUND';
-      const rawError = data?.error || 'Gagal mengambil data heatmap dari YouTube.';
+    if (!data) {
+      throw new ApiError('EMPTY_RESPONSE', 'Python engine tidak mengembalikan data apa pun.');
+    }
+
+    if (data.status === 'error') {
+      const code = data.code || 'PYTHON_EXECUTION_ERROR';
+      const rawError = data.traceback || data.error || JSON.stringify(data, null, 2);
+      throw new ApiError(code, rawError);
+    }
+
+    if (!Array.isArray(data.heatmap)) {
+      const code = data.code || 'HEATMAP_NOT_FOUND';
+      const rawError = data.error || (data.message ? String(data.message) : JSON.stringify(data, null, 2));
       throw new ApiError(code, rawError);
     }
 

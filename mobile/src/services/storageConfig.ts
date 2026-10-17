@@ -13,6 +13,8 @@ export interface StorageVerificationResult {
   canWrite: boolean;
   canRead: boolean;
   message: string;
+  error?: string;
+  traceback?: string;
   testFileUri?: string;
   contentRead?: string;
 }
@@ -108,12 +110,15 @@ export async function verifyAndInitializeStorage(
       };
     }
   } catch (error: any) {
+    const rawError = error?.stack || error?.message || String(error);
     return {
       success: false,
       rootPath: structure.root,
       canWrite: false,
       canRead: false,
-      message: `Gagal verifikasi storage: ${error.message || String(error)}`,
+      message: `Gagal verifikasi storage: ${error?.message || String(error)}`,
+      error: error?.message || String(error),
+      traceback: rawError,
     };
   }
 }
