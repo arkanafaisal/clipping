@@ -334,8 +334,12 @@ def proxy_stream():
     if not url:
         return jsonify({"message": "INVALID_PARAMS", "error": "Missing 'url' query parameter"}), 400
 
+    ua = request.args.get("ua") or "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36"
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+        "User-Agent": ua,
+        "Accept": "*/*",
+        "Accept-Language": "en-us,en;q=0.5",
+        "Sec-Fetch-Mode": "navigate",
     }
     range_header = request.headers.get("Range")
     if range_header:

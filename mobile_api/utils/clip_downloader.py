@@ -140,8 +140,12 @@ def download_youtube_clip_range(
 
         if v_fmt and a_fmt:
             chosen_stream_url = v_fmt["url"]
-            v_in = f"{proxy_base}?url={urllib.parse.quote(v_fmt['url'], safe='')}{cookie_arg}"
-            a_in = f"{proxy_base}?url={urllib.parse.quote(a_fmt['url'], safe='')}{cookie_arg}"
+            v_ua = (v_fmt.get("http_headers") or {}).get("User-Agent") or ""
+            a_ua = (a_fmt.get("http_headers") or {}).get("User-Agent") or ""
+            v_ua_arg = f"&ua={urllib.parse.quote(v_ua)}" if v_ua else ""
+            a_ua_arg = f"&ua={urllib.parse.quote(a_ua)}" if a_ua else ""
+            v_in = f"{proxy_base}?url={urllib.parse.quote(v_fmt['url'], safe='')}{cookie_arg}{v_ua_arg}"
+            a_in = f"{proxy_base}?url={urllib.parse.quote(a_fmt['url'], safe='')}{cookie_arg}{a_ua_arg}"
             cmd = [
                 ffmpeg_bin, "-y",
                 "-ss", str(start_num), "-t", str(duration), "-i", v_in,
@@ -151,7 +155,9 @@ def download_youtube_clip_range(
             ]
         elif prog_fmt:
             chosen_stream_url = prog_fmt["url"]
-            prog_in = f"{proxy_base}?url={urllib.parse.quote(prog_fmt['url'], safe='')}{cookie_arg}"
+            prog_ua = (prog_fmt.get("http_headers") or {}).get("User-Agent") or ""
+            prog_ua_arg = f"&ua={urllib.parse.quote(prog_ua)}" if prog_ua else ""
+            prog_in = f"{proxy_base}?url={urllib.parse.quote(prog_fmt['url'], safe='')}{cookie_arg}{prog_ua_arg}"
             cmd = [
                 ffmpeg_bin, "-y",
                 "-ss", str(start_num), "-t", str(duration), "-i", prog_in,
