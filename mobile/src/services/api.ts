@@ -159,28 +159,36 @@ async function pingDirect(baseUrl: string): Promise<{ status: string; message?: 
  * Jika belum aktif pada Android, otomatis memicu "percikan" startPythonServer().
  */
 export async function pingServer(): Promise<{ status: string; port: number; message?: string }> {
-  // 1. Coba port 8080 dulu (Embedded APK Chaquopy)
+  // 1. Prioritaskan runtime native Python (Chaquopy) jika berjalan di APK Android
+  if (Platform.OS === 'android' && isPythonInitialized()) {
+    const rootPath = getCurrentStorageRoot();
+    try {
+      setupPythonPaths(rootPath);
+    } catch (err) {
+      console.log('[Api] Gagal memicu setupPythonPaths:', err);
+    }
+    const info = getNativeRunnerInfo();
+    const ffmpegMsg = info?.ffmpegExists ? 'FFmpeg Siap' : 'FFmpeg Belum Terdeteksi';
+    return {
+      status: 'ok',
+      port: 0,
+      message: `Engine Python Native Aktif (${ffmpegMsg})`,
+    };
+  }
+
+  // 2. Coba port 8080 jika ada server HTTP lokal yang berjalan
   try {
     const res8080 = await pingDirect(EMBEDDED_API_BASE_URL);
     return { status: 'ok', port: 8080, message: res8080.message || 'Server internal Chaquopy aktif (port 8080)' };
   } catch {}
 
-  // 2. Beri "percikan" inisialisasi paths jika di Android native
+  // 3. Fallback ke server dev eksternal (port 3006 / Termux)
   try {
-    setupPythonPaths('/storage/emulated/0/clipping');
-  } catch (err) {
-    console.log('[Api] Gagal memicu setupPythonPaths:', err);
-  }
-
-  // Tunggu sejenak agar thread Python siap mendengarkan port
-  await new Promise((r) => setTimeout(r, 1200));
-
-  try {
-    const resRetry8080 = await pingDirect(EMBEDDED_API_BASE_URL);
-    return { status: 'ok', port: 8080, message: resRetry8080.message || 'Server internal Chaquopy berhasil dinyalakan (port 8080)' };
+    const res3006 = await pingDirect(DEV_API_BASE_URL);
+    return { status: 'ok', port: 3006, message: res3006.message || 'Server Mobile Dev aktif (port 3006)' };
   } catch {}
 
-  throw new ApiError('SERVER_OFFLINE', 'Server Python internal (port 8080) belum aktif.');
+  throw new ApiError('SERVER_OFFLINE', 'Engine Python Native belum aktif dan server dev (port 3006) tidak terjangkau.');
 }
 
 /**

@@ -14,7 +14,15 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Pemindahan Skrip Utilitas Python ke Folder mobile/scripts Demi Arsitektur Zero-Bundle
+## [Unreleased] - Penyesuaian pingServer untuk Runtime Native Chaquopy Tanpa HTTP Server
+- **Konteks Struktural**:
+  1. Menyelaraskan fungsi `pingServer()` di [mobile/src/services/api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts) agar memprioritaskan deteksi runtime native `isPythonInitialized()` dan status binary FFmpeg native (`getNativeRunnerInfo()`) tanpa memaksakan panggilan HTTP ke port 8080 yang sudah dieliminasi.
+  2. Mencegah munculnya false alarm "Server Python Offline" pada startup aplikasi di build APK native, sekaligus tetap mempertahankan fallback ke port 3006 untuk pengujian lokal di Termux/PC.
+- **Perubahan Kode Penting**:
+  - [mobile/src/services/api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts):
+    - Memeriksa `Platform.OS === 'android' && isPythonInitialized()`. Jika true, memicu `setupPythonPaths` dan mengembalikan status OK (port 0) beserta info ketersediaan `libffmpeg.so`.
+
+## [75cc477] - Pemindahan Skrip Utilitas Python ke Folder mobile/scripts Demi Arsitektur Zero-Bundle
 - **Konteks Struktural**:
   1. Memindahkan seluruh skrip utilitas bisnis (`utils/` dan `cookies.txt`) dari folder Android native bundle [mobile/modules/python-runner/android/src/main/python/](file:///d:/projects/clipping/mobile/modules/python-runner/android/src/main/python/) ke [mobile/scripts/utils/](file:///d:/projects/clipping/mobile/scripts/utils/).
   2. Memastikan APK hasil build 100% bebas dari skrip logika bisnis (zero-bundle) dan hanya menyisakan interpreter CPython (Chaquopy), `libffmpeg.so`, serta satu file jembatan generik [runner.py](file:///d:/projects/clipping/mobile/modules/python-runner/android/src/main/python/runner.py).
