@@ -83,7 +83,7 @@ def download_youtube_clip_range(
 
     # Ekstraksi konfigurasi encoder dari opts jika dikirim frontend (100% re-encode untuk presisi frame-by-frame)
     encoder_args = list(opts.get("external_downloader_args", {}).get("ffmpeg") or [
-        "-c:v", "h264_mediacodec", "-b:v", "8M", "-c:a", "aac", "-avoid_negative_ts", "make_zero", "-loglevel", "warning"
+        "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac", "-avoid_negative_ts", "make_zero", "-loglevel", "warning"
     ])
     if "-c:a" not in encoder_args:
         encoder_args.extend(["-c:a", "aac"])

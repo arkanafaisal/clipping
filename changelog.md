@@ -14,7 +14,18 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [PENDING_COMMIT] - Eliminasi Total Konstanta Mati FFMPEG_FIXED_CONFIG (Pembersihan Artefak Copy)
+## [1fc4d44] - Bundle Binary Statis FFmpeg Lengkap (GPL libx264 & AAC Encoders) untuk Re-encode Presisi
+- **Konteks Struktural**:
+  1. Mengatasi akar penyebab fatal error `Unrecognized option 'preset'` (Exit code 8 / `AVERROR_OPTION_NOT_FOUND`) pada Android. Binary FFmpeg sebelumnya (`hzw1199/Android-FFmpeg-Prebuilt`) dikompilasi dengan konfigurasi minimal decoder-only (`--disable-encoders`), sehingga tidak memiliki satu pun video/audio encoder aktif (`libx264_encoder: False`, `aac_encoder: False`). Ketika pipeline klip mengeksekusi re-encode dengan opsi encoder x264 (`-preset ultrafast`), parser FFmpeg gagal mengenali flag tersebut dan langsung menghentikan proses.
+  2. Mengganti binary `mobile/modules/python-runner/android/src/main/jniLibs/arm64-v8a/libffmpeg.so` dengan build statis ARM64 penuh (`Khang-NT/ffmpeg-binary-android`) yang dilengkapi 154 encoder bawaan, termasuk encoder `libx264`, `aac`, `opus`, dan `flac` serta dukungan penuh untuk argumen preset encoding (`ultrafast`, `fast`, `medium`, dll.).
+  3. Memastikan konfigurasi fallback encoder di [clip_downloader.py](file:///d:/projects/clipping/mobile/modules/python-runner/android/src/main/python/utils/clip_downloader.py) selaras dengan konfigurasi re-encode frontend dan `mobile_api`, yaitu menggunakan `-c:v libx264 -preset ultrafast -c:a aac -avoid_negative_ts make_zero`.
+- **Perubahan Kode Penting**:
+  - `mobile/modules/python-runner/android/src/main/jniLibs/arm64-v8a/libffmpeg.so`:
+    - Mengganti binary decoder-only lama (15.5 MB) dengan binary statis GPL penuh berukuran 17.7 MB yang memuat 154 encoder lengkap termasuk `ff_libx264_encoder` dan `ff_aac_encoder`.
+  - [mobile/modules/python-runner/android/src/main/python/utils/clip_downloader.py](file:///d:/projects/clipping/mobile/modules/python-runner/android/src/main/python/utils/clip_downloader.py):
+    - `encoder_args`: Menyelaraskan fallback default dari `-c:v h264_mediacodec` menjadi `-c:v libx264 -preset ultrafast` agar konsisten dengan `mobile_api` dan frontend options.
+
+## [a135a50] - Eliminasi Total Konstanta Mati FFMPEG_FIXED_CONFIG (Pembersihan Artefak Copy)
 - **Konteks Struktural**:
   1. Menghapus total konstanta mati `FFMPEG_FIXED_CONFIG` dari [mobile/src/constants/ytdlp.ts](file:///d:/projects/clipping/mobile/src/constants/ytdlp.ts). Konstanta ini merupakan artefak sisa lama dari commit awal (`13fa2a0`) yang berisi `videoCodec: 'copy'` dan tidak pernah diimpor maupun digunakan di bagian mana pun dalam aplikasi.
   2. Memastikan seluruh konfigurasi dan pipeline klip 100% steril dari referensi stream copy (`-c copy`), menegaskan bahwa satu-satunya konfigurasi aktif adalah `PRIME_CLIP_DOWNLOAD_OPTS` dengan re-encode penuh `libx264` + `aac`.
