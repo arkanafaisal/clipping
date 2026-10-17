@@ -268,7 +268,9 @@ export const ToastContainer: React.FC = () => {
 
             <View style={styles.modalFooter}>
               {(debugData?.errorCode === 'STORAGE_PERMISSION_DENIED' ||
-                debugData?.rawError?.toLowerCase().includes('permission denied')) ? (
+                debugData?.rawError?.toLowerCase().includes('permission denied') ||
+                debugData?.rawError?.toLowerCase().includes('operation not permitted') ||
+                debugData?.rawError?.toLowerCase().includes('not permitted')) ? (
                 <TouchableOpacity
                   style={styles.settingsActionBtn}
                   onPress={() => Linking.openSettings()}

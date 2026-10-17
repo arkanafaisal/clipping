@@ -14,6 +14,21 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
+## [57bec01] - Resolusi EPERM Scoped Storage (Exit Code 1) via Fallback Internal Sandbox dan Registrasi MediaStore
+- **Konteks Struktural**:
+  1. Mengatasi error `Operation not permitted` (EPERM / Exit code 1) pada Android 11+ saat FFmpeg mencoba membuka file tujuan di root shared storage (`/storage/emulated/0/clipping/output/...`). Kebijakan Scoped Storage Android melarang penulisan langsung via POSIX API (`open()`) ke folder arbitrary di luar folder aplikasi tanpa izin `MANAGE_EXTERNAL_STORAGE`.
+  2. Memperluas deteksi izin penyimpanan di [mobile/src/services/api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts) agar mengenali pesan `operation not permitted`, `not permitted`, dan `errno 1`, sehingga pipeline pengunduhan otomatis dan mulus beralih ke Candidate 2 (`INTERNAL_CLIPPING_OUTPUT_DIR`) di `/data/user/0/com.clipping.app/files/clipping/output/...`.
+  3. Mengintegrasikan `expo-media-library` pada siklus sukses pengunduhan klip untuk mendaftarkan video ke MediaStore sistem Android (`MediaLibrary.createAssetAsync`), sehingga klip tetap tersimpan di galeri publik perangkat (sesuai Rule 20).
+  4. Menambahkan izin `android.permission.MANAGE_EXTERNAL_STORAGE` pada [mobile/app.json](file:///d:/projects/clipping/mobile/app.json) untuk mendukung akses penuh shared storage pada build masa depan.
+- **Perubahan Kode Penting**:
+  - [mobile/src/services/api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts):
+    - `isRateLimitOrRestrictedError`: Mengecualikan error `operation not permitted` dan `errno 1` agar tidak salah diklasifikasikan sebagai limit YouTube.
+    - `downloadClip`: Mengaktifkan fallback otomatis ke sandbox internal saat shared path mengembalikan `operation not permitted`, dan menyinkronkan aset video yang selesai ke MediaLibrary.
+  - [mobile/src/components/Toast.tsx](file:///d:/projects/clipping/mobile/src/components/Toast.tsx):
+    - Memperluas tombol "Buka Pengaturan HP" agar muncul saat terjadi error `operation not permitted`.
+  - [mobile/app.json](file:///d:/projects/clipping/mobile/app.json):
+    - Menambahkan `android.permission.MANAGE_EXTERNAL_STORAGE` ke daftar permissions Android.
+
 ## [1fc4d44] - Bundle Binary Statis FFmpeg Lengkap (GPL libx264 & AAC Encoders) untuk Re-encode Presisi
 - **Konteks Struktural**:
   1. Mengatasi akar penyebab fatal error `Unrecognized option 'preset'` (Exit code 8 / `AVERROR_OPTION_NOT_FOUND`) pada Android. Binary FFmpeg sebelumnya (`hzw1199/Android-FFmpeg-Prebuilt`) dikompilasi dengan konfigurasi minimal decoder-only (`--disable-encoders`), sehingga tidak memiliki satu pun video/audio encoder aktif (`libx264_encoder: False`, `aac_encoder: False`). Ketika pipeline klip mengeksekusi re-encode dengan opsi encoder x264 (`-preset ultrafast`), parser FFmpeg gagal mengenali flag tersebut dan langsung menghentikan proses.

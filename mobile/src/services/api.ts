@@ -1,4 +1,5 @@
 import * as FileSystem from 'expo-file-system/legacy';
+import * as MediaLibrary from 'expo-media-library';
 import { LocalStorage } from './storage';
 import { STREAM_YTDL_OPTS, HEATMAP_YTDL_OPTS, PRIME_CLIP_DOWNLOAD_OPTS } from '../constants/ytdlp';
 import { DEFAULT_GDRIVE_DOWNLOAD_CONFIG } from '../constants/gdrive';
@@ -111,7 +112,15 @@ export function isRateLimitOrRestrictedError(err: any): boolean {
   if (!err) return false;
   if (err.code === 'STORAGE_PERMISSION_DENIED') return false;
   const fullText = `${err.name || ''} ${err.code || ''} ${err.message || ''} ${err.rawError || ''}`.toLowerCase();
-  if (fullText.includes('permission denied') || fullText.includes('errno 13')) return false;
+  if (
+    fullText.includes('permission denied') ||
+    fullText.includes('operation not permitted') ||
+    fullText.includes('not permitted') ||
+    fullText.includes('errno 13') ||
+    fullText.includes('errno 1')
+  ) {
+    return false;
+  }
   if (err.code === 'RATE_LIMIT_EXCEEDED' || err.code === 'COOKIES_INVALID_OR_EXPIRED') return true;
   return (
     fullText.includes('429') ||
@@ -119,8 +128,7 @@ export function isRateLimitOrRestrictedError(err: any): boolean {
     fullText.includes('forbidden') ||
     fullText.includes('rate limit') ||
     fullText.includes('bot') ||
-    fullText.includes('sign in') ||
-    fullText.includes('code 8')
+    fullText.includes('sign in')
   );
 }
 
@@ -905,9 +913,16 @@ export async function downloadClip(
         const rawError = data.error || `HTTP ${response.status}: Gagal mengunduh klip`;
         const lowerRaw = rawError.toLowerCase();
 
-        // Jika permission denied pada shared storage dan masih ada internal sandbox fallback, coba fallback
-        if ((lowerRaw.includes('permission denied') || lowerRaw.includes('errno 13')) && isShared) {
-          console.warn(`[DownloadClip] Permission denied pada shared path ${nativePath}, mencoba internal sandbox fallback...`);
+        const isPermissionError =
+          lowerRaw.includes('permission denied') ||
+          lowerRaw.includes('operation not permitted') ||
+          lowerRaw.includes('not permitted') ||
+          lowerRaw.includes('errno 13') ||
+          lowerRaw.includes('errno 1');
+
+        // Jika permission/EPERM error pada shared storage dan masih ada internal sandbox fallback, coba fallback
+        if (isPermissionError && isShared) {
+          console.warn(`[DownloadClip] Permission/EPERM error pada shared path ${nativePath}, mencoba internal sandbox fallback...`);
           continue;
         }
 
@@ -917,7 +932,7 @@ export async function downloadClip(
 
         let code = data.code || data.message || 'DOWNLOAD_FAILED';
 
-        if (lowerRaw.includes('permission denied') || lowerRaw.includes('errno 13')) {
+        if (isPermissionError) {
           code = 'STORAGE_PERMISSION_DENIED';
         } else if (lowerRaw.includes('requested format is not available') || lowerRaw.includes('format is not available')) {
           code = 'FORMAT_NOT_AVAILABLE';
@@ -938,6 +953,21 @@ export async function downloadClip(
       DOWNLOADED_CLIPS_CACHE.set(fileUri, true);
       DOWNLOADED_CLIPS_CACHE.set(candidates[0].fileUri, true);
 
+      // Sinkronisasi file klip ke Galeri/Shared Storage perangkat via MediaStore (sesuai Rule 20)
+      try {
+        const { status } = await MediaLibrary.getPermissionsAsync();
+        if (status === 'granted') {
+          await MediaLibrary.createAssetAsync(fileUri);
+        } else {
+          const req = await MediaLibrary.requestPermissionsAsync();
+          if (req.status === 'granted') {
+            await MediaLibrary.createAssetAsync(fileUri);
+          }
+        }
+      } catch (mediaErr) {
+        console.warn('[DownloadClip] Gagal mendaftarkan klip ke MediaLibrary:', mediaErr);
+      }
+
       return {
         status: 'success',
         output_path: nativePath,
@@ -948,14 +978,21 @@ export async function downloadClip(
       clearTimeout(timeoutId);
       lastError = error;
       const lowerErr = (error.message || '').toLowerCase() + ' ' + (error.rawError || '').toLowerCase();
-      if ((lowerErr.includes('permission denied') || lowerErr.includes('errno 13')) && isShared) {
+      const isErrPermission =
+        lowerErr.includes('permission denied') ||
+        lowerErr.includes('operation not permitted') ||
+        lowerErr.includes('not permitted') ||
+        lowerErr.includes('errno 13') ||
+        lowerErr.includes('errno 1');
+
+      if (isErrPermission && isShared) {
         console.warn(`[DownloadClip] Error permission pada ${nativePath}, beralih ke internal sandbox...`);
         continue;
       }
       if (error instanceof ApiError) throw error;
       const isLimit = isRateLimitOrRestrictedError(error);
       let code = 'DOWNLOAD_FAILED';
-      if (lowerErr.includes('permission denied') || lowerErr.includes('errno 13')) {
+      if (isErrPermission) {
         code = 'STORAGE_PERMISSION_DENIED';
       } else if (isLimit) {
         code = cookiePath ? 'COOKIES_INVALID_OR_EXPIRED' : 'RATE_LIMIT_EXCEEDED';
