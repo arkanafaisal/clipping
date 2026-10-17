@@ -68,7 +68,7 @@ export const API_ERROR_MAP: Record<string, string> = {
   GDRIVE_DOWNLOAD_FAILED: 'Gagal mengunduh file dari Google Drive. Pastikan file bukan folder dan link dapat diakses oleh publik.',
   GDRIVE_HTML_CONTENT: 'Link Google Drive yang dimasukkan mengarah ke halaman HTML atau Folder, bukan file cookies.txt. Harap salin link langsung dari file cookies.txt.',
   GDRIVE_FILE_EMPTY: 'File cookies hasil unduhan Google Drive kosong atau tidak tersimpan.',
-  EXTRACTOR_ERROR: 'Ekstraktor video mengalami kendala saat membaca metadata YouTube.',
+  FORMAT_NOT_AVAILABLE: 'Format video yang diminta tidak tersedia di YouTube untuk video ini.',
   INVALID_PARAMS: 'Parameter permintaan tidak lengkap atau tidak valid.',
   INVALID_RANGE: 'Rentang waktu klip tidak valid.',
   DOWNLOAD_FAILED: 'Gagal mengunduh klip video dari YouTube.',
@@ -118,9 +118,7 @@ export function isRateLimitOrRestrictedError(err: any): boolean {
     fullText.includes('rate limit') ||
     fullText.includes('bot') ||
     fullText.includes('sign in') ||
-    fullText.includes('code 8') ||
-    fullText.includes('requested format is not available') ||
-    fullText.includes('format is not available')
+    fullText.includes('code 8')
   );
 }
 
@@ -667,8 +665,10 @@ export async function downloadClip(
 
       let code = data.code || data.message || 'DOWNLOAD_FAILED';
 
-      // Membedakan secara transparan apakah kegagalan terjadi di mode cookies atau mode anonim:
-      if (data.cookies_attempted) {
+      const lowerRaw = rawError.toLowerCase();
+      if (lowerRaw.includes('requested format is not available') || lowerRaw.includes('format is not available')) {
+        code = 'FORMAT_NOT_AVAILABLE';
+      } else if (data.cookies_attempted) {
         // Backend sudah benar-benar mencoba yt-dlp dengan opsi cookies, namun tetap ditolak YouTube
         code = 'COOKIES_INVALID_OR_EXPIRED';
       } else if (!cookiePath) {

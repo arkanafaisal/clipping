@@ -62,17 +62,12 @@ export const HEATMAP_YTDL_OPTS: YtdlOpts = {
  */
 export const DOWNLOAD_YTDL_OPTS: YtdlOpts = {
   format: 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080][ext=mp4]',
-  extractor_args: {
-    youtube: {
-      player_client: ['web'],
-    },
-  },
 };
 
 /**
  * Konfigurasi Download Klip Fisik (Prime Quality + Stream Reconnect + Retries):
  * - Kualitas: Prime HD asli YouTube (bestvideo+bestaudio merged ke MP4 1080p 60fps)
- * - Client: 100% Web murni (Desktop), dilarang keras fallback ke iOS/VisionOS/Android
+ * - Ekstraksi: Multi-client standar yt-dlp (menghindari blokir format YouTube web)
  * - FFmpeg: Reconnect streamed stream dan ultrafast encoding
  * - Retry: 15x retry untuk fragment & socket timeout 60s
  */
@@ -87,11 +82,6 @@ export const PRIME_CLIP_DOWNLOAD_OPTS: YtdlOpts = {
   socket_timeout: 60,
   extractor_retries: 5,
   file_access_retries: 5,
-  extractor_args: {
-    youtube: {
-      player_client: ['web'],
-    },
-  },
   external_downloader_args: {
     ffmpeg_i: [
       '-reconnect',
