@@ -957,9 +957,10 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
                     styles.statusBtn,
                     styles.downloadBtn,
                     downloadedClips[activeClip.id] && styles.downloadBtnSuccess,
-                    pressed && { opacity: 0.7 },
+                    pressed && !downloadedClips[activeClip.id] && { opacity: 0.7 },
                   ]}
-                  onPress={handleDownloadClip}
+                  onPress={downloadedClips[activeClip.id] ? undefined : handleDownloadClip}
+                  disabled={Boolean(downloadedClips[activeClip.id] || downloadingClips[activeClip.id])}
                 >
                   {downloadingClips[activeClip.id] ? (
                     <ActivityIndicator size="small" color="#38bdf8" />
@@ -1014,11 +1015,6 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
                 <Text style={[styles.timeNumberText, styles.timeMsText, styles.timeMsDim]}>
                   {formatTimeWithMs(activeClip.end - activeClip.start)}
                 </Text>
-                {downloadedClips[activeClip.id] && (
-                  <View style={styles.localBadge}>
-                    <Text style={styles.localBadgeText}>LOCAL MP4</Text>
-                  </View>
-                )}
               </View>
             ) : (
               <View style={styles.timeDisplay}>
@@ -1395,21 +1391,6 @@ const styles = StyleSheet.create({
   },
   timeMsDim: {
     color: 'rgba(255, 255, 255, 0.5)',
-  },
-  localBadge: {
-    backgroundColor: 'rgba(16, 185, 129, 0.2)',
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.4)',
-    borderRadius: 4,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    marginLeft: 6,
-  },
-  localBadgeText: {
-    color: '#34d399',
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 0.5,
   },
   trashBtnInactive: {
     backgroundColor: 'rgba(239, 68, 68, 0.1)',
