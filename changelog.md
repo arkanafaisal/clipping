@@ -14,7 +14,16 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Remove Delete Cookies Button and Combine Anon and Cookies Error Messages
+## [Unreleased] - Remove Forced iOS/Android Client in Clip Downloader to Enable 1080p60 Prime Video
+- **Konteks Struktural**:
+  1. Mengatasi masalah penurunan resolusi video klip ke 360p 30fps pada [clip_downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/clip_downloader.py).
+  2. Penyebab: Adanya fallback paksa `if "extractor_args" not in opts: opts["extractor_args"] = {"youtube": {"player_client": ["ios", "android"]}}`. Pada klien `ios` dan `android`, YouTube mengaktifkan eksperimen SABR yang menghilangkan direct HTTPS stream URL untuk format video terpisah (DASH 1080p, 1080p60, 720p). Akibatnya, pemilih format `bestvideo+bestaudio` gagal dan yt-dlp secara diam-diam jatuh ke fallback Format 18 (progressive 360p 30fps).
+  3. Solusi: Menghapus pembatasan `player_client: ["ios", "android"]` dari [clip_downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/clip_downloader.py) agar yt-dlp secara murni menjalankan cascade multi-klien default-nya (VisionOS/Web/Android) sesuai konfigurasi dinamis `PRIME_CLIP_DOWNLOAD_OPTS` dari frontend, sehingga mengunduh format video 1080p 60fps (Format 399) dan audio jernih (Format 251).
+- **Perubahan Kode Penting**:
+  - [mobile/scripts/utils/clip_downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/clip_downloader.py):
+    - Menghapus blok penyamaran paksa `opts["extractor_args"] = {"youtube": {"player_client": ["ios", "android"]}}`.
+
+## [85f8eae] - Remove Delete Cookies Button and Combine Anon and Cookies Error Messages
 - **Konteks Struktural**:
   1. Membersihkan UI dan DOM pada [CookiesModal.tsx](file:///d:/projects/clipping/mobile/src/components/CookiesModal.tsx):
      - Menghapus tombol "Hapus Cookies" berserta seluruh logika dan import terkait (`deleteCookies`, `Trash2`).

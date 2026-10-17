@@ -176,14 +176,6 @@ def download_clip_direct(
         opts["format"] = "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best"
     opts["merge_output_format"] = "mp4"
 
-    # Penyamaran client default jika belum diset dari frontend
-    if "extractor_args" not in opts:
-        opts["extractor_args"] = {
-            "youtube": {
-                "player_client": ["ios", "android"],
-            }
-        }
-
     youtube_url = f"https://www.youtube.com/watch?v={video_id}"
     captured_stream_url = stream_url
     cookies_available = bool(cookie_path and os.path.exists(cookie_path))
