@@ -14,7 +14,20 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Implement Native 16:9 Absolute Viewport Layout to Prevent Premature Video Truncation
+## [Unreleased] - Eliminate Android RenderNode Outline Clipping Collapse on Canvas Viewports
+- **Konteks Struktural**:
+  1. Resolusi Layar Hitam & Hilangnya Teks Saat Keluar dari Mode Template:
+     - Mengidentifikasi anomali grafis pada Android di mana saat pengguna keluar dari mode template (ke mode Subtitle atau menutup toolbar), kanvas 9:16 menjadi hitam pekat dan banner teks putih lenyap meskipun konfigurasi template masih aktif.
+     - Menemukan akar penyebab pada bug Android RenderNode ketika properti `borderRadius: 1` dan `overflow: 'hidden'` dikombinasikan dengan pencopotan dinamis `borderWidth` (dari 1.5px garis putus-putus menjadi 0px), yang menyebabkan Outline hardware Android mengkliping seluruh isi kontainer ke ukuran nol.
+     - Menghapus `borderRadius: 1` dari seluruh kontainer pemutar (`canvas916Container`, `facecamBox`, `mainVideoBox`, `videoBox169`) dan menerapkan `borderWidth` permanen dengan warna `transparent` saat garis bantu tidak aktif.
+     - Mengubah perataan vertikal `playerContainer` menjadi `justifyContent: 'center'` agar kanvas 9:16 selalu terpusat stabil di antara kontrol atas dan bawah.
+- **Perubahan Kode Penting**:
+  - [mobile/src/components/FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
+    - Menghapus `borderRadius: 1` dari `videoBox169`, `canvas916Container`, `facecamBox`, dan `mainVideoBox`.
+    - Menetapkan garis batas statis (`borderWidth: 1.5`, `borderStyle: 'dashed'`, `borderColor: 'transparent'`) dengan pergantian warna cyan hanya saat `activeEditorMode === 'template'`.
+    - Menambahkan batas `maxHeight: '100%'` dan `maxWidth: '100%'` pada `canvas916Container`.
+
+## [56eae0a] - Implement Native 16:9 Absolute Viewport Layout to Prevent Premature Video Truncation
 - **Konteks Struktural**:
   1. Resolusi Pemotongan Dini Frame Video pada Viewport Facecam 4:3:
      - Mengatasi kendala visual di mana buffer native ExoPlayer membuang tepi video 16:9 (seperti pipi kanan streamer) saat `VideoView` diberi ukuran 4:3 (`width: 100%, height: 100%`).
