@@ -14,7 +14,28 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Omit Redundant Base Properties from Subtitle Cue Array and Auto-Inject Defaults at Visual Layer
+## [Unreleased] - Implement Subtitle Burner Module and Video Export Endpoint via FFmpeg (ASS Format)
+- **Konteks Struktural**:
+  1. Konversi Format Konfigurasi Subtitle JSON ke ASS (Advanced SubStation Alpha):
+     - Membangun modul mandiri [mobile/scripts/utils/subtitle_burner.py](file:///d:/projects/clipping/mobile/scripts/utils/subtitle_burner.py) yang mengubah array cues dan style JSON menjadi naskah ASS standar industri yang dikenali filter `subtitles` FFmpeg (`libass`).
+     - Mengimplementasikan PlayRes 16:9 (1920x1080), titik jangkar tengah (`\an5`), pemetaan koordinat posisi global X dan Y (`\pos(ass_x, ass_y)`), outline tebal dengan warna kontras, serta skala font per-cue proporsional terhadap base 14px di mobile UI.
+  2. Ekspor Video Baru Tanpa Merusak File Asli (Non-Destructive Export):
+     - Proses pembakaran subtitle membaca file klip asli yang sudah di-download (`<start> - <end>.mp4`) dan membuat file video baru terpisah (`<start> - <end> (Subtitled).mp4`) di folder shared storage `/storage/emulated/0/clipping/output/<videoId>/`.
+     - File klip video asli dipertahankan 100% utuh tanpa ditimpa atau dimodifikasi.
+  3. Pemisahan Endpoint Pass-Through Murni & Layanan Frontend:
+     - Menambahkan endpoint `POST /api/burn-subtitles` pada [mobile_api/main.py](file:///d:/projects/clipping/mobile_api/main.py) untuk pengujian lokal Termux / PC.
+     - Menyediakan service function `burnClipSubtitles`, helper penamaan berkas `getSubtitledClipFilename` dan `getSubtitledClipOutputFilePath`, serta pemetaan kode error terstandarisasi (`INPUT_VIDEO_NOT_FOUND`, `NO_SUBTITLES_TO_BURN`, `FFMPEG_BURN_ERROR`, `OUTPUT_FILE_EMPTY`, `ASS_GENERATION_FAILED`) pada [mobile/src/services/api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts).
+- **Perubahan Kode Penting**:
+  - [mobile/scripts/utils/subtitle_burner.py](file:///d:/projects/clipping/mobile/scripts/utils/subtitle_burner.py):
+    - Membuat fungsi `format_ass_time`, `escape_ffmpeg_filter_path`, `build_ass_content`, dan `burn_subtitles_to_video` dengan pemantauan progress throttled 250ms serta pembersihan berkas temporary.
+  - [mobile_api/main.py](file:///d:/projects/clipping/mobile_api/main.py):
+    - Mendaftarkan path `mobile/scripts` ke `sys.path` dan mengekspos endpoint `POST /api/burn-subtitles` serta mengaktifkan `POST /api/subtitles`.
+  - [mobile/src/services/api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts):
+    - Menambahkan kode error ekspor subtitle ke `API_ERROR_MAP`.
+    - Menambahkan helper fungsi alokasi path dan penamaan `getSubtitledClipFilename` dan `getSubtitledClipOutputFilePath`.
+    - Menambahkan antarmuka `BurnSubtitlesParams`, `BurnSubtitlesResult`, dan fungsi pemanggilan `burnClipSubtitles`.
+
+## [a9be56d] - Omit Redundant Base Properties from Subtitle Cue Array and Auto-Inject Defaults at Visual Layer
 - **Konteks Struktural**:
   1. Penghapusan Properti Base yang Redundan dari Objek Subtitle Cue:
      - Menyimpan nilai konfigurasi default (seperti `fontSize: 14`) ke setiap elemen objek subtitle dalam array membebani ukuran berkas JSON dan menimbulkan redundansi struktural.

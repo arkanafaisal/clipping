@@ -81,6 +81,11 @@ export const API_ERROR_MAP: Record<string, string> = {
   SUBTITLE_NOT_FOUND: 'Subtitle maupun automatic caption tidak ditemukan pada video YouTube ini.',
   SUBTITLE_URL_MISSING: 'Track subtitle tidak memiliki URL unduhan yang valid.',
   SUBTITLE_ERROR: 'Gagal mengambil data subtitle dari video.',
+  INPUT_VIDEO_NOT_FOUND: 'File klip video sumber tidak ditemukan untuk proses export subtitle.',
+  NO_SUBTITLES_TO_BURN: 'Daftar subtitle kosong atau tidak memiliki baris teks untuk ditempelkan.',
+  FFMPEG_BURN_ERROR: 'Gagal menempelkan (burn) subtitle ke video menggunakan FFmpeg.',
+  OUTPUT_FILE_EMPTY: 'File video hasil export subtitle kosong atau gagal dibuat.',
+  ASS_GENERATION_FAILED: 'Gagal mengonversi konfigurasi subtitle ke format ASS.',
   SERVER_OFFLINE: 'Server internal Python belum aktif pada port 8080.',
   DEV_SERVER_OFFLINE: 'Server Mobile Dev/Mock API belum aktif pada port 3006.',
   INTERNAL_ERROR: 'Terjadi kesalahan internal pada server Python.',
@@ -701,6 +706,31 @@ export function getClipFilename(start: number, end: number): string {
   const startFormatted = formatTimeForFilename(start);
   const endFormatted = formatTimeForFilename(end);
   return `${startFormatted} - ${endFormatted}.mp4`;
+}
+
+/**
+ * Menghasilkan nama file klip video baru dengan subtitle yang tertempel permanen:
+ * "<start> - <end> (Subtitled).mp4" (contoh: "00.12 - 01.35 (Subtitled).mp4").
+ */
+export function getSubtitledClipFilename(start: number, end: number): string {
+  const startFormatted = formatTimeForFilename(start);
+  const endFormatted = formatTimeForFilename(end);
+  return `${startFormatted} - ${endFormatted} (Subtitled).mp4`;
+}
+
+/**
+ * Menghasilkan alokasi lokasi file tujuan video klip ber-subtitle pada shared storage (/storage/emulated/0/clipping/output/<videoId>/).
+ * File ini merupakan file baru yang terpisah, menjaga file klip asli tetap ada.
+ */
+export function getSubtitledClipOutputFilePath(
+  videoId: string,
+  start: number,
+  end: number
+): { fileUri: string; nativePath: string } {
+  const filename = getSubtitledClipFilename(start, end);
+  const nativePath = `${SHARED_CLIPPING_OUTPUT_DIR}/${videoId}/${filename}`;
+  const fileUri = `file://${nativePath}`;
+  return { fileUri, nativePath };
 }
 
 /**
@@ -1681,6 +1711,94 @@ export async function checkClipSubtitleExists(
     return false;
   }
 }
+
+export interface BurnSubtitlesParams {
+  videoId: string;
+  start: number;
+  end: number;
+  inputVideoPath: string;
+  outputVideoPath?: string;
+  subtitleData: ClipSubtitleData;
+  duration?: number;
+}
+
+export interface BurnSubtitlesResult {
+  status: 'success' | 'error';
+  outputPath: string;
+}
+
+/**
+ * Mengekspor klip baru dengan subtitle yang tertempel permanen (burn-in via FFmpeg).
+ * Video klip asli yang sudah di-download tetap utuh di lokasinya.
+ */
+export async function burnClipSubtitles({
+  videoId,
+  start,
+  end,
+  inputVideoPath,
+  outputVideoPath,
+  subtitleData,
+  duration,
+}: BurnSubtitlesParams): Promise<BurnSubtitlesResult> {
+  const finalOutputPath = outputVideoPath || getSubtitledClipOutputFilePath(videoId, start, end).nativePath;
+  const clipDuration = duration ?? (end - start);
+
+  const nativeInfo = getNativeRunnerInfo();
+  const nativeFfmpeg = nativeInfo?.ffmpegExists ? nativeInfo.ffmpegPath : undefined;
+  const isNative = Platform.OS === 'android' && isPythonInitialized();
+
+  const progressPath = `${INTERNAL_CLIPPING_OUTPUT_DIR}/${videoId}/burn_progress.json`;
+
+  let data: any = null;
+
+  if (isNative) {
+    data = await executePythonScript('utils.subtitle_burner', 'burn_subtitles_to_video', {
+      input_video_path: inputVideoPath,
+      output_video_path: finalOutputPath,
+      subtitle_data: subtitleData,
+      ffmpeg_bin: nativeFfmpeg,
+      progress_path: progressPath,
+      duration: clipDuration,
+    });
+  } else {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 180000);
+    try {
+      const response = await fetch(`${DEV_API_BASE_URL}/api/burn-subtitles`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          input_video_path: inputVideoPath,
+          output_video_path: finalOutputPath,
+          subtitle_data: subtitleData,
+          ffmpeg_bin: nativeFfmpeg,
+          progress_path: progressPath,
+          duration: clipDuration,
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      data = await response.json().catch(() => ({}));
+    } catch (err) {
+      clearTimeout(timeoutId);
+      throw err;
+    }
+  }
+
+  const payload = (data?.data && typeof data.data === 'object') ? data.data : data;
+
+  if (!payload || payload.status !== 'success') {
+    const rawError = payload?.traceback || payload?.error || (payload ? JSON.stringify(payload, null, 2) : 'Gagal menempelkan subtitle');
+    const code = payload?.code || 'FFMPEG_BURN_ERROR';
+    throw new ApiError(code, rawError);
+  }
+
+  return {
+    status: 'success',
+    outputPath: payload.output_path || finalOutputPath,
+  };
+}
+
 
 
 

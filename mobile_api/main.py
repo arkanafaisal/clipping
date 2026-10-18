@@ -2,10 +2,17 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
+# Daftarkan mobile/scripts ke sys.path sebagai source of truth utama modul python
+_mobile_scripts = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "mobile", "scripts")
+if os.path.exists(_mobile_scripts) and _mobile_scripts not in sys.path:
+    sys.path.insert(0, _mobile_scripts)
+
 from flask import Flask, jsonify, request
 from utils.stream_extractor import get_direct_stream_url
 from utils.heatmap import get_raw_heatmap
 from utils.clip_downloader import download_youtube_clip_range
+from utils.subtitle_burner import burn_subtitles_to_video
+from utils.subtitle_fetcher import extract_subtitles_data
 
 app = Flask(__name__)
 
@@ -256,71 +263,76 @@ def download_gdrive_file():
             "error": str(e)
         }), 500
 
-# ==============================================================================
-# [WORK IN PROGRESS - COMMENTED OUT]
-# Endpoint Pass-Through murni untuk ekstraksi subtitle YouTube via yt-dlp.
-# Frontend mengirimkan: video_id, output_dir, lang (default: 'id'), dan ydl_opts.
-# Backend mengekstrak subtitle (.vtt) tanpa mendownload video, dan mengembalikan kontennya.
-# ==============================================================================
-# @app.route("/api/subtitles", methods=["POST"])
-# @app.route("/api/subtitles/<video_id>", methods=["POST"])
-# def get_subtitles(video_id=None):
-#     try:
-#         body = request.get_json(silent=True) or {}
-#         vid = body.get("video_id") or video_id or request.args.get("video_id")
-#         output_sub_dir = body.get("output_dir")
-#         ydl_opts_in = body.get("ydl_opts") or {}
-#         lang = body.get("lang", "id")
-# 
-#         if not vid or not output_sub_dir:
-#             return jsonify({
-#                 "message": "INVALID_PARAMS",
-#                 "error": "Parameter 'video_id' dan 'output_dir' wajib disertakan oleh frontend."
-#             }), 400
-# 
-#         if not os.path.exists(output_sub_dir):
-#             os.makedirs(output_sub_dir, exist_ok=True)
-# 
-#         import yt_dlp
-#         outtmpl = os.path.join(output_sub_dir, f"{vid}.%(ext)s")
-#         ydl_opts = dict(ydl_opts_in)
-#         ydl_opts["skip_download"] = True
-#         ydl_opts["writesubtitles"] = True
-#         ydl_opts["writeautomaticsub"] = True
-#         ydl_opts["subtitleslangs"] = [lang, "en"]
-#         ydl_opts["subtitlesformat"] = "vtt"
-#         ydl_opts["outtmpl"] = outtmpl
-# 
-#         url = f"https://www.youtube.com/watch?v={vid}"
-#         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-#             ydl.download([url])
-# 
-#         # Cari file .vtt yang dihasilkan di direktori output
-#         found_file = None
-#         for fname in os.listdir(output_sub_dir):
-#             if fname.startswith(vid) and fname.endswith(".vtt"):
-#                 found_file = os.path.join(output_sub_dir, fname)
-#                 break
-# 
-#         if not found_file or not os.path.exists(found_file):
-#             return jsonify({
-#                 "message": "SUBTITLE_NOT_FOUND",
-#                 "error": f"Subtitle untuk video '{vid}' tidak ditemukan di YouTube."
-#             }), 404
-# 
-#         with open(found_file, "r", encoding="utf-8") as f:
-#             vtt_content = f.read()
-# 
-#         return jsonify({
-#             "status": "success",
-#             "sub_path": found_file,
-#             "content": vtt_content
-#         }), 200
-#     except Exception as e:
-#         return jsonify({
-#             "message": "SUBTITLE_ERROR",
-#             "error": str(e)
-#         }), 500
+@app.route("/api/subtitles", methods=["POST"])
+@app.route("/api/subtitles/<video_id>", methods=["POST"])
+def get_subtitles(video_id=None):
+    """
+    Endpoint Pass-Through murni untuk ekstraksi subtitle YouTube via yt-dlp.
+    Mendelegasikan ke utils.subtitle_fetcher.extract_subtitles_data.
+    """
+    try:
+        body = request.get_json(silent=True) or {}
+        vid = body.get("video_id") or video_id or request.args.get("video_id")
+        ydl_opts = body.get("ydl_opts")
+        cookie_path = body.get("cookie_path")
+        preferred_lang = body.get("preferred_lang", "id")
+
+        res = extract_subtitles_data(
+            video_id=vid,
+            ydl_opts=ydl_opts,
+            cookie_path=cookie_path,
+            preferred_lang=preferred_lang
+        )
+
+        status_code = 200 if res.get("status") == "success" else (
+            404 if res.get("code") == "SUBTITLE_NOT_FOUND" else (
+                429 if res.get("code") == "RATE_LIMIT_EXCEEDED" else 400
+            )
+        )
+        return jsonify(res), status_code
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "code": "SUBTITLE_ERROR",
+            "error": str(e)
+        }), 500
+
+
+@app.route("/api/burn-subtitles", methods=["POST"])
+def api_burn_subtitles():
+    """
+    Endpoint Pass-Through murni untuk menempelkan (hardcode burn-in) subtitle ke video klip.
+    Front-end mengirimkan konfigurasi: input_video_path, output_video_path, subtitle_data, ffmpeg_bin, progress_path, duration.
+    Server memproses pembuatan video baru secara mandiri tanpa mengubah video asli yang sudah ada.
+    """
+    try:
+        body = request.get_json(silent=True) or {}
+        input_video_path = body.get("input_video_path")
+        output_video_path = body.get("output_video_path")
+        subtitle_data = body.get("subtitle_data")
+        ffmpeg_bin = body.get("ffmpeg_bin")
+        progress_path = body.get("progress_path")
+        duration = body.get("duration")
+
+        res = burn_subtitles_to_video(
+            input_video_path=input_video_path,
+            output_video_path=output_video_path,
+            subtitle_data=subtitle_data,
+            ffmpeg_bin=ffmpeg_bin,
+            progress_path=progress_path,
+            duration=duration
+        )
+
+        status_code = 200 if res.get("status") == "success" else (
+            400 if res.get("code") in ["INPUT_VIDEO_NOT_FOUND", "OUTPUT_PATH_REQUIRED", "INVALID_PARAMS", "NO_SUBTITLES_TO_BURN"] else 500
+        )
+        return jsonify(res), status_code
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "code": "FFMPEG_BURN_ERROR",
+            "error": str(e)
+        }), 500
 
 
 @app.route("/api/proxy_stream", methods=["GET"])
