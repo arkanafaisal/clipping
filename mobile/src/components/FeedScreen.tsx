@@ -341,6 +341,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
                       styles.facecamBox,
                       activeEditorMode === 'template' && styles.elementHelperBorder,
                     ]}
+                    collapsable={false}
                   >
                     <VideoView
                       style={[
@@ -366,6 +367,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
                     styles.mainVideoBox,
                     activeEditorMode === 'template' && styles.elementHelperBorder,
                   ]}
+                  collapsable={false}
                 >
                   <VideoView
                     style={[
@@ -564,6 +566,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#000000',
     overflow: 'hidden',
     position: 'relative',
+    borderRadius: 1,
+    zIndex: 10,
   },
   mainVideoBox: {
     width: '100%',
@@ -571,6 +575,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#000000',
     overflow: 'hidden',
     position: 'relative',
+    borderRadius: 1,
+    zIndex: 5,
   },
   fillVideo: {
     width: '100%',

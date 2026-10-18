@@ -195,12 +195,12 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
 
   // Temp states untuk modal Elemen Facecam
   const [tempFacecamEnabled, setTempFacecamEnabled] = useState<boolean>(false);
-  const [tempFacecamZoom, setTempFacecamZoom] = useState<string>('2.0');
+  const [tempFacecamZoom, setTempFacecamZoom] = useState<string>('200');
   const [tempFacecamCropX, setTempFacecamCropX] = useState<string>('80');
   const [tempFacecamCropY, setTempFacecamCropY] = useState<string>('20');
 
   // Temp states untuk modal Elemen Main Video (Gameplay)
-  const [tempMainZoom, setTempMainZoom] = useState<string>('1.0');
+  const [tempMainZoom, setTempMainZoom] = useState<string>('100');
   const [tempMainCropX, setTempMainCropX] = useState<string>('50');
   const [tempMainCropY, setTempMainCropY] = useState<string>('50');
 
@@ -217,7 +217,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
   const openFacecamModal = () => {
     if (templateConfig) {
       setTempFacecamEnabled(templateConfig.facecam.enabled);
-      setTempFacecamZoom(String(templateConfig.facecam.zoom));
+      setTempFacecamZoom(String(Math.round((templateConfig.facecam.zoom || 2.0) * 100)));
       setTempFacecamCropX(String(templateConfig.facecam.cropX));
       setTempFacecamCropY(String(templateConfig.facecam.cropY));
     }
@@ -226,7 +226,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
 
   const openMainVideoModal = () => {
     if (templateConfig) {
-      setTempMainZoom(String(templateConfig.mainVideo.zoom));
+      setTempMainZoom(String(Math.round((templateConfig.mainVideo.zoom || 1.0) * 100)));
       setTempMainCropX(String(templateConfig.mainVideo.cropX));
       setTempMainCropY(String(templateConfig.mainVideo.cropY));
     }
@@ -1655,90 +1655,57 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
               </View>
             </Pressable>
 
-            {/* Zoom Slider / Preset */}
+            {/* Input Zoom Persen */}
             <View style={styles.posSectionContainer}>
-              <Text style={styles.timeSectionLabel}>ZOOM FACECAM</Text>
-              <View style={styles.posPresetGroup}>
-                {['1.5', '2.0', '2.5', '3.0'].map((val) => (
-                  <Pressable
-                    key={val}
-                    style={[
-                      styles.posPresetBtn,
-                      tempFacecamZoom === val && styles.posPresetBtnActive,
-                    ]}
-                    onPress={() => setTempFacecamZoom(val)}
-                  >
-                    <Text
-                      style={[
-                        styles.posPresetText,
-                        tempFacecamZoom === val && styles.posPresetTextActive,
-                      ]}
-                    >
-                      {val}x
-                    </Text>
-                  </Pressable>
-                ))}
+              <Text style={styles.timeSectionLabel}>ZOOM FACECAM (%)</Text>
+              <View style={styles.percentageInputRow}>
+                <TextInput
+                  style={styles.percentageTextInput}
+                  value={tempFacecamZoom}
+                  onChangeText={setTempFacecamZoom}
+                  keyboardType="numeric"
+                  placeholder="200"
+                  placeholderTextColor="rgba(255, 255, 255, 0.3)"
+                  selectTextOnFocus
+                />
+                <Text style={styles.percentageUnitText}>%</Text>
               </View>
             </View>
 
-            {/* Posisi Crop X */}
+            {/* Input Titik Tengah Crop (X, Y) */}
             <View style={styles.posSectionContainer}>
-              <Text style={styles.timeSectionLabel}>POSISI CROP HORIZONTAL (X)</Text>
-              <View style={styles.posPresetGroup}>
-                {[
-                  { label: 'Kiri', val: '20' },
-                  { label: 'Tengah', val: '50' },
-                  { label: 'Kanan', val: '80' },
-                ].map((item) => (
-                  <Pressable
-                    key={item.label}
-                    style={[
-                      styles.posPresetBtn,
-                      tempFacecamCropX === item.val && styles.posPresetBtnActive,
-                    ]}
-                    onPress={() => setTempFacecamCropX(item.val)}
-                  >
-                    <Text
-                      style={[
-                        styles.posPresetText,
-                        tempFacecamCropX === item.val && styles.posPresetTextActive,
-                      ]}
-                    >
-                      {item.label}
-                    </Text>
-                  </Pressable>
-                ))}
+              <Text style={styles.timeSectionLabel}>TITIK TENGAH CROP (X, Y)</Text>
+              <View style={styles.cropCoordinatesRow}>
+                <View style={styles.cropCoordinateBox}>
+                  <Text style={styles.coordinatePrefixLabel}>X</Text>
+                  <TextInput
+                    style={styles.coordinateInput}
+                    value={tempFacecamCropX}
+                    onChangeText={setTempFacecamCropX}
+                    keyboardType="numeric"
+                    placeholder="80"
+                    placeholderTextColor="rgba(255, 255, 255, 0.3)"
+                    selectTextOnFocus
+                  />
+                  <Text style={styles.coordinateSuffixUnit}>%</Text>
+                </View>
+                <View style={styles.cropCoordinateBox}>
+                  <Text style={styles.coordinatePrefixLabel}>Y</Text>
+                  <TextInput
+                    style={styles.coordinateInput}
+                    value={tempFacecamCropY}
+                    onChangeText={setTempFacecamCropY}
+                    keyboardType="numeric"
+                    placeholder="20"
+                    placeholderTextColor="rgba(255, 255, 255, 0.3)"
+                    selectTextOnFocus
+                  />
+                  <Text style={styles.coordinateSuffixUnit}>%</Text>
+                </View>
               </View>
-            </View>
-
-            {/* Posisi Crop Y */}
-            <View style={styles.posSectionContainer}>
-              <Text style={styles.timeSectionLabel}>POSISI CROP VERTIKAL (Y)</Text>
-              <View style={styles.posPresetGroup}>
-                {[
-                  { label: 'Atas', val: '20' },
-                  { label: 'Tengah', val: '50' },
-                  { label: 'Bawah', val: '80' },
-                ].map((item) => (
-                  <Pressable
-                    key={item.label}
-                    style={[
-                      styles.posPresetBtn,
-                      tempFacecamCropY === item.val && styles.posPresetBtnActive,
-                    ]}
-                    onPress={() => setTempFacecamCropY(item.val)}
-                  >
-                    <Text
-                      style={[
-                        styles.posPresetText,
-                        tempFacecamCropY === item.val && styles.posPresetTextActive,
-                      ]}
-                    >
-                      {item.label}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
+              <Text style={styles.cropCoordinatesHint}>
+                0% = Kiri / Atas, 50% = Tengah, 100% = Kanan / Bawah
+              </Text>
             </View>
 
             {/* Footer Buttons */}
@@ -1754,7 +1721,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                 onPress={() => {
                   onUpdateFacecam?.({
                     enabled: tempFacecamEnabled,
-                    zoom: Math.max(1.0, Math.min(4.0, parseFloat(tempFacecamZoom) || 2.0)),
+                    zoom: Math.max(1.0, Math.min(5.0, (parseFloat(tempFacecamZoom) || 200) / 100)),
                     cropX: Math.max(0, Math.min(100, parseInt(tempFacecamCropX, 10) || 80)),
                     cropY: Math.max(0, Math.min(100, parseInt(tempFacecamCropY, 10) || 20)),
                   });
@@ -1791,90 +1758,57 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
               </Pressable>
             </View>
 
-            {/* Zoom Slider / Preset */}
+            {/* Input Zoom Persen */}
             <View style={styles.posSectionContainer}>
-              <Text style={styles.timeSectionLabel}>ZOOM GAMEPLAY</Text>
-              <View style={styles.posPresetGroup}>
-                {['1.0', '1.2', '1.5', '2.0'].map((val) => (
-                  <Pressable
-                    key={val}
-                    style={[
-                      styles.posPresetBtn,
-                      tempMainZoom === val && styles.posPresetBtnActive,
-                    ]}
-                    onPress={() => setTempMainZoom(val)}
-                  >
-                    <Text
-                      style={[
-                        styles.posPresetText,
-                        tempMainZoom === val && styles.posPresetTextActive,
-                      ]}
-                    >
-                      {val}x
-                    </Text>
-                  </Pressable>
-                ))}
+              <Text style={styles.timeSectionLabel}>ZOOM GAMEPLAY (%)</Text>
+              <View style={styles.percentageInputRow}>
+                <TextInput
+                  style={styles.percentageTextInput}
+                  value={tempMainZoom}
+                  onChangeText={setTempMainZoom}
+                  keyboardType="numeric"
+                  placeholder="100"
+                  placeholderTextColor="rgba(255, 255, 255, 0.3)"
+                  selectTextOnFocus
+                />
+                <Text style={styles.percentageUnitText}>%</Text>
               </View>
             </View>
 
-            {/* Posisi Crop X */}
+            {/* Input Titik Tengah Crop (X, Y) */}
             <View style={styles.posSectionContainer}>
-              <Text style={styles.timeSectionLabel}>POSISI CROP HORIZONTAL (X)</Text>
-              <View style={styles.posPresetGroup}>
-                {[
-                  { label: 'Kiri', val: '25' },
-                  { label: 'Tengah', val: '50' },
-                  { label: 'Kanan', val: '75' },
-                ].map((item) => (
-                  <Pressable
-                    key={item.label}
-                    style={[
-                      styles.posPresetBtn,
-                      tempMainCropX === item.val && styles.posPresetBtnActive,
-                    ]}
-                    onPress={() => setTempMainCropX(item.val)}
-                  >
-                    <Text
-                      style={[
-                        styles.posPresetText,
-                        tempMainCropX === item.val && styles.posPresetTextActive,
-                      ]}
-                    >
-                      {item.label}
-                    </Text>
-                  </Pressable>
-                ))}
+              <Text style={styles.timeSectionLabel}>TITIK TENGAH CROP (X, Y)</Text>
+              <View style={styles.cropCoordinatesRow}>
+                <View style={styles.cropCoordinateBox}>
+                  <Text style={styles.coordinatePrefixLabel}>X</Text>
+                  <TextInput
+                    style={styles.coordinateInput}
+                    value={tempMainCropX}
+                    onChangeText={setTempMainCropX}
+                    keyboardType="numeric"
+                    placeholder="50"
+                    placeholderTextColor="rgba(255, 255, 255, 0.3)"
+                    selectTextOnFocus
+                  />
+                  <Text style={styles.coordinateSuffixUnit}>%</Text>
+                </View>
+                <View style={styles.cropCoordinateBox}>
+                  <Text style={styles.coordinatePrefixLabel}>Y</Text>
+                  <TextInput
+                    style={styles.coordinateInput}
+                    value={tempMainCropY}
+                    onChangeText={setTempMainCropY}
+                    keyboardType="numeric"
+                    placeholder="50"
+                    placeholderTextColor="rgba(255, 255, 255, 0.3)"
+                    selectTextOnFocus
+                  />
+                  <Text style={styles.coordinateSuffixUnit}>%</Text>
+                </View>
               </View>
-            </View>
-
-            {/* Posisi Crop Y */}
-            <View style={styles.posSectionContainer}>
-              <Text style={styles.timeSectionLabel}>POSISI CROP VERTIKAL (Y)</Text>
-              <View style={styles.posPresetGroup}>
-                {[
-                  { label: 'Atas', val: '25' },
-                  { label: 'Tengah', val: '50' },
-                  { label: 'Bawah', val: '75' },
-                ].map((item) => (
-                  <Pressable
-                    key={item.label}
-                    style={[
-                      styles.posPresetBtn,
-                      tempMainCropY === item.val && styles.posPresetBtnActive,
-                    ]}
-                    onPress={() => setTempMainCropY(item.val)}
-                  >
-                    <Text
-                      style={[
-                        styles.posPresetText,
-                        tempMainCropY === item.val && styles.posPresetTextActive,
-                      ]}
-                    >
-                      {item.label}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
+              <Text style={styles.cropCoordinatesHint}>
+                0% = Kiri / Atas, 50% = Tengah, 100% = Kanan / Bawah
+              </Text>
             </View>
 
             {/* Footer Buttons */}
@@ -1889,7 +1823,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                 style={({ pressed }) => [styles.modalSaveBtn, pressed && { opacity: 0.8 }]}
                 onPress={() => {
                   onUpdateMainVideo?.({
-                    zoom: Math.max(1.0, Math.min(3.0, parseFloat(tempMainZoom) || 1.0)),
+                    zoom: Math.max(1.0, Math.min(5.0, (parseFloat(tempMainZoom) || 100) / 100)),
                     cropX: Math.max(0, Math.min(100, parseInt(tempMainCropX, 10) || 50)),
                     cropY: Math.max(0, Math.min(100, parseInt(tempMainCropY, 10) || 50)),
                   });
@@ -2743,5 +2677,69 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.6)',
     fontSize: 12,
     fontWeight: '600',
+  },
+  percentageInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  percentageTextInput: {
+    width: 80,
+    height: 36,
+    backgroundColor: '#0a0a0a',
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.4)',
+    borderRadius: 6,
+    color: '#ffffff',
+    fontSize: 15,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  percentageUnitText: {
+    color: '#94a3b8',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  cropCoordinatesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  cropCoordinateBox: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0a0a0a',
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.3)',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    height: 36,
+    gap: 8,
+  },
+  coordinatePrefixLabel: {
+    color: '#38bdf8',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  coordinateInput: {
+    flex: 1,
+    color: '#ffffff',
+    fontSize: 14,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontWeight: '800',
+    textAlign: 'center',
+    padding: 0,
+  },
+  coordinateSuffixUnit: {
+    color: '#64748b',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  cropCoordinatesHint: {
+    color: 'rgba(255, 255, 255, 0.4)',
+    fontSize: 11,
+    marginTop: 4,
   },
 });

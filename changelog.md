@@ -14,7 +14,25 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Eliminate Mid-Playback Drift Correction to Prevent Decoder Stutter
+## [Unreleased] - Implement Percentage Zoom, Unified X/Y Center Crop Inputs, and Android Outline Clipping
+- **Konteks Struktural**:
+  1. Input Numerik Persentase & Koordinat Pusat Crop Bersatu (Tanpa Preset Box):
+     - Menggantikan tombol preset kotak (1.5x, 2.0x, Kiri, Tengah, Kanan, Atas, Bawah) pada modal Facecam dan Main Gameplay dengan input numerik murni berbasis persentase (%).
+     - **Zoom (%)**: Pengguna memasukkan angka persentase langsung (misal 100% = normal, 200% = 2x lebih besar, 300% = 3x lebih besar) yang secara otomatis dikonversi ke faktor skala floating point saat disimpan.
+     - **Titik Tengah Crop (X, Y)**: Menggabungkan koordinat X dan Y ke dalam satu baris input numerik berdampingan yang merepresentasikan titik pusat crop/zoom (0% = Kiri/Atas, 50% = Tengah, 100% = Kanan/Bawah).
+  2. Resolusi Bocor/Menumpuknya Video Main ke Facecam (Android RenderNode Outline Clipping):
+     - Mengatasi kendala visual di Android di mana transformasi hardware scaling pada `VideoView` menembus batas kontainer dan menimpa viewport Facecam.
+     - Menetapkan `collapsable={false}` pada `mainVideoBox` dan `facecamBox` untuk mencegah React Native Android meratakan (flatten) ViewGroup kontainer native.
+     - Menambahkan `borderRadius: 1` pada style kontainer untuk memicu `setClipToOutline(true)` pada Android `RenderNode`, serta menyetel `zIndex` bertingkat sehingga proses clipping transformasi skala GPU terkunci rapat di dalam batas frame 16:9.
+- **Perubahan Kode Penting**:
+  - [mobile/src/components/FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
+    - Menambahkan `collapsable={false}`, `borderRadius: 1`, dan `zIndex` pada `facecamBox` dan `mainVideoBox`.
+  - [mobile/src/components/feed/FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx):
+    - Menyesuaikan pembacaan dan penyimpanan zoom persentase (skala basis 100).
+    - Memperbarui Modal 7 (Facecam) dan Modal 8 (Main Gameplay) menjadi input numerik persen dan baris koordinat X/Y bersatu.
+    - Menambahkan gaya visual `percentageInputRow`, `percentageTextInput`, `cropCoordinatesRow`, dan `cropCoordinateBox`.
+
+## [51ce56b] - Eliminate Mid-Playback Drift Correction to Prevent Decoder Stutter
 - **Konteks Struktural**:
   1. Penghapusan Interupsi Decoder Paksa pada `timeUpdate`:
      - Menghapus pengecekan drift berkala `facecamPlayer.currentTime = current` di dalam event listener `timeUpdate` (100ms interval).
