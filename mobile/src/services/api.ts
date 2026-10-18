@@ -1141,7 +1141,7 @@ export interface SubtitleCue {
   rawStart: number; // Detik absolut pada video YouTube utuh
   rawEnd: number;   // Detik absolut pada video YouTube utuh
   text: string;     // Teks subtitle bersih (single line)
-  fontSize?: number; // Ukuran font per cue (default 14)
+  fontSize?: number; // Hanya ada jika di-override dari base global 14 (jika kosong/14 maka di-omit)
 }
 
 export interface SubtitleStyle {
@@ -1341,14 +1341,23 @@ export function normalizeSingleTrackCues(cues: SubtitleCue[], maxDuration?: numb
   if (!Array.isArray(cues) || cues.length === 0) return [];
 
   const sorted = [...cues]
-    .map((c, idx) => ({
-      ...c,
-      id: c.id || `cue_${idx}`,
-      start: Math.max(0, Math.round(c.start * 100) / 100),
-      end: Math.max(0, Math.round(c.end * 100) / 100),
-      text: (c.text || '').replace(/\r/g, '').replace(/[ \t]+/g, ' ').trim(),
-      fontSize: c.fontSize || 14,
-    }))
+    .map((c, idx) => {
+      const cue: SubtitleCue = {
+        ...c,
+        id: c.id || `cue_${idx}`,
+        start: Math.max(0, Math.round(c.start * 100) / 100),
+        end: Math.max(0, Math.round(c.end * 100) / 100),
+        rawStart: typeof c.rawStart === 'number' ? c.rawStart : c.start,
+        rawEnd: typeof c.rawEnd === 'number' ? c.rawEnd : c.end,
+        text: (c.text || '').replace(/\r/g, '').replace(/[ \t]+/g, ' ').trim(),
+      };
+      if (typeof c.fontSize === 'number' && c.fontSize !== 14) {
+        cue.fontSize = c.fontSize;
+      } else {
+        delete cue.fontSize;
+      }
+      return cue;
+    })
     .filter((c) => c.text.length > 0)
     .sort((a, b) => a.start - b.start || a.end - b.end);
 
@@ -1420,15 +1429,18 @@ export function sliceCuesForClip(
       const relStart = Math.max(0, cue.rawStart - clipStart);
       const relEnd = Math.min(clipDuration, cue.rawEnd - clipStart);
       if (relEnd > relStart) {
-        filtered.push({
+        const cueObj: SubtitleCue = {
           id: `clip_cue_${index++}`,
           start: Math.round(relStart * 100) / 100,
           end: Math.round(relEnd * 100) / 100,
           rawStart: cue.rawStart,
           rawEnd: cue.rawEnd,
           text: cue.text.replace(/\r?\n+/g, ' ').trim(),
-          fontSize: cue.fontSize || 14,
-        });
+        };
+        if (typeof cue.fontSize === 'number' && cue.fontSize !== 14) {
+          cueObj.fontSize = cue.fontSize;
+        }
+        filtered.push(cueObj);
       }
     }
   }

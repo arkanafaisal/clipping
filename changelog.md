@@ -14,7 +14,26 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Implement Global Subtitle Position (X, Y) Control with Center-Anchored Percentage Coordinates
+## [Unreleased] - Omit Redundant Base Properties from Subtitle Cue Array and Auto-Inject Defaults at Visual Layer
+- **Konteks Struktural**:
+  1. Penghapusan Properti Base yang Redundan dari Objek Subtitle Cue:
+     - Menyimpan nilai konfigurasi default (seperti `fontSize: 14`) ke setiap elemen objek subtitle dalam array membebani ukuran berkas JSON dan menimbulkan redundansi struktural.
+     - Memastikan properti `fontSize` tidak pernah ditulis ke objek `SubtitleCue` jika nilainya sama dengan nilai base default (14) atau tidak mengalami override.
+     - Nilai posisi (X, Y) tetap tersimpan murni sebagai konfigurasi global pada tingkat `style` (`style.positionX`, `style.positionY`) dan tidak pernah disisipkan ke properti cue per-subtitle.
+  2. Injeksi Dinamis Nilai Base pada Layer Visual & Modal Sementara:
+     - Layer visual pemutar video ([SubtitleOverlay.tsx](file:///d:/projects/clipping/mobile/src/components/feed/SubtitleOverlay.tsx) & [FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx)) secara otomatis menginjeksikan fallback base `14` saat properti `fontSize` pada cue bernilai kosong (`undefined`).
+     - Saat modal pengeditan ukuran font dibuka ([FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx)), nilai `14` diinjeksikan sementara ke dalam state input agar pengguna dapat melihat dan mengubahnya dengan mudah tanpa memutasi array data secara prematur.
+     - Jika pengguna menyimpan kembali ukuran font ke nilai base (14), properti `fontSize` secara otomatis dihapus (`delete merged.fontSize`) dari cue bersangkutan.
+- **Perubahan Kode Penting**:
+  - [mobile/src/services/api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts):
+    - Memperbarui [normalizeSingleTrackCues](file:///d:/projects/clipping/mobile/src/services/api.ts#L1340-L1356) dan [sliceCuesForClip](file:///d:/projects/clipping/mobile/src/services/api.ts#L1418-L1435) agar mengabaikan penambahan properti `fontSize` jika nilainya sama dengan 14 atau tidak ada override.
+  - [mobile/src/hooks/useClipSubtitle.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipSubtitle.ts):
+    - Menghapus properti default `fontSize: 14` saat pembuatan cue baru di `handleAddCue`.
+    - Menghapus properti `fontSize` (`delete merged.fontSize`) pada `handleUpdateCue` saat nilai pembaruan adalah 14 atau `undefined`.
+  - [mobile/src/components/feed/FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx):
+    - Menghapus properti `fontSize` (`{ fontSize: undefined }`) saat modal font disimpan dengan nilai sama dengan base (14).
+
+## [b62787a] - Implement Global Subtitle Position (X, Y) Control with Center-Anchored Percentage Coordinates
 - **Konteks Struktural**:
   1. Pengaturan Posisi Subtitle Global Tanpa Per-Cue Complexity:
      - Memposisikan subtitle secara individual per-cue terlalu membebani pengguna dan mempersulit alur kerja editing. Seluruh subtitle kini diatur posisinya secara terpadu (global) terhadap frame 16:9 video player.

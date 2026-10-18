@@ -939,7 +939,11 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                 onPress={() => {
                   const parsed = parseFloat(tempEditSize);
                   if (selectedCue && !isNaN(parsed) && parsed > 0) {
-                    onUpdateCue(selectedCue.id, { fontSize: parsed });
+                    if (parsed === 14) {
+                      onUpdateCue(selectedCue.id, { fontSize: undefined });
+                    } else {
+                      onUpdateCue(selectedCue.id, { fontSize: parsed });
+                    }
                   }
                   setShowFontModal(false);
                 }}

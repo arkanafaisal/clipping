@@ -98,7 +98,6 @@ export function useClipSubtitle({
         rawStart: activeClip.start + startPos,
         rawEnd: activeClip.start + endPos,
         text: 'Teks Subtitle',
-        fontSize: 14,
       };
 
       setSubtitles((prev) => {
@@ -141,6 +140,13 @@ export function useClipSubtitle({
             if (typeof updates.start === 'number' || typeof updates.end === 'number') {
               merged.rawStart = activeClip.start + (typeof updates.start === 'number' ? updates.start : merged.start);
               merged.rawEnd = activeClip.start + (typeof updates.end === 'number' ? updates.end : merged.end);
+            }
+            if ('fontSize' in updates) {
+              if (updates.fontSize === undefined || updates.fontSize === 14) {
+                delete merged.fontSize;
+              } else {
+                merged.fontSize = updates.fontSize;
+              }
             }
             return merged;
           }
