@@ -1,11 +1,12 @@
-import React from 'react';
-import { StyleSheet, View, Text } from 'react-native';
+import React, { useState } from 'react';
+import { StyleSheet, View, Text, Dimensions } from 'react-native';
 
 export interface SubtitleOverlayProps {
   isVisible: boolean;
   subtitleText: string;
   fontSize?: number;
-  bottomOffset?: number;
+  positionX?: number; // Skala 0 - 100 terhadap lebar video player (default 50 = horizontal center)
+  positionY?: number; // Skala 0 - 100 terhadap tinggi video player (default 85 = lower third)
 }
 
 // 8 arah offset untuk membentuk outline/border solid di sekeliling teks tanpa celah
@@ -24,18 +25,42 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
   isVisible,
   subtitleText,
   fontSize = 14,
-  bottomOffset = 12,
+  positionX = 50,
+  positionY = 85,
 }) => {
   if (!isVisible || !subtitleText) return null;
+
+  const [textLayout, setTextLayout] = useState<{ width: number; height: number }>({
+    width: 0,
+    height: 0,
+  });
 
   const lineHeight = Math.round(fontSize * 1.35);
 
   return (
     <View
-      style={[styles.subtitleOverlayContainer, { bottom: bottomOffset }]}
+      style={[
+        styles.subtitleOverlayContainer,
+        {
+          left: `${positionX}%`,
+          top: `${positionY}%`,
+          transform: [
+            { translateX: textLayout.width > 0 ? -textLayout.width / 2 : 0 },
+            { translateY: textLayout.height > 0 ? -textLayout.height / 2 : 0 },
+          ],
+        },
+      ]}
       pointerEvents="none"
     >
-      <View style={styles.textContainer}>
+      <View
+        style={styles.textContainer}
+        onLayout={(e) => {
+          const { width, height } = e.nativeEvent.layout;
+          if (width !== textLayout.width || height !== textLayout.height) {
+            setTextLayout({ width, height });
+          }
+        }}
+      >
         {/* Layer Border / Stroke Hitam Pekat (8 arah) */}
         {STROKE_OFFSETS.map((offset, index) => (
           <Text
@@ -76,15 +101,13 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
 const styles = StyleSheet.create({
   subtitleOverlayContainer: {
     position: 'absolute',
-    left: 12,
-    right: 12,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 10,
   },
   textContainer: {
     position: 'relative',
-    maxWidth: '94%',
+    maxWidth: Dimensions.get('window').width * 0.92,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'transparent',

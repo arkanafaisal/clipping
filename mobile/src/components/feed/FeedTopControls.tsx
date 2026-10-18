@@ -21,6 +21,7 @@ import {
   Check,
   Globe,
   Clock,
+  Move,
 } from 'lucide-react-native';
 import { ClipItem, SubtitleCue } from '../../services/api';
 import { formatTimeWithMs, formatDisplayTime } from './timeUtils';
@@ -70,6 +71,8 @@ export interface FeedTopControlsProps {
   subtitles: SubtitleCue[];
   selectedCueId: string | null;
   isFetchingSubtitles: boolean;
+  subtitlePosition: { x: number; y: number };
+  onUpdateSubtitlePosition: (x: number, y: number) => void;
   activeTimeEdit: 'start' | 'end' | null;
   tempTimeValue: string;
   getDownloadProgressLabel: (info?: { stage: string; code: string; percent: number }) => string;
@@ -102,6 +105,8 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
   subtitles,
   selectedCueId,
   isFetchingSubtitles,
+  subtitlePosition,
+  onUpdateSubtitlePosition,
   activeTimeEdit,
   tempTimeValue,
   getDownloadProgressLabel,
@@ -129,6 +134,9 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
   const [tempEditText, setTempEditText] = useState<string>('');
   const [tempEditSize, setTempEditSize] = useState<string>('14');
   const [showTimeModal, setShowTimeModal] = useState<boolean>(false);
+  const [showPositionModal, setShowPositionModal] = useState<boolean>(false);
+  const [tempPosX, setTempPosX] = useState<string>('50');
+  const [tempPosY, setTempPosY] = useState<string>('85');
   const [isSubtitleEditorOpen, setIsSubtitleEditorOpen] = useState<boolean>(false);
   const [startMin, setStartMin] = useState<string>('00');
   const [startSec, setStartSec] = useState<string>('00');
@@ -187,7 +195,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
   // Sinkronisasi dinamis: pilih subtitle yang tersentuh needle (hanya saat mode editor subtitle aktif)
   useEffect(() => {
     if (!isSubtitleEditorOpen) return;
-    if (showTextModal || showFontModal || showTimeModal || showLangModal) {
+    if (showTextModal || showFontModal || showTimeModal || showLangModal || showPositionModal) {
       return;
     }
 
@@ -210,6 +218,21 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
     showTimeModal,
     showLangModal,
   ]);
+
+  const openPositionModal = () => {
+    setTempPosX(String(subtitlePosition.x));
+    setTempPosY(String(subtitlePosition.y));
+    setShowPositionModal(true);
+  };
+
+  const handleSavePosition = () => {
+    const parsedX = parseFloat(tempPosX);
+    const parsedY = parseFloat(tempPosY);
+    const finalX = isNaN(parsedX) ? 50 : Math.round(parsedX * 10) / 10;
+    const finalY = isNaN(parsedY) ? 85 : Math.round(parsedY * 10) / 10;
+    onUpdateSubtitlePosition(finalX, finalY);
+    setShowPositionModal(false);
+  };
 
   const selectedCue = useMemo(
     () => subtitles.find((c) => c.id === selectedCueId) || null,
@@ -614,14 +637,26 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
 
           {/* 2. ACTION & EDITOR ROW */}
           <View style={styles.cueActionsRow}>
-            {/* SISI KIRI: Tombol Tambah Manual */}
-            <Pressable
-              style={({ pressed }) => [styles.addCueBtn, pressed && { opacity: 0.7 }]}
-              onPress={() => onAddCue(currentClipTime)}
-            >
-              <Plus size={14} color="#38bdf8" />
-              <Text style={styles.addCueBtnText}>+ Subtitle</Text>
-            </Pressable>
+            {/* SISI KIRI: Tombol Tambah Manual & Tombol Posisi Global (X, Y) */}
+            <View style={styles.leftCueButtonsGroup}>
+              <Pressable
+                style={({ pressed }) => [styles.addCueBtn, pressed && { opacity: 0.7 }]}
+                onPress={() => onAddCue(currentClipTime)}
+              >
+                <Plus size={14} color="#38bdf8" />
+                <Text style={styles.addCueBtnText}>+ Subtitle</Text>
+              </Pressable>
+
+              <Pressable
+                style={({ pressed }) => [styles.positionBtn, pressed && { opacity: 0.7 }]}
+                onPress={openPositionModal}
+              >
+                <Move size={13} color="#38bdf8" />
+                <Text style={styles.positionBtnText}>
+                  X:{subtitlePosition.x} Y:{subtitlePosition.y}
+                </Text>
+              </Pressable>
+            </View>
 
             {/* SISI KANAN (Dekat jempol): Tombol Icon Edit Teks, Ukuran Font, Hapus */}
             {selectedCue ? (
@@ -1076,6 +1111,164 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
               <Pressable
                 style={({ pressed }) => [styles.modalSaveBtn, pressed && { opacity: 0.8 }]}
                 onPress={handleSaveTimeRange}
+              >
+                <Check size={16} color="#ffffff" />
+                <Text style={styles.modalSaveBtnText}>Simpan</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* MODAL 5: Subtitle Global Position (X, Y) Modal */}
+      <Modal
+        visible={showPositionModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowPositionModal(false)}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={() => setShowPositionModal(false)}>
+          <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalHeaderLeft}>
+                <Move size={18} color="#38bdf8" />
+                <Text style={styles.modalTitle}>Posisi Subtitle (Global)</Text>
+              </View>
+              <Pressable
+                style={({ pressed }) => [styles.modalCloseBtn, pressed && { opacity: 0.6 }]}
+                onPress={() => setShowPositionModal(false)}
+                hitSlop={8}
+              >
+                <X size={18} color="#94a3b8" />
+              </Pressable>
+            </View>
+
+            <Text style={styles.modalDescription}>
+              Atur posisi titik pusat teks subtitle (skala 0 - 100 terhadap frame 16:9 video player):
+            </Text>
+
+            {/* SEKSI X (HORIZONTAL) */}
+            <View style={styles.posSectionContainer}>
+              <View style={styles.posHeaderRow}>
+                <Text style={styles.timeSectionLabel}>KOORDINAT X (HORIZONTAL)</Text>
+                <Text style={styles.posHintText}>0 = Kiri, 50 = Tengah, 100 = Kanan</Text>
+              </View>
+              <View style={styles.posInputRow}>
+                <TextInput
+                  style={styles.posTextInput}
+                  value={tempPosX}
+                  onChangeText={setTempPosX}
+                  keyboardType="numbers-and-punctuation"
+                  placeholder="50"
+                  placeholderTextColor="rgba(255, 255, 255, 0.3)"
+                  selectTextOnFocus
+                />
+                <View style={styles.posPresetGroup}>
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.posPresetBtn,
+                      tempPosX === '25' && styles.posPresetBtnActive,
+                      pressed && { opacity: 0.7 },
+                    ]}
+                    onPress={() => setTempPosX('25')}
+                  >
+                    <Text style={[styles.posPresetText, tempPosX === '25' && styles.posPresetTextActive]}>Kiri (25)</Text>
+                  </Pressable>
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.posPresetBtn,
+                      tempPosX === '50' && styles.posPresetBtnActive,
+                      pressed && { opacity: 0.7 },
+                    ]}
+                    onPress={() => setTempPosX('50')}
+                  >
+                    <Text style={[styles.posPresetText, tempPosX === '50' && styles.posPresetTextActive]}>Tengah (50)</Text>
+                  </Pressable>
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.posPresetBtn,
+                      tempPosX === '75' && styles.posPresetBtnActive,
+                      pressed && { opacity: 0.7 },
+                    ]}
+                    onPress={() => setTempPosX('75')}
+                  >
+                    <Text style={[styles.posPresetText, tempPosX === '75' && styles.posPresetTextActive]}>Kanan (75)</Text>
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+
+            {/* SEKSI Y (VERTIKAL) */}
+            <View style={styles.posSectionContainer}>
+              <View style={styles.posHeaderRow}>
+                <Text style={styles.timeSectionLabel}>KOORDINAT Y (VERTIKAL)</Text>
+                <Text style={styles.posHintText}>15 = Atas, 50 = Tengah, 85 = Bawah</Text>
+              </View>
+              <View style={styles.posInputRow}>
+                <TextInput
+                  style={styles.posTextInput}
+                  value={tempPosY}
+                  onChangeText={setTempPosY}
+                  keyboardType="numbers-and-punctuation"
+                  placeholder="85"
+                  placeholderTextColor="rgba(255, 255, 255, 0.3)"
+                  selectTextOnFocus
+                />
+                <View style={styles.posPresetGroup}>
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.posPresetBtn,
+                      tempPosY === '15' && styles.posPresetBtnActive,
+                      pressed && { opacity: 0.7 },
+                    ]}
+                    onPress={() => setTempPosY('15')}
+                  >
+                    <Text style={[styles.posPresetText, tempPosY === '15' && styles.posPresetTextActive]}>Atas (15)</Text>
+                  </Pressable>
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.posPresetBtn,
+                      tempPosY === '50' && styles.posPresetBtnActive,
+                      pressed && { opacity: 0.7 },
+                    ]}
+                    onPress={() => setTempPosY('50')}
+                  >
+                    <Text style={[styles.posPresetText, tempPosY === '50' && styles.posPresetTextActive]}>Tengah (50)</Text>
+                  </Pressable>
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.posPresetBtn,
+                      tempPosY === '85' && styles.posPresetBtnActive,
+                      pressed && { opacity: 0.7 },
+                    ]}
+                    onPress={() => setTempPosY('85')}
+                  >
+                    <Text style={[styles.posPresetText, tempPosY === '85' && styles.posPresetTextActive]}>Bawah (85)</Text>
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.modalActionsRow}>
+              <Pressable
+                style={({ pressed }) => [styles.modalResetBtn, pressed && { opacity: 0.7 }]}
+                onPress={() => {
+                  setTempPosX('50');
+                  setTempPosY('85');
+                }}
+              >
+                <Text style={styles.modalResetBtnText}>Reset Default</Text>
+              </Pressable>
+              <View style={{ flex: 1 }} />
+              <Pressable
+                style={({ pressed }) => [styles.modalCancelBtn, pressed && { opacity: 0.7 }]}
+                onPress={() => setShowPositionModal(false)}
+              >
+                <Text style={styles.modalCancelBtnText}>Batal</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [styles.modalSaveBtn, pressed && { opacity: 0.8 }]}
+                onPress={handleSavePosition}
               >
                 <Check size={16} color="#ffffff" />
                 <Text style={styles.modalSaveBtnText}>Simpan</Text>
@@ -1714,5 +1907,106 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
     marginBottom: 12,
+  },
+  leftCueButtonsGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  positionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(56, 189, 248, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.25)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  positionBtnText: {
+    color: '#38bdf8',
+    fontSize: 11,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontWeight: '700',
+  },
+  posSectionContainer: {
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 8,
+    padding: 10,
+    gap: 8,
+  },
+  posHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  posHintText: {
+    fontSize: 10,
+    color: 'rgba(255, 255, 255, 0.4)',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  posInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  posTextInput: {
+    width: 64,
+    height: 34,
+    backgroundColor: '#0a0a0a',
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.4)',
+    borderRadius: 6,
+    color: '#ffffff',
+    fontSize: 14,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  posPresetGroup: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  posPresetBtn: {
+    flex: 1,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  posPresetBtnActive: {
+    backgroundColor: 'rgba(56, 189, 248, 0.2)',
+    borderColor: '#38bdf8',
+  },
+  posPresetText: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  posPresetTextActive: {
+    color: '#38bdf8',
+  },
+  modalResetBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalResetBtnText: {
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontSize: 12,
+    fontWeight: '600',
   },
 });

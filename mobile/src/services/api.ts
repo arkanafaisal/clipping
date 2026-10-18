@@ -1151,8 +1151,8 @@ export interface SubtitleStyle {
   strokeColor?: string;      // Outline color misal '#000000'
   strokeWidth?: number;      // Default 1
   fontWeight: 'normal' | 'bold' | '600' | '700'; // Default 'bold'
-  positionY: number;         // Persentase posisi vertikal 0.0 - 1.0 (default 0.82)
-  positionX: number;         // Persentase posisi horizontal 0.0 - 1.0 (default 0.5)
+  positionY: number;         // Skala posisi vertikal 0 - 100 terhadap frame video (default 85)
+  positionX: number;         // Skala posisi horizontal 0 - 100 terhadap frame video (default 50)
 }
 
 export interface ClipSubtitleData {
@@ -1173,8 +1173,8 @@ export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
   strokeColor: '#000000',
   strokeWidth: 2,
   fontWeight: 'bold',
-  positionY: 0.82,
-  positionX: 0.5,
+  positionY: 85,
+  positionX: 50,
 };
 
 /**

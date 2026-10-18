@@ -178,6 +178,8 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     selectedCueId,
     setSelectedCueId,
     isFetchingSubtitles,
+    subtitlePosition,
+    handleUpdateSubtitlePosition,
     handleAddCue,
     handleUpdateCue,
     handleShiftCueTime,
@@ -243,6 +245,8 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
         subtitles={subtitles}
         selectedCueId={selectedCueId}
         isFetchingSubtitles={isFetchingSubtitles}
+        subtitlePosition={subtitlePosition}
+        onUpdateSubtitlePosition={handleUpdateSubtitlePosition}
         activeTimeEdit={activeTimeEdit}
         tempTimeValue={tempTimeValue}
         getDownloadProgressLabel={getDownloadProgressLabel}
@@ -293,7 +297,8 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
             isVisible={isSubtitleVisible}
             subtitleText={activeSubtitleCue ? activeSubtitleCue.text : activeSubtitleText}
             fontSize={activeSubtitleCue?.fontSize || 14}
-            bottomOffset={12}
+            positionX={subtitlePosition.x}
+            positionY={subtitlePosition.y}
           />
         </View>
       </View>

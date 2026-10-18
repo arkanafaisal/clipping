@@ -32,13 +32,19 @@ export function useClipSubtitle({
   const [isSubtitleVisible, setIsSubtitleVisible] = useState<boolean>(true);
   const [selectedCueId, setSelectedCueId] = useState<string | null>(null);
   const [isFetchingSubtitles, setIsFetchingSubtitles] = useState<boolean>(false);
+  const [subtitlePosition, setSubtitlePosition] = useState<{ x: number; y: number }>({ x: 50, y: 85 });
 
   const internalSubtitlesRef = useRef<SubtitleCue[]>(subtitles);
+  const subtitlePosRef = useRef<{ x: number; y: number }>(subtitlePosition);
   const subtitlesRef = externalSubtitlesRef || internalSubtitlesRef;
 
   useEffect(() => {
     subtitlesRef.current = subtitles;
   }, [subtitles, subtitlesRef]);
+
+  useEffect(() => {
+    subtitlePosRef.current = subtitlePosition;
+  }, [subtitlePosition]);
 
   // Auto-load subtitle yang sudah tersimpan untuk klip aktif
   useEffect(() => {
@@ -54,6 +60,13 @@ export function useClipSubtitle({
             setSubtitles(normalized);
           } else {
             setSubtitles([]);
+          }
+          if (saved && saved.style) {
+            const rawX = typeof saved.style.positionX === 'number' ? saved.style.positionX : 50;
+            const rawY = typeof saved.style.positionY === 'number' ? saved.style.positionY : 85;
+            const normX = rawX <= 1 && rawX > 0 ? Math.round(rawX * 100) : rawX;
+            const normY = rawY <= 1 && rawY > 0 ? Math.round(rawY * 100) : rawY;
+            setSubtitlePosition({ x: normX, y: normY });
           }
           setSelectedCueId(null);
         }
@@ -95,7 +108,11 @@ export function useClipSubtitle({
           start: activeClip.start,
           end: activeClip.end,
           lang: 'id',
-          style: DEFAULT_SUBTITLE_STYLE,
+          style: {
+            ...DEFAULT_SUBTITLE_STYLE,
+            positionX: subtitlePosRef.current.x,
+            positionY: subtitlePosRef.current.y,
+          },
           cues: updated,
           updatedAt: Date.now(),
         }).catch(() => {});
@@ -136,7 +153,11 @@ export function useClipSubtitle({
           start: activeClip.start,
           end: activeClip.end,
           lang: 'id',
-          style: DEFAULT_SUBTITLE_STYLE,
+          style: {
+            ...DEFAULT_SUBTITLE_STYLE,
+            positionX: subtitlePosRef.current.x,
+            positionY: subtitlePosRef.current.y,
+          },
           cues: normalized,
           updatedAt: Date.now(),
         }).catch(() => {});
@@ -179,7 +200,11 @@ export function useClipSubtitle({
           start: activeClip.start,
           end: activeClip.end,
           lang: 'id',
-          style: DEFAULT_SUBTITLE_STYLE,
+          style: {
+            ...DEFAULT_SUBTITLE_STYLE,
+            positionX: subtitlePosRef.current.x,
+            positionY: subtitlePosRef.current.y,
+          },
           cues: normalized,
           updatedAt: Date.now(),
         }).catch(() => {});
@@ -267,6 +292,29 @@ export function useClipSubtitle({
     [activeClip, onRateLimit]
   );
 
+  // Update posisi subtitle secara global (skala 0 - 100 terhadap frame video)
+  const handleUpdateSubtitlePosition = useCallback(
+    (x: number, y: number) => {
+      setSubtitlePosition({ x, y });
+      if (activeClip && activeClip.videoId) {
+        saveClipSubtitle({
+          videoId: activeClip.videoId,
+          start: activeClip.start,
+          end: activeClip.end,
+          lang: 'id',
+          style: {
+            ...DEFAULT_SUBTITLE_STYLE,
+            positionX: x,
+            positionY: y,
+          },
+          cues: internalSubtitlesRef.current,
+          updatedAt: Date.now(),
+        }).catch(() => {});
+      }
+    },
+    [activeClip]
+  );
+
   return {
     subtitles,
     setSubtitles,
@@ -277,6 +325,8 @@ export function useClipSubtitle({
     selectedCueId,
     setSelectedCueId,
     isFetchingSubtitles,
+    subtitlePosition,
+    handleUpdateSubtitlePosition,
     handleAddCue,
     handleUpdateCue,
     handleShiftCueTime,
