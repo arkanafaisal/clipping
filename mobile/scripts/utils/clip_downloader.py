@@ -261,6 +261,15 @@ def download_clip_direct(
             cookies_attempted = True
             run_opts["cookiefile"] = cookie_path
             active_cookie = cookie_path
+            # Reset player_client ke web & mweb karena browser cookies (format Netscape)
+            # hanya didukung oleh web player, bukan native app (android/ios).
+            if "extractor_args" in run_opts and isinstance(run_opts["extractor_args"], dict):
+                new_ext = {k: (v.copy() if isinstance(v, dict) else v) for k, v in run_opts["extractor_args"].items()}
+                if "youtube" in new_ext and isinstance(new_ext["youtube"], dict):
+                    yt_args = new_ext["youtube"].copy()
+                    yt_args["player_client"] = ["web", "mweb"]
+                    new_ext["youtube"] = yt_args
+                run_opts["extractor_args"] = new_ext
         else:
             run_opts.pop("cookiefile", None)
             active_cookie = None

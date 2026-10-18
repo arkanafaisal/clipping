@@ -38,6 +38,15 @@ def get_raw_heatmap(video_id: str, ydl_opts: dict, cookie_path: str = None) -> t
     if cookie_path and os.path.exists(cookie_path):
         opts_cookies = ydl_opts.copy()
         opts_cookies['cookiefile'] = cookie_path
+        # Reset player_client ke web & mweb karena browser cookies (format Netscape)
+        # hanya didukung oleh web player, bukan native app (android/ios).
+        if 'extractor_args' in opts_cookies and isinstance(opts_cookies['extractor_args'], dict):
+            new_ext_args = {k: (v.copy() if isinstance(v, dict) else v) for k, v in opts_cookies['extractor_args'].items()}
+            if 'youtube' in new_ext_args and isinstance(new_ext_args['youtube'], dict):
+                yt_args = new_ext_args['youtube'].copy()
+                yt_args['player_client'] = ['web', 'mweb']
+                new_ext_args['youtube'] = yt_args
+            opts_cookies['extractor_args'] = new_ext_args
         try:
             with yt_dlp.YoutubeDL(opts_cookies) as ydl:
                 info = ydl.extract_info(url, download=False)

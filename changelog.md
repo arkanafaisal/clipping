@@ -14,7 +14,26 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Implement Subtitle Language Selection Modal, Multiline Text Modal, and YouTube Android Client Configuration
+## [Unreleased] - Standardize Web Player Client Fallback on Cookies Mode Across All Extraction Scripts
+- **Konteks Struktural**:
+  1. Standarisasi Universal Web Client saat Fallback Cookies:
+     - Menstandarkan seluruh skrip ekstraksi backend ([subtitle_fetcher.py](file:///d:/projects/clipping/mobile/scripts/utils/subtitle_fetcher.py), [stream_extractor.py](file:///d:/projects/clipping/mobile/scripts/utils/stream_extractor.py), [heatmap.py](file:///d:/projects/clipping/mobile/scripts/utils/heatmap.py), dan [clip_downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/clip_downloader.py)) agar saat memasuki mode fallback cookies (Pass 2), `player_client` otomatis beralih menjadi `['web', 'mweb']`.
+     - Memastikan file kuki format Netscape browser dapat dibaca dan dikirimkan secara universal oleh yt-dlp ke server YouTube tanpa terblokir oleh mekanisme autentikasi bearer token mobile app.
+  2. Klasifikasi Error Bot Detection di Frontend (Sesuai Rule 19):
+     - Memetakan respons tantangan bot dan sign-in YouTube langsung di [api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts) ke kode error ramah pengguna (`COOKIES_INVALID_OR_EXPIRED` jika cookies terpasang, atau `RATE_LIMIT_EXCEEDED` jika anonim).
+- **Perubahan Kode Penting**:
+  - [mobile/scripts/utils/subtitle_fetcher.py](file:///d:/projects/clipping/mobile/scripts/utils/subtitle_fetcher.py):
+    - Mengatur ulang `player_client` ke `['web', 'mweb']` saat membaca `cookie_path`.
+  - [mobile/scripts/utils/stream_extractor.py](file:///d:/projects/clipping/mobile/scripts/utils/stream_extractor.py):
+    - Mengatur ulang `player_client` ke `['web', 'mweb']` saat membaca `cookie_path`.
+  - [mobile/scripts/utils/heatmap.py](file:///d:/projects/clipping/mobile/scripts/utils/heatmap.py):
+    - Mengatur ulang `player_client` ke `['web', 'mweb']` saat membaca `cookie_path`.
+  - [mobile/scripts/utils/clip_downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/clip_downloader.py):
+    - Mengatur ulang `player_client` ke `['web', 'mweb']` saat membaca `cookie_path`.
+  - [mobile/src/services/api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts):
+    - Mengklasifikasikan error bot/sign-in menjadi `COOKIES_INVALID_OR_EXPIRED` atau `RATE_LIMIT_EXCEEDED` sebelum melempar `ApiError`.
+
+## [85c9829] - Implement Subtitle Language Selection Modal, Multiline Text Modal, and YouTube Android Client Configuration
 - **Konteks Struktural**:
   1. Integrasi Modal Pemilihan Bahasa YouTube di Top Bar:
      - Menjadikan tombol Subtitle di kiri atas [FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx) aktif saat track subtitle kosong (`subtitles.length === 0`).

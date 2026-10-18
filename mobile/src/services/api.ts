@@ -1509,8 +1509,13 @@ export async function fetchSubtitlesForVideo(
   }
 
   if (payload.status === 'error') {
-    const code = payload.code || 'SUBTITLE_ERROR';
     const rawError = payload.traceback || payload.error || JSON.stringify(payload, null, 2);
+    let code = payload.code || 'SUBTITLE_ERROR';
+    const lower = rawError.toLowerCase();
+    const isBotOrSign = lower.includes('bot') || lower.includes('sign in') || lower.includes('captcha') || lower.includes('confirm you');
+    if (isBotOrSign) {
+      code = cookiePath ? 'COOKIES_INVALID_OR_EXPIRED' : 'RATE_LIMIT_EXCEEDED';
+    }
     throw new ApiError(code, rawError);
   }
 
