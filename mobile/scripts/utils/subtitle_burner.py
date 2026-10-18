@@ -91,30 +91,39 @@ def is_filter_supported(ffmpeg_bin: str, filter_name: str) -> bool:
         return False
 
 
-def build_ass_content(cues: list, style: dict = None) -> str:
+def build_ass_content(cues: list, style: dict = None, video_width: int = 1920, video_height: int = 1080) -> str:
     r"""
     Mengonversi konfigurasi subtitle JSON (cues & global style) menjadi naskah ASS (Advanced SubStation Alpha).
     ASS adalah standar industri yang didukung oleh filter `subtitles` di FFmpeg libass.
-    - Kanvas video: 1920x1080 (16:9 PlayRes)
+    - Kanvas video: 1920x1080 (16:9) atau 1080x1920 (9:16 Portrait)
     - Titik jangkar tengah (Center Anchor: \an5)
     - Posisi X & Y global (0-100 persen)
-    - Font scaling dinamis berbasis base 14px mobile UI -> 60px 1080p ASS
+    - Font scaling dinamis berbasis rasio 14dp mobile UI -> 69px pada kanvas acuan 1080p
     """
     if style is None:
         style = {}
 
+    vw = max(240, int(video_width)) if video_width else 1920
+    vh = max(240, int(video_height)) if video_height else 1080
+    is_portrait = vw < vh
+
+    play_res_x = 1080 if is_portrait else 1920
+    play_res_y = 1920 if is_portrait else 1080
+
     pos_x_pct = float(style.get("positionX", 50))
     pos_y_pct = float(style.get("positionY", 85))
 
-    # Konversi koordinat persen (0-100) ke pixel kanvas 1080p
-    ass_x = int(round((pos_x_pct / 100.0) * 1920))
-    ass_y = int(round((pos_y_pct / 100.0) * 1080))
+    # Konversi koordinat persen (0-100) ke pixel kanvas ASS
+    ass_x = int(round((pos_x_pct / 100.0) * play_res_x))
+    ass_y = int(round((pos_y_pct / 100.0) * play_res_y))
 
     base_font_size = float(style.get("baseFontSize", 14))
     if base_font_size <= 0:
         base_font_size = 14.0
 
-    ass_base_fs = 60
+    # 14dp di layar mobile (~220dp viewport 16:9) setara dengan rasio ~0.0638.
+    # Pada kanvas acuan 1080p (dimensi pendek 1080), 1080 * 0.0638 = 69px.
+    ass_base_fs = 69
 
     ass_header = f"""[Script Info]
 Title: Clipped Video Subtitles
@@ -122,8 +131,8 @@ ScriptType: v4.00+
 WrapStyle: 0
 ScaledBorderAndShadow: yes
 YCbCr Matrix: TV.709
-PlayResX: 1920
-PlayResY: 1080
+PlayResX: {play_res_x}
+PlayResY: {play_res_y}
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
@@ -161,16 +170,18 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     return ass_header + "\n".join(dialogue_lines) + "\n"
 
 
-def build_drawtext_pipeline(cues: list, style: dict, output_base: str, video_height: int = 720):
+def build_drawtext_pipeline(cues: list, style: dict, output_base: str, video_width: int = 1280, video_height: int = 720):
     """
     Membangun filterchain drawtext menggunakan opsi 'textfile' per cue.
     Solusi native FFmpeg saat libass / filter 'subtitles' tidak dikompilasi di binary perangkat.
     - Opsi textfile membaca UTF-8 tanpa kendala escaping karakter khusus/multiline.
     - enable='between(t, start, end)' hanya merender teks pada jendela waktu masing-masing.
     - Koordinat dinamis berbasis persen: x=(w-text_w)*x_pct/100, y=(h-text_h)*y_pct/100.
-    - Skala font integer absolut: fontsize=round(video_height * 0.045 * (cue_fs / 14)).
-      Gunakan integer murni karena opsi 'fontsize' pada drawtext tidak mendukung ekspresi 'h' / 'w'.
-    - Border hitam pekat (borderw=3:bordercolor=black) untuk keterbacaan tinggi.
+    - Skala font integer absolut berbasis dimensi acuan min(w, h):
+      fontsize = round(min(w, h) * 0.0638 * (cue_fs / 14)).
+      Rasio 0.0638 sinkron 1:1 dengan 14dp preview pada viewport mobile ~220dp,
+      serta aman untuk mode 16:9 maupun 9:16 Portrait tanpa meluap keluar batas lebar video.
+    - Border hitam pekat (borderw proporsional) untuk keterbacaan tinggi.
     """
     temp_files = []
     font_path = resolve_system_font()
@@ -181,9 +192,11 @@ def build_drawtext_pipeline(cues: list, style: dict, output_base: str, video_hei
     x_expr = "(w-text_w)/2" if abs(pos_x - 50) < 0.1 else f"(w-text_w)*{pos_x/100.0:.3f}"
     y_expr = "(h-text_h)*0.85" if abs(pos_y - 85) < 0.1 else f"(h-text_h)*{pos_y/100.0:.3f}"
 
+    vw = max(240, int(video_width)) if video_width else 1280
     vh = max(240, int(video_height)) if video_height else 720
-    base_fs = max(12, int(round(vh * 0.045)))
-    border_w = max(2, int(round(base_fs * 0.09)))
+    ref_dim = min(vw, vh)
+    base_fs = max(14, int(round(ref_dim * 0.0638)))
+    border_w = max(2, int(round(base_fs * 0.08)))
 
     filter_items = []
     for idx, cue in enumerate(cues):
@@ -316,11 +329,16 @@ def burn_subtitles_to_video(
     # 4. Tentukan Engine Filter (subtitles/libass vs drawtext)
     subtitles_supported = is_filter_supported(resolved_ffmpeg, "subtitles")
     filter_args = []
-    _, v_height = get_video_dimensions(resolved_ffmpeg, input_video_path)
+    v_width, v_height = get_video_dimensions(resolved_ffmpeg, input_video_path)
 
     if subtitles_supported:
         try:
-            ass_content = build_ass_content(cues, subtitle_data.get("style"))
+            ass_content = build_ass_content(
+                cues,
+                subtitle_data.get("style"),
+                video_width=v_width,
+                video_height=v_height
+            )
             with open(temp_ass_path, "w", encoding="utf-8") as f:
                 f.write(ass_content)
             escaped_ass = escape_ffmpeg_filter_path(temp_ass_path)
@@ -334,6 +352,7 @@ def burn_subtitles_to_video(
             cues,
             subtitle_data.get("style", {}),
             output_video_path,
+            video_width=v_width,
             video_height=v_height
         )
         temp_files_to_clean.extend(created_files)
@@ -436,6 +455,7 @@ def burn_subtitles_to_video(
             cues,
             subtitle_data.get("style", {}),
             output_video_path,
+            video_width=v_width,
             video_height=v_height
         )
         temp_files_to_clean.extend(created_files)

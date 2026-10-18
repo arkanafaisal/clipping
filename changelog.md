@@ -14,6 +14,26 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
+## [Unreleased] - Synchronize Subtitle Font Scaling Between Frontend Preview and FFmpeg Burner
+- **Konteks Struktural**:
+  1. Sinkronisasi Presisi Skala Font Subtitle (WYSIWYG 1:1 Parity):
+     - Mengatasi kendala visual di mana ukuran teks subtitle pada hasil ekspor FFmpeg menciut (~37% lebih kecil) dibandingkan dengan tampilan preview mode edit di HP.
+     - Mengubah konstanta skala font di backend Python dari rasio hardcoded yang terlalu kecil (`0.045` / 4.5%) menjadi rasio acuan yang sinkron dengan ukuran 14dp di layar mobile (`0.0638` / ~6.4%).
+  2. Adaptasi Dimensi Acuan Multi-Orientasi (16:9 Landscape & 9:16 Portrait):
+     - Memperbarui kalkulasi skala font di FFmpeg (`build_drawtext_pipeline` dan `build_ass_content`) agar mengonsumsi dimensi terpendek `min(video_width, video_height)` sebagai kanvas acuan.
+     - Pada video landscape 16:9 (1920x1080 / 1280x720), acuan adalah tinggi video (1080p / 720p). Pada video portrait 9:16 (1080x1920 / 720x1280), acuan adalah lebar video (1080p / 720p), mencegah teks membengkak dan meluap keluar layar pada konten vertikal.
+  3. Responsivitas Kontainer pada Komponen Frontend SubtitleOverlay:
+     - Menggantikan penetapan `fontSize: 14` statis pada `<SubtitleOverlay />` dengan penskalaan proporsional berbasis `min(containerWidth, containerHeight)` terhadap tinggi standar viewport mobile (`(windowWidth * 9) / 16`).
+     - Teks dan ketebalan outline stroke hitam di preview secara otomatis menyesuaikan ukuran kanvas video aktif secara dinamis.
+- **Perubahan Kode Penting**:
+  - [mobile/scripts/utils/subtitle_burner.py](file:///d:/projects/clipping/mobile/scripts/utils/subtitle_burner.py):
+    - Meneruskan `video_width` dan `video_height` ke `build_ass_content` dan `build_drawtext_pipeline`.
+    - Menghitung `ref_dim = min(vw, vh)` dan skala `base_fs = max(14, int(round(ref_dim * 0.0638)))`.
+    - Memperbarui kanvas ASS `PlayResX`/`PlayResY` dan `ass_base_fs = 69` agar adaptif terhadap orientasi portrait maupun landscape.
+  - [mobile/src/components/feed/SubtitleOverlay.tsx](file:///d:/projects/clipping/mobile/src/components/feed/SubtitleOverlay.tsx):
+    - Menghitung `scaleFactor = currentRefDim / baseViewportRef` dan `scaledFontSize = Math.max(8, Math.round(fontSize * scaleFactor))`.
+    - Menyesuaikan `strokeScale` pada bayangan outline teks hitam 8 arah.
+
 ## [Unreleased] - Enforce Android RenderNode Outline Clipping and TextureView Surface on Facecam and Gameplay Viewports
 - **Konteks Struktural**:
   1. Pencegahan Kebocoran Transformasi Video (Android RenderNode Outline Clipping):

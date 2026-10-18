@@ -39,10 +39,20 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
 
   if (!isVisible || !subtitleText) return null;
 
-  const lineHeight = Math.round(fontSize * 1.35);
-
   const containerWidth = containerSize.width || windowWidth;
   const containerHeight = containerSize.height || (windowWidth * 9) / 16;
+
+  // Dimensi acuan (shorter dimension min(W, H)) dari kontainer video aktif (baik 16:9 maupun 9:16).
+  // Pada mode 16:9 mobile standar, containerHeight adalah ~220dp.
+  // Rasio dasar: baseFontSize 14dp terhadap viewport ~220dp adalah 14 / 220 = 0.0638.
+  // Dengan mengaitkan fontSize ke min(containerWidth, containerHeight),
+  // ukuran teks selalu proporsional 1:1 dengan render FFmpeg di resolusi dan rasio apa pun.
+  const currentRefDim = Math.min(containerWidth, containerHeight);
+  const baseViewportRef = (windowWidth * 9) / 16;
+  const scaleFactor = baseViewportRef > 0 ? currentRefDim / baseViewportRef : 1;
+  const scaledFontSize = Math.max(8, Math.round(fontSize * scaleFactor));
+  const lineHeight = Math.round(scaledFontSize * 1.35);
+  const strokeScale = Math.max(0.8, scaleFactor);
 
   // Offset relatif terhadap titik pusat (50%, 50%) video player
   // Contoh default (X=50, Y=85):
@@ -83,9 +93,9 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
               styles.subtitleText,
               styles.strokeText,
               {
-                fontSize,
+                fontSize: scaledFontSize,
                 lineHeight,
-                transform: [{ translateX: offset.x }, { translateY: offset.y }],
+                transform: [{ translateX: offset.x * strokeScale }, { translateY: offset.y * strokeScale }],
               },
             ]}
             aria-hidden
@@ -100,7 +110,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
             styles.subtitleText,
             styles.foregroundText,
             {
-              fontSize,
+              fontSize: scaledFontSize,
               lineHeight,
             },
           ]}
