@@ -14,7 +14,19 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Implement Synchronized Dual VideoPlayer and 16:9 Bottom Safe Zone
+## [Unreleased] - Eliminate Mid-Playback Drift Correction to Prevent Decoder Stutter
+- **Konteks Struktural**:
+  1. Penghapusan Interupsi Decoder Paksa pada `timeUpdate`:
+     - Menghapus pengecekan drift berkala `facecamPlayer.currentTime = current` di dalam event listener `timeUpdate` (100ms interval).
+     - Menghilangkan micro-stuttering dan re-buffering berulang pada decoder hardware `MediaCodec` yang sebelumnya dipicu oleh perintah `seekTo` paksa saat video sedang berjalan.
+  2. Sinkronisasi Titik Awal (Pre-Alignment) & Natural Clocks:
+     - Memastikan penyelarasan waktu kedua player hanya dilakukan saat kondisi diskrit: inisialisasi media, perpindahan klip, manual seek/skip, play/pause, serta loop boundary.
+     - Membiarkan kedua pemutar berjalan natural pada kecepatan 1.0x tanpa interupsi decoder saat status playback aktif.
+- **Perubahan Kode Penting**:
+  - [mobile/src/hooks/useClipPlayer.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipPlayer.ts):
+    - Menghapus blok drift correction paksa pada listener `timeUpdate`.
+
+## [a22c500] - Implement Synchronized Dual VideoPlayer and 16:9 Bottom Safe Zone
 - **Konteks Struktural**:
   1. Resolusi Layar Hitam Viewport Facecam (Android Multi-Surface ExoPlayer Collision):
      - Mengatasi kendala layar hitam pada viewport Facecam yang disebabkan oleh batasan platform Android di mana satu instance native `VideoPlayer` (ExoPlayer) hanya dapat mengikat satu `PlayerView`/`SurfaceView` aktif dalam satu waktu.

@@ -323,13 +323,6 @@ export function useClipPlayer({
           }
         }
       }
-
-      // Drift correction: Pastikan facecamPlayer tetap tersinkronisasi presisi dengan player utama
-      if (Math.abs(facecamPlayer.currentTime - current) > 0.4) {
-        try {
-          facecamPlayer.currentTime = current;
-        } catch (e) {}
-      }
     });
 
     const statusSub = player.addListener('statusChange', async () => {
