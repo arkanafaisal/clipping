@@ -14,7 +14,20 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Implement Percentage Zoom, Unified X/Y Center Crop Inputs, and Android Outline Clipping
+## [Unreleased] - Support Main Gameplay Transform in 16:9 Landscape and Seamless Canvas Persistence
+- **Konteks Struktural**:
+  1. Penerapan Transform Zoom & Crop pada Mode Landscape 16:9:
+     - Memastikan konfigurasi zoom dan crop pada `templateConfig.mainVideo` tetap berlaku secara visual pada pemutar video landscape 16:9 (`videoBox169`) ketika elemen Konteks dan Facecam tidak diaktifkan.
+     - Menetapkan `collapsable={false}`, `borderRadius: 1`, dan `contentFit="cover"` pada `videoBox169` agar transformasi skala GPU terkunci rapi di dalam batas kontainer 16:9.
+  2. Preservasi Kanvas 9:16 Tanpa Border Helper di Luar Mode Template:
+     - Memastikan tata letak portrait 9:16 (Banner Konteks + Facecam 4:3 + Gameplay 16:9 + Bottom Safe Zone) tetap aktif dan berputar secara presisi ketika pengguna berada di mode Subtitle maupun saat keluar dari seluruh mode editor (`activeEditorMode === null`).
+     - Menyembunyikan seluruh garis bantu putus-putus (`canvasHelperBorder` dan `elementHelperBorder`) secara otomatis saat berada di luar mode template, memberikan pengalaman menonton bersih (clean preview).
+- **Perubahan Kode Penting**:
+  - [mobile/src/components/FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
+    - Menerapkan transformasi `scale`, `translateX`, dan `translateY` dari `templateConfig.mainVideo` ke `VideoView` pada `videoBox169`.
+    - Menetapkan `collapsable={false}` dan `borderRadius: 1` pada `canvas916Container` dan `videoBox169`.
+
+## [a518179] - Implement Percentage Zoom, Unified X/Y Center Crop Inputs, and Android Outline Clipping
 - **Konteks Struktural**:
   1. Input Numerik Persentase & Koordinat Pusat Crop Bersatu (Tanpa Preset Box):
      - Menggantikan tombol preset kotak (1.5x, 2.0x, Kiri, Tengah, Kanan, Atas, Bawah) pada modal Facecam dan Main Gameplay dengan input numerik murni berbasis persentase (%).

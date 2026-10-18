@@ -311,6 +311,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
               styles.canvas916Container,
               activeEditorMode === 'template' && styles.canvasHelperBorder,
             ]}
+            collapsable={false}
           >
             {streamUrl || (activeClip.status === 'done' && downloadedClips[activeClip.id]) ? (
               <>
@@ -411,12 +412,22 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
               styles.videoBox169,
               activeEditorMode === 'template' && styles.canvasHelperBorder,
             ]}
+            collapsable={false}
           >
             {streamUrl || (activeClip.status === 'done' && downloadedClips[activeClip.id]) ? (
               <VideoView
-                style={styles.videoPlayer}
+                style={[
+                  styles.videoPlayer,
+                  {
+                    transform: [
+                      { scale: templateConfig.mainVideo.zoom },
+                      { translateX: ((50 - templateConfig.mainVideo.cropX) / 100) * 140 },
+                      { translateY: ((50 - templateConfig.mainVideo.cropY) / 100) * 100 },
+                    ],
+                  },
+                ]}
                 player={player}
-                contentFit="contain"
+                contentFit="cover"
                 nativeControls={false}
               />
             ) : (
@@ -522,6 +533,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     justifyContent: 'center',
     alignItems: 'center',
+    borderRadius: 1,
   },
   videoPlayer: {
     width: '100%',
@@ -535,6 +547,7 @@ const styles = StyleSheet.create({
     position: 'relative',
     alignSelf: 'center',
     justifyContent: 'flex-start',
+    borderRadius: 1,
   },
   canvasHelperBorder: {
     borderWidth: 1.5,
