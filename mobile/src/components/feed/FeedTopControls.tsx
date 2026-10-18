@@ -129,6 +129,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
   const [tempEditText, setTempEditText] = useState<string>('');
   const [tempEditSize, setTempEditSize] = useState<string>('14');
   const [showTimeModal, setShowTimeModal] = useState<boolean>(false);
+  const [isSubtitleEditorOpen, setIsSubtitleEditorOpen] = useState<boolean>(false);
   const [startMin, setStartMin] = useState<string>('00');
   const [startSec, setStartSec] = useState<string>('00');
   const [startMs, setStartMs] = useState<string>('000');
@@ -175,16 +176,17 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
 
   // Cue yang saat ini berada tepat di bawah posisi playhead needle
   const currentMatchingCue = useMemo(() => {
-    if (subtitles.length === 0 || clipDuration <= 0) return null;
+    if (!isSubtitleEditorOpen || subtitles.length === 0 || clipDuration <= 0) return null;
     return (
       subtitles.find(
         (cue) => currentClipTime >= cue.start && currentClipTime <= cue.end
       ) || null
     );
-  }, [subtitles, currentClipTime, clipDuration]);
+  }, [isSubtitleEditorOpen, subtitles, currentClipTime, clipDuration]);
 
-  // Sinkronisasi dinamis: pilih subtitle yang tersentuh needle (baik saat playback maupun saat di-scrub)
+  // Sinkronisasi dinamis: pilih subtitle yang tersentuh needle (hanya saat mode editor subtitle aktif)
   useEffect(() => {
+    if (!isSubtitleEditorOpen) return;
     if (showTextModal || showFontModal || showTimeModal || showLangModal) {
       return;
     }
@@ -199,6 +201,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
       onSelectCue(matchedId);
     }
   }, [
+    isSubtitleEditorOpen,
     currentMatchingCue,
     selectedCueId,
     onSelectCue,
@@ -351,10 +354,35 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                   {isFetchingSubtitles ? (
                     <ActivityIndicator size="small" color="#38bdf8" />
                   ) : (
-                    <Subtitles size={18} color="#38bdf8" />
+                    <Globe size={18} color="#38bdf8" />
                   )}
                 </Pressable>
               )}
+
+              {/* Tombol Toggle Mode Subtitle Editor */}
+              <Pressable
+                style={({ pressed }) => [
+                  styles.statusBtn,
+                  isSubtitleEditorOpen
+                    ? styles.subtitleEditorBtnActive
+                    : styles.subtitleEditorBtnInactive,
+                  pressed && { opacity: 0.7 },
+                ]}
+                onPress={() => {
+                  setIsSubtitleEditorOpen((prev) => {
+                    const next = !prev;
+                    if (!next) {
+                      onSelectCue(null);
+                    }
+                    return next;
+                  });
+                }}
+              >
+                <Subtitles
+                  size={18}
+                  color={isSubtitleEditorOpen ? '#ffffff' : 'rgba(255, 255, 255, 0.7)'}
+                />
+              </Pressable>
             </View>
           ) : (
             <Pressable
@@ -533,7 +561,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
             </View>
           </View>
         </>
-      ) : (
+      ) : isSubtitleEditorOpen ? (
         /* MODE DONE: Subtitle Mini Track & Inline Editor Layer */
         <View style={styles.subtitleLayerSection}>
           {/* 1. HORIZONTAL MINI TRACK (100% width, tap/drag to scrub pointer & select cue) */}
@@ -659,7 +687,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
             ) : null}
           </View>
         </View>
-      )}
+      ) : null}
 
       {/* MODAL 1: Language Selection Modal */}
       <Modal
@@ -1176,6 +1204,21 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(56, 189, 248, 0.12)',
     borderWidth: 1,
     borderColor: 'rgba(56, 189, 248, 0.35)',
+  },
+  subtitleEditorBtnInactive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.18)',
+  },
+  subtitleEditorBtnActive: {
+    backgroundColor: '#0284c7',
+    borderWidth: 1,
+    borderColor: '#38bdf8',
+    shadowColor: '#38bdf8',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 6,
+    elevation: 3,
   },
   trashBtnInactive: {
     backgroundColor: 'rgba(239, 68, 68, 0.1)',

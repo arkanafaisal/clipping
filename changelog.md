@@ -14,7 +14,28 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Standardize Base Subtitle Font Size to 14 and Rebalance Size Presets
+## [Unreleased] - Add Subtitle Editor Toggle in Top-Left Controls and Suspend Playback Listening When Closed
+- **Konteks Struktural**:
+  1. Penambahan Tombol Toggle Mode Editor Subtitle di Kiri Atas:
+     - Mengevaluasi posisi needle terhadap array subtitle pada setiap tick video playback secara terus-menerus terasa berat, membebani CPU, dan redundan jika pengguna hanya ingin menonton klip tanpa mengedit subtitle.
+     - Menambahkan tombol toggle `<Subtitles>` di pojok kiri atas baris kontrol (`doneLeftGroup`) pada [FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx). Tombol ini memiliki status visual aktif (`#0284c7` dengan border `#38bdf8`) dan inaktif (`rgba(255, 255, 255, 0.08)`).
+     - Tombol pengambil subtitle online dari YouTube (ketika track kosong) diganti ikonnya menjadi `<Globe>` agar tidak membingungkan dengan tombol toggle editor `<Subtitles>`.
+  2. Penonaktifan Listener Playhead & Penyembunyian Layer Editor Saat Inaktif:
+     - Saat mode editor subtitle tertutup (`isSubtitleEditorOpen === false`):
+       - Seluruh kontainer `subtitleLayerSection` (horizontal mini track, playhead needle, pil subtitle, dan deretan tombol aksi cue) tidak dirender (`null`), memberikan ruang layar yang lebih bersih dan lapang.
+       - Perhitungan `currentMatchingCue` dan listener `useEffect` disetop seketika (`if (!isSubtitleEditorOpen) return;`), menghilangkan beban komputasi re-evaluasi array subtitle selama playback.
+       - Seleksi cue aktif di-reset (`onSelectCue(null)`).
+  3. Pemisahan Total Rendering Subtitle Playback:
+     - Lapisan teks subtitle pada pemutar video ([SubtitleOverlay.tsx](file:///d:/projects/clipping/mobile/src/components/feed/SubtitleOverlay.tsx)) tetap berjalan dan menampilkan subtitle normal secara realtime selama video diputar terlepas dari apakah mode editor subtitle sedang terbuka atau tertutup.
+- **Perubahan Kode Penting**:
+  - [mobile/src/components/feed/FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx):
+    - Menambahkan state `isSubtitleEditorOpen` (default `false`).
+    - Memperbarui `currentMatchingCue` dan `useEffect` sinkronisasi needle agar lekas keluar ketika `!isSubtitleEditorOpen`.
+    - Mengganti ikon fetch YouTube menjadi `Globe` dan menambahkan tombol toggle `Subtitles` di `doneLeftGroup`.
+    - Mengondisikan rendering `subtitleLayerSection` dengan `isSubtitleEditorOpen`.
+    - Menambahkan style `subtitleEditorBtnInactive` dan `subtitleEditorBtnActive`.
+
+## [de84dfb] - Standardize Base Subtitle Font Size to 14 and Rebalance Size Presets
 - **Konteks Struktural**:
   1. Penyesuaian Base Font Size Subtitle Menjadi 14:
      - Mengubah nilai default ukuran font subtitle dari 20/22 menjadi 14 di seluruh pipeline pembuatan dan rendering ([DEFAULT_SUBTITLE_STYLE](file:///d:/projects/clipping/mobile/src/services/api.ts#L1169-L1178), [sliceCuesForClip](file:///d:/projects/clipping/mobile/src/services/api.ts), [normalizeSingleTrackCues](file:///d:/projects/clipping/mobile/src/services/api.ts), [handleAddCue](file:///d:/projects/clipping/mobile/src/hooks/useClipSubtitle.ts), dan [SubtitleOverlay.tsx](file:///d:/projects/clipping/mobile/src/components/feed/SubtitleOverlay.tsx)).
