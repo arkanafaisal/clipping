@@ -14,7 +14,32 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Implement Video-Level Global Configuration Hierarchy for Template Framing and Subtitle Position
+## [Unreleased] - Implement 1-Pass Multi-Layer Template and Subtitle Video Export in FFmpeg
+- **Konteks Struktural**:
+  1. Arsitektur Ekspor Multi-Layer 1-Pass FFmpeg Murni:
+     - Menggabungkan pemrosesan template orientasi (9:16 Portrait / 16:9 Landscape), viewport facecam 4:3, viewport gameplay 4:3 / 16:9, banner konteks judul, dan subtitle burn-in ke dalam **satu proses tunggal** FFmpeg via `-filter_complex_script`.
+     - Menghilangkan rendering bertahap/intermediate files, mencegah kompresi ulang berulang yang menurunkan kualitas visual, serta menjaga sinkronisasi audio murni (`-c:a copy` dengan map `0:a?`).
+  2. Kalkulasi Koordinat dan Penskalaan Relatif Kanvas Video (Non-DP):
+     - Mem-parsing konfigurasi template frontend (`context`, `facecam`, `mainVideo`) menjadi parameter filter FFmpeg asli (`crop`, `scale`, `pad`, `overlay`, `drawbox`, `drawtext`).
+     - Seluruh perhitungan crop (`zoom`, `cropX`, `cropY`) dihitung relatif terhadap resolusi asli video ($W_{in} \times H_{in}$, misal 1920x1080 atau 1280x720) dengan batas genap, menjamin kesesuaian 1:1 antara tampilan editor di perangkat mobile dan video hasil ekspor.
+  3. Padding Kanvas Sinkron & Fallback Fleksibel:
+     - Menggunakan teknik `pad` pada base stream gameplay untuk membentuk kanvas 1080x1920 hitam tanpa generator warna tak berhingga, menjamin PTS dan durasi tetap sinkron 100%.
+     - Mendukung ekspor klip template tanpa subtitle, template dengan subtitle, maupun klip subtitle standar, dengan fallback otomatis ke native `drawtext` jika binary perangkat tidak mengompilasi `libass`.
+- **Perubahan Kode Penting**:
+  - [mobile/scripts/utils/subtitle_burner.py](file:///d:/projects/clipping/mobile/scripts/utils/subtitle_burner.py):
+    - Membuat fungsi `build_multi_layer_pipeline` untuk menyusun complex filtergraph script (.ffcomplex) 5-layer terpadu.
+    - Memperbarui `burn_subtitles_to_video` agar menerima parameter `template_data`, mendeteksi orientasi 9:16 portrait vs 16:9 landscape, dan menjalankan eksekusi complex script dengan pemantauan progress throttled.
+  - [mobile_api/main.py](file:///d:/projects/clipping/mobile_api/main.py):
+    - Memperbarui endpoint `/api/burn-subtitles` agar mengekstrak `template_data` dan meneruskannya ke fungsi `burn_subtitles_to_video`.
+  - [mobile/src/services/api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts):
+    - Menambahkan `templateData?: ClipTemplateConfig` pada antarmuka `BurnSubtitlesParams` dan mem-passing-nya ke runner Python native maupun web API.
+  - [mobile/src/hooks/useClipSubtitle.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipSubtitle.ts):
+    - Menerima `templateConfig` pada `UseClipSubtitleParams`, memuat fallback template dari disk jika belum aktif di memory, dan mem-passing `templateData` ke `burnClipSubtitles`.
+    - Memperbarui validasi agar ekspor tetap berjalan jika template aktif meskipun cue subtitle kosong.
+  - [mobile/src/components/FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
+    - Menata urutan inisialisasi hook agar `useClipTemplate` diinisialisasi sebelum `useClipSubtitle`, sehingga `templateConfig` aktif langsung diteruskan ke handler ekspor.
+
+## [d0ae0fd] - Implement Video-Level Global Configuration Hierarchy for Template Framing and Subtitle Position
 - **Konteks Struktural**:
   1. Arsitektur Konfigurasi Hierarkis (Global Video vs Spesifik Klip):
      - Memisahkan pengaturan editor menjadi dua tingkatan (*scopes*): Tingkat Video (Global/Shared) dan Tingkat Klip (Per-Klip).

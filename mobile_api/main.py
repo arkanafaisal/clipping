@@ -302,7 +302,7 @@ def get_subtitles(video_id=None):
 def api_burn_subtitles():
     """
     Endpoint Pass-Through murni untuk menempelkan (hardcode burn-in) subtitle ke video klip.
-    Front-end mengirimkan konfigurasi: input_video_path, output_video_path, subtitle_data, ffmpeg_bin, progress_path, duration.
+    Front-end mengirimkan konfigurasi: input_video_path, output_video_path, subtitle_data, template_data, ffmpeg_bin, progress_path, duration.
     Server memproses pembuatan video baru secara mandiri tanpa mengubah video asli yang sudah ada.
     """
     try:
@@ -310,6 +310,7 @@ def api_burn_subtitles():
         input_video_path = body.get("input_video_path")
         output_video_path = body.get("output_video_path")
         subtitle_data = body.get("subtitle_data")
+        template_data = body.get("template_data")
         ffmpeg_bin = body.get("ffmpeg_bin")
         progress_path = body.get("progress_path")
         duration = body.get("duration")
@@ -318,13 +319,14 @@ def api_burn_subtitles():
             input_video_path=input_video_path,
             output_video_path=output_video_path,
             subtitle_data=subtitle_data,
+            template_data=template_data,
             ffmpeg_bin=ffmpeg_bin,
             progress_path=progress_path,
             duration=duration
         )
 
         status_code = 200 if res.get("status") == "success" else (
-            400 if res.get("code") in ["INPUT_VIDEO_NOT_FOUND", "OUTPUT_PATH_REQUIRED", "INVALID_PARAMS", "NO_SUBTITLES_TO_BURN"] else 500
+            400 if res.get("code") in ["INPUT_VIDEO_NOT_FOUND", "OUTPUT_PATH_REQUIRED", "INVALID_PARAMS", "NO_SUBTITLES_TO_BURN", "NO_CONTENT_TO_BURN"] else 500
         )
         return jsonify(res), status_code
     except Exception as e:

@@ -1933,6 +1933,7 @@ export interface BurnSubtitlesParams {
   inputVideoPath: string;
   outputVideoPath?: string;
   subtitleData: ClipSubtitleData;
+  templateData?: ClipTemplateConfig;
   duration?: number;
 }
 
@@ -1942,7 +1943,7 @@ export interface BurnSubtitlesResult {
 }
 
 /**
- * Mengekspor klip baru dengan subtitle yang tertempel permanen (burn-in via FFmpeg).
+ * Mengekspor klip baru dengan subtitle dan template layout yang tertempel permanen (burn-in via FFmpeg).
  * Video klip asli yang sudah di-download tetap utuh di lokasinya.
  */
 export async function burnClipSubtitles({
@@ -1952,6 +1953,7 @@ export async function burnClipSubtitles({
   inputVideoPath,
   outputVideoPath,
   subtitleData,
+  templateData,
   duration,
 }: BurnSubtitlesParams): Promise<BurnSubtitlesResult> {
   const finalOutputPath = outputVideoPath || getSubtitledClipOutputFilePath(videoId, start, end).nativePath;
@@ -1970,6 +1972,7 @@ export async function burnClipSubtitles({
       input_video_path: inputVideoPath,
       output_video_path: finalOutputPath,
       subtitle_data: subtitleData,
+      template_data: templateData,
       ffmpeg_bin: nativeFfmpeg,
       progress_path: progressPath,
       duration: clipDuration,
@@ -1985,6 +1988,7 @@ export async function burnClipSubtitles({
           input_video_path: inputVideoPath,
           output_video_path: finalOutputPath,
           subtitle_data: subtitleData,
+          template_data: templateData,
           ffmpeg_bin: nativeFfmpeg,
           progress_path: progressPath,
           duration: clipDuration,

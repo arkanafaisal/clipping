@@ -237,18 +237,261 @@ def build_drawtext_pipeline(cues: list, style: dict, output_base: str, video_wid
     return script_path, temp_files
 
 
+def build_multi_layer_pipeline(
+    cues: list,
+    style: dict,
+    template_data: dict,
+    output_base: str,
+    video_width: int = 1280,
+    video_height: int = 720,
+    subtitles_supported: bool = True
+) -> tuple[str, list[str], int, int]:
+    """
+    Membangun script complex filtergraph (-filter_complex_script) untuk 1-pass multi-layer template video export:
+    - Layer 1 (Base/Canvas): 9:16 Portrait (1080x1920 / 720x1280) jika facecam atau context aktif, atau 16:9 Landscape asli.
+    - Layer 2 (Facecam): Viewport 4:3 diposisikan di atas (setelah banner), di-crop & di-zoom dinamis dari input 16:9.
+    - Layer 3 (Gameplay / Main Video): Viewport 4:3 (jika facecam aktif) atau 16:9 (jika facecam nonaktif), di-crop & di-zoom dinamis.
+    - Layer 4 (Context Banner): Box putih di bagian paling atas (Y=0) dengan judul teks hitam tebal terpusat.
+    - Layer 5 (Subtitles): Burn-in cue subtitle dinamis (libass atau drawtext per cue) terposisikan di atas canvas kanvas luar.
+
+    Semua filter digabungkan dalam 1 PASS tanpa file intermediate dan menjaga sinkronisasi audio murni.
+    Mengembalikan (complex_script_path, temp_files, out_w, out_h).
+    """
+    if not template_data or not isinstance(template_data, dict):
+        template_data = {}
+
+    context_cfg = template_data.get("context") or {}
+    facecam_cfg = template_data.get("facecam") or {}
+    main_cfg = template_data.get("mainVideo") or {}
+
+    ctx_enabled = bool(context_cfg.get("enabled", False))
+    fc_enabled = bool(facecam_cfg.get("enabled", False))
+
+    is_portrait = fc_enabled or ctx_enabled
+
+    vw = max(240, int(video_width)) if video_width else 1280
+    vh = max(240, int(video_height)) if video_height else 720
+
+    if is_portrait:
+        if vh >= 1080:
+            out_w, out_h = 1080, 1920
+        elif vh >= 720:
+            out_w, out_h = 720, 1280
+        else:
+            out_w, out_h = 540, 960
+    else:
+        out_w, out_h = vw, vh
+
+    out_w = out_w - (out_w % 2)
+    out_h = out_h - (out_h % 2)
+
+    temp_files = []
+    font_path = resolve_system_font()
+    font_opt = f":fontfile='{escape_ffmpeg_filter_path(font_path)}'" if font_path else ""
+
+    # 1. Hitung Banner Konteks
+    banner_h = 0
+    ctx_text = str(context_cfg.get("text", "")).strip() if ctx_enabled else ""
+    ctx_fs = 24
+    if ctx_enabled and ctx_text:
+        scale_factor = out_w / 390.0
+        ctx_fs_dp = float(context_cfg.get("fontSize", 16))
+        ctx_pad_dp = float(context_cfg.get("paddingY", 10))
+        ctx_fs = max(14, int(round(ctx_fs_dp * scale_factor)))
+        ctx_pad = max(4, int(round(ctx_pad_dp * scale_factor)))
+        banner_h = int(round(ctx_fs * 1.35 + 2 * ctx_pad))
+        if banner_h % 2 != 0:
+            banner_h += 1
+
+        ctx_file = f"{output_base}.context.txt"
+        with open(ctx_file, "w", encoding="utf-8") as f:
+            f.write(ctx_text)
+        temp_files.append(ctx_file)
+        esc_ctx_file = escape_ffmpeg_filter_path(ctx_file)
+
+    # 2. Hitung Geometri Facecam (Viewport 4:3)
+    if fc_enabled:
+        w_fc = out_w
+        h_fc = int(round(out_w * 0.75))
+        if h_fc % 2 != 0:
+            h_fc += 1
+        y_fc = banner_h
+
+        fc_zoom = max(1.0, float(facecam_cfg.get("zoom", 2.0)))
+        fc_crop_x = max(0.0, min(100.0, float(facecam_cfg.get("cropX", 80.0))))
+        fc_crop_y = max(0.0, min(100.0, float(facecam_cfg.get("cropY", 20.0))))
+
+        cw_fc = int(round((0.75 * vw) / fc_zoom))
+        ch_fc = int(round(vh / fc_zoom))
+        cw_fc = max(2, min(vw, cw_fc - (cw_fc % 2)))
+        ch_fc = max(2, min(vh, ch_fc - (ch_fc % 2)))
+
+        max_pan_fc_x = max(0, vw - cw_fc)
+        max_pan_fc_y = max(0, vh - ch_fc)
+        cx_fc = int(round(max_pan_fc_x * (fc_crop_x / 100.0)))
+        cy_fc = int(round(max_pan_fc_y * (fc_crop_y / 100.0)))
+        cx_fc = max(0, min(vw - cw_fc, cx_fc - (cx_fc % 2)))
+        cy_fc = max(0, min(vh - ch_fc, cy_fc - (cy_fc % 2)))
+
+    # 3. Hitung Geometri Main Video Gameplay
+    main_zoom = max(1.0, float(main_cfg.get("zoom", 1.0)))
+    main_crop_x = max(0.0, min(100.0, float(main_cfg.get("cropX", 50.0))))
+    main_crop_y = max(0.0, min(100.0, float(main_cfg.get("cropY", 50.0))))
+
+    if is_portrait:
+        if fc_enabled:
+            w_main = out_w
+            h_main = int(round(out_w * 0.75))
+            if h_main % 2 != 0:
+                h_main += 1
+            y_main = banner_h + h_fc
+
+            cw_main = int(round((0.75 * vw) / main_zoom))
+            ch_main = int(round(vh / main_zoom))
+        else:
+            w_main = out_w
+            h_main = int(round(out_w * (9.0 / 16.0)))
+            if h_main % 2 != 0:
+                h_main += 1
+            y_main = banner_h
+
+            cw_main = int(round(vw / main_zoom))
+            ch_main = int(round(vh / main_zoom))
+
+        cw_main = max(2, min(vw, cw_main - (cw_main % 2)))
+        ch_main = max(2, min(vh, ch_main - (ch_main % 2)))
+
+        max_pan_main_x = max(0, vw - cw_main)
+        max_pan_main_y = max(0, vh - ch_main)
+        cx_main = int(round(max_pan_main_x * (main_crop_x / 100.0)))
+        cy_main = int(round(max_pan_main_y * (main_crop_y / 100.0)))
+        cx_main = max(0, min(vw - cw_main, cx_main - (cx_main % 2)))
+        cy_main = max(0, min(vh - ch_main, cy_main - (cy_main % 2)))
+    else:
+        w_main = out_w
+        h_main = out_h
+        y_main = 0
+
+        cw_main = int(round(vw / main_zoom))
+        ch_main = int(round(vh / main_zoom))
+        cw_main = max(2, min(vw, cw_main - (cw_main % 2)))
+        ch_main = max(2, min(vh, ch_main - (ch_main % 2)))
+
+        max_pan_main_x = max(0, vw - cw_main)
+        max_pan_main_y = max(0, vh - ch_main)
+        cx_main = int(round(max_pan_main_x * (main_crop_x / 100.0)))
+        cy_main = int(round(max_pan_main_y * (main_crop_y / 100.0)))
+        cx_main = max(0, min(vw - cw_main, cx_main - (cx_main % 2)))
+        cy_main = max(0, min(vh - ch_main, cy_main - (cy_main % 2)))
+
+    # 4. Susun Baris-Baris Filtergraph FFmpeg
+    filter_lines = []
+
+    if is_portrait:
+        if fc_enabled:
+            filter_lines.append("[0:v]split=2[in_fc][in_main];")
+            filter_lines.append(f"[in_fc]crop={cw_fc}:{ch_fc}:{cx_fc}:{cy_fc},scale={w_fc}:{h_fc}[fc_box];")
+            filter_lines.append(f"[in_main]crop={cw_main}:{ch_main}:{cx_main}:{cy_main},scale={w_main}:{h_main},pad={out_w}:{out_h}:0:{y_main}:black[canvas_pad];")
+            filter_lines.append(f"[canvas_pad][fc_box]overlay=0:{y_fc}[canvas_comp];")
+        else:
+            filter_lines.append(f"[0:v]crop={cw_main}:{ch_main}:{cx_main}:{cy_main},scale={w_main}:{h_main},pad={out_w}:{out_h}:0:{y_main}:black[canvas_comp];")
+    else:
+        is_cropped = (cw_main < vw) or (ch_main < vh)
+        if is_cropped:
+            filter_lines.append(f"[0:v]crop={cw_main}:{ch_main}:{cx_main}:{cy_main},scale={out_w}:{out_h}[canvas_comp];")
+        else:
+            filter_lines.append("[0:v]null[canvas_comp];")
+
+    current_node = "[canvas_comp]"
+
+    # 5. Pasang Banner Konteks jika aktif
+    if ctx_enabled and ctx_text:
+        banner_filters = [
+            f"drawbox=x=0:y=0:w={out_w}:h={banner_h}:color=white:t=fill",
+            f"drawtext=textfile='{esc_ctx_file}'{font_opt}:fontsize={ctx_fs}:fontcolor=black:x=(w-text_w)/2:y=({banner_h}-text_h)/2"
+        ]
+        filter_lines.append(f"{current_node}{','.join(banner_filters)}[canvas_banner];")
+        current_node = "[canvas_banner]"
+
+    # 6. Pasang Subtitle Burn-In jika tersedia
+    has_cues = bool(cues and isinstance(cues, list) and len(cues) > 0)
+
+    if has_cues:
+        if subtitles_supported:
+            ass_content = build_ass_content(cues, style, video_width=out_w, video_height=out_h)
+            ass_path = f"{output_base}.temp.ass"
+            with open(ass_path, "w", encoding="utf-8") as f:
+                f.write(ass_content)
+            temp_files.append(ass_path)
+            esc_ass = escape_ffmpeg_filter_path(ass_path)
+            filter_lines.append(f"{current_node}subtitles='{esc_ass}'[v_out]")
+        else:
+            ref_dim = min(out_w, out_h)
+            base_fs = max(14, int(round(ref_dim * 0.0638)))
+            border_w = max(2, int(round(base_fs * 0.08)))
+            pos_x = float(style.get("positionX", 50))
+            pos_y = float(style.get("positionY", 85))
+            x_expr = "(w-text_w)/2" if abs(pos_x - 50) < 0.1 else f"(w-text_w)*{pos_x/100.0:.3f}"
+            y_expr = "(h-text_h)*0.85" if abs(pos_y - 85) < 0.1 else f"(h-text_h)*{pos_y/100.0:.3f}"
+
+            drawtext_items = []
+            for idx, cue in enumerate(cues):
+                raw_text = str(cue.get("text", "")).strip()
+                if not raw_text:
+                    continue
+                s = max(0.0, float(cue.get("start", 0)))
+                e = max(s + 0.1, float(cue.get("end", 0)))
+
+                cue_file = f"{output_base}.cue_{idx}.txt"
+                with open(cue_file, "w", encoding="utf-8") as f:
+                    f.write(raw_text)
+                temp_files.append(cue_file)
+                esc_cue_file = escape_ffmpeg_filter_path(cue_file)
+
+                cue_fs = float(cue.get("fontSize", 14))
+                fs_scale = cue_fs / 14.0 if cue_fs > 0 else 1.0
+                final_fs = max(10, int(round(base_fs * fs_scale)))
+
+                item = (
+                    f"drawtext=textfile='{esc_cue_file}'"
+                    f"{font_opt}"
+                    f":fontsize={final_fs}"
+                    f":fontcolor=white"
+                    f":borderw={border_w}:bordercolor=black"
+                    f":x={x_expr}:y={y_expr}"
+                    f":enable='between(t,{s:.3f},{e:.3f})'"
+                )
+                drawtext_items.append(item)
+
+            if drawtext_items:
+                filter_lines.append(f"{current_node}{','.join(drawtext_items)}[v_out]")
+            else:
+                filter_lines.append(f"{current_node}null[v_out]")
+    else:
+        filter_lines.append(f"{current_node}null[v_out]")
+
+    complex_script_path = f"{output_base}.ffcomplex"
+    with open(complex_script_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(filter_lines))
+    temp_files.append(complex_script_path)
+
+    return complex_script_path, temp_files, out_w, out_h
+
+
 def burn_subtitles_to_video(
     input_video_path: str,
     output_video_path: str,
     subtitle_data: dict,
     ffmpeg_bin: str = None,
     progress_path: str = None,
-    duration: float = None
+    duration: float = None,
+    template_data: dict = None
 ) -> dict:
     """
-    Mengeksekusi penempelan (hardcode burn-in) subtitle ke video klip menggunakan FFmpeg.
-    - Menghasilkan file video BARU pada output_video_path.
+    Mengeksekusi penempelan (hardcode burn-in) subtitle dan template layout ke video klip menggunakan FFmpeg.
+    - Menghasilkan file video BARU pada output_video_path dalam 1 PASS FFmpeg murni.
     - File input asli tetap utuh 100% tanpa modifikasi.
+    - Mendukung mode 9:16 Portrait terpadu (Konteks + Facecam + Gameplay) dan 16:9 Landscape.
     - Mendukung filter 'subtitles' (libass) dan otomatis fallback ke native 'drawtext' pipeline.
     - Parameter 100% dinamis dipasok oleh frontend.
     - Mengembalikan kode status terstandarisasi.
@@ -280,18 +523,43 @@ def burn_subtitles_to_video(
             }
 
     if not subtitle_data or not isinstance(subtitle_data, dict):
-        return {
-            "status": "error",
-            "code": "INVALID_PARAMS",
-            "error": "Data subtitle_data wajib berupa objek."
-        }
+        subtitle_data = {}
+
+    # Normalisasi template_data jika disertakan terpisah atau tertanam di subtitle_data
+    if template_data is None:
+        template_data = subtitle_data.get("template")
+
+    if isinstance(template_data, str):
+        try:
+            template_data = json.loads(template_data)
+        except Exception:
+            template_data = {}
+
+    if not isinstance(template_data, dict):
+        template_data = {}
 
     cues = subtitle_data.get("cues") or []
-    if not cues or not isinstance(cues, list) or len(cues) == 0:
+    if not isinstance(cues, list):
+        cues = []
+
+    has_template = False
+    fc = template_data.get("facecam") or {}
+    ctx = template_data.get("context") or {}
+    main_v = template_data.get("mainVideo") or {}
+    if (
+        fc.get("enabled")
+        or ctx.get("enabled")
+        or float(main_v.get("zoom", 1.0)) > 1.001
+        or float(main_v.get("cropX", 50)) != 50
+        or float(main_v.get("cropY", 50)) != 50
+    ):
+        has_template = True
+
+    if len(cues) == 0 and not has_template:
         return {
             "status": "error",
-            "code": "NO_SUBTITLES_TO_BURN",
-            "error": "Daftar cue subtitle kosong."
+            "code": "NO_CONTENT_TO_BURN",
+            "error": "Daftar cue subtitle dan template video kosong."
         }
 
     # 2. Resolusi Path FFmpeg
@@ -313,50 +581,32 @@ def burn_subtitles_to_video(
     if out_dir:
         os.makedirs(out_dir, exist_ok=True)
 
-    temp_ass_path = f"{output_video_path}.temp.ass"
     ffmpeg_prog_file = f"{output_video_path}.ffprog"
     ffmpeg_err_file = f"{output_video_path}.fferr"
     temp_files_to_clean = []
 
     def cleanup_temp_files():
-        for p in [temp_ass_path, ffmpeg_prog_file, ffmpeg_err_file] + temp_files_to_clean:
+        for p in [ffmpeg_prog_file, ffmpeg_err_file] + temp_files_to_clean:
             if os.path.exists(p):
                 try:
                     os.remove(p)
                 except Exception:
                     pass
 
-    # 4. Tentukan Engine Filter (subtitles/libass vs drawtext)
-    subtitles_supported = is_filter_supported(resolved_ffmpeg, "subtitles")
-    filter_args = []
+    # 4. Bangun 1-Pass Multi-Layer Pipeline Script
     v_width, v_height = get_video_dimensions(resolved_ffmpeg, input_video_path)
+    subtitles_supported = is_filter_supported(resolved_ffmpeg, "subtitles")
 
-    if subtitles_supported:
-        try:
-            ass_content = build_ass_content(
-                cues,
-                subtitle_data.get("style"),
-                video_width=v_width,
-                video_height=v_height
-            )
-            with open(temp_ass_path, "w", encoding="utf-8") as f:
-                f.write(ass_content)
-            escaped_ass = escape_ffmpeg_filter_path(temp_ass_path)
-            filter_args = ["-vf", f"subtitles='{escaped_ass}'"]
-        except Exception:
-            subtitles_supported = False
-
-    if not subtitles_supported:
-        # Gunakan native drawtext filter pipeline via -filter_script:v dengan integer fontsize absolut
-        script_path, created_files = build_drawtext_pipeline(
-            cues,
-            subtitle_data.get("style", {}),
-            output_video_path,
-            video_width=v_width,
-            video_height=v_height
-        )
-        temp_files_to_clean.extend(created_files)
-        filter_args = ["-filter_script:v", script_path]
+    complex_script, created_files, out_w, out_h = build_multi_layer_pipeline(
+        cues=cues,
+        style=subtitle_data.get("style", {}),
+        template_data=template_data,
+        output_base=output_video_path,
+        video_width=v_width,
+        video_height=v_height,
+        subtitles_supported=subtitles_supported
+    )
+    temp_files_to_clean.extend(created_files)
 
     # 5. Estimasi Durasi Klip untuk Progress Tracking
     clip_dur = 0.0
@@ -395,12 +645,14 @@ def burn_subtitles_to_video(
 
     write_progress("STAGE_BURN_SUB", "BURNING_SUBTITLES", 5, force=True)
 
-    # 6. Susun Argumen FFmpeg
+    # 6. Susun Argumen FFmpeg 1-Pass Multi-Layer
     ffmpeg_cmd = [
         resolved_ffmpeg,
         "-y",
         "-i", input_video_path,
-        *filter_args,
+        "-filter_complex_script", complex_script,
+        "-map", "[v_out]",
+        "-map", "0:a?",
         "-c:v", "libx264",
         "-preset", "ultrafast",
         "-c:a", "copy",
@@ -436,7 +688,7 @@ def burn_subtitles_to_video(
         return {
             "status": "error",
             "code": "FFMPEG_BURN_ERROR",
-            "error": f"Eksekusi FFmpeg burning subtitle gagal: {str(e_proc)}",
+            "error": f"Eksekusi FFmpeg export multi-layer gagal: {str(e_proc)}",
             "traceback": traceback.format_exc()
         }
 
@@ -449,21 +701,25 @@ def burn_subtitles_to_video(
             pass
 
     # 8. Fallback Otomatis jika filter 'subtitles' gagal saat runtime
-    if proc.returncode != 0 and subtitles_supported and ("No such filter: 'subtitles'" in err_output or "filter" in err_output.lower()):
-        # Retry dengan native drawtext filter pipeline
-        script_path, created_files = build_drawtext_pipeline(
-            cues,
-            subtitle_data.get("style", {}),
-            output_video_path,
+    if proc.returncode != 0 and subtitles_supported and ("No such filter: 'subtitles'" in err_output or "subtitles" in err_output.lower() or "filter" in err_output.lower()):
+        # Retry dengan native drawtext fallback pipeline
+        fb_script, fb_files, _, _ = build_multi_layer_pipeline(
+            cues=cues,
+            style=subtitle_data.get("style", {}),
+            template_data=template_data,
+            output_base=output_video_path,
             video_width=v_width,
-            video_height=v_height
+            video_height=v_height,
+            subtitles_supported=False
         )
-        temp_files_to_clean.extend(created_files)
+        temp_files_to_clean.extend(fb_files)
         fallback_cmd = [
             resolved_ffmpeg,
             "-y",
             "-i", input_video_path,
-            "-filter_script:v", script_path,
+            "-filter_complex_script", fb_script,
+            "-map", "[v_out]",
+            "-map", "0:a?",
             "-c:v", "libx264",
             "-preset", "ultrafast",
             "-c:a", "copy",
@@ -504,7 +760,7 @@ def burn_subtitles_to_video(
         return {
             "status": "error",
             "code": "FFMPEG_BURN_ERROR",
-            "error": f"Penempelan subtitle FFmpeg gagal (exit code {proc.returncode}):\n{err_output}",
+            "error": f"Ekspor video FFmpeg gagal (exit code {proc.returncode}):\n{err_output}",
             "traceback": err_output or f"Exit code {proc.returncode}"
         }
 

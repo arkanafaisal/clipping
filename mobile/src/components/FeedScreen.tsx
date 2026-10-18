@@ -169,7 +169,19 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     downloadedClipsRef,
   });
 
-  // Hook 4: useClipSubtitle
+  // Hook 4: useClipTemplate
+  const {
+    templateConfig,
+    isPortrait,
+    handleUpdateContext,
+    handleUpdateFacecam,
+    handleUpdateMainVideo,
+  } = useClipTemplate({
+    videoId,
+    activeClip,
+  });
+
+  // Hook 5: useClipSubtitle
   const {
     subtitles,
     setSubtitles,
@@ -193,23 +205,12 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     videoId,
     activeClip,
     subtitlesRef,
+    templateConfig,
     onSeek: (timeSec) => handleSeekRelative(timeSec, true),
     onRateLimit: () => setCookiesModalVisible(true),
   });
 
   const [activeEditorMode, setActiveEditorMode] = useState<EditorMode>(null);
-
-  // Hook 5: useClipTemplate
-  const {
-    templateConfig,
-    isPortrait,
-    handleUpdateContext,
-    handleUpdateFacecam,
-    handleUpdateMainVideo,
-  } = useClipTemplate({
-    videoId,
-    activeClip,
-  });
 
   const [facecamLayout, setFacecamLayout] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
   const [mainVideoLayout, setMainVideoLayout] = useState<{ width: number; height: number }>({ width: 0, height: 0 });

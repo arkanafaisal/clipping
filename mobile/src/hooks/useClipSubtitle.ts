@@ -18,6 +18,9 @@ import {
   getClipInternalOutputFilePath,
   getSubtitledClipOutputFilePath,
   ClipSubtitleData,
+  ClipTemplateConfig,
+  DEFAULT_TEMPLATE_CONFIG,
+  loadClipTemplate,
 } from '../services/api';
 import { ToastManager } from '../components/Toast';
 
@@ -25,6 +28,7 @@ export interface UseClipSubtitleParams {
   videoId: string;
   activeClip?: ClipItem;
   subtitlesRef?: React.MutableRefObject<SubtitleCue[]>;
+  templateConfig?: ClipTemplateConfig;
   onSeek?: (timeSec: number, shouldPlay?: boolean) => void;
   onRateLimit?: () => void;
 }
@@ -33,6 +37,7 @@ export function useClipSubtitle({
   videoId,
   activeClip,
   subtitlesRef: externalSubtitlesRef,
+  templateConfig,
   onSeek,
   onRateLimit,
 }: UseClipSubtitleParams) {
@@ -382,17 +387,37 @@ export function useClipSubtitle({
       }
     }
 
-    if (!currentCues || currentCues.length === 0) {
+    // 3. Resolusi Konfigurasi Template (Memory State atau Disk Fallback)
+    let activeTemplateConfig = templateConfig;
+    if (!activeTemplateConfig || (!activeTemplateConfig.context.enabled && !activeTemplateConfig.facecam.enabled)) {
+      try {
+        const savedTemplate = await loadClipTemplate(activeClip.videoId, activeClip.start, activeClip.end);
+        const globalConfig = await loadVideoGlobalConfig(activeClip.videoId);
+        if (savedTemplate || globalConfig) {
+          activeTemplateConfig = {
+            context: savedTemplate?.context || DEFAULT_TEMPLATE_CONFIG.context,
+            facecam: globalConfig?.facecam || savedTemplate?.facecam || DEFAULT_TEMPLATE_CONFIG.facecam,
+            mainVideo: globalConfig?.mainVideo || savedTemplate?.mainVideo || DEFAULT_TEMPLATE_CONFIG.mainVideo,
+          };
+        }
+      } catch (e) {}
+    }
+
+    const hasTemplate = Boolean(
+      activeTemplateConfig && (activeTemplateConfig.facecam?.enabled || activeTemplateConfig.context?.enabled)
+    );
+
+    if ((!currentCues || currentCues.length === 0) && !hasTemplate) {
       ToastManager.show({
         type: 'info',
-        title: 'Subtitle Kosong',
-        message: 'Klip ini belum memiliki subtitle untuk diekspor.',
+        title: 'Konten Kosong',
+        message: 'Klip ini belum memiliki subtitle atau konfigurasi template untuk diekspor.',
         duration: 3000,
       });
       return;
     }
 
-    // 3. Resolusi video input lokal (resolvePlayableClipUri)
+    // 4. Resolusi video input lokal (resolvePlayableClipUri)
     let inputVideoPath = '';
     try {
       const resolvedUri = await resolvePlayableClipUri(
@@ -436,8 +461,10 @@ export function useClipSubtitle({
     setIsExportingSubtitle(true);
     ToastManager.show({
       type: 'info',
-      title: 'Mengekspor Subtitle',
-      message: 'Sedang menempelkan subtitle ke video via FFmpeg...',
+      title: hasTemplate ? 'Mengekspor Template & Subtitle' : 'Mengekspor Subtitle',
+      message: hasTemplate
+        ? 'Sedang memproses 1-pass multi-layer template & subtitle via FFmpeg...'
+        : 'Sedang menempelkan subtitle ke video via FFmpeg...',
       duration: 3500,
     });
 
@@ -469,6 +496,7 @@ export function useClipSubtitle({
         inputVideoPath,
         outputVideoPath: targetOutput.nativePath,
         subtitleData,
+        templateData: activeTemplateConfig,
         duration: activeClip.end - activeClip.start,
       });
 
@@ -483,7 +511,7 @@ export function useClipSubtitle({
       ToastManager.show({
         type: 'error',
         title: 'Ekspor Gagal',
-        message: err.message || 'Gagal menempelkan subtitle ke video.',
+        message: err.message || 'Gagal memproses ekspor video.',
         rawError: err.rawError,
         errorCode: err.code,
         duration: 5000,
@@ -491,7 +519,7 @@ export function useClipSubtitle({
     } finally {
       setIsExportingSubtitle(false);
     }
-  }, [activeClip, subtitles, subtitlesRef]);
+  }, [activeClip, subtitles, subtitlesRef, templateConfig]);
 
   return {
     subtitles,
