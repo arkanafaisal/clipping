@@ -214,55 +214,57 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
   const [facecamLayout, setFacecamLayout] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
   const [mainVideoLayout, setMainVideoLayout] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
 
-  // Transform dinamis yang terkunci rapi di batas frame tanpa pernah menampakkan celah hitam
-  const facecamTransform = useMemo(() => {
+  // Layout style murni 16:9 yang menjamin buffer native ExoPlayer mempertahankan 100% frame 16:9 penuh
+  const facecamVideoStyle = useMemo(() => {
     const zoom = Math.max(1.0, templateConfig.facecam.zoom || 2.0);
     const cropX = Math.max(0, Math.min(100, templateConfig.facecam.cropX ?? 50));
     const cropY = Math.max(0, Math.min(100, templateConfig.facecam.cropY ?? 50));
     const w = facecamLayout.width || 280;
     const h = facecamLayout.height || (w * 0.75);
 
-    // Pada kontainer 4:3 dengan video 16:9 (contentFit="cover"),
-    // lebar dasar video = h * (16 / 9) = w * (4 / 3)
-    const videoBaseWidth = w * (4 / 3);
-    const videoScaledWidth = videoBaseWidth * zoom;
-    const videoScaledHeight = h * zoom;
+    // Dimensi video 16:9 penuh agar native player tidak memotong gambar
+    const baseVideoWidth = h * (16 / 9);
+    const scaledWidth = baseVideoWidth * zoom;
+    const scaledHeight = h * zoom;
 
-    const maxShiftX = Math.max(0, (videoScaledWidth - w) / 2);
-    const maxShiftY = Math.max(0, (videoScaledHeight - h) / 2);
+    const maxShiftX = Math.max(0, (scaledWidth - w) / 2);
+    const maxShiftY = Math.max(0, (scaledHeight - h) / 2);
 
-    const translateX = ((50 - cropX) / 50) * maxShiftX;
-    const translateY = ((50 - cropY) / 50) * maxShiftY;
+    const left = (w - scaledWidth) / 2 + ((50 - cropX) / 50) * maxShiftX;
+    const top = (h - scaledHeight) / 2 + ((50 - cropY) / 50) * maxShiftY;
 
-    return [
-      { translateX },
-      { translateY },
-      { scale: zoom },
-    ];
+    return {
+      position: 'absolute' as const,
+      width: scaledWidth,
+      height: scaledHeight,
+      left,
+      top,
+    };
   }, [templateConfig.facecam, facecamLayout]);
 
-  const mainVideoTransform = useMemo(() => {
+  const mainVideoStyle = useMemo(() => {
     const zoom = Math.max(1.0, templateConfig.mainVideo.zoom || 1.0);
     const cropX = Math.max(0, Math.min(100, templateConfig.mainVideo.cropX ?? 50));
     const cropY = Math.max(0, Math.min(100, templateConfig.mainVideo.cropY ?? 50));
     const w = mainVideoLayout.width || 280;
     const h = mainVideoLayout.height || (w * (9 / 16));
 
-    // Pada kontainer 16:9 dengan video 16:9 (contentFit="cover")
-    const videoScaledWidth = w * zoom;
-    const videoScaledHeight = h * zoom;
+    const scaledWidth = w * zoom;
+    const scaledHeight = h * zoom;
 
-    const maxShiftX = Math.max(0, (videoScaledWidth - w) / 2);
-    const maxShiftY = Math.max(0, (videoScaledHeight - h) / 2);
+    const maxShiftX = Math.max(0, (scaledWidth - w) / 2);
+    const maxShiftY = Math.max(0, (scaledHeight - h) / 2);
 
-    const translateX = ((50 - cropX) / 50) * maxShiftX;
-    const translateY = ((50 - cropY) / 50) * maxShiftY;
+    const left = (w - scaledWidth) / 2 + ((50 - cropX) / 50) * maxShiftX;
+    const top = (h - scaledHeight) / 2 + ((50 - cropY) / 50) * maxShiftY;
 
-    return [
-      { translateX },
-      { translateY },
-      { scale: zoom },
-    ];
+    return {
+      position: 'absolute' as const,
+      width: scaledWidth,
+      height: scaledHeight,
+      left,
+      top,
+    };
   }, [templateConfig.mainVideo, mainVideoLayout]);
 
   useEffect(() => {
@@ -405,10 +407,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
                     }}
                   >
                     <VideoView
-                      style={[
-                        styles.fillVideo,
-                        { transform: facecamTransform },
-                      ]}
+                      style={facecamVideoStyle}
                       player={facecamPlayer}
                       contentFit="cover"
                       nativeControls={false}
@@ -431,10 +430,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
                   }}
                 >
                   <VideoView
-                    style={[
-                      styles.fillVideo,
-                      { transform: mainVideoTransform },
-                    ]}
+                    style={mainVideoStyle}
                     player={player}
                     contentFit="cover"
                     nativeControls={false}
@@ -476,10 +472,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
           >
             {streamUrl || (activeClip.status === 'done' && downloadedClips[activeClip.id]) ? (
               <VideoView
-                style={[
-                  styles.videoPlayer,
-                  { transform: mainVideoTransform },
-                ]}
+                style={mainVideoStyle}
                 player={player}
                 contentFit="cover"
                 nativeControls={false}

@@ -14,7 +14,19 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Implement Layout Boundary-Clamped Transforms to Eliminate Viewport Black Cutoff
+## [Unreleased] - Implement Native 16:9 Absolute Viewport Layout to Prevent Premature Video Truncation
+- **Konteks Struktural**:
+  1. Resolusi Pemotongan Dini Frame Video pada Viewport Facecam 4:3:
+     - Mengatasi kendala visual di mana buffer native ExoPlayer membuang tepi video 16:9 (seperti pipi kanan streamer) saat `VideoView` diberi ukuran 4:3 (`width: 100%, height: 100%`).
+     - Mengubah arsitektur layout komponen `<VideoView>` menjadi pemosisian absolut (`position: 'absolute'`) dengan dimensi fisik yang selalu mempertahankan rasio 16:9 murni:
+       $$W_{\text{scaled}} = H_{\text{box}} \times \frac{16}{9} \times \text{zoom}, \quad H_{\text{scaled}} = H_{\text{box}} \times \text{zoom}$$
+     - Menghitung koordinat posisi `left` dan `top` secara eksplisit sehingga seluruh frame video 16:9 tersimpan utuh di buffer grafis native tanpa ada bagian yang terpotong sebelum waktunya.
+- **Perubahan Kode Penting**:
+  - [mobile/src/components/FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
+    - Menggantikan array transformasi matriks GPU dengan memo style `facecamVideoStyle` dan `mainVideoStyle` berbasis posisi layout absolut (`width`, `height`, `left`, `top`).
+    - Menetapkan kontainer luar (`facecamBox` dan `mainVideoBox`) murni sebagai jendela pandang (*viewport clipping window*).
+
+## [2743ce9] - Implement Layout Boundary-Clamped Transforms to Eliminate Viewport Black Cutoff
 - **Konteks Struktural**:
   1. Penghapusan Celah Hitam (*Black Cutoff*) pada Sudut Viewport Facecam & Gameplay:
      - Mengidentifikasi akar masalah visual di mana pergeseran crop ($X, Y$) ke area sudut (seperti pojok kanan bawah lokasi streamer) menarik tepi video melewati batas kontainer sehingga menampakkan latar hitam kosong.
