@@ -1712,6 +1712,124 @@ export async function checkClipSubtitleExists(
   }
 }
 
+export interface ClipTemplateConfig {
+  context: {
+    enabled: boolean;
+    text: string;
+    fontSize: number;
+    paddingY: number;
+  };
+  facecam: {
+    enabled: boolean;
+    zoom: number;
+    cropX: number; // 0 - 100 (% offset from center)
+    cropY: number; // 0 - 100 (% offset from center)
+  };
+  mainVideo: {
+    zoom: number;
+    cropX: number; // 0 - 100 (% offset from center)
+    cropY: number; // 0 - 100 (% offset from center)
+  };
+}
+
+export const DEFAULT_TEMPLATE_CONFIG: ClipTemplateConfig = {
+  context: {
+    enabled: false,
+    text: 'JUDUL VIDEO CLIP',
+    fontSize: 16,
+    paddingY: 10,
+  },
+  facecam: {
+    enabled: false,
+    zoom: 2.0,
+    cropX: 80,
+    cropY: 20,
+  },
+  mainVideo: {
+    zoom: 1.0,
+    cropX: 50,
+    cropY: 50,
+  },
+};
+
+export function getClipTemplateFilename(start: number, end: number): string {
+  const startFormatted = formatTimeForFilename(start);
+  const endFormatted = formatTimeForFilename(end);
+  return `${startFormatted} - ${endFormatted} (Template).json`;
+}
+
+export function getClipTemplateFilePath(
+  videoId: string,
+  start: number,
+  end: number
+): { fileUri: string; nativePath: string } {
+  const filename = getClipTemplateFilename(start, end);
+  const nativePath = `${INTERNAL_CLIPPING_OUTPUT_DIR}/${videoId}/${filename}`;
+  const fileUri = `file://${nativePath}`;
+  return { fileUri, nativePath };
+}
+
+export async function loadClipTemplate(
+  videoId: string,
+  start: number,
+  end: number
+): Promise<ClipTemplateConfig | null> {
+  const { fileUri } = getClipTemplateFilePath(videoId, start, end);
+  try {
+    const info = await FileSystem.getInfoAsync(fileUri);
+    if (info.exists && !info.isDirectory) {
+      const content = await FileSystem.readAsStringAsync(fileUri);
+      const parsed = JSON.parse(content);
+      if (parsed && typeof parsed === 'object') {
+        return {
+          context: {
+            ...DEFAULT_TEMPLATE_CONFIG.context,
+            ...(parsed.context || {}),
+          },
+          facecam: {
+            ...DEFAULT_TEMPLATE_CONFIG.facecam,
+            ...(parsed.facecam || {}),
+          },
+          mainVideo: {
+            ...DEFAULT_TEMPLATE_CONFIG.mainVideo,
+            ...(parsed.mainVideo || {}),
+          },
+        };
+      }
+    }
+  } catch {}
+  return null;
+}
+
+export async function saveClipTemplate(
+  videoId: string,
+  start: number,
+  end: number,
+  config: ClipTemplateConfig
+): Promise<void> {
+  const { fileUri } = getClipTemplateFilePath(videoId, start, end);
+  const folderUri = fileUri.substring(0, fileUri.lastIndexOf('/'));
+  const dirInfo = await FileSystem.getInfoAsync(folderUri);
+  if (!dirInfo.exists) {
+    await FileSystem.makeDirectoryAsync(folderUri, { intermediates: true });
+  }
+  await FileSystem.writeAsStringAsync(fileUri, JSON.stringify(config, null, 2));
+}
+
+export async function deleteClipTemplate(
+  videoId: string,
+  start: number,
+  end: number
+): Promise<boolean> {
+  const { fileUri } = getClipTemplateFilePath(videoId, start, end);
+  try {
+    await FileSystem.deleteAsync(fileUri, { idempotent: true });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export interface BurnSubtitlesParams {
   videoId: string;
   start: number;

@@ -14,7 +14,34 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Reorganize Header Download/Export Actions and Implement Multi-Mode Switcher Toolbar
+## [Unreleased] - Implement Dynamic 9:16 Portrait Canvas and Inline Template Toolbar
+- **Konteks Struktural**:
+  1. Kanvas Otomatis 9:16 Portrait Berdasarkan Status Elemen:
+     - Menghilangkan modal pemilih rasio mandiri dan secara otomatis memposisikan kanvas video player ke rasio 9:16 portrait ketika elemen Konteks (banner judul) dan/atau elemen Facecam aktif (`context.enabled || facecam.enabled`).
+     - Mengembalikan kanvas video player secara otomatis ke mode lanskap 16:9 saat kedua elemen template dinonaktifkan.
+     - Mempertahankan rendering helper border putus-putus saat mode editor template aktif, dan menyembunyikannya saat keluar dari editor template tanpa mengorbankan komposisi aktif.
+  2. Toolbar Aksi Template Sejajar (Inline Square Icon Buttons):
+     - Menampilkan baris aksi template sejajar (`templateActionsRow`) yang langsung mengekspos 3 tombol icon murni 32x32:
+       1. `[Camera]` -> Pengaturan Box Facecam (rasio 4:3, zoom, crop X/Y).
+       2. `[Type]` -> Pengaturan Banner Konteks (judul video, font size, padding vertikal).
+       3. `[Gamepad2]` -> Pengaturan Main Video Gameplay (zoom, crop X/Y).
+     - Menampilkan indikator status rasio aktif di sisi kiri toolbar (`9:16 Portrait` dengan aksen cyan vs `16:9 Landscape` redup).
+     - Menampilkan glow/border aktif cyan pada icon `Camera` dan `Type` saat elemen masing-masing diaktifkan.
+  3. Arsitektur Dual-Viewport & State Template:
+     - Menggunakan dual native viewport `expo-video` (`<VideoView player={player} />`) untuk merender facecam dan gameplay secara tersinkronisasi tanpa latensi atau duplikasi pemutaran audio.
+     - Menyimpan konfigurasi per klip (`loadClipTemplate`, `saveClipTemplate`) secara lokal di direktori klip metadata.
+- **Perubahan Kode Penting**:
+  - [mobile/src/services/api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts):
+    - Mendefinisikan interface `ClipTemplateConfig`, `DEFAULT_TEMPLATE_CONFIG`, dan fungsi I/O file template (`loadClipTemplate`, `saveClipTemplate`, `deleteClipTemplate`).
+  - [mobile/src/hooks/useClipTemplate.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipTemplate.ts):
+    - Membuat hook kustom `useClipTemplate` untuk mengelola state template per klip, auto-save persistensi, dan kalkulasi dinamis `isPortrait`.
+  - [mobile/src/components/FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
+    - Mengintegrasikan hook `useClipTemplate` dan merender kanvas portrait 9:16 yang memuat banner judul, viewport facecam 4:3, main gameplay box, dan subtitle overlay.
+  - [mobile/src/components/feed/FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx):
+    - Mengimplementasikan `templateActionsRow` dengan indikator badge rasio dan 3 tombol icon sejajar (`Camera`, `Type`, `Gamepad2`).
+    - Menyediakan modal pengaturan terfokus untuk masing-masing elemen Konteks, Facecam, dan Main Gameplay.
+
+## [d1666a3] - Reorganize Header Download/Export Actions and Implement Multi-Mode Switcher Toolbar
 - **Konteks Struktural**:
   1. Restrukturisasi Tombol Kiri Atas Header (Download & Universal Export):
      - Membatasi tombol kiri atas pada header hanya untuk tombol `Download` saat video klip lokal belum terunduh (`!isDownloaded`).

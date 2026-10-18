@@ -22,6 +22,7 @@ import { useClipData } from '../hooks/useClipData';
 import { useClipPlayer } from '../hooks/useClipPlayer';
 import { useClipDownload } from '../hooks/useClipDownload';
 import { useClipSubtitle } from '../hooks/useClipSubtitle';
+import { useClipTemplate } from '../hooks/useClipTemplate';
 
 interface FeedScreenProps {
   videoId: string;
@@ -197,6 +198,18 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
 
   const [activeEditorMode, setActiveEditorMode] = useState<EditorMode>(null);
 
+  // Hook 5: useClipTemplate
+  const {
+    templateConfig,
+    isPortrait,
+    handleUpdateContext,
+    handleUpdateFacecam,
+    handleUpdateMainVideo,
+  } = useClipTemplate({
+    videoId,
+    activeClip,
+  });
+
   useEffect(() => {
     setActiveEditorMode(null);
   }, [activeClip?.id]);
@@ -251,6 +264,10 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
         onExportClip={handleExportSubtitledVideo}
         activeEditorMode={activeEditorMode}
         onSelectEditorMode={setActiveEditorMode}
+        templateConfig={templateConfig}
+        onUpdateContext={handleUpdateContext}
+        onUpdateFacecam={handleUpdateFacecam}
+        onUpdateMainVideo={handleUpdateMainVideo}
         downloadProgressInfo={downloadProgress[activeClip.id]}
         hasSubtitles={subtitles.length > 0}
         isSubtitleVisible={isSubtitleVisible}
@@ -286,33 +303,138 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
 
       {/* 2. VIDEO PLAYER AREA (expo-video) */}
       <View style={styles.playerContainer}>
-        {/* Frame Video Fixed 16:9 Landscape - Rapat ke UI kontrol bawah */}
-        <View style={styles.videoBox169}>
-          {streamUrl || (activeClip.status === 'done' && downloadedClips[activeClip.id]) ? (
-            <VideoView
-              style={styles.videoPlayer}
-              player={player}
-              contentFit="contain"
-              nativeControls={false}
-            />
-          ) : (
-            <View style={styles.streamPendingBox}>
-              <ActivityIndicator size="small" color="#ef4444" />
-              <Text style={styles.streamPendingText}>
-                Memuat direct stream dari internal server...
-              </Text>
-            </View>
-          )}
+        {isPortrait ? (
+          /* CANVAS PORTRAIT 9:16 (Saat Elemen Konteks dan/atau Facecam Aktif) */
+          <View
+            style={[
+              styles.canvas916Container,
+              activeEditorMode === 'template' && styles.canvasHelperBorder,
+            ]}
+          >
+            {streamUrl || (activeClip.status === 'done' && downloadedClips[activeClip.id]) ? (
+              <>
+                {/* 1. Header Banner Konteks (Teks Putih) */}
+                {templateConfig.context.enabled && (
+                  <View
+                    style={[
+                      styles.contextBannerBox,
+                      { paddingVertical: templateConfig.context.paddingY },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.contextBannerText,
+                        { fontSize: templateConfig.context.fontSize },
+                      ]}
+                      numberOfLines={2}
+                    >
+                      {templateConfig.context.text || 'JUDUL VIDEO'}
+                    </Text>
+                  </View>
+                )}
 
-          {/* Subtitle Layer 1 (Realtime Non-Destructive Preview diposisikan relatif di dalam frame 16:9) */}
-          <SubtitleOverlay
-            isVisible={isSubtitleVisible}
-            subtitleText={activeSubtitleCue ? activeSubtitleCue.text : activeSubtitleText}
-            fontSize={activeSubtitleCue?.fontSize || 14}
-            positionX={subtitlePosition.x}
-            positionY={subtitlePosition.y}
-          />
-        </View>
+                {/* 2. Viewport Facecam (Rasio 4:3 di atas) */}
+                {templateConfig.facecam.enabled && (
+                  <View
+                    style={[
+                      styles.facecamBox,
+                      activeEditorMode === 'template' && styles.elementHelperBorder,
+                    ]}
+                  >
+                    <VideoView
+                      style={[
+                        styles.fillVideo,
+                        {
+                          transform: [
+                            { scale: templateConfig.facecam.zoom },
+                            { translateX: ((50 - templateConfig.facecam.cropX) / 100) * 160 },
+                            { translateY: ((50 - templateConfig.facecam.cropY) / 100) * 120 },
+                          ],
+                        },
+                      ]}
+                      player={player}
+                      contentFit="cover"
+                      nativeControls={false}
+                    />
+                  </View>
+                )}
+
+                {/* 3. Viewport Main Video Gameplay (Fills remaining height) */}
+                <View
+                  style={[
+                    styles.mainVideoBox,
+                    activeEditorMode === 'template' && styles.elementHelperBorder,
+                  ]}
+                >
+                  <VideoView
+                    style={[
+                      styles.fillVideo,
+                      {
+                        transform: [
+                          { scale: templateConfig.mainVideo.zoom },
+                          { translateX: ((50 - templateConfig.mainVideo.cropX) / 100) * 140 },
+                          { translateY: ((50 - templateConfig.mainVideo.cropY) / 100) * 100 },
+                        ],
+                      },
+                    ]}
+                    player={player}
+                    contentFit="cover"
+                    nativeControls={false}
+                  />
+                </View>
+
+                {/* Subtitle Overlay pada Kanvas Portrait */}
+                <SubtitleOverlay
+                  isVisible={isSubtitleVisible}
+                  subtitleText={activeSubtitleCue ? activeSubtitleCue.text : activeSubtitleText}
+                  fontSize={activeSubtitleCue?.fontSize || 14}
+                  positionX={subtitlePosition.x}
+                  positionY={subtitlePosition.y}
+                />
+              </>
+            ) : (
+              <View style={styles.streamPendingBox}>
+                <ActivityIndicator size="small" color="#ef4444" />
+                <Text style={styles.streamPendingText}>
+                  Memuat direct stream dari internal server...
+                </Text>
+              </View>
+            )}
+          </View>
+        ) : (
+          /* CANVAS LANDSCAPE 16:9 (Mode Asli saat Template Dimatikan) */
+          <View
+            style={[
+              styles.videoBox169,
+              activeEditorMode === 'template' && styles.canvasHelperBorder,
+            ]}
+          >
+            {streamUrl || (activeClip.status === 'done' && downloadedClips[activeClip.id]) ? (
+              <VideoView
+                style={styles.videoPlayer}
+                player={player}
+                contentFit="contain"
+                nativeControls={false}
+              />
+            ) : (
+              <View style={styles.streamPendingBox}>
+                <ActivityIndicator size="small" color="#ef4444" />
+                <Text style={styles.streamPendingText}>
+                  Memuat direct stream dari internal server...
+                </Text>
+              </View>
+            )}
+
+            {/* Subtitle Layer 1 (Realtime Non-Destructive Preview diposisikan relatif di dalam frame 16:9) */}
+            <SubtitleOverlay
+              isVisible={isSubtitleVisible}
+              subtitleText={activeSubtitleCue ? activeSubtitleCue.text : activeSubtitleText}
+              fontSize={activeSubtitleCue?.fontSize || 14}
+              positionX={subtitlePosition.x}
+              positionY={subtitlePosition.y}
+            />
+          </View>
+        )}
       </View>
 
       {/* 3. BOTTOM PLAYBACK CONTROLS (Fixed Height) */}
@@ -399,6 +521,57 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   videoPlayer: {
+    width: '100%',
+    height: '100%',
+  },
+  canvas916Container: {
+    height: '100%',
+    aspectRatio: 9 / 16,
+    backgroundColor: '#000000',
+    overflow: 'hidden',
+    position: 'relative',
+    alignSelf: 'center',
+    justifyContent: 'flex-start',
+  },
+  canvasHelperBorder: {
+    borderWidth: 1.5,
+    borderColor: '#38bdf8',
+    borderStyle: 'dashed',
+  },
+  elementHelperBorder: {
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.6)',
+    borderStyle: 'dashed',
+  },
+  contextBannerBox: {
+    width: '100%',
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+  contextBannerText: {
+    color: '#000000',
+    fontWeight: '800',
+    textAlign: 'center',
+    letterSpacing: 0.3,
+  },
+  facecamBox: {
+    width: '100%',
+    aspectRatio: 4 / 3,
+    backgroundColor: '#000000',
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  mainVideoBox: {
+    flex: 1,
+    width: '100%',
+    backgroundColor: '#000000',
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  fillVideo: {
     width: '100%',
     height: '100%',
   },

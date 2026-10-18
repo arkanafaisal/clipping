@@ -23,8 +23,10 @@ import {
   Move,
   Film,
   Layout,
+  Camera,
+  Gamepad2,
 } from 'lucide-react-native';
-import { ClipItem, SubtitleCue } from '../../services/api';
+import { ClipItem, SubtitleCue, ClipTemplateConfig } from '../../services/api';
 import { formatTimeWithMs, formatDisplayTime } from './timeUtils';
 
 interface SubtitleCuePillProps {
@@ -80,6 +82,10 @@ export interface FeedTopControlsProps {
   onSelectEditorMode?: (mode: EditorMode) => void;
   onExportClip?: () => void;
   onUpdateSubtitlePosition: (x: number, y: number) => void;
+  templateConfig?: ClipTemplateConfig;
+  onUpdateContext?: (updates: Partial<ClipTemplateConfig['context']>) => void;
+  onUpdateFacecam?: (updates: Partial<ClipTemplateConfig['facecam']>) => void;
+  onUpdateMainVideo?: (updates: Partial<ClipTemplateConfig['mainVideo']>) => void;
   activeTimeEdit: 'start' | 'end' | null;
   tempTimeValue: string;
   getDownloadProgressLabel: (info?: { stage: string; code: string; percent: number }) => string;
@@ -118,6 +124,10 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
   onSelectEditorMode,
   onExportClip,
   onUpdateSubtitlePosition,
+  templateConfig,
+  onUpdateContext,
+  onUpdateFacecam,
+  onUpdateMainVideo,
   activeTimeEdit,
   tempTimeValue,
   getDownloadProgressLabel,
@@ -171,6 +181,57 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
   const [endMin, setEndMin] = useState<string>('00');
   const [endSec, setEndSec] = useState<string>('00');
   const [endMs, setEndMs] = useState<string>('000');
+
+  // Modals untuk Pengaturan Template
+  const [showContextModal, setShowContextModal] = useState<boolean>(false);
+  const [showFacecamModal, setShowFacecamModal] = useState<boolean>(false);
+  const [showMainVideoModal, setShowMainVideoModal] = useState<boolean>(false);
+
+  // Temp states untuk modal Elemen Konteks
+  const [tempContextEnabled, setTempContextEnabled] = useState<boolean>(false);
+  const [tempContextText, setTempContextText] = useState<string>('');
+  const [tempContextFontSize, setTempContextFontSize] = useState<string>('16');
+  const [tempContextPaddingY, setTempContextPaddingY] = useState<string>('10');
+
+  // Temp states untuk modal Elemen Facecam
+  const [tempFacecamEnabled, setTempFacecamEnabled] = useState<boolean>(false);
+  const [tempFacecamZoom, setTempFacecamZoom] = useState<string>('2.0');
+  const [tempFacecamCropX, setTempFacecamCropX] = useState<string>('80');
+  const [tempFacecamCropY, setTempFacecamCropY] = useState<string>('20');
+
+  // Temp states untuk modal Elemen Main Video (Gameplay)
+  const [tempMainZoom, setTempMainZoom] = useState<string>('1.0');
+  const [tempMainCropX, setTempMainCropX] = useState<string>('50');
+  const [tempMainCropY, setTempMainCropY] = useState<string>('50');
+
+  const openContextModal = () => {
+    if (templateConfig) {
+      setTempContextEnabled(templateConfig.context.enabled);
+      setTempContextText(templateConfig.context.text);
+      setTempContextFontSize(String(templateConfig.context.fontSize));
+      setTempContextPaddingY(String(templateConfig.context.paddingY));
+    }
+    setShowContextModal(true);
+  };
+
+  const openFacecamModal = () => {
+    if (templateConfig) {
+      setTempFacecamEnabled(templateConfig.facecam.enabled);
+      setTempFacecamZoom(String(templateConfig.facecam.zoom));
+      setTempFacecamCropX(String(templateConfig.facecam.cropX));
+      setTempFacecamCropY(String(templateConfig.facecam.cropY));
+    }
+    setShowFacecamModal(true);
+  };
+
+  const openMainVideoModal = () => {
+    if (templateConfig) {
+      setTempMainZoom(String(templateConfig.mainVideo.zoom));
+      setTempMainCropX(String(templateConfig.mainVideo.cropX));
+      setTempMainCropY(String(templateConfig.mainVideo.cropY));
+    }
+    setShowMainVideoModal(true);
+  };
 
   const clipDuration = Math.max(0.1, activeClip.end - activeClip.start);
 
@@ -782,10 +843,76 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
 
       {/* Space Editor untuk Mode Template */}
       {currentMode === 'template' && (
-        <View style={styles.templateModeContainer}>
-          <Text style={styles.templateModeHint}>
-            Mode Template: Facecam di atas, gameplay di bawah
-          </Text>
+        <View style={styles.templateActionsRow}>
+          <View style={styles.templateLeftInfo}>
+            <View
+              style={[
+                styles.ratioBadge,
+                (templateConfig?.context.enabled || templateConfig?.facecam.enabled)
+                  ? styles.ratioBadgeActive
+                  : styles.ratioBadgeInactive,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.ratioBadgeText,
+                  (templateConfig?.context.enabled || templateConfig?.facecam.enabled)
+                    ? styles.ratioBadgeTextActive
+                    : styles.ratioBadgeTextInactive,
+                ]}
+              >
+                {(templateConfig?.context.enabled || templateConfig?.facecam.enabled)
+                  ? '9:16 Portrait'
+                  : '16:9 Landscape'}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.templateButtonsGroup}>
+            {/* 1. Tombol Elemen Facecam */}
+            <Pressable
+              style={({ pressed }) => [
+                styles.iconActionBtn,
+                templateConfig?.facecam.enabled && styles.templateBtnActive,
+                pressed && { opacity: 0.6 },
+              ]}
+              onPress={openFacecamModal}
+              hitSlop={6}
+            >
+              <Camera
+                size={16}
+                color={templateConfig?.facecam.enabled ? '#38bdf8' : 'rgba(255, 255, 255, 0.7)'}
+              />
+            </Pressable>
+
+            {/* 2. Tombol Elemen Konteks (Teks Judul Banner) */}
+            <Pressable
+              style={({ pressed }) => [
+                styles.iconActionBtn,
+                templateConfig?.context.enabled && styles.templateBtnActive,
+                pressed && { opacity: 0.6 },
+              ]}
+              onPress={openContextModal}
+              hitSlop={6}
+            >
+              <Type
+                size={16}
+                color={templateConfig?.context.enabled ? '#38bdf8' : 'rgba(255, 255, 255, 0.7)'}
+              />
+            </Pressable>
+
+            {/* 3. Tombol Edit Main Gameplay */}
+            <Pressable
+              style={({ pressed }) => [
+                styles.iconActionBtn,
+                pressed && { opacity: 0.6 },
+              ]}
+              onPress={openMainVideoModal}
+              hitSlop={6}
+            >
+              <Gamepad2 size={16} color="#38bdf8" />
+            </Pressable>
+          </View>
         </View>
       )}
     </>
@@ -1342,6 +1469,439 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* MODAL 6: Modal Elemen Konteks */}
+      <Modal
+        visible={showContextModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowContextModal(false)}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={() => setShowContextModal(false)}>
+          <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalHeaderLeft}>
+                <Type size={18} color="#38bdf8" />
+                <Text style={styles.modalTitle}>Konteks Judul</Text>
+              </View>
+              <Pressable
+                style={({ pressed }) => [styles.modalCloseBtn, pressed && { opacity: 0.6 }]}
+                onPress={() => setShowContextModal(false)}
+                hitSlop={8}
+              >
+                <X size={18} color="#94a3b8" />
+              </Pressable>
+            </View>
+
+            {/* Toggle Aktif */}
+            <Pressable
+              style={[
+                styles.templateToggleRow,
+                tempContextEnabled && styles.templateToggleRowActive,
+              ]}
+              onPress={() => setTempContextEnabled((p) => !p)}
+            >
+              <Text style={styles.templateToggleLabel}>Tampilkan Banner Judul</Text>
+              <View
+                style={[
+                  styles.templateToggleSwitch,
+                  tempContextEnabled && styles.templateToggleSwitchActive,
+                ]}
+              >
+                <View
+                  style={[
+                    styles.templateToggleKnob,
+                    tempContextEnabled && styles.templateToggleKnobActive,
+                  ]}
+                />
+              </View>
+            </Pressable>
+
+            {/* Input Teks */}
+            <View style={styles.posSectionContainer}>
+              <Text style={styles.timeSectionLabel}>TEKS BANNER</Text>
+              <TextInput
+                style={styles.modalSingleInput}
+                value={tempContextText}
+                onChangeText={setTempContextText}
+                placeholder="JUDUL VIDEO"
+                placeholderTextColor="rgba(255, 255, 255, 0.4)"
+              />
+            </View>
+
+            {/* Ukuran Font */}
+            <View style={styles.posSectionContainer}>
+              <Text style={styles.timeSectionLabel}>UKURAN FONT (PX)</Text>
+              <View style={styles.posPresetGroup}>
+                {['14', '16', '18', '20'].map((val) => (
+                  <Pressable
+                    key={val}
+                    style={[
+                      styles.posPresetBtn,
+                      tempContextFontSize === val && styles.posPresetBtnActive,
+                    ]}
+                    onPress={() => setTempContextFontSize(val)}
+                  >
+                    <Text
+                      style={[
+                        styles.posPresetText,
+                        tempContextFontSize === val && styles.posPresetTextActive,
+                      ]}
+                    >
+                      {val}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            {/* Padding Vertikal */}
+            <View style={styles.posSectionContainer}>
+              <Text style={styles.timeSectionLabel}>PADDING VERTIKAL (PX)</Text>
+              <View style={styles.posPresetGroup}>
+                {['6', '10', '14', '18'].map((val) => (
+                  <Pressable
+                    key={val}
+                    style={[
+                      styles.posPresetBtn,
+                      tempContextPaddingY === val && styles.posPresetBtnActive,
+                    ]}
+                    onPress={() => setTempContextPaddingY(val)}
+                  >
+                    <Text
+                      style={[
+                        styles.posPresetText,
+                        tempContextPaddingY === val && styles.posPresetTextActive,
+                      ]}
+                    >
+                      {val}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            {/* Footer Buttons */}
+            <View style={styles.modalActionsRow}>
+              <Pressable
+                style={({ pressed }) => [styles.modalCancelBtn, pressed && { opacity: 0.7 }]}
+                onPress={() => setShowContextModal(false)}
+              >
+                <Text style={styles.modalCancelBtnText}>Batal</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [styles.modalSaveBtn, pressed && { opacity: 0.8 }]}
+                onPress={() => {
+                  onUpdateContext?.({
+                    enabled: tempContextEnabled,
+                    text: tempContextText.trim() || 'JUDUL VIDEO',
+                    fontSize: Math.max(10, Math.min(32, parseInt(tempContextFontSize, 10) || 16)),
+                    paddingY: Math.max(2, Math.min(30, parseInt(tempContextPaddingY, 10) || 10)),
+                  });
+                  setShowContextModal(false);
+                }}
+              >
+                <Text style={styles.modalSaveBtnText}>Simpan</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* MODAL 7: Modal Elemen Facecam */}
+      <Modal
+        visible={showFacecamModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowFacecamModal(false)}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={() => setShowFacecamModal(false)}>
+          <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalHeaderLeft}>
+                <Camera size={18} color="#38bdf8" />
+                <Text style={styles.modalTitle}>Pengaturan Facecam</Text>
+              </View>
+              <Pressable
+                style={({ pressed }) => [styles.modalCloseBtn, pressed && { opacity: 0.6 }]}
+                onPress={() => setShowFacecamModal(false)}
+                hitSlop={8}
+              >
+                <X size={18} color="#94a3b8" />
+              </Pressable>
+            </View>
+
+            {/* Toggle Aktif */}
+            <Pressable
+              style={[
+                styles.templateToggleRow,
+                tempFacecamEnabled && styles.templateToggleRowActive,
+              ]}
+              onPress={() => setTempFacecamEnabled((p) => !p)}
+            >
+              <Text style={styles.templateToggleLabel}>Tampilkan Box Facecam (4:3)</Text>
+              <View
+                style={[
+                  styles.templateToggleSwitch,
+                  tempFacecamEnabled && styles.templateToggleSwitchActive,
+                ]}
+              >
+                <View
+                  style={[
+                    styles.templateToggleKnob,
+                    tempFacecamEnabled && styles.templateToggleKnobActive,
+                  ]}
+                />
+              </View>
+            </Pressable>
+
+            {/* Zoom Slider / Preset */}
+            <View style={styles.posSectionContainer}>
+              <Text style={styles.timeSectionLabel}>ZOOM FACECAM</Text>
+              <View style={styles.posPresetGroup}>
+                {['1.5', '2.0', '2.5', '3.0'].map((val) => (
+                  <Pressable
+                    key={val}
+                    style={[
+                      styles.posPresetBtn,
+                      tempFacecamZoom === val && styles.posPresetBtnActive,
+                    ]}
+                    onPress={() => setTempFacecamZoom(val)}
+                  >
+                    <Text
+                      style={[
+                        styles.posPresetText,
+                        tempFacecamZoom === val && styles.posPresetTextActive,
+                      ]}
+                    >
+                      {val}x
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            {/* Posisi Crop X */}
+            <View style={styles.posSectionContainer}>
+              <Text style={styles.timeSectionLabel}>POSISI CROP HORIZONTAL (X)</Text>
+              <View style={styles.posPresetGroup}>
+                {[
+                  { label: 'Kiri', val: '20' },
+                  { label: 'Tengah', val: '50' },
+                  { label: 'Kanan', val: '80' },
+                ].map((item) => (
+                  <Pressable
+                    key={item.label}
+                    style={[
+                      styles.posPresetBtn,
+                      tempFacecamCropX === item.val && styles.posPresetBtnActive,
+                    ]}
+                    onPress={() => setTempFacecamCropX(item.val)}
+                  >
+                    <Text
+                      style={[
+                        styles.posPresetText,
+                        tempFacecamCropX === item.val && styles.posPresetTextActive,
+                      ]}
+                    >
+                      {item.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            {/* Posisi Crop Y */}
+            <View style={styles.posSectionContainer}>
+              <Text style={styles.timeSectionLabel}>POSISI CROP VERTIKAL (Y)</Text>
+              <View style={styles.posPresetGroup}>
+                {[
+                  { label: 'Atas', val: '20' },
+                  { label: 'Tengah', val: '50' },
+                  { label: 'Bawah', val: '80' },
+                ].map((item) => (
+                  <Pressable
+                    key={item.label}
+                    style={[
+                      styles.posPresetBtn,
+                      tempFacecamCropY === item.val && styles.posPresetBtnActive,
+                    ]}
+                    onPress={() => setTempFacecamCropY(item.val)}
+                  >
+                    <Text
+                      style={[
+                        styles.posPresetText,
+                        tempFacecamCropY === item.val && styles.posPresetTextActive,
+                      ]}
+                    >
+                      {item.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            {/* Footer Buttons */}
+            <View style={styles.modalActionsRow}>
+              <Pressable
+                style={({ pressed }) => [styles.modalCancelBtn, pressed && { opacity: 0.7 }]}
+                onPress={() => setShowFacecamModal(false)}
+              >
+                <Text style={styles.modalCancelBtnText}>Batal</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [styles.modalSaveBtn, pressed && { opacity: 0.8 }]}
+                onPress={() => {
+                  onUpdateFacecam?.({
+                    enabled: tempFacecamEnabled,
+                    zoom: Math.max(1.0, Math.min(4.0, parseFloat(tempFacecamZoom) || 2.0)),
+                    cropX: Math.max(0, Math.min(100, parseInt(tempFacecamCropX, 10) || 80)),
+                    cropY: Math.max(0, Math.min(100, parseInt(tempFacecamCropY, 10) || 20)),
+                  });
+                  setShowFacecamModal(false);
+                }}
+              >
+                <Text style={styles.modalSaveBtnText}>Simpan</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* MODAL 8: Modal Elemen Main Video */}
+      <Modal
+        visible={showMainVideoModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowMainVideoModal(false)}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={() => setShowMainVideoModal(false)}>
+          <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalHeaderLeft}>
+                <Gamepad2 size={18} color="#38bdf8" />
+                <Text style={styles.modalTitle}>Main Gameplay</Text>
+              </View>
+              <Pressable
+                style={({ pressed }) => [styles.modalCloseBtn, pressed && { opacity: 0.6 }]}
+                onPress={() => setShowMainVideoModal(false)}
+                hitSlop={8}
+              >
+                <X size={18} color="#94a3b8" />
+              </Pressable>
+            </View>
+
+            {/* Zoom Slider / Preset */}
+            <View style={styles.posSectionContainer}>
+              <Text style={styles.timeSectionLabel}>ZOOM GAMEPLAY</Text>
+              <View style={styles.posPresetGroup}>
+                {['1.0', '1.2', '1.5', '2.0'].map((val) => (
+                  <Pressable
+                    key={val}
+                    style={[
+                      styles.posPresetBtn,
+                      tempMainZoom === val && styles.posPresetBtnActive,
+                    ]}
+                    onPress={() => setTempMainZoom(val)}
+                  >
+                    <Text
+                      style={[
+                        styles.posPresetText,
+                        tempMainZoom === val && styles.posPresetTextActive,
+                      ]}
+                    >
+                      {val}x
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            {/* Posisi Crop X */}
+            <View style={styles.posSectionContainer}>
+              <Text style={styles.timeSectionLabel}>POSISI CROP HORIZONTAL (X)</Text>
+              <View style={styles.posPresetGroup}>
+                {[
+                  { label: 'Kiri', val: '25' },
+                  { label: 'Tengah', val: '50' },
+                  { label: 'Kanan', val: '75' },
+                ].map((item) => (
+                  <Pressable
+                    key={item.label}
+                    style={[
+                      styles.posPresetBtn,
+                      tempMainCropX === item.val && styles.posPresetBtnActive,
+                    ]}
+                    onPress={() => setTempMainCropX(item.val)}
+                  >
+                    <Text
+                      style={[
+                        styles.posPresetText,
+                        tempMainCropX === item.val && styles.posPresetTextActive,
+                      ]}
+                    >
+                      {item.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            {/* Posisi Crop Y */}
+            <View style={styles.posSectionContainer}>
+              <Text style={styles.timeSectionLabel}>POSISI CROP VERTIKAL (Y)</Text>
+              <View style={styles.posPresetGroup}>
+                {[
+                  { label: 'Atas', val: '25' },
+                  { label: 'Tengah', val: '50' },
+                  { label: 'Bawah', val: '75' },
+                ].map((item) => (
+                  <Pressable
+                    key={item.label}
+                    style={[
+                      styles.posPresetBtn,
+                      tempMainCropY === item.val && styles.posPresetBtnActive,
+                    ]}
+                    onPress={() => setTempMainCropY(item.val)}
+                  >
+                    <Text
+                      style={[
+                        styles.posPresetText,
+                        tempMainCropY === item.val && styles.posPresetTextActive,
+                      ]}
+                    >
+                      {item.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            {/* Footer Buttons */}
+            <View style={styles.modalActionsRow}>
+              <Pressable
+                style={({ pressed }) => [styles.modalCancelBtn, pressed && { opacity: 0.7 }]}
+                onPress={() => setShowMainVideoModal(false)}
+              >
+                <Text style={styles.modalCancelBtnText}>Batal</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [styles.modalSaveBtn, pressed && { opacity: 0.8 }]}
+                onPress={() => {
+                  onUpdateMainVideo?.({
+                    zoom: Math.max(1.0, Math.min(3.0, parseFloat(tempMainZoom) || 1.0)),
+                    cropX: Math.max(0, Math.min(100, parseInt(tempMainCropX, 10) || 50)),
+                    cropY: Math.max(0, Math.min(100, parseInt(tempMainCropY, 10) || 50)),
+                  });
+                  setShowMainVideoModal(false);
+                }}
+              >
+                <Text style={styles.modalSaveBtnText}>Simpan</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 };
@@ -1501,16 +2061,105 @@ const styles = StyleSheet.create({
     color: '#38bdf8',
     fontWeight: '700',
   },
-  templateModeContainer: {
+  templateActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    height: 36,
     paddingHorizontal: 14,
-    paddingVertical: 10,
     backgroundColor: 'rgba(0, 0, 0, 0.25)',
   },
-  templateModeHint: {
-    color: 'rgba(255, 255, 255, 0.5)',
-    fontSize: 11,
-    fontStyle: 'italic',
-    textAlign: 'center',
+  templateLeftInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  ratioBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 5,
+    borderWidth: 1,
+  },
+  ratioBadgeActive: {
+    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+    borderColor: 'rgba(56, 189, 248, 0.3)',
+  },
+  ratioBadgeInactive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  ratioBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  ratioBadgeTextActive: {
+    color: '#38bdf8',
+  },
+  ratioBadgeTextInactive: {
+    color: 'rgba(255, 255, 255, 0.4)',
+  },
+  templateButtonsGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  templateBtnActive: {
+    backgroundColor: 'rgba(56, 189, 248, 0.18)',
+    borderColor: '#38bdf8',
+  },
+  templateMainBtn: {
+    backgroundColor: 'rgba(56, 189, 248, 0.08)',
+    borderColor: 'rgba(56, 189, 248, 0.3)',
+  },
+  templateToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  templateToggleRowActive: {
+    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+    borderColor: 'rgba(56, 189, 248, 0.4)',
+  },
+  templateToggleLabel: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  templateToggleSwitch: {
+    width: 44,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#333338',
+    padding: 2,
+    justifyContent: 'center',
+  },
+  templateToggleSwitchActive: {
+    backgroundColor: '#38bdf8',
+  },
+  templateToggleKnob: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#ffffff',
+  },
+  templateToggleKnobActive: {
+    alignSelf: 'flex-end',
+  },
+  modalSingleInput: {
+    backgroundColor: '#0a0a0a',
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.4)',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '700',
   },
   trashBtnInactive: {
     backgroundColor: 'rgba(239, 68, 68, 0.1)',
