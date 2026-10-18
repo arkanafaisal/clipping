@@ -14,7 +14,20 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Adapt Gameplay Viewport to 4:3 Ratio with Pure 16:9 Video Source Cropping when Facecam Active
+## [Unreleased] - Enforce Android RenderNode Outline Clipping and TextureView Surface on Facecam and Gameplay Viewports
+- **Konteks Struktural**:
+  1. Pencegahan Kebocoran Transformasi Video (Android RenderNode Outline Clipping):
+     - Mencegah transformasi hardware scaling dan pan zoom pada `VideoView` facecam menembus kontainer induk dan menutupi viewport gameplay di bawahnya saat di-zoom.
+     - Mengaktifkan `borderRadius: 1` pada style `facecamBox` dan `mainVideoBox` untuk menginstruksikan sistem Android ViewOutlineProvider menerapkan `setClipToOutline(true)`.
+  2. Migrasi Surface Rendering ke Hardware TextureView (`surfaceType="textureView"`):
+     - Menetapkan properti `surfaceType="textureView"` secara eksplisit pada komponen `<VideoView>` untuk facecam maupun gameplay.
+     - Berbeda dengan `SurfaceView` default yang merender overlay independen di luar pohon hierarki tampilan (sehingga mengabaikan properti `overflow: 'hidden'`), `TextureView` terintegrasi penuh ke dalam hierarki RenderNode Android sehingga seluruh proses pemotongan batas, penumpukan lapisan (Z-order), dan clipping outline dieksekusi dengan sempurna.
+- **Perubahan Kode Penting**:
+  - [mobile/src/components/FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
+    - Menambahkan `surfaceType="textureView"` pada kedua instance `<VideoView />` (facecamPlayer dan main player).
+    - Menambahkan `borderRadius: 1` pada `styles.facecamBox` dan `styles.mainVideoBox`.
+
+## [7648172] - Adapt Gameplay Viewport to 4:3 Ratio with Pure 16:9 Video Source Cropping when Facecam Active
 - **Konteks Struktural**:
   1. Penyesuaian Viewport Gameplay 4:3 Otomatis saat Facecam Aktif:
      - Mengubah aspek rasio kontainer viewport gameplay (`mainVideoBox`) secara dinamis menjadi `4:3` khusus saat elemen facecam aktif (`isFacecamActive`).

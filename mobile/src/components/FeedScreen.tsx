@@ -438,6 +438,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
                     player={facecamPlayer}
                     contentFit="cover"
                     nativeControls={false}
+                    surfaceType="textureView"
                   />
                 </View>
               )}
@@ -466,6 +467,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
                   player={player}
                   contentFit="cover"
                   nativeControls={false}
+                  surfaceType="textureView"
                 />
               </View>
 
@@ -615,6 +617,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#000000',
     overflow: 'hidden',
     position: 'relative',
+    borderRadius: 1,
     borderWidth: 1,
     borderStyle: 'dashed',
     borderColor: 'transparent',
@@ -624,6 +627,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#000000',
     overflow: 'hidden',
     position: 'relative',
+    borderRadius: 1,
     borderWidth: 1,
     borderStyle: 'dashed',
     borderColor: 'transparent',
