@@ -14,7 +14,28 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Use Raw Text Inputs in Time Range Modal and Slim Down Set to Playhead Button
+## [Unreleased] - Standardize Base Subtitle Font Size to 14 and Rebalance Size Presets
+- **Konteks Struktural**:
+  1. Penyesuaian Base Font Size Subtitle Menjadi 14:
+     - Mengubah nilai default ukuran font subtitle dari 20/22 menjadi 14 di seluruh pipeline pembuatan dan rendering ([DEFAULT_SUBTITLE_STYLE](file:///d:/projects/clipping/mobile/src/services/api.ts#L1169-L1178), [sliceCuesForClip](file:///d:/projects/clipping/mobile/src/services/api.ts), [normalizeSingleTrackCues](file:///d:/projects/clipping/mobile/src/services/api.ts), [handleAddCue](file:///d:/projects/clipping/mobile/src/hooks/useClipSubtitle.ts), dan [SubtitleOverlay.tsx](file:///d:/projects/clipping/mobile/src/components/feed/SubtitleOverlay.tsx)).
+     - Ukuran 14 terbukti paling proporsional, rapi, dan estetis pada frame video vertikal tanpa memakan ruang visual klip secara berlebihan.
+  2. Rekalibrasi Pilihan Preset Font Size di Modal:
+     - Mengganti pilihan preset font yang sebelumnya condong ke ukuran besar (`14` hingga `28`) menjadi deretan ukuran yang relevan di sekitar base 14 dan ukuran mikro: `['8', '10', '11', '12', '13', '14', '15', '16', '18']`.
+     - Memberikan fleksibilitas bagi pengguna untuk memilih font yang lebih kecil dari 14 atau sedikit lebih besar untuk penekanan tanpa risiko ukuran raksasa yang tidak realistis.
+- **Perubahan Kode Penting**:
+  - [mobile/src/services/api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts):
+    - Mengubah base `fontSize` menjadi 14 pada `SubtitleStyle`, `DEFAULT_SUBTITLE_STYLE`, `sliceCuesForClip`, dan `normalizeSingleTrackCues`.
+  - [mobile/src/hooks/useClipSubtitle.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipSubtitle.ts):
+    - Mengubah default font size `newCue` pada `handleAddCue` menjadi 14.
+  - [mobile/src/components/FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
+    - Menyesuaikan fallback `fontSize` `SubtitleOverlay` menjadi 14.
+  - [mobile/src/components/feed/SubtitleOverlay.tsx](file:///d:/projects/clipping/mobile/src/components/feed/SubtitleOverlay.tsx):
+    - Mengubah default prop `fontSize` menjadi 14.
+  - [mobile/src/components/feed/FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx):
+    - Mengubah inisialisasi state `tempEditSize` dan fallback menjadi 14.
+    - Memperbarui daftar preset tombol ukuran font menjadi `['8', '10', '11', '12', '13', '14', '15', '16', '18']`.
+
+## [4948ce4] - Use Raw Text Inputs in Time Range Modal and Slim Down Set to Playhead Button
 - **Konteks Struktural**:
   1. Penggunaan Raw Input pada Modal Rentang Waktu Subtitle:
      - Menghapus manipulasi string agresif (`replace(/\D/g, '')` dan `slice`) pada event `onChangeText` di seluruh 6 kotak waktu ([FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx)), karena memicu lompatan kursor dan pemotongan angka saat pengguna sedang mengetik/menghapus.

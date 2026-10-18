@@ -22,7 +22,7 @@ const STROKE_OFFSETS = [
 export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
   isVisible,
   subtitleText,
-  fontSize = 20,
+  fontSize = 14,
 }) => {
   if (!isVisible || !subtitleText) return null;
 

@@ -127,7 +127,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
   const [showTextModal, setShowTextModal] = useState<boolean>(false);
   const [showFontModal, setShowFontModal] = useState<boolean>(false);
   const [tempEditText, setTempEditText] = useState<string>('');
-  const [tempEditSize, setTempEditSize] = useState<string>('20');
+  const [tempEditSize, setTempEditSize] = useState<string>('14');
   const [showTimeModal, setShowTimeModal] = useState<boolean>(false);
   const [startMin, setStartMin] = useState<string>('00');
   const [startSec, setStartSec] = useState<string>('00');
@@ -614,7 +614,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                 <Pressable
                   style={({ pressed }) => [styles.iconActionBtn, pressed && { opacity: 0.6 }]}
                   onPress={() => {
-                    setTempEditSize(String(selectedCue.fontSize || 20));
+                    setTempEditSize(String(selectedCue.fontSize || 14));
                     setShowFontModal(true);
                   }}
                   hitSlop={6}
@@ -832,7 +832,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                 value={tempEditSize}
                 onChangeText={setTempEditSize}
                 keyboardType="decimal-pad"
-                placeholder="20"
+                placeholder="14"
                 placeholderTextColor="rgba(255, 255, 255, 0.35)"
                 autoFocus
                 selectTextOnFocus
@@ -842,7 +842,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
 
             {/* Preset buttons */}
             <View style={styles.fontSizePresetGroup}>
-              {['14', '16', '18', '20', '22', '24', '28'].map((preset) => (
+              {['8', '10', '11', '12', '13', '14', '15', '16', '18'].map((preset) => (
                 <Pressable
                   key={preset}
                   style={({ pressed }) => [

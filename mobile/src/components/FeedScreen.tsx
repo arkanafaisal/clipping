@@ -290,7 +290,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
         <SubtitleOverlay
           isVisible={isSubtitleVisible}
           subtitleText={activeSubtitleCue ? activeSubtitleCue.text : activeSubtitleText}
-          fontSize={activeSubtitleCue?.fontSize || 20}
+          fontSize={activeSubtitleCue?.fontSize || 14}
         />
       </View>
 

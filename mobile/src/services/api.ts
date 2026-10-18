@@ -1141,11 +1141,11 @@ export interface SubtitleCue {
   rawStart: number; // Detik absolut pada video YouTube utuh
   rawEnd: number;   // Detik absolut pada video YouTube utuh
   text: string;     // Teks subtitle bersih (single line)
-  fontSize?: number; // Ukuran font per cue (default 20)
+  fontSize?: number; // Ukuran font per cue (default 14)
 }
 
 export interface SubtitleStyle {
-  fontSize: number;          // Default 22 (sesuai rendering FFmpeg)
+  fontSize: number;          // Default 14
   color: string;             // Hex color misal '#FFFFFF'
   backgroundColor: string;   // Background pill misal 'rgba(0,0,0,0.65)'
   strokeColor?: string;      // Outline color misal '#000000'
@@ -1167,7 +1167,7 @@ export interface ClipSubtitleData {
 }
 
 export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
-  fontSize: 22,
+  fontSize: 14,
   color: '#FFFFFF',
   backgroundColor: 'transparent',
   strokeColor: '#000000',
@@ -1347,7 +1347,7 @@ export function normalizeSingleTrackCues(cues: SubtitleCue[], maxDuration?: numb
       start: Math.max(0, Math.round(c.start * 100) / 100),
       end: Math.max(0, Math.round(c.end * 100) / 100),
       text: (c.text || '').replace(/\r/g, '').replace(/[ \t]+/g, ' ').trim(),
-      fontSize: c.fontSize || 20,
+      fontSize: c.fontSize || 14,
     }))
     .filter((c) => c.text.length > 0)
     .sort((a, b) => a.start - b.start || a.end - b.end);
@@ -1427,7 +1427,7 @@ export function sliceCuesForClip(
           rawStart: cue.rawStart,
           rawEnd: cue.rawEnd,
           text: cue.text.replace(/\r?\n+/g, ' ').trim(),
-          fontSize: cue.fontSize || 20,
+          fontSize: cue.fontSize || 14,
         });
       }
     }

@@ -85,7 +85,7 @@ export function useClipSubtitle({
         rawStart: activeClip.start + startPos,
         rawEnd: activeClip.start + endPos,
         text: 'Teks Subtitle',
-        fontSize: 20,
+        fontSize: 14,
       };
 
       setSubtitles((prev) => {
