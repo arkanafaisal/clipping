@@ -297,11 +297,18 @@ def build_multi_layer_pipeline(
     ctx_text = str(context_cfg.get("text", "")).strip() if ctx_enabled else ""
     ctx_fs = 24
     if ctx_enabled and ctx_text:
-        scale_factor = out_w / 390.0
+        ref_dim = min(out_w, out_h)
+        base_unit = ref_dim * 0.0833  # Rasio acuan dinamis setara 14dp di preview React Native
         ctx_fs_dp = float(context_cfg.get("fontSize", 16))
         ctx_pad_dp = float(context_cfg.get("paddingY", 10))
-        ctx_fs = max(14, int(round(ctx_fs_dp * scale_factor)))
-        ctx_pad = max(4, int(round(ctx_pad_dp * scale_factor)))
+
+        # Skala font konteks proporsional dengan kalibrasi visual subtitle (14dp -> base_unit):
+        ctx_fs = max(14, int(round(base_unit * (ctx_fs_dp / 14.0))))
+
+        # Skala padding Y proporsional dengan rasio dimensi acuan yang sama:
+        ctx_pad = max(4, int(round(base_unit * (ctx_pad_dp / 14.0))))
+
+        # Tinggi banner: ruang teks vertikal (lineHeight ~1.35 * ctx_fs) + 2 * padding
         banner_h = int(round(ctx_fs * 1.35 + 2 * ctx_pad))
         if banner_h % 2 != 0:
             banner_h += 1

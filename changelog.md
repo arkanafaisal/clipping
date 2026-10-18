@@ -14,7 +14,19 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Calibrate Subtitle Font Scaling to 0.0833 for 100% Visual Parity Across All Aspect Ratios
+## [Unreleased] - Calibrate Template Context Banner Font Size and Vertical Padding to Dynamic Subtitle Base Ratio
+- **Konteks Struktural**:
+  1. Sinkronisasi Skala Tipografi dan Ruang Vertikal Banner Konteks:
+     - Mengganti scaling hardcoded layar mobile (`out_w / 390.0`) dengan formula dimensi acuan terpendek $\min(W, H)$ yang selaras dengan kalibrasi visual subtitle (`base_unit = ref_dim * 0.0833`).
+     - Mengalibrasi `fontSize` teks banner konteks secara proporsional terhadap basis tipografi preview (`ctx_fs = round(base_unit * (fontSize / 14))`), menjamin judul konteks tampil tegas, terbaca jelas, dan identik dengan preview.
+  2. Kalibrasi Padding Vertikal dan Tinggi Banner FFmpeg Dinamis:
+     - Mengalibrasi `paddingY` banner secara dinamis (`ctx_pad = round(base_unit * (paddingY / 14))`) dan menghitung tinggi banner `banner_h = ctx_fs * 1.35 + 2 * ctx_pad`.
+     - Menghilangkan distorsi ukuran banner di resolusi berbeda (1080p, 720p, dsb.), menghasilkan proporsi visual ~14% tinggi video portrait yang 100% konsisten dengan layar preview editor.
+- **Perubahan Kode Penting**:
+  - [mobile/scripts/utils/subtitle_burner.py](file:///d:/projects/clipping/mobile/scripts/utils/subtitle_burner.py):
+    - `build_multi_layer_pipeline`: Mengganti perhitungan `scale_factor = out_w / 390.0` dengan `ref_dim = min(out_w, out_h)` dan `base_unit = ref_dim * 0.0833` untuk `ctx_fs` serta `ctx_pad`.
+
+## [2194731] - Calibrate Subtitle Font Scaling to 0.0833 for 100% Visual Parity Across All Aspect Ratios
 - **Konteks Struktural**:
   1. Kalibrasi Ukuran Font Visual antara React Native Skia vs FFmpeg FreeType:
      - Mengubah rasio dasar font acuan dari `0.0638` menjadi `0.0833` (`round(min(w, h) * 0.0833)`).
