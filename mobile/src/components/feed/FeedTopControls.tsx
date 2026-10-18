@@ -164,7 +164,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
             <View style={styles.timeDisplay}>
               {activeTimeEdit === 'start' ? (
                 <TextInput
-                  style={[styles.timeInput, styles.timeInputStart]}
+                  style={styles.timeInput}
                   value={tempTimeValue}
                   onChangeText={(val) => onMsTimeChange('start', val)}
                   onBlur={onBlurTimeEdit}
@@ -173,7 +173,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                   autoFocus
                   selectTextOnFocus
                   placeholder="00"
-                  placeholderTextColor="rgba(52, 211, 153, 0.4)"
+                  placeholderTextColor="rgba(255, 255, 255, 0.4)"
                 />
               ) : (
                 <Pressable
@@ -181,7 +181,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                   onPress={() => onStartEditTime('start')}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 6 }}
                 >
-                  <Text style={[styles.timeNumberText, styles.timeStartText]}>
+                  <Text style={styles.timeNumberText}>
                     {formatDisplayTime(activeClip.start)}
                   </Text>
                 </Pressable>
@@ -191,7 +191,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
 
               {activeTimeEdit === 'end' ? (
                 <TextInput
-                  style={[styles.timeInput, styles.timeInputEnd]}
+                  style={styles.timeInput}
                   value={tempTimeValue}
                   onChangeText={(val) => onMsTimeChange('end', val)}
                   onBlur={onBlurTimeEdit}
@@ -200,7 +200,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                   autoFocus
                   selectTextOnFocus
                   placeholder="00"
-                  placeholderTextColor="rgba(244, 63, 94, 0.4)"
+                  placeholderTextColor="rgba(255, 255, 255, 0.4)"
                 />
               ) : (
                 <Pressable
@@ -208,7 +208,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                   onPress={() => onStartEditTime('end')}
                   hitSlop={{ top: 8, bottom: 8, left: 6, right: 8 }}
                 >
-                  <Text style={[styles.timeNumberText, styles.timeEndText]}>
+                  <Text style={styles.timeNumberText}>
                     {formatDisplayTime(activeClip.end)}
                   </Text>
                 </Pressable>
@@ -379,13 +379,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     paddingVertical: 2,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.15)',
-  },
-  timeStartText: {
-    color: '#34d399',
-  },
-  timeEndText: {
-    color: '#fb7185',
+    borderBottomColor: 'rgba(255, 255, 255, 0.25)',
   },
   timeInput: {
     minWidth: 44,
@@ -398,16 +392,9 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
     fontSize: 13,
     fontWeight: '800',
-  },
-  timeInputStart: {
     borderWidth: 1.5,
-    borderColor: '#10b981',
-    color: '#34d399',
-  },
-  timeInputEnd: {
-    borderWidth: 1.5,
-    borderColor: '#f43f5e',
-    color: '#fb7185',
+    borderColor: 'rgba(255, 255, 255, 0.35)',
+    color: 'rgba(255, 255, 255, 0.95)',
   },
   rightActionGroup: {
     flexDirection: 'row',

@@ -14,7 +14,17 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Extract useClipSubtitle Hook for Subtitle Preview and Cue Management
+## [Unreleased] - Neutralize Time Range Display and Millisecond Edit Colors in FeedTopControls
+- **Konteks Struktural**:
+  1. Harmonisasi Warna Elemen Rentang Waktu:
+     - Menghilangkan diferensiasi warna hijau (`#34d399`) pada start dan merah (`#fb7185`) pada end di [FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx).
+     - Menjadikan warna teks, border input, dan placeholder keduanya seragam netral (`rgba(255, 255, 255, 0.95)` dan border `rgba(255, 255, 255, 0.35)`) agar tidak tumpang-tindih makna dengan warna fungsional status Done (hijau), Trash (merah), Extend (hijau), dan Crop (merah).
+- **Perubahan Kode Penting**:
+  - [mobile/src/components/feed/FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx):
+    - Mengganti styling `timeStartText` dan `timeEndText` menjadi `timeNumberText` standar netral.
+    - Menyatukan style input `timeInputStart` dan `timeInputEnd` ke dalam `timeInput` netral dengan border `rgba(255, 255, 255, 0.35)`.
+
+## [b4ff2c8] - Extract useClipSubtitle Hook for Subtitle Preview and Cue Management
 - **Konteks Struktural**:
   1. Ekstraksi Logika Subtitle ke Hook Terpisah:
      - Memindahkan state subtitle, overlay visibility, modal edit visibility, dan lifecycle auto-load file subtitle dari [FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx) ke dalam custom hook [useClipSubtitle.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipSubtitle.ts).
