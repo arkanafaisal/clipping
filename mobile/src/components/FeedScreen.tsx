@@ -63,6 +63,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
   // Hook 2: useClipPlayer
   const {
     player,
+    facecamPlayer,
     streamUrl,
     isContinueState,
     progressPercent,
@@ -352,7 +353,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
                           ],
                         },
                       ]}
-                      player={player}
+                      player={facecamPlayer}
                       contentFit="cover"
                       nativeControls={false}
                     />
@@ -565,8 +566,8 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   mainVideoBox: {
-    flex: 1,
     width: '100%',
+    aspectRatio: 16 / 9,
     backgroundColor: '#000000',
     overflow: 'hidden',
     position: 'relative',

@@ -14,7 +14,28 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Implement Native drawtext Filter Pipeline for Devices Lacking libass
+## [Unreleased] - Implement Synchronized Dual VideoPlayer and 16:9 Bottom Safe Zone
+- **Konteks Struktural**:
+  1. Resolusi Layar Hitam Viewport Facecam (Android Multi-Surface ExoPlayer Collision):
+     - Mengatasi kendala layar hitam pada viewport Facecam yang disebabkan oleh batasan platform Android di mana satu instance native `VideoPlayer` (ExoPlayer) hanya dapat mengikat satu `PlayerView`/`SurfaceView` aktif dalam satu waktu.
+     - Mengintroduksi instance sekunder terisolasi `facecamPlayer` pada [mobile/src/hooks/useClipPlayer.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipPlayer.ts) dengan audio dimatikan 100% (`muted = true`).
+     - Menyinkronkan seluruh siklus hidup media (`replace`, `play`, `pause`, debounced `seek`, `timeUpdate` drift correction, dan boundary loop) antara `player` utama dan `facecamPlayer`.
+  2. Rasio 4:3 Facecam & Proporsi Landscape 16:9 Main Gameplay:
+     - Mempertahankan rasio horizontal balok melebar 4:3 (`aspectRatio: 4 / 3`) pada viewport Facecam.
+     - Mengubah tata letak viewport gameplay utama (`mainVideoBox`) dari `flex: 1` menjadi rasio landscape 16:9 (`aspectRatio: 16 / 9`, `width: '100%'`).
+  3. Ruang Kosong (Bottom Safe Zone) pada Kanvas 9:16 Portrait:
+     - Memberikan sisa ruang kosong (~20-25% tinggi kanvas berlatar hitam pekat) di bawah video gameplay utama agar gameplay tidak tertutup atau terhalang oleh komponen UI media sosial (nama akun, teks deskripsi, audio ticker, dan tombol Like/Komentar pada YouTube Shorts, TikTok, dan Instagram Reels).
+     - Menjadikan area bawah tersebut sebagai zona aman penempatan teks subtitle overlay.
+- **Perubahan Kode Penting**:
+  - [mobile/src/hooks/useClipPlayer.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipPlayer.ts):
+    - Menginisialisasi `facecamPlayer` dengan `useVideoPlayer(null, (p) => { p.muted = true; ... })`.
+    - Menyinkronkan penggantian sumber file lokal/stream, trigger seek, event play/pause, dan koreksi waktu di setiap frame.
+    - Mengekspor `facecamPlayer` dalam antarmuka hook.
+  - [mobile/src/components/FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
+    - Menghubungkan `facecamBox` dengan `player={facecamPlayer}`.
+    - Menyesuaikan `styles.mainVideoBox` menjadi `aspectRatio: 16 / 9` untuk menghasilkan margin ruang kosong aman di bagian bawah kanvas 9:16.
+
+## [e299dd2] - Implement Native drawtext Filter Pipeline for Devices Lacking libass
 - **Konteks Struktural**:
   1. Penanganan Ketiadaan Filter `subtitles` di Binary FFmpeg Perangkat:
      - Mengatasi kendala `[AVFilterGraph] No such filter: 'subtitles'` yang terjadi ketika binary FFmpeg native perangkat (`libffmpeg.so`) dikompilasi tanpa flag `libass`.
