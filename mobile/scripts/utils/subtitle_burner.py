@@ -407,7 +407,7 @@ def build_multi_layer_pipeline(
     # 5. Pasang Banner Konteks jika aktif
     if ctx_enabled and ctx_text:
         banner_filters = [
-            f"drawbox=x=0:y=0:w={out_w}:h={banner_h}:color=white:t=fill",
+            f"drawbox=x=0:y=0:w={out_w}:h={banner_h}:color=white:t={banner_h}",
             f"drawtext=textfile='{esc_ctx_file}'{font_opt}:fontsize={ctx_fs}:fontcolor=black:x=(w-text_w)/2:y=({banner_h}-text_h)/2"
         ]
         filter_lines.append(f"{current_node}{','.join(banner_filters)}[canvas_banner];")

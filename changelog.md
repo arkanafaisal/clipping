@@ -14,7 +14,15 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Implement 1-Pass Multi-Layer Template and Subtitle Video Export in FFmpeg
+## [Unreleased] - Fix Android FFmpeg drawbox fill syntax error
+- **Konteks Struktural**:
+  - Memperbaiki kegagalan inisialisasi filter `drawbox` pada binary FFmpeg mobile Android di mana ekspresi string `t=fill` menimbulkan error `Undefined constant or missing '(' in 'fill'`.
+  - Mengganti parameter ketebalan menjadi nilai integer absolut `t={banner_h}` yang kompatibel universal di seluruh versi FFmpeg untuk mengisi kanvas banner putih secara penuh dan solid.
+- **Perubahan Kode Penting**:
+  - [mobile/scripts/utils/subtitle_burner.py](file:///d:/projects/clipping/mobile/scripts/utils/subtitle_burner.py):
+    - Mengganti opsi filter `drawbox` dari `t=fill` menjadi `t={banner_h}`.
+
+## [c9128bd] - Implement 1-Pass Multi-Layer Template and Subtitle Video Export in FFmpeg
 - **Konteks Struktural**:
   1. Arsitektur Ekspor Multi-Layer 1-Pass FFmpeg Murni:
      - Menggabungkan pemrosesan template orientasi (9:16 Portrait / 16:9 Landscape), viewport facecam 4:3, viewport gameplay 4:3 / 16:9, banner konteks judul, dan subtitle burn-in ke dalam **satu proses tunggal** FFmpeg via `-filter_complex_script`.
