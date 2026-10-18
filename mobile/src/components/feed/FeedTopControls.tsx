@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
   View,
@@ -31,11 +31,10 @@ interface SubtitleCuePillProps {
   clipDuration: number;
   trackWidth: number;
   isSelected: boolean;
-  onSelect: (id: string) => void;
 }
 
 const SubtitleCuePill: React.FC<SubtitleCuePillProps> = React.memo(
-  ({ cue, index, clipDuration, trackWidth, isSelected, onSelect }) => {
+  ({ cue, index, clipDuration, trackWidth, isSelected }) => {
     const startPct = clipDuration > 0 ? Math.max(0, Math.min(1, cue.start / clipDuration)) : 0;
     const endPct = clipDuration > 0 ? Math.max(0, Math.min(1, cue.end / clipDuration)) : 1;
     const leftPos = startPct * trackWidth;
@@ -44,8 +43,8 @@ const SubtitleCuePill: React.FC<SubtitleCuePillProps> = React.memo(
     const isEven = index % 2 === 0;
 
     return (
-      <Pressable
-        onPress={() => onSelect(cue.id)}
+      <View
+        pointerEvents="none"
         style={[
           styles.cuePill,
           isEven ? styles.cuePillEven : styles.cuePillOdd,
@@ -55,7 +54,6 @@ const SubtitleCuePill: React.FC<SubtitleCuePillProps> = React.memo(
           },
           isSelected && (isEven ? styles.cuePillEvenSelected : styles.cuePillOddSelected),
         ]}
-        hitSlop={{ top: 4, bottom: 4, left: 2, right: 2 }}
       />
     );
   }
@@ -139,6 +137,76 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
   const [endMs, setEndMs] = useState<string>('000');
 
   const clipDuration = Math.max(0.1, activeClip.end - activeClip.start);
+
+  const trackWidthRef = useRef<number>(0);
+  const clipDurationRef = useRef<number>(0);
+  const onSeekRef = useRef(onSeek);
+  const startTouchX = useRef<number>(0);
+  const manuallyDismissedCueIdRef = useRef<string | null>(null);
+
+  trackWidthRef.current = trackLayoutWidth;
+  clipDurationRef.current = clipDuration;
+  onSeekRef.current = onSeek;
+
+  const handleScrubAt = useCallback((x: number) => {
+    const w = trackWidthRef.current;
+    const dur = clipDurationRef.current;
+    if (w <= 0 || dur <= 0) return;
+    const clampedX = Math.max(0, Math.min(w, x));
+    const relSec = (clampedX / w) * dur;
+    onSeekRef.current(relSec);
+  }, []);
+
+  const trackPanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: (evt) => {
+        startTouchX.current = evt.nativeEvent.locationX;
+        handleScrubAt(startTouchX.current);
+      },
+      onPanResponderMove: (_evt, gestureState) => {
+        handleScrubAt(startTouchX.current + gestureState.dx);
+      },
+      onPanResponderRelease: () => {},
+      onPanResponderTerminate: () => {},
+    })
+  ).current;
+
+  // Cue yang saat ini berada tepat di bawah posisi playhead needle
+  const currentMatchingCue = useMemo(() => {
+    if (subtitles.length === 0 || clipDuration <= 0) return null;
+    return (
+      subtitles.find(
+        (cue) => currentClipTime >= cue.start && currentClipTime <= cue.end
+      ) || null
+    );
+  }, [subtitles, currentClipTime, clipDuration]);
+
+  // Sinkronisasi dinamis: pilih subtitle yang tersentuh needle (baik saat playback maupun saat di-scrub)
+  useEffect(() => {
+    if (showTextModal || showFontModal || showTimeModal || showLangModal) {
+      return;
+    }
+
+    const matchedId = currentMatchingCue ? currentMatchingCue.id : null;
+
+    if (matchedId !== manuallyDismissedCueIdRef.current) {
+      manuallyDismissedCueIdRef.current = null;
+    }
+
+    if (manuallyDismissedCueIdRef.current === null && matchedId !== selectedCueId) {
+      onSelectCue(matchedId);
+    }
+  }, [
+    currentMatchingCue,
+    selectedCueId,
+    onSelectCue,
+    showTextModal,
+    showFontModal,
+    showTimeModal,
+    showLangModal,
+  ]);
 
   const selectedCue = useMemo(
     () => subtitles.find((c) => c.id === selectedCueId) || null,
@@ -454,22 +522,14 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
       ) : (
         /* MODE DONE: Subtitle Mini Track & Inline Editor Layer */
         <View style={styles.subtitleLayerSection}>
-          {/* 1. HORIZONTAL MINI TRACK (100% width) */}
+          {/* 1. HORIZONTAL MINI TRACK (100% width, tap/drag to scrub pointer & select cue) */}
           <View
             style={styles.miniTrackWrapper}
             onLayout={(e) => setTrackLayoutWidth(e.nativeEvent.layout.width)}
+            {...trackPanResponder.panHandlers}
           >
-            <Pressable
-              style={styles.miniTrackBackground}
-              onPress={(e) => {
-                if (trackLayoutWidth <= 0 || clipDuration <= 0) return;
-                const clickX = e.nativeEvent.locationX;
-                const relSec = Math.max(0, Math.min(clipDuration, (clickX / trackLayoutWidth) * clipDuration));
-                onSeek(relSec);
-                onSelectCue(null);
-              }}
-            >
-              {/* Needle Playhead */}
+            <View style={styles.miniTrackBackground} pointerEvents="none">
+              {/* Needle Playhead (Merah kontras seperti scrubber bawah) */}
               <View
                 style={[
                   styles.playheadNeedle,
@@ -479,17 +539,18 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                         ? Math.max(
                             0,
                             Math.min(
-                              trackLayoutWidth - 2,
+                              trackLayoutWidth - 2.5,
                               (currentClipTime / clipDuration) * trackLayoutWidth
                             )
                           )
                         : 0,
                   },
                 ]}
-                pointerEvents="none"
-              />
+              >
+                <View style={styles.playheadCap} />
+              </View>
 
-              {/* Subtitle Cue Pills */}
+              {/* Subtitle Cue Pills (Visual timeline blocks) */}
               {subtitles.map((cue, index) => (
                 <SubtitleCuePill
                   key={cue.id}
@@ -498,19 +559,15 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                   clipDuration={clipDuration}
                   trackWidth={trackLayoutWidth}
                   isSelected={selectedCueId === cue.id}
-                  onSelect={(id) => {
-                    onSelectCue(id);
-                    onSeek(cue.start);
-                  }}
                 />
               ))}
 
               {subtitles.length === 0 && (
-                <View style={styles.emptyTrackHint} pointerEvents="none">
+                <View style={styles.emptyTrackHint}>
                   <Text style={styles.emptyTrackText}>Belum ada subtitle track</Text>
                 </View>
               )}
-            </Pressable>
+            </View>
           </View>
 
           {/* 2. ACTION & EDITOR ROW */}
@@ -573,10 +630,13 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                   <Trash2 size={16} color="#f87171" />
                 </Pressable>
 
-                {/* 4. Deselect / Close */}
+                {/* 5. Deselect / Close */}
                 <Pressable
                   style={({ pressed }) => [styles.iconActionBtn, pressed && { opacity: 0.6 }]}
-                  onPress={() => onSelectCue(null)}
+                  onPress={() => {
+                    manuallyDismissedCueIdRef.current = selectedCueId;
+                    onSelectCue(null);
+                  }}
                   hitSlop={6}
                 >
                   <X size={16} color="#94a3b8" />
@@ -1223,9 +1283,24 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     bottom: 0,
-    width: 2,
-    backgroundColor: '#ffffff',
-    zIndex: 10,
+    width: 2.5,
+    backgroundColor: '#ef4444',
+    zIndex: 20,
+    shadowColor: '#ef4444',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 3,
+    elevation: 4,
+  },
+  playheadCap: {
+    position: 'absolute',
+    top: 0,
+    left: -3.5,
+    width: 9.5,
+    height: 6,
+    backgroundColor: '#ef4444',
+    borderBottomLeftRadius: 3,
+    borderBottomRightRadius: 3,
   },
   cuePill: {
     position: 'absolute',

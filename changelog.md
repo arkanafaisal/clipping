@@ -14,7 +14,25 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Make Subtitle Track Pills Borderless Text-Free Blocks with Alternating Contrast Colors and True Duration Width
+## [Unreleased] - Implement Track-Wide Scrubbing PanResponder with Dynamic Playhead-Based Cue Selection
+- **Konteks Struktural**:
+  1. Penggantian Tapping Kotak Individual dengan Full-Track Scrubbing (PanResponder):
+     - Memilih subtitle melalui sentuhan jari langsung ke kotak-kotak kecil di timeline rentan meleset karena ukuran durasi pendek yang sempit pada layar ponsel.
+     - Mengubah seluruh area horizontal mini track pada [FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx) menjadi bidang interaktif 100% menggunakan `PanResponder`. Pengguna dapat mengetuk (tap), menahan (hold), atau menggeser (drag/scrub) di posisi mana pun sepanjang track untuk menggerakkan pointer playhead needle secara mulus.
+  2. Penyeleksian Cue Dinamis Berdasarkan Posisi Needle (Listening Playhead Time):
+     - Menghapus event touch `onPress` dari elemen pill subtitle ([SubtitleCuePill](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx#L28-L58)) dengan menetapkan `pointerEvents="none"`.
+     - Menyinkronkan subtitle aktif secara dinamis (`currentMatchingCue`): ketika pointer needle menyentuh atau berada di dalam rentang waktu suatu kotak subtitle (`cue.start <= currentClipTime <= cue.end`), subtitle tersebut otomatis terpilih (`selectedCueId = cue.id`). Jika needle berada di celah kosong antar-subtitle, status seleksi otomatis di-reset (`null`).
+     - Listener ini juga aktif secara real-time selama video diputar, sehingga aksi edit cue berganti secara dinamis mengikuti adegan klip yang berjalan.
+  3. Desain Indikator Playhead Needle Merah Kontras:
+     - Mengubah warna jarum playhead needle menjadi merah menyala (`#ef4444`) ber-elevasi tinggi dengan topi penanda di bagian atas (`playheadCap`), serasi dengan scrubber utama di bagian bawah layar.
+- **Perubahan Kode Penting**:
+  - [mobile/src/components/feed/FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx):
+    - Mengintegrasikan `PanResponder` pada `miniTrackWrapper` dengan handler `handleScrubAt` untuk pergeseran scrubbing instan.
+    - Menghapus event click pada `SubtitleCuePill` dan mengatur `pointerEvents="none"`.
+    - Menambahkan hook sinkronisasi dinamis `useEffect` yang menyeleksi cue saat tersentuh needle atau saat playback berlangsung.
+    - Menambahkan penanda needle merah kontras (`playheadNeedle` & `playheadCap`).
+
+## [1310042] - Make Subtitle Track Pills Borderless Text-Free Blocks with Alternating Contrast Colors and True Duration Width
 - **Konteks Struktural**:
   1. Penghapusan Cuplikan Teks pada Pill Track Subtitle:
      - Menghapus label teks di dalam kotak subtitle ([SubtitleCuePill](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx#L28-L61)) pada mini track sehingga pill berfungsi sebagai blok warna timeline murni yang bersih.
