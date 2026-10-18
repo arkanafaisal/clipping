@@ -14,7 +14,19 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Calibrate Template Context Banner Font Size and Vertical Padding to Dynamic Subtitle Base Ratio
+## [Unreleased] - Remove Dashed Helper Borders from Player and Viewport Elements in Editor Mode
+- **Konteks Struktural**:
+  1. Penghapusan Border Pembantu Layout Player (Visual Parity dengan Output Ekspor):
+     - Menghapus styling border putus-putus (`borderStyle: 'dashed'`, `borderWidth: 1.5`, `borderRadius: 1`) dan kelas helper border (`canvasHelperBorder`, `elementHelperBorder`) dari kontainer player (`canvasWrapper`, `facecamBox`, dan `mainVideoBox`).
+     - Memastikan tampilan video player di editor 100% mulus (seamless edge-to-edge) tanpa garis batas visual buatan, mencerminkan tampilan framing video hasil ekspor asli secara presisi.
+- **Perubahan Kode Penting**:
+  - [mobile/src/components/FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
+    - Menghapus kondisional `activeEditorMode === 'template' && styles.canvasHelperBorder` pada `canvasWrapper`.
+    - Menghapus kondisional `activeEditorMode === 'template' && styles.elementHelperBorder` pada `facecamBox` dan `mainVideoBox`.
+    - Menghapus properti `borderWidth`, `borderStyle`, `borderColor`, dan `borderRadius` pada `styles.canvasWrapper`, `styles.facecamBox`, dan `styles.mainVideoBox`.
+    - Menghapus kelas styling `canvasHelperBorder` dan `elementHelperBorder`.
+
+## [26539ae] - Calibrate Template Context Banner Font Size and Vertical Padding to Dynamic Subtitle Base Ratio
 - **Konteks Struktural**:
   1. Sinkronisasi Skala Tipografi dan Ruang Vertikal Banner Konteks:
      - Mengganti scaling hardcoded layar mobile (`out_w / 390.0`) dengan formula dimensi acuan terpendek $\min(W, H)$ yang selaras dengan kalibrasi visual subtitle (`base_unit = ref_dim * 0.0833`).

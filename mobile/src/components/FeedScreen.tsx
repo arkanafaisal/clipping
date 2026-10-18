@@ -395,14 +395,13 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
       {/* 2. VIDEO PLAYER AREA (expo-video) */}
       <View style={styles.playerContainer}>
         {/* UNIFIED CANVAS WRAPPER (9:16 Portrait saat Konteks/Facecam aktif, 16:9 Landscape saat nonaktif) */}
-        <View
-          style={[
-            styles.canvasWrapper,
-            isPortrait ? styles.canvasPortrait : styles.canvasLandscape,
-            activeEditorMode === 'template' && styles.canvasHelperBorder,
-          ]}
-          collapsable={false}
-        >
+          <View
+            style={[
+              styles.canvasWrapper,
+              isPortrait ? styles.canvasPortrait : styles.canvasLandscape,
+            ]}
+            collapsable={false}
+          >
           {streamUrl || (activeClip.status === 'done' && downloadedClips[activeClip.id]) ? (
             <>
               {/* 1. Header Banner Konteks (Hanya saat mode portrait & diaktifkan) */}
@@ -428,10 +427,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
               {/* 2. Viewport Facecam (Hanya saat mode portrait & diaktifkan) */}
               {isPortrait && templateConfig.facecam.enabled && (
                 <View
-                  style={[
-                    styles.facecamBox,
-                    activeEditorMode === 'template' && styles.elementHelperBorder,
-                  ]}
+                  style={styles.facecamBox}
                   collapsable={false}
                   onLayout={(e) => {
                     const { width, height } = e.nativeEvent.layout;
@@ -459,7 +455,6 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
                     : isFacecamActive
                     ? styles.mainVideoBox43
                     : styles.mainVideoBox169,
-                  activeEditorMode === 'template' && styles.elementHelperBorder,
                 ]}
                 collapsable={false}
                 onLayout={(e) => {
@@ -577,9 +572,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     position: 'relative',
     alignSelf: 'center',
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    borderColor: 'transparent',
     padding: 0,
     margin: 0,
   },
@@ -597,12 +589,6 @@ const styles = StyleSheet.create({
     aspectRatio: 16 / 9,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  canvasHelperBorder: {
-    borderColor: '#38bdf8',
-  },
-  elementHelperBorder: {
-    borderColor: 'rgba(56, 189, 248, 0.6)',
   },
   contextBannerBox: {
     width: '100%',
@@ -624,20 +610,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#000000',
     overflow: 'hidden',
     position: 'relative',
-    borderRadius: 1,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: 'transparent',
     zIndex: 10,
   },
   mainVideoBox: {
     backgroundColor: '#000000',
     overflow: 'hidden',
     position: 'relative',
-    borderRadius: 1,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: 'transparent',
     zIndex: 5,
   },
   mainVideoBoxLandscape: {
