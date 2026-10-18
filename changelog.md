@@ -14,7 +14,26 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Implement Dynamic 9:16 Portrait Canvas and Inline Template Toolbar
+## [Unreleased] - Fix Subtitle Cue Detection and Fallback Resolution on Export Button
+- **Konteks Struktural**:
+  1. Sinkronisasi Penuh Ref dan State Subtitle (`subtitlesRef` & `internalSubtitlesRef`):
+     - Memperbaiki ketidaksinkronan di mana `internalSubtitlesRef.current` tidak pernah terisi saat `externalSubtitlesRef` dipasok oleh komponen induk, sehingga pengecekan cue saat ekspor selalu menganggap daftar cue kosong (`[]`).
+     - Menyinkronkan mutasi `subtitlesRef.current` dan `internalSubtitlesRef.current` secara konsisten pada setiap pembaruan state subtitle.
+  2. Resolusi Multi-Tier Cue Subtitle Sebelum Ekspor:
+     - Mengimplementasikan deteksi bertingkat pada fungsi ekspor `handleExportSubtitledVideo`:
+       1. Tier 1: Mengambil cue dari referensi aktif `subtitlesRef.current`.
+       2. Tier 2: Fallback ke state aktif `subtitles`.
+       3. Tier 3: Jika ref dan state kosong namun file fisik ada di storage (misalnya saat reload/restorasi), otomatis memuat berkas langsung dari disk via `loadClipSubtitle` dan memulihkan state.
+  3. Resolusi Jalur File Video Klip Lokal:
+     - Mengintegrasikan `resolvePlayableClipUri` untuk mendeteksi jalur berkas klip lokal (format baru dan legacy format), memastikan video input lokal selalu ditemukan secara akurat sebelum diproses oleh FFmpeg `burnClipSubtitles`.
+- **Perubahan Kode Penting**:
+  - [mobile/src/hooks/useClipSubtitle.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipSubtitle.ts):
+    - Mengimpor `resolvePlayableClipUri` dari `../services/api`.
+    - Memperbarui efek sinkronisasi agar memperbarui kedua ref `subtitlesRef` dan `internalSubtitlesRef`.
+    - Memperbarui `handleUpdateSubtitlePosition` agar menggunakan `subtitlesRef.current || subtitles` guna mencegah penulisan cue kosong ke disk saat reposisi.
+    - Menambahkan mekanisme fallback baca file dari storage pada `handleExportSubtitledVideo` sebelum membatalkan proses dengan notifikasi "Subtitle Kosong".
+
+## [c10d29a] - Implement Dynamic 9:16 Portrait Canvas and Inline Template Toolbar
 - **Konteks Struktural**:
   1. Kanvas Otomatis 9:16 Portrait Berdasarkan Status Elemen:
      - Menghilangkan modal pemilih rasio mandiri dan secara otomatis memposisikan kanvas video player ke rasio 9:16 portrait ketika elemen Konteks (banner judul) dan/atau elemen Facecam aktif (`context.enabled || facecam.enabled`).

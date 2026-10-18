@@ -11,6 +11,7 @@ import {
   normalizeSingleTrackCues,
   isRateLimitOrRestrictedError,
   burnClipSubtitles,
+  resolvePlayableClipUri,
   getClipOutputFilePath,
   getClipInternalOutputFilePath,
   getSubtitledClipOutputFilePath,
@@ -47,6 +48,7 @@ export function useClipSubtitle({
 
   useEffect(() => {
     subtitlesRef.current = subtitles;
+    internalSubtitlesRef.current = subtitles;
   }, [subtitles, subtitlesRef]);
 
   useEffect(() => {
@@ -309,7 +311,12 @@ export function useClipSubtitle({
   const handleUpdateSubtitlePosition = useCallback(
     (x: number, y: number) => {
       setSubtitlePosition({ x, y });
+      subtitlePosRef.current = { x, y };
       if (activeClip && activeClip.videoId) {
+        const currentCues =
+          subtitlesRef.current && subtitlesRef.current.length > 0
+            ? subtitlesRef.current
+            : subtitles;
         saveClipSubtitle({
           videoId: activeClip.videoId,
           start: activeClip.start,
@@ -320,19 +327,41 @@ export function useClipSubtitle({
             positionX: x,
             positionY: y,
           },
-          cues: internalSubtitlesRef.current,
+          cues: currentCues,
           updatedAt: Date.now(),
         }).catch(() => {});
       }
     },
-    [activeClip]
+    [activeClip, subtitles, subtitlesRef]
   );
 
   // Ekspor klip baru dengan subtitle tertempel permanen via FFmpeg
   const handleExportSubtitledVideo = useCallback(async () => {
     if (!activeClip || !activeClip.videoId) return;
 
-    const currentCues = internalSubtitlesRef.current;
+    // 1. Ambil cue saat ini: Cek ref terlebih dahulu, fallback ke state subtitles
+    let currentCues =
+      subtitlesRef.current && subtitlesRef.current.length > 0
+        ? subtitlesRef.current
+        : subtitles;
+
+    // 2. Jika ref dan state masih kosong, baca langsung dari disk (loadClipSubtitle)
+    if (!currentCues || currentCues.length === 0) {
+      try {
+        const saved = await loadClipSubtitle(activeClip.videoId, activeClip.start, activeClip.end);
+        if (saved && Array.isArray(saved.cues) && saved.cues.length > 0) {
+          const clipDuration = activeClip.end - activeClip.start;
+          const normalized = normalizeSingleTrackCues(saved.cues, clipDuration);
+          currentCues = normalized;
+          subtitlesRef.current = normalized;
+          internalSubtitlesRef.current = normalized;
+          setSubtitles(normalized);
+        }
+      } catch (err) {
+        console.warn('[handleExportSubtitledVideo] Gagal memuat subtitle dari disk:', err);
+      }
+    }
+
     if (!currentCues || currentCues.length === 0) {
       ToastManager.show({
         type: 'info',
@@ -343,22 +372,36 @@ export function useClipSubtitle({
       return;
     }
 
-    // Periksa file klip video sumber di shared storage maupun internal sandbox
-    const sharedTarget = getClipOutputFilePath(activeClip.videoId, activeClip.start, activeClip.end);
-    const internalTarget = getClipInternalOutputFilePath(activeClip.videoId, activeClip.start, activeClip.end);
-
+    // 3. Resolusi video input lokal (resolvePlayableClipUri)
     let inputVideoPath = '';
     try {
-      const sharedInfo = await FileSystem.getInfoAsync(sharedTarget.fileUri);
-      if (sharedInfo.exists) {
-        inputVideoPath = sharedTarget.nativePath;
-      } else {
-        const internalInfo = await FileSystem.getInfoAsync(internalTarget.fileUri);
-        if (internalInfo.exists) {
-          inputVideoPath = internalTarget.nativePath;
-        }
+      const resolvedUri = await resolvePlayableClipUri(
+        activeClip.videoId,
+        activeClip.start,
+        activeClip.end,
+        activeClip.rank
+      );
+      if (resolvedUri && resolvedUri.startsWith('file://')) {
+        inputVideoPath = resolvedUri.replace('file://', '');
       }
     } catch {}
+
+    // Fallback direct check jika resolvePlayableClipUri belum mengembalikan path lokal
+    if (!inputVideoPath) {
+      const sharedTarget = getClipOutputFilePath(activeClip.videoId, activeClip.start, activeClip.end, activeClip.rank);
+      const internalTarget = getClipInternalOutputFilePath(activeClip.videoId, activeClip.start, activeClip.end, activeClip.rank);
+      try {
+        const sharedInfo = await FileSystem.getInfoAsync(sharedTarget.fileUri);
+        if (sharedInfo.exists) {
+          inputVideoPath = sharedTarget.nativePath;
+        } else {
+          const internalInfo = await FileSystem.getInfoAsync(internalTarget.fileUri);
+          if (internalInfo.exists) {
+            inputVideoPath = internalTarget.nativePath;
+          }
+        }
+      } catch {}
+    }
 
     if (!inputVideoPath) {
       ToastManager.show({
@@ -428,7 +471,7 @@ export function useClipSubtitle({
     } finally {
       setIsExportingSubtitle(false);
     }
-  }, [activeClip]);
+  }, [activeClip, subtitles, subtitlesRef]);
 
   return {
     subtitles,
