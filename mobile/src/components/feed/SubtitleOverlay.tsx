@@ -4,18 +4,22 @@ import { StyleSheet, View, Text } from 'react-native';
 export interface SubtitleOverlayProps {
   isVisible: boolean;
   subtitleText: string;
+  fontSize?: number;
 }
 
 export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
   isVisible,
   subtitleText,
+  fontSize = 16,
 }) => {
   if (!isVisible || !subtitleText) return null;
 
   return (
     <View style={styles.subtitleOverlayContainer} pointerEvents="none">
       <View style={styles.subtitlePill}>
-        <Text style={styles.subtitleText}>{subtitleText}</Text>
+        <Text style={[styles.subtitleText, { fontSize, lineHeight: Math.round(fontSize * 1.35) }]}>
+          {subtitleText}
+        </Text>
       </View>
     </View>
   );

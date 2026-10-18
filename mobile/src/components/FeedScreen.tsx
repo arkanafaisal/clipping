@@ -14,7 +14,6 @@ import {
 } from '../services/api';
 import { ToastManager } from './Toast';
 import { CookiesModal } from './CookiesModal';
-import { SubtitleEditModal } from './SubtitleEditModal';
 import { FeedTopControls } from './feed/FeedTopControls';
 import { FeedPlaybackControls } from './feed/FeedPlaybackControls';
 import { FeedClipCarousel } from './feed/FeedClipCarousel';
@@ -130,6 +129,22 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     activeClipIdRef,
   });
 
+  // Relative Seek helper (0 to clip duration) compatible with both local MP4 and online stream
+  const handleSeekRelative = useCallback(
+    (relSec: number, shouldPlay: boolean = true) => {
+      const duration = activeClip.end - activeClip.start;
+      if (duration <= 0) return;
+      const clampedRel = Math.max(0, Math.min(duration, relSec));
+      const isLocalMode = currentSourceUriRef.current.startsWith('file://');
+      const targetTime = isLocalMode ? clampedRel : activeClip.start + clampedRel;
+      const pct = (clampedRel / duration) * 100;
+      setProgressPercent(pct);
+      setCurrentClipTime(clampedRel);
+      centralizedSeek(targetTime, shouldPlay);
+    },
+    [activeClip.start, activeClip.end, centralizedSeek, setProgressPercent, setCurrentClipTime, currentSourceUriRef]
+  );
+
   // Hook 3: useClipDownload
   const {
     downloadingClips,
@@ -160,11 +175,19 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     setActiveSubtitleText,
     isSubtitleVisible,
     setIsSubtitleVisible,
-    subtitleModalVisible,
-    setSubtitleModalVisible,
+    selectedCueId,
+    setSelectedCueId,
+    isFetchingSubtitles,
+    handleAddCue,
+    handleUpdateCue,
+    handleShiftCueTime,
+    handleDeleteCue,
+    handleFetchSubtitles,
   } = useClipSubtitle({
+    videoId,
     activeClip,
     subtitlesRef,
+    onSeek: (timeSec) => handleSeekRelative(timeSec, true),
   });
 
   useEffect(() => {
@@ -179,9 +202,11 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     setActiveSubtitleTextRef.current = setActiveSubtitleText;
   }, [setActiveSubtitleText]);
 
-
-
-
+  // Active Subtitle Cue determination based on playback time
+  const activeSubtitleCue = useMemo(() => {
+    if (subtitles.length === 0) return null;
+    return subtitles.find((c) => currentClipTime >= c.start && currentClipTime <= c.end) || null;
+  }, [subtitles, currentClipTime]);
 
   if (loading) {
     return (
@@ -214,14 +239,23 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
         downloadProgressInfo={downloadProgress[activeClip.id]}
         hasSubtitles={subtitles.length > 0}
         isSubtitleVisible={isSubtitleVisible}
+        subtitles={subtitles}
+        selectedCueId={selectedCueId}
+        isFetchingSubtitles={isFetchingSubtitles}
         activeTimeEdit={activeTimeEdit}
         tempTimeValue={tempTimeValue}
         getDownloadProgressLabel={getDownloadProgressLabel}
         onToggleTrash={handleToggleTrash}
         onToggleDone={handleToggleDone}
         onDownloadClip={handleDownloadClip}
-        onOpenSubtitleModal={() => setSubtitleModalVisible(true)}
         onToggleSubtitleVisibility={() => setIsSubtitleVisible((prev) => !prev)}
+        onSelectCue={setSelectedCueId}
+        onAddCue={handleAddCue}
+        onUpdateCue={handleUpdateCue}
+        onShiftCueTime={handleShiftCueTime}
+        onDeleteCue={handleDeleteCue}
+        onFetchSubtitles={handleFetchSubtitles}
+        onSeek={handleSeekRelative}
         onStartEditTime={(type) => {
           setActiveTimeEdit(type);
           const curMs = Math.floor((activeClip[type] % 1) * 100);
@@ -254,7 +288,8 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
         {/* Subtitle Layer 1 (Realtime Non-Destructive Preview) */}
         <SubtitleOverlay
           isVisible={isSubtitleVisible}
-          subtitleText={activeSubtitleText}
+          subtitleText={activeSubtitleCue ? activeSubtitleCue.text : activeSubtitleText}
+          fontSize={activeSubtitleCue?.fontSize || 20}
         />
       </View>
 
@@ -292,24 +327,11 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
         activeClipId={activeClipId}
         onSelectClip={handleSelectClip}
       />
+
       {/* 5. Cookies Modal for Rate Limits */}
       <CookiesModal
         visible={cookiesModalVisible}
         onClose={() => setCookiesModalVisible(false)}
-      />
-
-      {/* 6. Subtitle Edit Modal */}
-      <SubtitleEditModal
-        visible={subtitleModalVisible}
-        onClose={() => setSubtitleModalVisible(false)}
-        videoId={videoId}
-        clip={activeClip}
-        onSave={(newCues) => {
-          setSubtitles(newCues);
-        }}
-        onSeekTo={(timeSec) => {
-          centralizedSeek(timeSec, true);
-        }}
       />
     </View>
   );

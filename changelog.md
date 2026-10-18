@@ -14,7 +14,35 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Neutralize Time Range Display and Millisecond Edit Colors in FeedTopControls
+## [Unreleased] - Implement CapCut-Style Mini Track Subtitle Layer and Remove SubtitleEditModal
+- **Konteks Struktural**:
+  1. Penghapusan Total SubtitleEditModal (Bottom Modal):
+     - Menghapus komponen modal [SubtitleEditModal.tsx](file:///d:/projects/clipping/mobile/src/components/SubtitleEditModal.tsx) secara permanen sesuai spesifikasi hierarki layer antarmuka pengguna (menghilangkan popup terpisah).
+  2. Implementasi CapCut-Style Horizontal Mini Track Subtitle Layer:
+     - Menggantikan baris Extend dan Crop pada [FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx) saat klip berstatus `done` dengan mini track horizontal 100% lebar layar dan baris editor/action inline.
+     - Setiap cue subtitle dirender sebagai pill interaktif yang dapat digeser (drag horizontal via `PanResponder`) untuk mengatur waktu `start`, serta diklik untuk memilih dan memposisikan seek pemutar video.
+     - Indikator jarum playhead bergerak realtime mengikuti `currentClipTime` terhadap durasi klip.
+  3. Strict Single-Line Non-Overlapping Subtitle Logic:
+     - Implementasi algoritma normalisasi `normalizeSingleTrackCues` pada [api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts) untuk membersihkan newline menjadi 1 baris, mengurutkan kronologis waktu, menggabungkan start yang identik, dan memotong tumpang-tindih rentang cue secara otomatis.
+  4. Dynamic Cue Customization & Instant Player Render:
+     - Penyesuaian teks secara langsung via single-line TextInput, pengatur ukuran font (`fontSize`), penghapusan cue (`handleDeleteCue`), penambahan manual (`handleAddCue` pada `currentClipTime`), serta tombol cepat pengambil subtitle YouTube per bahasa (ID, EN, JA).
+     - Subtitle aktif dirender langsung pada video player melalui [SubtitleOverlay.tsx](file:///d:/projects/clipping/mobile/src/components/feed/SubtitleOverlay.tsx) secara instan tanpa animasi transisi.
+- **Perubahan Kode Penting**:
+  - [mobile/src/components/SubtitleEditModal.tsx](file:///d:/projects/clipping/mobile/src/components/SubtitleEditModal.tsx):
+    - Dihapus total dari repositori.
+  - [mobile/src/components/FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
+    - Menghapus import dan JSX `SubtitleEditModal`.
+    - Menghubungkan handler mini track subtitle, helper seek relatif (`handleSeekRelative`), dan binding cue aktif ke `SubtitleOverlay`.
+  - [mobile/src/components/feed/FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx):
+    - Mengganti space crop/extend saat `status === 'done'` dengan `miniTrackWrapper`, subkomponen `SubtitleCuePill`, dan baris editor/action cue.
+  - [mobile/src/components/feed/SubtitleOverlay.tsx](file:///d:/projects/clipping/mobile/src/components/feed/SubtitleOverlay.tsx):
+    - Menambahkan dukungan prop `fontSize` dinamis.
+  - [mobile/src/hooks/useClipSubtitle.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipSubtitle.ts):
+    - Menyediakan state `selectedCueId`, `isFetchingSubtitles`, dan handler `handleAddCue`, `handleUpdateCue`, `handleShiftCueTime`, `handleDeleteCue`, `handleFetchSubtitles`.
+  - [mobile/src/services/api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts):
+    - Menambahkan properti `fontSize` pada interface `SubtitleCue`, serta fungsi `normalizeSingleTrackCues` dan integrasinya pada `sliceCuesForClip`.
+
+## [dbdfbf3] - Neutralize Time Range Display and Millisecond Edit Colors in FeedTopControls
 - **Konteks Struktural**:
   1. Harmonisasi Warna Elemen Rentang Waktu:
      - Menghilangkan diferensiasi warna hijau (`#34d399`) pada start dan merah (`#fb7185`) pada end di [FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx).

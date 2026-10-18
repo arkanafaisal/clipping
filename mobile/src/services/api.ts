@@ -1140,7 +1140,8 @@ export interface SubtitleCue {
   end: number;      // Detik relatif terhadap awal klip
   rawStart: number; // Detik absolut pada video YouTube utuh
   rawEnd: number;   // Detik absolut pada video YouTube utuh
-  text: string;     // Teks subtitle bersih
+  text: string;     // Teks subtitle bersih (single line)
+  fontSize?: number; // Ukuran font per cue (default 20)
 }
 
 export interface SubtitleStyle {
@@ -1325,7 +1326,81 @@ export function parseVttToCues(vttContent: string): SubtitleCue[] {
 }
 
 /**
- * Filter dan normalisasi cue subtitle agar pas dengan rentang waktu klip (relatif 0.00s).
+ * Menormalisasi daftar SubtitleCue agar strictly single-line & non-overlapping:
+ * 1. Diurutkan berdasarkan start time lalu end time.
+ * 2. Teks dibersihkan menjadi 1 baris (single line, no newlines).
+ * 3. Jika ada tumpang tindih waktu (overlap), previous.end dipotong agar tepat di current.start.
+ * 4. Jika start sama persis, teks digabungkan.
+ * 5. Memastikan setiap cue berdurasi minimal 0.4s.
+ */
+export function normalizeSingleTrackCues(cues: SubtitleCue[], maxDuration?: number): SubtitleCue[] {
+  if (!Array.isArray(cues) || cues.length === 0) return [];
+
+  const sorted = [...cues]
+    .map((c, idx) => ({
+      ...c,
+      id: c.id || `cue_${idx}`,
+      start: Math.max(0, Math.round(c.start * 100) / 100),
+      end: Math.max(0, Math.round(c.end * 100) / 100),
+      text: (c.text || '').replace(/\r?\n+/g, ' ').replace(/\s+/g, ' ').trim(),
+      fontSize: c.fontSize || 20,
+    }))
+    .filter((c) => c.text.length > 0)
+    .sort((a, b) => a.start - b.start || a.end - b.end);
+
+  const normalized: SubtitleCue[] = [];
+
+  for (let i = 0; i < sorted.length; i++) {
+    const current = { ...sorted[i] };
+    if (normalized.length === 0) {
+      if (current.end <= current.start) {
+        current.end = Math.round((current.start + 1.5) * 100) / 100;
+      }
+      if (maxDuration && current.end > maxDuration) {
+        current.end = maxDuration;
+      }
+      normalized.push(current);
+      continue;
+    }
+
+    const prev = normalized[normalized.length - 1];
+
+    // Jika start sama persis atau sangat berdekatan (< 0.15s)
+    if (Math.abs(current.start - prev.start) < 0.15) {
+      if (!prev.text.includes(current.text)) {
+        prev.text = `${prev.text} ${current.text}`.trim();
+      }
+      prev.end = Math.max(prev.end, current.end);
+      continue;
+    }
+
+    // Jika terjadi overlap waktu (current.start < prev.end)
+    if (current.start < prev.end) {
+      prev.end = Math.max(prev.start + 0.3, current.start);
+      if (prev.end - prev.start < 0.3) {
+        if (!current.text.includes(prev.text)) {
+          current.text = `${prev.text} ${current.text}`.trim();
+        }
+        normalized.pop();
+      }
+    }
+
+    if (current.end <= current.start) {
+      current.end = Math.round((current.start + 1.5) * 100) / 100;
+    }
+    if (maxDuration && current.end > maxDuration) {
+      current.end = maxDuration;
+    }
+
+    normalized.push(current);
+  }
+
+  return normalized;
+}
+
+/**
+ * Filter dan normalisasi cue subtitle agar pas dengan rentang waktu klip (relatif 0.00s)
+ * dan strictly single-line non-overlapping.
  */
 export function sliceCuesForClip(
   allCues: SubtitleCue[],
@@ -1347,13 +1422,14 @@ export function sliceCuesForClip(
           end: Math.round(relEnd * 100) / 100,
           rawStart: cue.rawStart,
           rawEnd: cue.rawEnd,
-          text: cue.text,
+          text: cue.text.replace(/\r?\n+/g, ' ').trim(),
+          fontSize: cue.fontSize || 20,
         });
       }
     }
   }
 
-  return filtered;
+  return normalizeSingleTrackCues(filtered, clipDuration);
 }
 
 /**
