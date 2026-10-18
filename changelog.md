@@ -14,7 +14,17 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Remove Dashed Helper Borders from Player and Viewport Elements in Editor Mode
+## [Unreleased] - Bundle Core Python Scripts into Native Chaquopy Module for Standalone Builds
+- **Konteks Struktural**:
+  1. Penyelarasan Bundling Python Native (Chaquopy Source of Truth Preparation):
+     - Menyalin seluruh modul skrip Python dari `mobile/scripts/utils` ke folder sumber native Chaquopy di `mobile/modules/python-runner/android/src/main/python/utils/` sesuai permintaan persiapan APK build.
+     - Memastikan seluruh modul inti (`subtitle_burner.py`, `stream_extractor.py`, `heatmap.py`, `clip_downloader.py`, `gdrive_downloader.py`, `youtube_auth.py`, dsb.) tertanam langsung di dalam bundle APK.
+     - Memungkinkan aplikasi berjalan mandiri (*standalone*) pada mode development build maupun production build tanpa ketergantungan manual pada penyalinan skrip ke shared storage HP.
+- **Perubahan Kode Penting**:
+  - `mobile/modules/python-runner/android/src/main/python/utils/`:
+    - Menambahkan 16 modul skrip dan file otentikasi YouTube/GDrive ke folder sumber Python modul Chaquopy untuk embedding APK otomatis saat Gradle build.
+
+## [61dd4c8] - Remove Dashed Helper Borders from Player and Viewport Elements in Editor Mode
 - **Konteks Struktural**:
   1. Penghapusan Border Pembantu Layout Player (Visual Parity dengan Output Ekspor):
      - Menghapus styling border putus-putus (`borderStyle: 'dashed'`, `borderWidth: 1.5`, `borderRadius: 1`) dan kelas helper border (`canvasHelperBorder`, `elementHelperBorder`) dari kontainer player (`canvasWrapper`, `facecamBox`, dan `mainVideoBox`).
