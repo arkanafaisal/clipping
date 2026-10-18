@@ -1169,9 +1169,9 @@ export interface ClipSubtitleData {
 export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
   fontSize: 22,
   color: '#FFFFFF',
-  backgroundColor: 'rgba(0,0,0,0.65)',
+  backgroundColor: 'transparent',
   strokeColor: '#000000',
-  strokeWidth: 1,
+  strokeWidth: 2,
   fontWeight: 'bold',
   positionY: 0.82,
   positionX: 0.5,

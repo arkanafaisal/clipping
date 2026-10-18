@@ -20,78 +20,43 @@ import {
   Type,
   Check,
   Globe,
+  Clock,
 } from 'lucide-react-native';
 import { ClipItem, SubtitleCue } from '../../services/api';
 import { formatTimeWithMs, formatDisplayTime } from './timeUtils';
 
 interface SubtitleCuePillProps {
   cue: SubtitleCue;
+  index: number;
   clipDuration: number;
   trackWidth: number;
   isSelected: boolean;
   onSelect: (id: string) => void;
-  onShiftTime: (id: string, newStart: number) => void;
 }
 
 const SubtitleCuePill: React.FC<SubtitleCuePillProps> = React.memo(
-  ({ cue, clipDuration, trackWidth, isSelected, onSelect, onShiftTime }) => {
-    const isDraggingRef = useRef(false);
-    const dragStartSecRef = useRef(cue.start);
-
-    const panResponder = useMemo(
-      () =>
-        PanResponder.create({
-          onStartShouldSetPanResponder: () => true,
-          onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dx) > 3,
-          onPanResponderGrant: () => {
-            isDraggingRef.current = false;
-            dragStartSecRef.current = cue.start;
-          },
-          onPanResponderMove: (_, gesture) => {
-            if (trackWidth <= 0 || clipDuration <= 0) return;
-            if (Math.abs(gesture.dx) > 3) {
-              isDraggingRef.current = true;
-            }
-            const deltaSec = (gesture.dx / trackWidth) * clipDuration;
-            const cueDur = Math.max(0.4, cue.end - cue.start);
-            const maxStart = Math.max(0, clipDuration - cueDur);
-            const targetStart = Math.max(0, Math.min(maxStart, dragStartSecRef.current + deltaSec));
-            onShiftTime(cue.id, Math.round(targetStart * 100) / 100);
-          },
-          onPanResponderRelease: () => {
-            if (!isDraggingRef.current) {
-              onSelect(cue.id);
-            }
-            isDraggingRef.current = false;
-          },
-          onPanResponderTerminate: () => {
-            isDraggingRef.current = false;
-          },
-        }),
-      [cue.id, cue.start, cue.end, clipDuration, trackWidth, onSelect, onShiftTime]
-    );
-
+  ({ cue, index, clipDuration, trackWidth, isSelected, onSelect }) => {
     const startPct = clipDuration > 0 ? Math.max(0, Math.min(1, cue.start / clipDuration)) : 0;
     const endPct = clipDuration > 0 ? Math.max(0, Math.min(1, cue.end / clipDuration)) : 1;
     const leftPos = startPct * trackWidth;
-    const pillWidth = Math.max(22, (endPct - startPct) * trackWidth);
+    // Lebar murni sesuai durasi (end - start) terhadap total clipDuration tanpa minWidth artifisial
+    const pillWidth = Math.max(1, (endPct - startPct) * trackWidth);
+    const isEven = index % 2 === 0;
 
     return (
-      <View
-        {...panResponder.panHandlers}
+      <Pressable
+        onPress={() => onSelect(cue.id)}
         style={[
           styles.cuePill,
+          isEven ? styles.cuePillEven : styles.cuePillOdd,
           {
             left: leftPos,
             width: pillWidth,
           },
-          isSelected && styles.cuePillSelected,
+          isSelected && (isEven ? styles.cuePillEvenSelected : styles.cuePillOddSelected),
         ]}
-      >
-        <Text numberOfLines={1} ellipsizeMode="tail" style={styles.cuePillText}>
-          {cue.text.replace(/\r?\n+/g, ' ') || '...'}
-        </Text>
-      </View>
+        hitSlop={{ top: 4, bottom: 4, left: 2, right: 2 }}
+      />
     );
   }
 );
@@ -165,6 +130,13 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
   const [showFontModal, setShowFontModal] = useState<boolean>(false);
   const [tempEditText, setTempEditText] = useState<string>('');
   const [tempEditSize, setTempEditSize] = useState<string>('20');
+  const [showTimeModal, setShowTimeModal] = useState<boolean>(false);
+  const [startMin, setStartMin] = useState<string>('00');
+  const [startSec, setStartSec] = useState<string>('00');
+  const [startMs, setStartMs] = useState<string>('000');
+  const [endMin, setEndMin] = useState<string>('00');
+  const [endSec, setEndSec] = useState<string>('00');
+  const [endMs, setEndMs] = useState<string>('000');
 
   const clipDuration = Math.max(0.1, activeClip.end - activeClip.start);
 
@@ -172,6 +144,84 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
     () => subtitles.find((c) => c.id === selectedCueId) || null,
     [subtitles, selectedCueId]
   );
+
+  const openTimeModal = () => {
+    if (!selectedCue) return;
+    const sTotal = Math.max(0, selectedCue.start);
+    const eTotal = Math.max(sTotal + 0.1, selectedCue.end);
+
+    const sM = Math.floor(sTotal / 60);
+    const sS = Math.floor(sTotal % 60);
+    const sMs = Math.round((sTotal - Math.floor(sTotal)) * 1000);
+
+    const eM = Math.floor(eTotal / 60);
+    const eS = Math.floor(eTotal % 60);
+    const eMs = Math.round((eTotal - Math.floor(eTotal)) * 1000);
+
+    setStartMin(String(sM).padStart(2, '0'));
+    setStartSec(String(sS).padStart(2, '0'));
+    setStartMs(String(sMs).padStart(3, '0').slice(0, 3));
+
+    setEndMin(String(eM).padStart(2, '0'));
+    setEndSec(String(eS).padStart(2, '0'));
+    setEndMs(String(eMs).padStart(3, '0').slice(0, 3));
+
+    setShowTimeModal(true);
+  };
+
+  const setStartToPlayhead = () => {
+    const cur = Math.max(0, Math.min(clipDuration, currentClipTime));
+    const m = Math.floor(cur / 60);
+    const s = Math.floor(cur % 60);
+    const ms = Math.round((cur - Math.floor(cur)) * 1000);
+    setStartMin(String(m).padStart(2, '0'));
+    setStartSec(String(s).padStart(2, '0'));
+    setStartMs(String(ms).padStart(3, '0').slice(0, 3));
+  };
+
+  const setEndToPlayhead = () => {
+    const cur = Math.max(0, Math.min(clipDuration, currentClipTime));
+    const m = Math.floor(cur / 60);
+    const s = Math.floor(cur % 60);
+    const ms = Math.round((cur - Math.floor(cur)) * 1000);
+    setEndMin(String(m).padStart(2, '0'));
+    setEndSec(String(s).padStart(2, '0'));
+    setEndMs(String(ms).padStart(3, '0').slice(0, 3));
+  };
+
+  const handleSaveTimeRange = () => {
+    if (!selectedCue) return;
+    const sM = parseInt(startMin, 10) || 0;
+    const sS = parseInt(startSec, 10) || 0;
+    const sMs = parseInt(startMs, 10) || 0;
+
+    const eM = parseInt(endMin, 10) || 0;
+    const eS = parseInt(endSec, 10) || 0;
+    const eMs = parseInt(endMs, 10) || 0;
+
+    let newStart = Math.max(0, sM * 60 + sS + sMs / 1000);
+    let newEnd = Math.max(0, eM * 60 + eS + eMs / 1000);
+
+    if (newEnd <= newStart) {
+      newEnd = Math.min(clipDuration, newStart + 1.5);
+    }
+    if (newStart >= clipDuration) {
+      newStart = Math.max(0, clipDuration - 1.0);
+    }
+    if (newEnd > clipDuration) {
+      newEnd = clipDuration;
+    }
+
+    newStart = Math.round(newStart * 1000) / 1000;
+    newEnd = Math.round(newEnd * 1000) / 1000;
+
+    onUpdateCue(selectedCue.id, {
+      start: newStart,
+      end: newEnd,
+    });
+    onSeek(newStart);
+    setShowTimeModal(false);
+  };
 
   return (
     <View style={styles.topSection}>
@@ -440,10 +490,11 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
               />
 
               {/* Subtitle Cue Pills */}
-              {subtitles.map((cue) => (
+              {subtitles.map((cue, index) => (
                 <SubtitleCuePill
                   key={cue.id}
                   cue={cue}
+                  index={index}
                   clipDuration={clipDuration}
                   trackWidth={trackLayoutWidth}
                   isSelected={selectedCueId === cue.id}
@@ -451,7 +502,6 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                     onSelectCue(id);
                     onSeek(cue.start);
                   }}
-                  onShiftTime={onShiftCueTime}
                 />
               ))}
 
@@ -501,7 +551,16 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                   <Text style={styles.fontSizeIconText}>Aa</Text>
                 </Pressable>
 
-                {/* 3. Hapus Cue (Langsung hapus tanpa modal konfirmasi) */}
+                {/* 3. Rentang Waktu (Buka Modal Time Range 6-box: Menit, Detik, Milidetik) */}
+                <Pressable
+                  style={({ pressed }) => [styles.iconActionBtn, pressed && { opacity: 0.6 }]}
+                  onPress={openTimeModal}
+                  hitSlop={6}
+                >
+                  <Clock size={16} color="#38bdf8" />
+                </Pressable>
+
+                {/* 4. Hapus Cue (Langsung hapus tanpa modal konfirmasi) */}
                 <Pressable
                   style={({ pressed }) => [
                     styles.iconActionBtn,
@@ -755,6 +814,180 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* MODAL 4: Subtitle Time Range Modal (6 Boxes: MM:SS.ms -> MM:SS.ms) */}
+      <Modal
+        visible={showTimeModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowTimeModal(false)}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={() => setShowTimeModal(false)}>
+          <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalHeaderLeft}>
+                <Clock size={18} color="#38bdf8" />
+                <Text style={styles.modalTitle}>Rentang Waktu Subtitle</Text>
+              </View>
+              <Pressable
+                style={({ pressed }) => [styles.modalCloseBtn, pressed && { opacity: 0.6 }]}
+                onPress={() => setShowTimeModal(false)}
+                hitSlop={8}
+              >
+                <X size={18} color="#94a3b8" />
+              </Pressable>
+            </View>
+
+            <Text style={styles.modalDescription}>
+              Atur waktu mulai masuk dan selesai hilangnya subtitle secara presisi (Menit, Detik, Milidetik):
+            </Text>
+
+            {/* SEKSI 1: WAKTU MULAI (START) */}
+            <View style={styles.timeSectionContainer}>
+              <View style={styles.timeSectionHeaderRow}>
+                <Text style={styles.timeSectionLabel}>WAKTU MULAI (START)</Text>
+                <Pressable
+                  style={({ pressed }) => [styles.timePlayheadBtn, pressed && { opacity: 0.7 }]}
+                  onPress={setStartToPlayhead}
+                >
+                  <Text style={styles.timePlayheadBtnText}>Set ke Playhead ({formatDisplayTime(currentClipTime)})</Text>
+                </Pressable>
+              </View>
+
+              <View style={styles.timeBoxesRow}>
+                {/* Box Menit */}
+                <View style={styles.timeBoxWrapper}>
+                  <TextInput
+                    style={styles.timeBoxInput}
+                    value={startMin}
+                    onChangeText={(v) => setStartMin(v.replace(/\D/g, '').slice(0, 2))}
+                    keyboardType="number-pad"
+                    maxLength={2}
+                    placeholder="00"
+                    placeholderTextColor="rgba(255, 255, 255, 0.3)"
+                    selectTextOnFocus
+                  />
+                  <Text style={styles.timeBoxSublabel}>Menit</Text>
+                </View>
+
+                <Text style={styles.timeColonSeparator}>:</Text>
+
+                {/* Box Detik */}
+                <View style={styles.timeBoxWrapper}>
+                  <TextInput
+                    style={styles.timeBoxInput}
+                    value={startSec}
+                    onChangeText={(v) => setStartSec(v.replace(/\D/g, '').slice(0, 2))}
+                    keyboardType="number-pad"
+                    maxLength={2}
+                    placeholder="00"
+                    placeholderTextColor="rgba(255, 255, 255, 0.3)"
+                    selectTextOnFocus
+                  />
+                  <Text style={styles.timeBoxSublabel}>Detik</Text>
+                </View>
+
+                <Text style={styles.timeColonSeparator}>.</Text>
+
+                {/* Box Milidetik */}
+                <View style={[styles.timeBoxWrapper, styles.timeBoxWrapperMs]}>
+                  <TextInput
+                    style={[styles.timeBoxInput, styles.timeBoxInputMs]}
+                    value={startMs}
+                    onChangeText={(v) => setStartMs(v.replace(/\D/g, '').slice(0, 3))}
+                    keyboardType="number-pad"
+                    maxLength={3}
+                    placeholder="000"
+                    placeholderTextColor="rgba(255, 255, 255, 0.3)"
+                    selectTextOnFocus
+                  />
+                  <Text style={styles.timeBoxSublabel}>Milidetik</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* SEKSI 2: WAKTU SELESAI (END) */}
+            <View style={styles.timeSectionContainer}>
+              <View style={styles.timeSectionHeaderRow}>
+                <Text style={styles.timeSectionLabel}>WAKTU SELESAI (END)</Text>
+                <Pressable
+                  style={({ pressed }) => [styles.timePlayheadBtn, pressed && { opacity: 0.7 }]}
+                  onPress={setEndToPlayhead}
+                >
+                  <Text style={styles.timePlayheadBtnText}>Set ke Playhead ({formatDisplayTime(currentClipTime)})</Text>
+                </Pressable>
+              </View>
+
+              <View style={styles.timeBoxesRow}>
+                {/* Box Menit */}
+                <View style={styles.timeBoxWrapper}>
+                  <TextInput
+                    style={styles.timeBoxInput}
+                    value={endMin}
+                    onChangeText={(v) => setEndMin(v.replace(/\D/g, '').slice(0, 2))}
+                    keyboardType="number-pad"
+                    maxLength={2}
+                    placeholder="00"
+                    placeholderTextColor="rgba(255, 255, 255, 0.3)"
+                    selectTextOnFocus
+                  />
+                  <Text style={styles.timeBoxSublabel}>Menit</Text>
+                </View>
+
+                <Text style={styles.timeColonSeparator}>:</Text>
+
+                {/* Box Detik */}
+                <View style={styles.timeBoxWrapper}>
+                  <TextInput
+                    style={styles.timeBoxInput}
+                    value={endSec}
+                    onChangeText={(v) => setEndSec(v.replace(/\D/g, '').slice(0, 2))}
+                    keyboardType="number-pad"
+                    maxLength={2}
+                    placeholder="00"
+                    placeholderTextColor="rgba(255, 255, 255, 0.3)"
+                    selectTextOnFocus
+                  />
+                  <Text style={styles.timeBoxSublabel}>Detik</Text>
+                </View>
+
+                <Text style={styles.timeColonSeparator}>.</Text>
+
+                {/* Box Milidetik */}
+                <View style={[styles.timeBoxWrapper, styles.timeBoxWrapperMs]}>
+                  <TextInput
+                    style={[styles.timeBoxInput, styles.timeBoxInputMs]}
+                    value={endMs}
+                    onChangeText={(v) => setEndMs(v.replace(/\D/g, '').slice(0, 3))}
+                    keyboardType="number-pad"
+                    maxLength={3}
+                    placeholder="000"
+                    placeholderTextColor="rgba(255, 255, 255, 0.3)"
+                    selectTextOnFocus
+                  />
+                  <Text style={styles.timeBoxSublabel}>Milidetik</Text>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.modalActionsRow}>
+              <Pressable
+                style={({ pressed }) => [styles.modalCancelBtn, pressed && { opacity: 0.7 }]}
+                onPress={() => setShowTimeModal(false)}
+              >
+                <Text style={styles.modalCancelBtnText}>Batal</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [styles.modalSaveBtn, pressed && { opacity: 0.8 }]}
+                onPress={handleSaveTimeRange}
+              >
+                <Check size={16} color="#ffffff" />
+                <Text style={styles.modalSaveBtnText}>Simpan</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 };
@@ -998,26 +1231,29 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 3,
     bottom: 3,
-    backgroundColor: 'rgba(56, 189, 248, 0.22)',
-    borderColor: 'rgba(56, 189, 248, 0.6)',
-    borderWidth: 1,
-    borderRadius: 5,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 4,
+    borderRadius: 3,
     overflow: 'hidden',
+    borderWidth: 1,
   },
-  cuePillSelected: {
-    backgroundColor: 'rgba(56, 189, 248, 0.65)',
+  cuePillEven: {
+    backgroundColor: 'rgba(14, 165, 233, 0.75)',
+    borderColor: 'rgba(56, 189, 248, 0.9)',
+  },
+  cuePillOdd: {
+    backgroundColor: 'rgba(245, 158, 11, 0.75)',
+    borderColor: 'rgba(251, 191, 36, 0.9)',
+  },
+  cuePillEvenSelected: {
+    backgroundColor: '#38bdf8',
     borderColor: '#ffffff',
-    borderWidth: 1.5,
-    zIndex: 5,
+    borderWidth: 2,
+    zIndex: 10,
   },
-  cuePillText: {
-    color: '#ffffff',
-    fontSize: 10,
-    fontWeight: '600',
-    letterSpacing: -0.2,
+  cuePillOddSelected: {
+    backgroundColor: '#fbbf24',
+    borderColor: '#ffffff',
+    borderWidth: 2,
+    zIndex: 10,
   },
   emptyTrackHint: {
     ...StyleSheet.absoluteFill,
@@ -1277,5 +1513,80 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 12,
     fontWeight: '700',
+  },
+  timeSectionContainer: {
+    backgroundColor: '#16161a',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    padding: 10,
+    gap: 8,
+  },
+  timeSectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  timeSectionLabel: {
+    color: '#38bdf8',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  timePlayheadBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 5,
+    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.3)',
+  },
+  timePlayheadBtnText: {
+    color: '#38bdf8',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  timeBoxesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  timeBoxWrapper: {
+    alignItems: 'center',
+    width: 60,
+  },
+  timeBoxWrapperMs: {
+    width: 74,
+  },
+  timeBoxInput: {
+    width: '100%',
+    backgroundColor: '#0f0f12',
+    borderWidth: 1.5,
+    borderColor: 'rgba(56, 189, 248, 0.4)',
+    borderRadius: 8,
+    paddingVertical: 6,
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: '800',
+    textAlign: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  timeBoxInputMs: {
+    borderColor: 'rgba(245, 158, 11, 0.5)',
+    color: '#fbbf24',
+  },
+  timeBoxSublabel: {
+    color: 'rgba(255, 255, 255, 0.4)',
+    fontSize: 9,
+    fontWeight: '600',
+    marginTop: 3,
+    textTransform: 'uppercase',
+  },
+  timeColonSeparator: {
+    color: 'rgba(255, 255, 255, 0.5)',
+    fontSize: 18,
+    fontWeight: '800',
+    marginBottom: 12,
   },
 });

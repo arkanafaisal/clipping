@@ -14,7 +14,62 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Persist Subtitle JSON in Private App Storage to Prevent Android Scoped Storage Write Errors
+## [Unreleased] - Make Subtitle Track Pills Borderless Text-Free Blocks with Alternating Contrast Colors and True Duration Width
+- **Konteks Struktural**:
+  1. Penghapusan Cuplikan Teks pada Pill Track Subtitle:
+     - Menghapus label teks di dalam kotak subtitle ([SubtitleCuePill](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx#L28-L61)) pada mini track sehingga pill berfungsi sebagai blok warna timeline murni yang bersih.
+  2. Pewarnaan Blok Selang-Seling Berkontras Tinggi:
+     - Mengimplementasikan skema dua warna komplementer yang kontras tinggi berdasarkan indeks cue:
+       - Genap (Even): Biru Langit / Sky Blue (`rgba(14, 165, 233, 0.75)` dengan border `#38bdf8`).
+       - Ganjil (Odd): Jingga / Amber Orange (`rgba(245, 158, 11, 0.75)` dengan border `#fbbf24`).
+       - Status Terpilih (Selected): Ditegaskan dengan border putih tebal 2px (`#ffffff`), `zIndex: 10`, serta warna solid yang lebih menyala (`#38bdf8` / `#fbbf24`).
+  3. Lebar Blok Murni Proporsional (Eliminasi Batas Minimal Width):
+     - Menghapus pembatasan artifisial `Math.max(22, ...)` yang sebelumnya disebabkan oleh kebutuhan ruang teks. Lebar blok sekarang dihitung murni `(end - start) / clipDuration * trackWidth` sehingga posisi dan panjang visual blok di timeline akurat 100% merepresentasikan durasi ucapan.
+- **Perubahan Kode Penting**:
+  - [mobile/src/components/feed/FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx):
+    - Mengubah `SubtitleCuePill` menjadi blok warna murni tanpa elemen `Text`.
+    - Menerapkan pewarnaan selang-seling `cuePillEven` vs `cuePillOdd` serta highlight `cuePillEvenSelected` / `cuePillOddSelected`.
+    - Menghitung `pillWidth` murni proporsional tanpa minimal width `22px`.
+
+## [95a337f] - Replace Subtitle Background Pill with High-Contrast Text Border Outline
+- **Konteks Struktural**:
+  1. Penghapusan Background Box / Pill Subtitle Berpadding:
+     - Mengeliminasi background container semi-transparan (`rgba(0, 0, 0, 0.75)`) dan padding kotak pada overlay subtitle karena mengaburkan visual klip video di balik teks.
+     - Mengubah [SubtitleOverlay.tsx](file:///d:/projects/clipping/mobile/src/components/feed/SubtitleOverlay.tsx) menjadi `textContainer` transparan murni tanpa background kotak.
+  2. Implementasi Gaya Border / Text Outline (Teks Putih Bersih + Outline Hitam Pekat):
+     - Membangun border stroke teks di React Native menggunakan 8-directional offset layer (`STROKE_OFFSETS`) berbobot font tebal (`fontWeight: '800'`) dan `textShadowRadius: 2` berwarna hitam `#000000`.
+     - Meletakkan teks utama berwarna putih `#FFFFFF` di atas lapisan outline tersebut. Kombinasi ini memberikan keterbacaan kontras tinggi yang tajam di atas latar belakang video terang maupun gelap tanpa membutuhkan kotak latar belakang.
+  3. Standarisasi Default Subtitle Style:
+     - Memperbarui [DEFAULT_SUBTITLE_STYLE](file:///d:/projects/clipping/mobile/src/services/api.ts) dengan `backgroundColor: 'transparent'`, `strokeColor: '#000000'`, dan `strokeWidth: 2`.
+- **Perubahan Kode Penting**:
+  - [mobile/src/components/feed/SubtitleOverlay.tsx](file:///d:/projects/clipping/mobile/src/components/feed/SubtitleOverlay.tsx):
+    - Mengganti `subtitlePill` dengan multi-layer text outline di 8 arah koordinat dan teks foreground putih.
+  - [mobile/src/services/api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts):
+    - Mengubah `backgroundColor` default dari `'rgba(0,0,0,0.65)'` menjadi `'transparent'` dan `strokeWidth` menjadi `2`.
+
+## [e6c7856] - Replace Subtitle Cue Drag with 6-Box Start and End Time Range Modal
+- **Konteks Struktural**:
+  1. Penghapusan Interaksi Drag Horisontal pada Pill Subtitle:
+     - Gestur drag sentuh pada elemen pill subtitle (`SubtitleCuePill`) di track mini horizontal berisiko memicu bug sentuhan, konflik seek, dan sulit dikontrol secara presisi di layar HP.
+     - Menyederhanakan `SubtitleCuePill` pada [FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx) menjadi `Pressable` murni yang fokus hanya pada penyeleksian cue dan penyesuaian seek head tanpa gestur geser.
+  2. Penyediaan Modal Pengaturan Rentang Waktu (6 Kotak Input Angka):
+     - Menambahkan tombol icon jam (`Clock`) pada baris aksi cue di sebelah tombol ukuran font (`Aa`).
+     - Mengklik tombol membuka modal khusus berisi 6 kotak input numerik presisi:
+       - 3 kotak waktu mulai (START): Menit (`MM`), Detik (`SS`), dan Milidetik (`ms`).
+       - 3 kotak waktu selesai (END): Menit (`MM`), Detik (`SS`), dan Milidetik (`ms`).
+     - Dilengkapi tombol pembantu "Set ke Playhead" untuk masing-masing waktu mulai dan waktu selesai agar editor dapat menyelaraskan timing subtitle langsung dengan posisi frame video saat ini.
+  3. Sinkronisasi Waktu Absolut dan Relatif di Hook:
+     - Memperbarui [useClipSubtitle.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipSubtitle.ts) agar saat nilai `start` atau `end` dimodifikasi via `onUpdateCue`, nilai `rawStart` dan `rawEnd` ikut tersinkronisasi secara akurat ke video induk.
+- **Perubahan Kode Penting**:
+  - [mobile/src/components/feed/FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx):
+    - Menghapus prop dan handler drag `onShiftTime` dari `SubtitleCuePill`.
+    - Menambahkan tombol icon `Clock` di baris kontrol cue.
+    - Menambahkan modal pengaturan waktu 6 kotak angka (`startMin`, `startSec`, `startMs`, `endMin`, `endSec`, `endMs`) dengan validasi `clipDuration`.
+    - Menyediakan fungsi `setStartToPlayhead` dan `setEndToPlayhead`.
+  - [mobile/src/hooks/useClipSubtitle.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipSubtitle.ts):
+    - Menyinkronkan `rawStart` dan `rawEnd` saat `updates.start` atau `updates.end` diperbarui.
+
+## [41119a9] - Persist Subtitle JSON in Private App Storage to Prevent Android Scoped Storage Write Errors
 - **Konteks Struktural**:
   1. Pengalihan File Subtitle JSON ke Private Storage Aplikasi:
      - Format subtitle merupakan file dokumen JSON (bukan file media). Sesuai aturan Scoped Storage Android, penulisan non-media dari frontend ke shared storage (`/storage/emulated/0/...`) dibatasi oleh OS dan memicu error `ExponentFileSystem.writeAsStringAsync isn't writable`.

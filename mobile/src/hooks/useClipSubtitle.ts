@@ -121,6 +121,10 @@ export function useClipSubtitle({
             if (typeof updates.text === 'string') {
               merged.text = updates.text.replace(/\r/g, '').trim();
             }
+            if (typeof updates.start === 'number' || typeof updates.end === 'number') {
+              merged.rawStart = activeClip.start + (typeof updates.start === 'number' ? updates.start : merged.start);
+              merged.rawEnd = activeClip.start + (typeof updates.end === 'number' ? updates.end : merged.end);
+            }
             return merged;
           }
           return c;
