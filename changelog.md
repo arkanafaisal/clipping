@@ -14,7 +14,27 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Implement Subtitle Burner Module and Video Export Endpoint via FFmpeg (ASS Format)
+## [Unreleased] - Eliminate Subtitle Overlay Shift and Flickering with Synchronous Flexbox Centering
+- **Konteks Struktural**:
+  1. Akar Penyebab Pergeseran Posisi Subtitle (Shift/Glitch dari Kanan Bawah ke Tengah):
+     - Sebelumnya, [SubtitleOverlay.tsx](file:///d:/projects/clipping/mobile/src/components/feed/SubtitleOverlay.tsx) menggunakan `onLayout` pada blok teks untuk mengukur dimensi lebar dan tinggi teks (`textLayout.width`, `textLayout.height`) demi menerapkan translasi `translateX: -width / 2` dan `translateY: -height / 2`.
+     - Karena state dimensi teks diinisialisasi dengan `{ width: 0, height: 0 }` dan `onLayout` berjalan secara asinkron di native bridge, pada frame pertama setiap kemunculan cue subtitle, elemen ter-render di titik `(positionX%, positionY%)` dengan sudut kiri-atas (tanpa translasi offset).
+     - Setelah layout teks terukur pada frame berikutnya, barulah elemen melompat/bergeser ke posisi tengah. Hal ini menimbulkan efek visual bergeser dari kanan bawah ke kiri atas serta kedipan (*keclap*).
+  2. Solusi Flexbox Sinkron & Pemetaan Offset Persentase Container Murni:
+     - Mengubah container overlay menjadi pembungkus penuh berukuran 16:9 (`position: 'absolute', top: 0, left: 0, right: 0, bottom: 0`) dengan `alignItems: 'center'` dan `justifyContent: 'center'`.
+     - Dalam struktur ini, flexbox Yoga secara native dan sinkron langsung menempatkan teks tepat di titik tengah $(50\%, 50\%)$ video sejak frame pertama tanpa perlu mengukur dimensi teks sama sekali.
+     - Posisi dinamis $(X\%, Y\%)$ dicapai dengan translasi murni terhadap dimensi container:
+       `translateX = ((positionX - 50) / 100) * containerWidth`
+       `translateY = ((positionY - 50) / 100) * containerHeight`
+     - Menghapus ketergantungan `onLayout` dan state dimensi pada teks, sehingga kemunculan subtitle 100% instan, terkunci di posisi target sejak frame 0, dan bebas dari pergeseran maupun flicker.
+- **Perubahan Kode Penting**:
+  - [mobile/src/components/feed/SubtitleOverlay.tsx](file:///d:/projects/clipping/mobile/src/components/feed/SubtitleOverlay.tsx):
+    - Menggunakan `useWindowDimensions` untuk inisialisasi dimensi container 16:9 fixed secara sinkron.
+    - Menghapus state `textLayout` dan callback `onLayout` pada blok teks subtitle.
+    - Menerapkan `top: 0, left: 0, right: 0, bottom: 0` dengan `alignItems: 'center'` dan `justifyContent: 'center'` pada `styles.subtitleOverlayContainer`.
+    - Menerapkan translasi offset berbasis container `translateX = ((positionX - 50) / 100) * containerWidth` dan `translateY = ((positionY - 50) / 100) * containerHeight`.
+
+## [bf5c4dc] - Implement Subtitle Burner Module and Video Export Endpoint via FFmpeg (ASS Format)
 - **Konteks Struktural**:
   1. Konversi Format Konfigurasi Subtitle JSON ke ASS (Advanced SubStation Alpha):
      - Membangun modul mandiri [mobile/scripts/utils/subtitle_burner.py](file:///d:/projects/clipping/mobile/scripts/utils/subtitle_burner.py) yang mengubah array cues dan style JSON menjadi naskah ASS standar industri yang dikenali filter `subtitles` FFmpeg (`libass`).

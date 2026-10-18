@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, Dimensions } from 'react-native';
+import { StyleSheet, View, Text, useWindowDimensions } from 'react-native';
 
 export interface SubtitleOverlayProps {
   isVisible: boolean;
@@ -28,38 +28,52 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
   positionX = 50,
   positionY = 85,
 }) => {
-  if (!isVisible || !subtitleText) return null;
+  const { width: windowWidth } = useWindowDimensions();
 
-  const [textLayout, setTextLayout] = useState<{ width: number; height: number }>({
-    width: 0,
-    height: 0,
+  // Inisialisasi dimensi container langsung berbasis lebar layar & rasio 16:9 fixed
+  // Menghilangkan jeda asinkron onLayout teks yang menyebabkan flicker/lompat posisi
+  const [containerSize, setContainerSize] = useState<{ width: number; height: number }>({
+    width: windowWidth,
+    height: (windowWidth * 9) / 16,
   });
+
+  if (!isVisible || !subtitleText) return null;
 
   const lineHeight = Math.round(fontSize * 1.35);
 
+  const containerWidth = containerSize.width || windowWidth;
+  const containerHeight = containerSize.height || (windowWidth * 9) / 16;
+
+  // Offset relatif terhadap titik pusat (50%, 50%) video player
+  // Contoh default (X=50, Y=85):
+  // translateX = (50 - 50)% = 0 (tepat di tengah horizontal tanpa perlu ukur lebar teks)
+  // translateY = (85 - 50)% = +35% * height (di area lower-third tanpa perlu ukur tinggi teks)
+  const translateX = ((positionX - 50) / 100) * containerWidth;
+  const translateY = ((positionY - 50) / 100) * containerHeight;
+
   return (
     <View
-      style={[
-        styles.subtitleOverlayContainer,
-        {
-          left: `${positionX}%`,
-          top: `${positionY}%`,
-          transform: [
-            { translateX: textLayout.width > 0 ? -textLayout.width / 2 : 0 },
-            { translateY: textLayout.height > 0 ? -textLayout.height / 2 : 0 },
-          ],
-        },
-      ]}
+      style={styles.subtitleOverlayContainer}
       pointerEvents="none"
+      onLayout={(e) => {
+        const { width, height } = e.nativeEvent.layout;
+        if (
+          width > 0 &&
+          height > 0 &&
+          (Math.abs(width - containerSize.width) > 1 || Math.abs(height - containerSize.height) > 1)
+        ) {
+          setContainerSize({ width, height });
+        }
+      }}
     >
       <View
-        style={styles.textContainer}
-        onLayout={(e) => {
-          const { width, height } = e.nativeEvent.layout;
-          if (width !== textLayout.width || height !== textLayout.height) {
-            setTextLayout({ width, height });
-          }
-        }}
+        style={[
+          styles.textContainer,
+          {
+            maxWidth: containerWidth * 0.92,
+            transform: [{ translateX }, { translateY }],
+          },
+        ]}
       >
         {/* Layer Border / Stroke Hitam Pekat (8 arah) */}
         {STROKE_OFFSETS.map((offset, index) => (
@@ -101,13 +115,16 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
 const styles = StyleSheet.create({
   subtitleOverlayContainer: {
     position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 10,
   },
   textContainer: {
     position: 'relative',
-    maxWidth: Dimensions.get('window').width * 0.92,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'transparent',
