@@ -105,10 +105,10 @@ def build_ass_content(cues: list, style: dict = None, video_width: int = 1920, v
 
     vw = max(240, int(video_width)) if video_width else 1920
     vh = max(240, int(video_height)) if video_height else 1080
-    is_portrait = vw < vh
 
-    play_res_x = 1080 if is_portrait else 1920
-    play_res_y = 1920 if is_portrait else 1080
+    # Gunakan resolusi video nyata sebagai resolusi virtual ASS (100% dinamis untuk semua rasio 16:9, 9:16, 1:1, dsb.)
+    play_res_x = vw
+    play_res_y = vh
 
     pos_x_pct = float(style.get("positionX", 50))
     pos_y_pct = float(style.get("positionY", 85))
@@ -121,9 +121,12 @@ def build_ass_content(cues: list, style: dict = None, video_width: int = 1920, v
     if base_font_size <= 0:
         base_font_size = 14.0
 
-    # 14dp di layar mobile (~220dp viewport 16:9) setara dengan rasio ~0.0638.
-    # Pada kanvas acuan 1080p (dimensi pendek 1080), 1080 * 0.0638 = 69px.
-    ass_base_fs = 69
+    # Rasio acuan dinamis 0.0833 (min(vw, vh) * 0.0833):
+    # Mengompensasi Em-box padding FreeType & 8-stroke di React Native sehingga teks membentang ~70% kanvas.
+    # Pada kanvas 1080p -> 90px, 720p -> 60px, 1:1 1080p -> 90px.
+    ref_dim = min(vw, vh)
+    ass_base_fs = max(14, int(round(ref_dim * 0.0833)))
+    ass_outline = max(2.0, round(ass_base_fs * 0.075, 1))
 
     ass_header = f"""[Script Info]
 Title: Clipped Video Subtitles
@@ -136,7 +139,7 @@ PlayResY: {play_res_y}
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Arial,{ass_base_fs},&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,3.5,0,5,20,20,20,1
+Style: Default,Arial,{ass_base_fs},&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,{ass_outline},0,5,20,20,20,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -178,10 +181,10 @@ def build_drawtext_pipeline(cues: list, style: dict, output_base: str, video_wid
     - enable='between(t, start, end)' hanya merender teks pada jendela waktu masing-masing.
     - Koordinat dinamis berbasis persen: x=(w-text_w)*x_pct/100, y=(h-text_h)*y_pct/100.
     - Skala font integer absolut berbasis dimensi acuan min(w, h):
-      fontsize = round(min(w, h) * 0.0638 * (cue_fs / 14)).
-      Rasio 0.0638 sinkron 1:1 dengan 14dp preview pada viewport mobile ~220dp,
-      serta aman untuk mode 16:9 maupun 9:16 Portrait tanpa meluap keluar batas lebar video.
-    - Border hitam pekat (borderw proporsional) untuk keterbacaan tinggi.
+      fontsize = round(min(w, h) * 0.0833 * (cue_fs / 14)).
+      Rasio dinamis 0.0833 mengompensasi FreeType Em-box dan 8-arah stroke preview React Native,
+      menghasilkan ukuran visual 100% identik di semua resolusi dan rasio (16:9, 9:16, 1:1).
+    - Border hitam pekat (borderw proporsional ~8% fontsize) untuk keterbacaan tinggi.
     """
     temp_files = []
     font_path = resolve_system_font()
@@ -195,7 +198,7 @@ def build_drawtext_pipeline(cues: list, style: dict, output_base: str, video_wid
     vw = max(240, int(video_width)) if video_width else 1280
     vh = max(240, int(video_height)) if video_height else 720
     ref_dim = min(vw, vh)
-    base_fs = max(14, int(round(ref_dim * 0.0638)))
+    base_fs = max(14, int(round(ref_dim * 0.0833)))
     border_w = max(2, int(round(base_fs * 0.08)))
 
     filter_items = []
@@ -427,7 +430,7 @@ def build_multi_layer_pipeline(
             filter_lines.append(f"{current_node}subtitles='{esc_ass}'[v_out]")
         else:
             ref_dim = min(out_w, out_h)
-            base_fs = max(14, int(round(ref_dim * 0.0638)))
+            base_fs = max(14, int(round(ref_dim * 0.0833)))
             border_w = max(2, int(round(base_fs * 0.08)))
             pos_x = float(style.get("positionX", 50))
             pos_y = float(style.get("positionY", 85))

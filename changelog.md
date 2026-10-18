@@ -14,7 +14,21 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Restrict Template Layout and Portrait Mode to Downloaded Done Clips with Active Facecam
+## [Unreleased] - Calibrate Subtitle Font Scaling to 0.0833 for 100% Visual Parity Across All Aspect Ratios
+- **Konteks Struktural**:
+  1. Kalibrasi Ukuran Font Visual antara React Native Skia vs FFmpeg FreeType:
+     - Mengubah rasio dasar font acuan dari `0.0638` menjadi `0.0833` (`round(min(w, h) * 0.0833)`).
+     - Mengompensasi padding Em-box tipografi FreeType dan 8 lapisan stroke offset React Native sehingga bentang teks hasil ekspor FFmpeg mencapai ~70% lebar video, 100% identik dengan tampilan di Subtitle Editor.
+  2. Resolusi Kanvas ASS 100% Dinamis Bebas Hardcode:
+     - Mengganti hardcoded `PlayResX` dan `PlayResY` (yang sebelumnya 1920/1080) menjadi resolusi video riil (`play_res_x = vw`, `play_res_y = vh`).
+     - Memastikan keamanan penuh dan proporsionalitas presisi untuk semua rasio aspek video (16:9 Landscape, 9:16 Portrait, 1:1 Square, 4:3) maupun resolusi (720p -> 60px, 1080p -> 90px, 4K -> 180px).
+- **Perubahan Kode Penting**:
+  - [mobile/scripts/utils/subtitle_burner.py](file:///d:/projects/clipping/mobile/scripts/utils/subtitle_burner.py):
+    - `build_ass_content`: Mengganti `ass_base_fs = 69` dan kanvas fixed dengan `ass_base_fs = max(14, int(round(min(vw, vh) * 0.0833)))`, `ass_outline = max(2.0, round(ass_base_fs * 0.075, 1))`, serta `play_res_x = vw, play_res_y = vh`.
+    - `build_drawtext_pipeline`: Mengalibrasi `base_fs` dari `ref_dim * 0.0638` menjadi `round(ref_dim * 0.0833)`.
+    - `build_multi_layer_pipeline`: Mengalibrasi `base_fs` fallback drawtext dari `ref_dim * 0.0638` menjadi `round(ref_dim * 0.0833)`.
+
+## [4e8cd78] - Restrict Template Layout and Portrait Mode to Downloaded Done Clips with Active Facecam
 - **Konteks Struktural**:
   1. Isolasi Status Aktif Facecam Per-Klip (Mencegah Mode Portrait Otomatis pada Semua Klip):
      - Memastikan bahwa `facecam.enabled` berstatus per-klip murni dan TIDAK mewarisi flag `enabled: true` dari konfigurasi global video. Konfigurasi global hanya membagikan parameter framing (`zoom`, `cropX`, `cropY`).
