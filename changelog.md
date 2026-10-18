@@ -14,7 +14,20 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Eliminate Android RenderNode Outline Clipping Collapse on Canvas Viewports
+## [Unreleased] - Fix FFmpeg Drawtext Filter Fontsize Expression by Computing Absolute Integers
+- **Konteks Struktural**:
+  1. Resolusi Error Ekspor Subtitle FFmpeg (`Undefined constant h*0.045`):
+     - Memperbaiki kegagalan ekspor subtitle video di perangkat Android di mana filter `drawtext` FFmpeg menolak opsi `fontsize=h*0.045` dengan pesan error `Undefined constant or missing '(' in 'h*0.045'`.
+     - Mengidentifikasi bahwa pada implementasi FFmpeg `libavfilter/vf_drawtext.c`, konstanta dimensi video input `h` dan `w` hanya tersedia dalam konteks evaluasi koordinat `x` dan `y`, sedangkan `fontsize` harus berupa nilai numerik skalar.
+     - Menambahkan helper fungsi `get_video_dimensions` untuk mendeteksi tinggi dan lebar video sumber secara cepat menggunakan `ffmpeg -hide_banner -i` tanpa memerlukan binary `ffprobe` terpisah.
+     - Menghitung skala font secara absolut menjadi bilangan bulat murni (`fontsize=round(video_height * 0.045 * (cue_fs / 14))`, misal `fontsize=32` untuk 720p atau `fontsize=49` untuk 1080p) yang kompatibel 100% di semua versi build FFmpeg.
+- **Perubahan Kode Penting**:
+  - [mobile/scripts/utils/subtitle_burner.py](file:///d:/projects/clipping/mobile/scripts/utils/subtitle_burner.py):
+    - Mengimpor modul `re` dan menambahkan helper `get_video_dimensions`.
+    - Memperbarui fungsi `build_drawtext_pipeline` untuk menerima parameter `video_height` dan menghasilkan integer `fontsize` murni.
+    - Memperbarui `burn_subtitles_to_video` agar mendeteksi resolusi video dan meneruskannya ke pipeline `drawtext` utama dan fallback.
+
+## [7cc5bc0] - Eliminate Android RenderNode Outline Clipping Collapse on Canvas Viewports
 - **Konteks Struktural**:
   1. Resolusi Layar Hitam & Hilangnya Teks Saat Keluar dari Mode Template:
      - Mengidentifikasi anomali grafis pada Android di mana saat pengguna keluar dari mode template (ke mode Subtitle atau menutup toolbar), kanvas 9:16 menjadi hitam pekat dan banner teks putih lenyap meskipun konfigurasi template masih aktif.

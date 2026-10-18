@@ -5,6 +5,28 @@ import json
 import traceback
 import subprocess
 import shutil
+import re
+
+
+def get_video_dimensions(ffmpeg_bin: str, video_path: str) -> tuple[int, int]:
+    """
+    Mendeteksi resolusi video (width, height) menggunakan ffmpeg -hide_banner -i.
+    Cepat, tanpa transcoder, dan tidak memerlukan ffprobe terpisah.
+    """
+    if not video_path or not os.path.exists(video_path):
+        return 1280, 720
+    try:
+        bin_path = ffmpeg_bin or "ffmpeg"
+        cmd = [bin_path, "-hide_banner", "-i", video_path]
+        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=10)
+        match = re.search(r"Video:.*?(\d{2,5})x(\d{2,5})", res.stderr)
+        if match:
+            w, h = int(match.group(1)), int(match.group(2))
+            if w > 0 and h > 0:
+                return w, h
+    except Exception:
+        pass
+    return 1280, 720
 
 
 def format_ass_time(sec: float) -> str:
@@ -139,14 +161,15 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     return ass_header + "\n".join(dialogue_lines) + "\n"
 
 
-def build_drawtext_pipeline(cues: list, style: dict, output_base: str):
+def build_drawtext_pipeline(cues: list, style: dict, output_base: str, video_height: int = 720):
     """
     Membangun filterchain drawtext menggunakan opsi 'textfile' per cue.
     Solusi native FFmpeg saat libass / filter 'subtitles' tidak dikompilasi di binary perangkat.
     - Opsi textfile membaca UTF-8 tanpa kendala escaping karakter khusus/multiline.
     - enable='between(t, start, end)' hanya merender teks pada jendela waktu masing-masing.
     - Koordinat dinamis berbasis persen: x=(w-text_w)*x_pct/100, y=(h-text_h)*y_pct/100.
-    - Skala font dinamis: fontsize=h*0.045*(cue_fs/14).
+    - Skala font integer absolut: fontsize=round(video_height * 0.045 * (cue_fs / 14)).
+      Gunakan integer murni karena opsi 'fontsize' pada drawtext tidak mendukung ekspresi 'h' / 'w'.
     - Border hitam pekat (borderw=3:bordercolor=black) untuk keterbacaan tinggi.
     """
     temp_files = []
@@ -157,6 +180,10 @@ def build_drawtext_pipeline(cues: list, style: dict, output_base: str):
     pos_y = float(style.get("positionY", 85))
     x_expr = "(w-text_w)/2" if abs(pos_x - 50) < 0.1 else f"(w-text_w)*{pos_x/100.0:.3f}"
     y_expr = "(h-text_h)*0.85" if abs(pos_y - 85) < 0.1 else f"(h-text_h)*{pos_y/100.0:.3f}"
+
+    vh = max(240, int(video_height)) if video_height else 720
+    base_fs = max(12, int(round(vh * 0.045)))
+    border_w = max(2, int(round(base_fs * 0.09)))
 
     filter_items = []
     for idx, cue in enumerate(cues):
@@ -176,14 +203,14 @@ def build_drawtext_pipeline(cues: list, style: dict, output_base: str):
 
         cue_fs = float(cue.get("fontSize", 14))
         fs_scale = cue_fs / 14.0 if cue_fs > 0 else 1.0
-        fs_expr = f"h*0.045*{fs_scale:.3f}" if abs(fs_scale - 1.0) > 0.05 else "h*0.045"
+        final_fs = max(10, int(round(base_fs * fs_scale)))
 
         item = (
             f"drawtext=textfile='{esc_cue_file}'"
             f"{font_opt}"
-            f":fontsize={fs_expr}"
+            f":fontsize={final_fs}"
             f":fontcolor=white"
-            f":borderw=3:bordercolor=black"
+            f":borderw={border_w}:bordercolor=black"
             f":x={x_expr}:y={y_expr}"
             f":enable='between(t,{s:.3f},{e:.3f})'"
         )
@@ -289,6 +316,7 @@ def burn_subtitles_to_video(
     # 4. Tentukan Engine Filter (subtitles/libass vs drawtext)
     subtitles_supported = is_filter_supported(resolved_ffmpeg, "subtitles")
     filter_args = []
+    _, v_height = get_video_dimensions(resolved_ffmpeg, input_video_path)
 
     if subtitles_supported:
         try:
@@ -301,8 +329,13 @@ def burn_subtitles_to_video(
             subtitles_supported = False
 
     if not subtitles_supported:
-        # Gunakan native drawtext filter pipeline via -filter_script:v
-        script_path, created_files = build_drawtext_pipeline(cues, subtitle_data.get("style", {}), output_video_path)
+        # Gunakan native drawtext filter pipeline via -filter_script:v dengan integer fontsize absolut
+        script_path, created_files = build_drawtext_pipeline(
+            cues,
+            subtitle_data.get("style", {}),
+            output_video_path,
+            video_height=v_height
+        )
         temp_files_to_clean.extend(created_files)
         filter_args = ["-filter_script:v", script_path]
 
@@ -399,7 +432,12 @@ def burn_subtitles_to_video(
     # 8. Fallback Otomatis jika filter 'subtitles' gagal saat runtime
     if proc.returncode != 0 and subtitles_supported and ("No such filter: 'subtitles'" in err_output or "filter" in err_output.lower()):
         # Retry dengan native drawtext filter pipeline
-        script_path, created_files = build_drawtext_pipeline(cues, subtitle_data.get("style", {}), output_video_path)
+        script_path, created_files = build_drawtext_pipeline(
+            cues,
+            subtitle_data.get("style", {}),
+            output_video_path,
+            video_height=v_height
+        )
         temp_files_to_clean.extend(created_files)
         fallback_cmd = [
             resolved_ffmpeg,
