@@ -14,7 +14,26 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Fix Subtitle Cue Detection and Fallback Resolution on Export Button
+## [Unreleased] - Implement Native drawtext Filter Pipeline for Devices Lacking libass
+- **Konteks Struktural**:
+  1. Penanganan Ketiadaan Filter `subtitles` di Binary FFmpeg Perangkat:
+     - Mengatasi kendala `[AVFilterGraph] No such filter: 'subtitles'` yang terjadi ketika binary FFmpeg native perangkat (`libffmpeg.so`) dikompilasi tanpa flag `libass`.
+     - Mengimplementasikan deteksi kapabilitas filter secara otomatis (`is_filter_supported`) sebelum eksekusi FFmpeg dimulai.
+  2. Implementasi Pipeline Native `drawtext` dengan Penanganan `textfile`:
+     - Membangun pipeline burning berbasis filter bawaan `drawtext` yang dijamin aktif pada binary FFmpeg perangkat.
+     - Menggunakan opsi `textfile` per cue teks UTF-8 untuk menghilangkan risiko parsing error atau escaping karakter khusus (tanda kurung siku, kutip tunggal/ganda, tanda titik dua, karakter newline, dan simbol persen).
+     - Menulis seluruh rantai filter ke berkas skrip `-filter_script:v <path>` untuk mencegah batas panjang karakter pada baris perintah sistem operasi.
+  3. Skalabilitas Posisi, Font Sistem, dan Ukuran Resolusi:
+     - Mengintegrasikan resolusi font sistem otomatis (`resolve_system_font`), mendeteksi font standar Android (`/system/fonts/Roboto-Bold.ttf`, `Roboto-Regular.ttf`, `DroidSans.ttf`) serta lingkungan pengujian dev.
+     - Menghitung koordinat horizontal dan vertikal dinamis berbasis ekspresi FFmpeg `(w-text_w)` dan `(h-text_h)` yang secara otomatis presisi di setiap rasio video (16:9 landscape maupun 9:16 portrait).
+     - Mengukur ukuran font adaptif `h*0.045*(cue_fs/14)` dengan garis tepi hitam berketebalan 3px (`borderw=3:bordercolor=black`) untuk menjaga keterbacaan tinggi terhadap latar belakang video.
+- **Perubahan Kode Penting**:
+  - [mobile/scripts/utils/subtitle_burner.py](file:///d:/projects/clipping/mobile/scripts/utils/subtitle_burner.py):
+    - Menambahkan fungsi pembantu `resolve_system_font` dan `is_filter_supported`.
+    - Menambahkan generator filterchain `build_drawtext_pipeline` yang memetakan cue subtitle ke berkas teks mandiri dan menyusun script `drawtext`.
+    - Mengintegrasikan mekanisme fallback runtime: jika eksekusi filter `subtitles` gagal dengan pesan ketiadaan filter, proses secara otomatis mengulang pembakaran menggunakan pipeline `drawtext`.
+
+## [b5fbe9f] - Fix Subtitle Cue Detection and Fallback Resolution on Export Button
 - **Konteks Struktural**:
   1. Sinkronisasi Penuh Ref dan State Subtitle (`subtitlesRef` & `internalSubtitlesRef`):
      - Memperbaiki ketidaksinkronan di mana `internalSubtitlesRef.current` tidak pernah terisi saat `externalSubtitlesRef` dipasok oleh komponen induk, sehingga pengecekan cue saat ekspor selalu menganggap daftar cue kosong (`[]`).
