@@ -14,7 +14,20 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Extract useClipDownload Hook for Background Download Management
+## [Unreleased] - Extract useClipSubtitle Hook for Subtitle Preview and Cue Management
+- **Konteks Struktural**:
+  1. Ekstraksi Logika Subtitle ke Hook Terpisah:
+     - Memindahkan state subtitle, overlay visibility, modal edit visibility, dan lifecycle auto-load file subtitle dari [FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx) ke dalam custom hook [useClipSubtitle.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipSubtitle.ts).
+     - Menjaga 100% keselarasan alur logika asli: pemuatan otomatis file subtitle tersimpan (`loadClipSubtitle`) saat klip aktif berganti, manajemen `subtitlesRef` untuk sinkronisasi cue realtime 100ms dengan time update video player, serta toggle visibilitas dan edit modal.
+     - Menyediakan method dan state terisolasi: `subtitles`, `setSubtitles`, `activeSubtitleText`, `setActiveSubtitleText`, `isSubtitleVisible`, `setIsSubtitleVisible`, `subtitleModalVisible`, dan `setSubtitleModalVisible`.
+- **Perubahan Kode Penting**:
+  - [mobile/src/hooks/useClipSubtitle.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipSubtitle.ts):
+    - Dibuat baru dengan fungsi hook `useClipSubtitle` dan interface `UseClipSubtitleParams`.
+  - [mobile/src/components/FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
+    - Mengimpor dan mengonsumsi `useClipSubtitle`.
+    - Menghapus deklarasi state subtitle lokal dan effect auto-load subtitle.
+
+## [c023ed5] - Extract useClipDownload Hook for Background Download Management
 - **Konteks Struktural**:
   1. Ekstraksi Logika Unduhan Klip ke Hook Terpisah:
      - Memindahkan seluruh state dan lifecycle proses unduhan klip dari [FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx) ke dalam custom hook [useClipDownload.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipDownload.ts).

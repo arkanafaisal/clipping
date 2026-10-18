@@ -11,7 +11,6 @@ import { VideoView } from 'expo-video';
 import {
   ClipItem,
   SubtitleCue,
-  loadClipSubtitle,
 } from '../services/api';
 import { ToastManager } from './Toast';
 import { CookiesModal } from './CookiesModal';
@@ -23,6 +22,7 @@ import { SubtitleOverlay } from './feed/SubtitleOverlay';
 import { useClipData } from '../hooks/useClipData';
 import { useClipPlayer } from '../hooks/useClipPlayer';
 import { useClipDownload } from '../hooks/useClipDownload';
+import { useClipSubtitle } from '../hooks/useClipSubtitle';
 
 interface FeedScreenProps {
   videoId: string;
@@ -39,24 +39,14 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
 }) => {
   const DRAFT_KEY = `clips_draft_${videoId}`;
 
-  const [subtitleModalVisible, setSubtitleModalVisible] = useState(false);
-
-  // State Subtitle & Overlay (Layer 1 Realtime Preview)
-  const [subtitles, setSubtitles] = useState<SubtitleCue[]>([]);
-  const [activeSubtitleText, setActiveSubtitleText] = useState<string>('');
-  const [isSubtitleVisible, setIsSubtitleVisible] = useState<boolean>(true);
-  const subtitlesRef = useRef<SubtitleCue[]>(subtitles);
-
-  useEffect(() => {
-    subtitlesRef.current = subtitles;
-  }, [subtitles]);
-
-  // Shared refs for data, player & download hooks
+  // Shared refs for data, player, download & subtitle hooks
   const clipsRef = useRef<ClipItem[]>([]);
   const activeClipIdRef = useRef<string | null>(null);
   const downloadedClipsRef = useRef<Record<string, boolean>>({});
+  const subtitlesRef = useRef<SubtitleCue[]>([]);
   const setCookiesModalVisibleRef = useRef<(visible: boolean) => void>(() => {});
   const setDownloadedClipsRef = useRef<React.Dispatch<React.SetStateAction<Record<string, boolean>>>>(() => {});
+  const setActiveSubtitleTextRef = useRef<(text: string) => void>(() => {});
 
   const handleSetCookiesModalVisible = useCallback((visible: boolean) => {
     setCookiesModalVisibleRef.current(visible);
@@ -64,6 +54,10 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
 
   const handleSetDownloadedClips = useCallback<React.Dispatch<React.SetStateAction<Record<string, boolean>>>>((val) => {
     setDownloadedClipsRef.current(val);
+  }, []);
+
+  const handleSetActiveSubtitleText = useCallback((text: string) => {
+    setActiveSubtitleTextRef.current(text);
   }, []);
 
   // Hook 2: useClipPlayer
@@ -90,7 +84,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     activeClipIdRef,
     downloadedClipsRef,
     subtitlesRef,
-    setActiveSubtitleText,
+    setActiveSubtitleText: handleSetActiveSubtitleText,
     setCookiesModalVisible: handleSetCookiesModalVisible,
     onBack,
   });
@@ -158,6 +152,21 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     downloadedClipsRef,
   });
 
+  // Hook 4: useClipSubtitle
+  const {
+    subtitles,
+    setSubtitles,
+    activeSubtitleText,
+    setActiveSubtitleText,
+    isSubtitleVisible,
+    setIsSubtitleVisible,
+    subtitleModalVisible,
+    setSubtitleModalVisible,
+  } = useClipSubtitle({
+    activeClip,
+    subtitlesRef,
+  });
+
   useEffect(() => {
     setCookiesModalVisibleRef.current = setCookiesModalVisible;
   }, [setCookiesModalVisible]);
@@ -166,29 +175,9 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     setDownloadedClipsRef.current = setDownloadedClips;
   }, [setDownloadedClips]);
 
-  // Auto-load subtitle yang sudah tersimpan untuk klip aktif
   useEffect(() => {
-    let isCurrent = true;
-    async function checkSavedSubtitle() {
-      if (!activeClip || !activeClip.videoId) return;
-      try {
-        const saved = await loadClipSubtitle(activeClip.videoId, activeClip.start, activeClip.end);
-        if (isCurrent) {
-          if (saved && Array.isArray(saved.cues)) {
-            setSubtitles(saved.cues);
-          } else {
-            setSubtitles([]);
-          }
-        }
-      } catch {
-        if (isCurrent) setSubtitles([]);
-      }
-    }
-    checkSavedSubtitle();
-    return () => {
-      isCurrent = false;
-    };
-  }, [activeClip.videoId, activeClip.start, activeClip.end]);
+    setActiveSubtitleTextRef.current = setActiveSubtitleText;
+  }, [setActiveSubtitleText]);
 
 
 
