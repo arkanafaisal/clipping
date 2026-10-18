@@ -116,10 +116,15 @@ export const SUBTITLE_YTDL_OPTS: YtdlOpts = {
   skip_download: true,
   writesubtitles: true,
   writeautomaticsub: true,
-  subtitleslangs: ['id', 'en', 'all'],
+  subtitleslangs: ['id', 'en', 'ja', 'all'],
   quiet: true,
   no_warnings: true,
   extract_flat: false,
+  extractor_args: {
+    youtube: {
+      player_client: ['android', 'ios'],
+    },
+  },
 };
 
 

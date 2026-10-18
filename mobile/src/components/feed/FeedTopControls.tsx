@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Platform,
   PanResponder,
+  Modal,
 } from 'react-native';
 import {
   Trash2,
@@ -15,8 +16,10 @@ import {
   Download,
   Subtitles,
   Plus,
-  Minus,
   X,
+  Type,
+  Check,
+  Globe,
 } from 'lucide-react-native';
 import { ClipItem, SubtitleCue } from '../../services/api';
 import { formatTimeWithMs, formatDisplayTime } from './timeUtils';
@@ -86,7 +89,7 @@ const SubtitleCuePill: React.FC<SubtitleCuePillProps> = React.memo(
         ]}
       >
         <Text numberOfLines={1} ellipsizeMode="tail" style={styles.cuePillText}>
-          {cue.text || '...'}
+          {cue.text.replace(/\r?\n+/g, ' ') || '...'}
         </Text>
       </View>
     );
@@ -157,6 +160,12 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
   onUpdateEnd,
 }) => {
   const [trackLayoutWidth, setTrackLayoutWidth] = useState<number>(0);
+  const [showLangModal, setShowLangModal] = useState<boolean>(false);
+  const [showTextModal, setShowTextModal] = useState<boolean>(false);
+  const [showFontModal, setShowFontModal] = useState<boolean>(false);
+  const [tempEditText, setTempEditText] = useState<string>('');
+  const [tempEditSize, setTempEditSize] = useState<string>('20');
+
   const clipDuration = Math.max(0.1, activeClip.end - activeClip.start);
 
   const selectedCue = useMemo(
@@ -167,12 +176,12 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
   return (
     <View style={styles.topSection}>
       <View style={styles.timeRangeRow}>
-        {/* SISI KIRI: Jika Mode Done -> Tombol Unduh / Subtitle Toggle, Jika Mode Normal -> Tombol Trash */}
+        {/* SISI KIRI: Mode Done -> Download / Get Subtitle, Mode Normal -> Trash */}
         <View style={styles.leftActionGroup}>
           {activeClip.status === 'done' ? (
-            <>
-              {!isDownloaded ? (
-                /* Mode Belum Terdownload: Tampilkan Tombol Download */
+            <View style={styles.doneLeftGroup}>
+              {/* Tombol Unduh (jika belum terunduh) */}
+              {!isDownloaded && (
                 <Pressable
                   style={({ pressed }) => [
                     styles.statusBtn,
@@ -194,21 +203,27 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                     <Download size={18} color="#38bdf8" />
                   )}
                 </Pressable>
-              ) : (
-                /* Mode Sudah Terdownload: Tombol Toggle Subtitle Overlay (CC) */
+              )}
+
+              {/* Tombol Get Subtitle di kiri atas: HANYA muncul saat track kosong (subtitles.length === 0) */}
+              {subtitles.length === 0 && (
                 <Pressable
                   style={({ pressed }) => [
                     styles.statusBtn,
-                    styles.subtitleToggleBtn,
-                    isSubtitleVisible && styles.subtitleToggleBtnActive,
+                    styles.getSubtitleBtn,
                     pressed && { opacity: 0.7 },
                   ]}
-                  onPress={onToggleSubtitleVisibility}
+                  onPress={() => setShowLangModal(true)}
+                  disabled={isFetchingSubtitles}
                 >
-                  <Subtitles size={17} color={isSubtitleVisible ? '#38bdf8' : '#64748b'} />
+                  {isFetchingSubtitles ? (
+                    <ActivityIndicator size="small" color="#38bdf8" />
+                  ) : (
+                    <Subtitles size={18} color="#38bdf8" />
+                  )}
                 </Pressable>
               )}
-            </>
+            </View>
           ) : (
             <Pressable
               style={({ pressed }) => [
@@ -448,110 +463,298 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
             </Pressable>
           </View>
 
-          {/* 2. ACTION / INLINE EDITOR ROW */}
-          {selectedCue ? (
-            /* Cue Editor Row */
-            <View style={styles.cueEditorRow}>
-              <TextInput
-                style={styles.cueTextInput}
-                value={selectedCue.text}
-                onChangeText={(text) => onUpdateCue(selectedCue.id, { text })}
-                placeholder="Teks subtitle..."
-                placeholderTextColor="rgba(255, 255, 255, 0.35)"
-                multiline={false}
-              />
+          {/* 2. ACTION & EDITOR ROW */}
+          <View style={styles.cueActionsRow}>
+            {/* SISI KIRI: Tombol Tambah Manual */}
+            <Pressable
+              style={({ pressed }) => [styles.addCueBtn, pressed && { opacity: 0.7 }]}
+              onPress={() => onAddCue(currentClipTime)}
+            >
+              <Plus size={14} color="#38bdf8" />
+              <Text style={styles.addCueBtnText}>+ Subtitle</Text>
+            </Pressable>
 
-              {/* Font Size Adjuster */}
-              <View style={styles.fontSizeControlGroup}>
+            {/* SISI KANAN (Dekat jempol): Tombol Icon Edit Teks, Ukuran Font, Hapus */}
+            {selectedCue ? (
+              <View style={styles.cueEditorActionIcons}>
+                {/* 1. Edit Teks (Buka Modal Multiline) */}
                 <Pressable
-                  style={({ pressed }) => [styles.fontBtn, pressed && { opacity: 0.6 }]}
-                  onPress={() =>
-                    onUpdateCue(selectedCue.id, {
-                      fontSize: Math.max(12, (selectedCue.fontSize || 20) - 2),
-                    })
-                  }
-                  hitSlop={4}
+                  style={({ pressed }) => [styles.iconActionBtn, pressed && { opacity: 0.6 }]}
+                  onPress={() => {
+                    setTempEditText(selectedCue.text || '');
+                    setShowTextModal(true);
+                  }}
+                  hitSlop={6}
                 >
-                  <Minus size={12} color="#94a3b8" />
+                  <Type size={16} color="#38bdf8" />
                 </Pressable>
-                <Text style={styles.fontSizeText}>{selectedCue.fontSize || 20}</Text>
+
+                {/* 2. Ukuran Font (Buka Modal Font Size) */}
                 <Pressable
-                  style={({ pressed }) => [styles.fontBtn, pressed && { opacity: 0.6 }]}
-                  onPress={() =>
-                    onUpdateCue(selectedCue.id, {
-                      fontSize: Math.min(36, (selectedCue.fontSize || 20) + 2),
-                    })
-                  }
-                  hitSlop={4}
+                  style={({ pressed }) => [styles.iconActionBtn, pressed && { opacity: 0.6 }]}
+                  onPress={() => {
+                    setTempEditSize(String(selectedCue.fontSize || 20));
+                    setShowFontModal(true);
+                  }}
+                  hitSlop={6}
                 >
-                  <Plus size={12} color="#94a3b8" />
+                  <Text style={styles.fontSizeIconText}>Aa</Text>
+                </Pressable>
+
+                {/* 3. Hapus Cue (Langsung hapus tanpa modal konfirmasi) */}
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.iconActionBtn,
+                    styles.deleteActionBtn,
+                    pressed && { opacity: 0.6 },
+                  ]}
+                  onPress={() => onDeleteCue(selectedCue.id)}
+                  hitSlop={6}
+                >
+                  <Trash2 size={16} color="#f87171" />
+                </Pressable>
+
+                {/* 4. Deselect / Close */}
+                <Pressable
+                  style={({ pressed }) => [styles.iconActionBtn, pressed && { opacity: 0.6 }]}
+                  onPress={() => onSelectCue(null)}
+                  hitSlop={6}
+                >
+                  <X size={16} color="#94a3b8" />
                 </Pressable>
               </View>
-
-              {/* Delete Cue Button */}
-              <Pressable
-                style={({ pressed }) => [
-                  styles.cueActionBtn,
-                  styles.cueDeleteBtn,
-                  pressed && { opacity: 0.6 },
-                ]}
-                onPress={() => onDeleteCue(selectedCue.id)}
-                hitSlop={4}
-              >
-                <Trash2 size={15} color="#f87171" />
-              </Pressable>
-
-              {/* Deselect / Close Button */}
-              <Pressable
-                style={({ pressed }) => [styles.cueActionBtn, pressed && { opacity: 0.6 }]}
-                onPress={() => onSelectCue(null)}
-                hitSlop={4}
-              >
-                <X size={15} color="#94a3b8" />
-              </Pressable>
-            </View>
-          ) : (
-            /* Default Actions Row: Add Cue & Quick YT Sub Fetch */
-            <View style={styles.cueActionsRow}>
-              <Pressable
-                style={({ pressed }) => [styles.addCueBtn, pressed && { opacity: 0.7 }]}
-                onPress={() => onAddCue(currentClipTime)}
-              >
-                <Plus size={14} color="#38bdf8" />
-                <Text style={styles.addCueBtnText}>+ Subtitle</Text>
-              </Pressable>
-
-              <View style={styles.langFetchGroup}>
-                <Text style={styles.langFetchLabel}>YT Sub:</Text>
-                <Pressable
-                  style={({ pressed }) => [styles.langPill, pressed && { opacity: 0.6 }]}
-                  onPress={() => onFetchSubtitles('id')}
-                  disabled={isFetchingSubtitles}
-                >
-                  <Text style={styles.langPillText}>ID</Text>
-                </Pressable>
-                <Pressable
-                  style={({ pressed }) => [styles.langPill, pressed && { opacity: 0.6 }]}
-                  onPress={() => onFetchSubtitles('en')}
-                  disabled={isFetchingSubtitles}
-                >
-                  <Text style={styles.langPillText}>EN</Text>
-                </Pressable>
-                <Pressable
-                  style={({ pressed }) => [styles.langPill, pressed && { opacity: 0.6 }]}
-                  onPress={() => onFetchSubtitles('ja')}
-                  disabled={isFetchingSubtitles}
-                >
-                  <Text style={styles.langPillText}>JA</Text>
-                </Pressable>
-                {isFetchingSubtitles && (
-                  <ActivityIndicator size="small" color="#38bdf8" style={styles.langFetchSpinner} />
-                )}
-              </View>
-            </View>
-          )}
+            ) : null}
+          </View>
         </View>
       )}
+
+      {/* MODAL 1: Language Selection Modal */}
+      <Modal
+        visible={showLangModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowLangModal(false)}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={() => setShowLangModal(false)}>
+          <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalHeaderLeft}>
+                <Globe size={18} color="#38bdf8" />
+                <Text style={styles.modalTitle}>Ambil Subtitle YouTube</Text>
+              </View>
+              <Pressable
+                style={({ pressed }) => [styles.modalCloseBtn, pressed && { opacity: 0.6 }]}
+                onPress={() => setShowLangModal(false)}
+                hitSlop={8}
+              >
+                <X size={18} color="#94a3b8" />
+              </Pressable>
+            </View>
+
+            <Text style={styles.modalDescription}>
+              Pilih preferensi bahasa track subtitle yang ingin dimuat dari YouTube:
+            </Text>
+
+            <View style={styles.langOptionsList}>
+              {/* Option ID */}
+              <Pressable
+                style={({ pressed }) => [styles.langOptionCard, pressed && { opacity: 0.7 }]}
+                onPress={() => {
+                  setShowLangModal(false);
+                  onFetchSubtitles('id');
+                }}
+              >
+                <View style={[styles.langBadge, styles.langBadgeId]}>
+                  <Text style={styles.langBadgeText}>ID</Text>
+                </View>
+                <View style={styles.langOptionInfo}>
+                  <Text style={styles.langOptionTitle}>Bahasa Indonesia</Text>
+                  <Text style={styles.langOptionSub}>Subtitle resmi atau automatic captions ID</Text>
+                </View>
+              </Pressable>
+
+              {/* Option EN */}
+              <Pressable
+                style={({ pressed }) => [styles.langOptionCard, pressed && { opacity: 0.7 }]}
+                onPress={() => {
+                  setShowLangModal(false);
+                  onFetchSubtitles('en');
+                }}
+              >
+                <View style={[styles.langBadge, styles.langBadgeEn]}>
+                  <Text style={styles.langBadgeText}>EN</Text>
+                </View>
+                <View style={styles.langOptionInfo}>
+                  <Text style={styles.langOptionTitle}>English</Text>
+                  <Text style={styles.langOptionSub}>Manual captions or automatic captions EN</Text>
+                </View>
+              </Pressable>
+
+              {/* Option JA */}
+              <Pressable
+                style={({ pressed }) => [styles.langOptionCard, pressed && { opacity: 0.7 }]}
+                onPress={() => {
+                  setShowLangModal(false);
+                  onFetchSubtitles('ja');
+                }}
+              >
+                <View style={[styles.langBadge, styles.langBadgeJa]}>
+                  <Text style={styles.langBadgeText}>JA</Text>
+                </View>
+                <View style={styles.langOptionInfo}>
+                  <Text style={styles.langOptionTitle}>日本語 (Japanese)</Text>
+                  <Text style={styles.langOptionSub}>Official Japanese captions or auto-generated JA</Text>
+                </View>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* MODAL 2: Multiline Text Input Modal */}
+      <Modal
+        visible={showTextModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowTextModal(false)}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={() => setShowTextModal(false)}>
+          <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalHeaderLeft}>
+                <Type size={18} color="#38bdf8" />
+                <Text style={styles.modalTitle}>Edit Teks Subtitle</Text>
+              </View>
+              <Pressable
+                style={({ pressed }) => [styles.modalCloseBtn, pressed && { opacity: 0.6 }]}
+                onPress={() => setShowTextModal(false)}
+                hitSlop={8}
+              >
+                <X size={18} color="#94a3b8" />
+              </Pressable>
+            </View>
+
+            <TextInput
+              style={styles.multilineTextInput}
+              value={tempEditText}
+              onChangeText={setTempEditText}
+              placeholder="Ketik teks subtitle... (Enter untuk baris baru)"
+              placeholderTextColor="rgba(255, 255, 255, 0.35)"
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+              autoFocus
+            />
+
+            <View style={styles.modalActionsRow}>
+              <Pressable
+                style={({ pressed }) => [styles.modalCancelBtn, pressed && { opacity: 0.7 }]}
+                onPress={() => setShowTextModal(false)}
+              >
+                <Text style={styles.modalCancelBtnText}>Batal</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [styles.modalSaveBtn, pressed && { opacity: 0.8 }]}
+                onPress={() => {
+                  if (selectedCue) {
+                    onUpdateCue(selectedCue.id, { text: tempEditText });
+                  }
+                  setShowTextModal(false);
+                }}
+              >
+                <Check size={16} color="#ffffff" />
+                <Text style={styles.modalSaveBtnText}>Simpan</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* MODAL 3: Font Size Input Modal (Support Decimal) */}
+      <Modal
+        visible={showFontModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowFontModal(false)}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={() => setShowFontModal(false)}>
+          <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalHeaderLeft}>
+                <Text style={styles.fontSizeModalHeaderIcon}>Aa</Text>
+                <Text style={styles.modalTitle}>Ukuran Font Subtitle</Text>
+              </View>
+              <Pressable
+                style={({ pressed }) => [styles.modalCloseBtn, pressed && { opacity: 0.6 }]}
+                onPress={() => setShowFontModal(false)}
+                hitSlop={8}
+              >
+                <X size={18} color="#94a3b8" />
+              </Pressable>
+            </View>
+
+            <View style={styles.fontSizeInputRow}>
+              <TextInput
+                style={styles.fontSizeInputField}
+                value={tempEditSize}
+                onChangeText={setTempEditSize}
+                keyboardType="decimal-pad"
+                placeholder="20"
+                placeholderTextColor="rgba(255, 255, 255, 0.35)"
+                autoFocus
+                selectTextOnFocus
+              />
+              <Text style={styles.fontSizeUnitText}>px</Text>
+            </View>
+
+            {/* Preset buttons */}
+            <View style={styles.fontSizePresetGroup}>
+              {['14', '16', '18', '20', '22', '24', '28'].map((preset) => (
+                <Pressable
+                  key={preset}
+                  style={({ pressed }) => [
+                    styles.fontSizePresetBtn,
+                    tempEditSize === preset && styles.fontSizePresetBtnActive,
+                    pressed && { opacity: 0.7 },
+                  ]}
+                  onPress={() => setTempEditSize(preset)}
+                >
+                  <Text
+                    style={[
+                      styles.fontSizePresetText,
+                      tempEditSize === preset && styles.fontSizePresetTextActive,
+                    ]}
+                  >
+                    {preset}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <View style={styles.modalActionsRow}>
+              <Pressable
+                style={({ pressed }) => [styles.modalCancelBtn, pressed && { opacity: 0.7 }]}
+                onPress={() => setShowFontModal(false)}
+              >
+                <Text style={styles.modalCancelBtnText}>Batal</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [styles.modalSaveBtn, pressed && { opacity: 0.8 }]}
+                onPress={() => {
+                  const parsed = parseFloat(tempEditSize);
+                  if (selectedCue && !isNaN(parsed) && parsed > 0) {
+                    onUpdateCue(selectedCue.id, { fontSize: parsed });
+                  }
+                  setShowFontModal(false);
+                }}
+              >
+                <Check size={16} color="#ffffff" />
+                <Text style={styles.modalSaveBtnText}>Simpan</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 };
@@ -578,6 +781,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     zIndex: 10,
+  },
+  doneLeftGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   downloadLoadingRow: {
     flexDirection: 'row',
@@ -663,14 +871,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.2,
   },
-  subtitleToggleBtn: {
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  getSubtitleBtn: {
+    backgroundColor: 'rgba(56, 189, 248, 0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  subtitleToggleBtnActive: {
-    backgroundColor: 'rgba(56, 189, 248, 0.2)',
-    borderColor: '#38bdf8',
+    borderColor: 'rgba(56, 189, 248, 0.35)',
   },
   trashBtnInactive: {
     backgroundColor: 'rgba(239, 68, 68, 0.1)',
@@ -825,69 +1029,11 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontStyle: 'italic',
   },
-  cueEditorRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    height: 34,
-    gap: 6,
-  },
-  cueTextInput: {
-    flex: 1,
-    height: 32,
-    backgroundColor: '#1c1c20',
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
-    color: '#ffffff',
-    fontSize: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 0,
-  },
-  fontSizeControlGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#1c1c20',
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
-    height: 32,
-    paddingHorizontal: 4,
-    gap: 4,
-  },
-  fontBtn: {
-    width: 20,
-    height: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    borderRadius: 4,
-  },
-  fontSizeText: {
-    color: '#38bdf8',
-    fontSize: 11,
-    fontWeight: '700',
-    minWidth: 16,
-    textAlign: 'center',
-  },
-  cueActionBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 6,
-    backgroundColor: '#1c1c20',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cueDeleteBtn: {
-    backgroundColor: 'rgba(248, 113, 113, 0.12)',
-    borderColor: 'rgba(248, 113, 113, 0.25)',
-  },
   cueActionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    height: 34,
+    height: 36,
   },
   addCueBtn: {
     flexDirection: 'row',
@@ -905,30 +1051,231 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  langFetchGroup: {
+  cueEditorActionIcons: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 6,
   },
-  langFetchLabel: {
-    color: 'rgba(255, 255, 255, 0.45)',
-    fontSize: 11,
-    fontWeight: '500',
+  iconActionBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 7,
+    backgroundColor: '#1c1c20',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  langPill: {
-    backgroundColor: '#1e293b',
+  deleteActionBtn: {
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    borderColor: 'rgba(239, 68, 68, 0.35)',
+  },
+  fontSizeIconText: {
+    color: '#38bdf8',
+    fontSize: 13,
+    fontWeight: '800',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: '#18181b',
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.12)',
-    borderRadius: 5,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    padding: 18,
+    gap: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
+    elevation: 10,
   },
-  langPillText: {
-    color: '#cbd5e1',
-    fontSize: 11,
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  modalHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  fontSizeModalHeaderIcon: {
+    color: '#38bdf8',
+    fontSize: 16,
+    fontWeight: '800',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  modalTitle: {
+    color: '#ffffff',
+    fontSize: 15,
     fontWeight: '700',
   },
-  langFetchSpinner: {
-    marginLeft: 2,
+  modalCloseBtn: {
+    padding: 4,
+  },
+  modalDescription: {
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  langOptionsList: {
+    gap: 8,
+  },
+  langOptionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#202024',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 10,
+    padding: 10,
+    gap: 12,
+  },
+  langBadge: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  langBadgeId: {
+    backgroundColor: 'rgba(56, 189, 248, 0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.4)',
+  },
+  langBadgeEn: {
+    backgroundColor: 'rgba(245, 158, 11, 0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.4)',
+  },
+  langBadgeJa: {
+    backgroundColor: 'rgba(244, 63, 94, 0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(244, 63, 94, 0.4)',
+  },
+  langBadgeText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '800',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  langOptionInfo: {
+    flex: 1,
+  },
+  langOptionTitle: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  langOptionSub: {
+    color: 'rgba(255, 255, 255, 0.45)',
+    fontSize: 11,
+    marginTop: 2,
+  },
+  multilineTextInput: {
+    backgroundColor: '#121214',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.14)',
+    borderRadius: 10,
+    padding: 12,
+    color: '#ffffff',
+    fontSize: 13,
+    lineHeight: 20,
+    minHeight: 100,
+  },
+  fontSizeInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 4,
+  },
+  fontSizeInputField: {
+    backgroundColor: '#121214',
+    borderWidth: 1.5,
+    borderColor: 'rgba(56, 189, 248, 0.5)',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    color: '#38bdf8',
+    fontSize: 22,
+    fontWeight: '800',
+    textAlign: 'center',
+    minWidth: 90,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  fontSizeUnitText: {
+    color: 'rgba(255, 255, 255, 0.5)',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  fontSizePresetGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  fontSizePresetBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+    backgroundColor: '#202024',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  fontSizePresetBtnActive: {
+    backgroundColor: 'rgba(56, 189, 248, 0.2)',
+    borderColor: '#38bdf8',
+  },
+  fontSizePresetText: {
+    color: '#94a3b8',
+    fontSize: 11,
+    fontWeight: '700',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  fontSizePresetTextActive: {
+    color: '#38bdf8',
+  },
+  modalActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 10,
+    marginTop: 4,
+  },
+  modalCancelBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  modalCancelBtnText: {
+    color: '#94a3b8',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  modalSaveBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#0284c7',
+    gap: 6,
+  },
+  modalSaveBtnText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700',
   },
 });

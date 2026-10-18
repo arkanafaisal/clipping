@@ -14,7 +14,37 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Implement CapCut-Style Mini Track Subtitle Layer and Remove SubtitleEditModal
+## [Unreleased] - Implement Subtitle Language Selection Modal, Multiline Text Modal, and YouTube Android Client Configuration
+- **Konteks Struktural**:
+  1. Integrasi Modal Pemilihan Bahasa YouTube di Top Bar:
+     - Menjadikan tombol Subtitle di kiri atas [FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx) aktif saat track subtitle kosong (`subtitles.length === 0`).
+     - Mengklik tombol tersebut membuka modal pemilihan bahasa (`ID`, `EN`, `JA`), dan tombol otomatis di-hide ketika track subtitle telah memiliki data.
+  2. Pemindahan Tombol Aksi Cue ke Sisi Kanan (Thumb Friendly):
+     - Memindahkan tombol aksi cue (Edit Teks, Ukuran Font, Hapus) ke sisi kanan sejajar dengan tombol `+ Subtitle` (di sisi kiri) menggantikan tombol bahasa inline.
+     - Dibuat dalam bentuk tombol icon bersih (`Type`, `Aa`, `Trash2`, `X`).
+  3. Modal Input Multiline untuk Teks & Modal Desimal untuk Ukuran Font:
+     - Mengklik icon teks membuka modal multiline sehingga pengguna bebas menekan Enter untuk 2 baris atau lebih.
+     - Mengklik icon ukuran font membuka modal angka desimal dengan quick preset (14-28px).
+     - Menghapus cue langsung bekerja instan tanpa modal konfirmasi.
+  4. Penanganan Bot Detection & Fallback Bahasa YouTube:
+     - Menambahkan konfigurasi `player_client: ['android', 'web']` dan bahasa `ja` pada `SUBTITLE_YTDL_OPTS` di [ytdlp.ts](file:///d:/projects/clipping/mobile/src/constants/ytdlp.ts) untuk melewati tantangan bot YouTube.
+     - Menyempurnakan prefix matching pada [subtitle_fetcher.py](file:///d:/projects/clipping/mobile/scripts/utils/subtitle_fetcher.py) agar tetap fallback ke varian bahasa (seperti `id-ID` atau `ja-JP`).
+     - Menghubungkan trigger `onRateLimit` ke `CookiesModal` di [FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx).
+- **Perubahan Kode Penting**:
+  - [mobile/src/components/feed/FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx):
+    - Menambahkan modal bahasa, modal teks multiline, modal ukuran font, dan penyesuaian penempatan tombol icon.
+  - [mobile/src/constants/ytdlp.ts](file:///d:/projects/clipping/mobile/src/constants/ytdlp.ts):
+    - Menambahkan `player_client: ['android', 'web']` dan `'ja'` pada `SUBTITLE_YTDL_OPTS`.
+  - [mobile/scripts/utils/subtitle_fetcher.py](file:///d:/projects/clipping/mobile/scripts/utils/subtitle_fetcher.py):
+    - Menyempurnakan fallback pencocokan bahasa (`preferred_lang` prefix matching).
+  - [mobile/src/hooks/useClipSubtitle.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipSubtitle.ts):
+    - Mempertahankan karakter newline pada `handleUpdateCue` dan trigger `onRateLimit`.
+  - [mobile/src/services/api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts):
+    - Mempertahankan karakter newline pada `normalizeSingleTrackCues`.
+  - [mobile/src/components/FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
+    - Menghubungkan callback `onRateLimit` dari `useClipSubtitle` ke `CookiesModal`.
+
+## [6c16f22] - Implement CapCut-Style Mini Track Subtitle Layer and Remove SubtitleEditModal
 - **Konteks Struktural**:
   1. Penghapusan Total SubtitleEditModal (Bottom Modal):
      - Menghapus komponen modal [SubtitleEditModal.tsx](file:///d:/projects/clipping/mobile/src/components/SubtitleEditModal.tsx) secara permanen sesuai spesifikasi hierarki layer antarmuka pengguna (menghilangkan popup terpisah).

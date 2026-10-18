@@ -121,16 +121,26 @@ def _process_extraction(ydl, url: str, video_id: str, preferred_lang: str = None
     available_langs = list(target_subs.keys())
     chosen_lang = None
 
-    if preferred_lang and preferred_lang in target_subs:
-        chosen_lang = preferred_lang
-    elif 'id' in target_subs:
-        chosen_lang = 'id'
-    elif 'en' in target_subs:
-        chosen_lang = 'en'
-    else:
-        id_match = next((l for l in available_langs if l.startswith('id')), None)
-        en_match = next((l for l in available_langs if l.startswith('en')), None)
-        chosen_lang = id_match or en_match or available_langs[0]
+    if preferred_lang:
+        if preferred_lang in target_subs:
+            chosen_lang = preferred_lang
+        else:
+            pref_match = next((l for l in available_langs if l.startswith(preferred_lang)), None)
+            if pref_match:
+                chosen_lang = pref_match
+
+    if not chosen_lang:
+        if 'id' in target_subs:
+            chosen_lang = 'id'
+        elif 'en' in target_subs:
+            chosen_lang = 'en'
+        elif 'ja' in target_subs:
+            chosen_lang = 'ja'
+        else:
+            id_match = next((l for l in available_langs if l.startswith('id')), None)
+            en_match = next((l for l in available_langs if l.startswith('en')), None)
+            ja_match = next((l for l in available_langs if l.startswith('ja')), None)
+            chosen_lang = id_match or en_match or ja_match or available_langs[0]
 
     formats = target_subs.get(chosen_lang) or []
     if not formats:

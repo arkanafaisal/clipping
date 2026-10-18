@@ -1342,7 +1342,7 @@ export function normalizeSingleTrackCues(cues: SubtitleCue[], maxDuration?: numb
       id: c.id || `cue_${idx}`,
       start: Math.max(0, Math.round(c.start * 100) / 100),
       end: Math.max(0, Math.round(c.end * 100) / 100),
-      text: (c.text || '').replace(/\r?\n+/g, ' ').replace(/\s+/g, ' ').trim(),
+      text: (c.text || '').replace(/\r/g, '').replace(/[ \t]+/g, ' ').trim(),
       fontSize: c.fontSize || 20,
     }))
     .filter((c) => c.text.length > 0)

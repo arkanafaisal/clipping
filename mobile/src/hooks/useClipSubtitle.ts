@@ -8,6 +8,7 @@ import {
   fetchSubtitlesForVideo,
   sliceCuesForClip,
   normalizeSingleTrackCues,
+  isRateLimitOrRestrictedError,
 } from '../services/api';
 import { ToastManager } from '../components/Toast';
 
@@ -16,6 +17,7 @@ export interface UseClipSubtitleParams {
   activeClip?: ClipItem;
   subtitlesRef?: React.MutableRefObject<SubtitleCue[]>;
   onSeek?: (timeSec: number, shouldPlay?: boolean) => void;
+  onRateLimit?: () => void;
 }
 
 export function useClipSubtitle({
@@ -23,6 +25,7 @@ export function useClipSubtitle({
   activeClip,
   subtitlesRef: externalSubtitlesRef,
   onSeek,
+  onRateLimit,
 }: UseClipSubtitleParams) {
   const [subtitles, setSubtitles] = useState<SubtitleCue[]>([]);
   const [activeSubtitleText, setActiveSubtitleText] = useState<string>('');
@@ -116,7 +119,7 @@ export function useClipSubtitle({
           if (c.id === id) {
             const merged = { ...c, ...updates };
             if (typeof updates.text === 'string') {
-              merged.text = updates.text.replace(/\r?\n+/g, ' ').trim();
+              merged.text = updates.text.replace(/\r/g, '').trim();
             }
             return merged;
           }
@@ -242,6 +245,9 @@ export function useClipSubtitle({
           duration: 3000,
         });
       } catch (err: any) {
+        if (isRateLimitOrRestrictedError(err)) {
+          onRateLimit?.();
+        }
         ToastManager.show({
           type: 'error',
           title: 'Subtitle Tidak Tersedia',
@@ -254,7 +260,7 @@ export function useClipSubtitle({
         setIsFetchingSubtitles(false);
       }
     },
-    [activeClip]
+    [activeClip, onRateLimit]
   );
 
   return {

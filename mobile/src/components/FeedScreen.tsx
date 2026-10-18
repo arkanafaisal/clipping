@@ -188,6 +188,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     activeClip,
     subtitlesRef,
     onSeek: (timeSec) => handleSeekRelative(timeSec, true),
+    onRateLimit: () => setCookiesModalVisible(true),
   });
 
   useEffect(() => {
