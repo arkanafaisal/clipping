@@ -14,7 +14,32 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Minimize Subtitle Editor UI Elements, Toolbar Action Buttons, and Modal Forms
+## [Unreleased] - Reorganize Header Download/Export Actions and Implement Multi-Mode Switcher Toolbar
+- **Konteks Struktural**:
+  1. Restrukturisasi Tombol Kiri Atas Header (Download & Universal Export):
+     - Membatasi tombol kiri atas pada header hanya untuk tombol `Download` saat video klip lokal belum terunduh (`!isDownloaded`).
+     - Mengubah tombol kiri atas secara dinamis menjadi tombol `Export` (`<Film size={18} />`) setelah video klip selesai diunduh (`isDownloaded`), mencegah tabrakan visual dengan rentang waktu di tengah.
+     - Menghubungkan tombol Export dengan `burnClipSubtitles` (FFmpeg) untuk mengekspor klip dengan subtitle tertempel permanen secara dinamis berdasarkan konfigurasi yang aktif.
+  2. Implementasi Baris Pemilih Mode Editor (Row 2 - Mode Switcher Toolbar):
+     - Memindahkan toggle editor subtitle dari kiri atas header ke baris pemilih mode tersendiri tepat di bawah baris header kontrol.
+     - Menyediakan tombol pemilih mode `Subtitle` dan `Template` (siap untuk penambahan mode lain seperti Audio).
+     - Mengatur status default mode editor tertutup (`null`) sehingga antarmuka tetap bersih saat pertama kali membuka klip.
+  3. Relokasi Tombol Generate Subtitle ke Toolbar Aksi Subtitle:
+     - Memindahkan tombol `Globe` (Generate Subtitle YouTube) dari header ke sisi kiri baris aksi subtitle (`cueActionsRow`), tepat di sebelah kiri tombol `+` (tambah manual).
+     - Pengguna dapat langsung menambah subtitle manual atau men-generate subtitle dari YouTube tanpa perlu tombol tambahan di header utama.
+- **Perubahan Kode Penting**:
+  - [mobile/src/components/feed/FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx):
+    - Mengganti tombol header kiri menjadi `Download` saat `!isDownloaded` dan `Film` (Export) saat `isDownloaded`.
+    - Menghapus tombol `Globe` dan toggle `<Subtitles />` dari header row.
+    - Menambahkan `editorModeRow` dengan tombol toggle `Subtitle` dan `Template` di bawah header row saat `isDownloaded`.
+    - Merelokasi tombol `Globe` ke `leftCueButtonsGroup` sebelum tombol `+`.
+    - Menambahkan `styles.exportBtn`, `styles.editorModeRow`, `styles.modeToggleBtn`, dan `styles.templateModeContainer`.
+  - [mobile/src/hooks/useClipSubtitle.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipSubtitle.ts):
+    - Mengintegrasikan `isExportingSubtitle` dan `handleExportSubtitledVideo` yang memanggil `burnClipSubtitles` via FFmpeg.
+  - [mobile/src/components/FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
+    - Mengelola state `activeEditorMode` dan menghubungkan `isExportingSubtitle` serta `handleExportSubtitledVideo` ke `FeedTopControls`.
+
+## [dcc6a59] - Minimize Subtitle Editor UI Elements, Toolbar Action Buttons, and Modal Forms
 - **Konteks Struktural**:
   1. Simplifikasi Toolbar Action Buttons (Mengurangi Kepadatan Visual & Tabrakan UI):
      - Mengubah tombol tambah cue manual `+ Subtitle` menjadi tombol icon murni berukuran 32x32 pixel (`<Plus size={16} />`), menghilangkan teks `+ Subtitle` dan redundansi simbol ganda.

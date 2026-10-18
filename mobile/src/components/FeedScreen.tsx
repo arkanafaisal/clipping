@@ -14,7 +14,7 @@ import {
 } from '../services/api';
 import { ToastManager } from './Toast';
 import { CookiesModal } from './CookiesModal';
-import { FeedTopControls } from './feed/FeedTopControls';
+import { FeedTopControls, EditorMode } from './feed/FeedTopControls';
 import { FeedPlaybackControls } from './feed/FeedPlaybackControls';
 import { FeedClipCarousel } from './feed/FeedClipCarousel';
 import { SubtitleOverlay } from './feed/SubtitleOverlay';
@@ -178,6 +178,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     selectedCueId,
     setSelectedCueId,
     isFetchingSubtitles,
+    isExportingSubtitle,
     subtitlePosition,
     handleUpdateSubtitlePosition,
     handleAddCue,
@@ -185,6 +186,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     handleShiftCueTime,
     handleDeleteCue,
     handleFetchSubtitles,
+    handleExportSubtitledVideo,
   } = useClipSubtitle({
     videoId,
     activeClip,
@@ -192,6 +194,12 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     onSeek: (timeSec) => handleSeekRelative(timeSec, true),
     onRateLimit: () => setCookiesModalVisible(true),
   });
+
+  const [activeEditorMode, setActiveEditorMode] = useState<EditorMode>(null);
+
+  useEffect(() => {
+    setActiveEditorMode(null);
+  }, [activeClip?.id]);
 
   useEffect(() => {
     setCookiesModalVisibleRef.current = setCookiesModalVisible;
@@ -239,6 +247,10 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
         currentClipTime={currentClipTime}
         isDownloaded={Boolean(downloadedClips[activeClip.id])}
         isDownloading={Boolean(downloadingClips[activeClip.id])}
+        isExporting={isExportingSubtitle}
+        onExportClip={handleExportSubtitledVideo}
+        activeEditorMode={activeEditorMode}
+        onSelectEditorMode={setActiveEditorMode}
         downloadProgressInfo={downloadProgress[activeClip.id]}
         hasSubtitles={subtitles.length > 0}
         isSubtitleVisible={isSubtitleVisible}

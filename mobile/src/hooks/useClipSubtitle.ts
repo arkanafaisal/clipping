@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import * as FileSystem from 'expo-file-system';
 import {
   ClipItem,
   SubtitleCue,
@@ -9,6 +10,11 @@ import {
   sliceCuesForClip,
   normalizeSingleTrackCues,
   isRateLimitOrRestrictedError,
+  burnClipSubtitles,
+  getClipOutputFilePath,
+  getClipInternalOutputFilePath,
+  getSubtitledClipOutputFilePath,
+  ClipSubtitleData,
 } from '../services/api';
 import { ToastManager } from '../components/Toast';
 
@@ -32,6 +38,7 @@ export function useClipSubtitle({
   const [isSubtitleVisible, setIsSubtitleVisible] = useState<boolean>(true);
   const [selectedCueId, setSelectedCueId] = useState<string | null>(null);
   const [isFetchingSubtitles, setIsFetchingSubtitles] = useState<boolean>(false);
+  const [isExportingSubtitle, setIsExportingSubtitle] = useState<boolean>(false);
   const [subtitlePosition, setSubtitlePosition] = useState<{ x: number; y: number }>({ x: 50, y: 85 });
 
   const internalSubtitlesRef = useRef<SubtitleCue[]>(subtitles);
@@ -321,6 +328,108 @@ export function useClipSubtitle({
     [activeClip]
   );
 
+  // Ekspor klip baru dengan subtitle tertempel permanen via FFmpeg
+  const handleExportSubtitledVideo = useCallback(async () => {
+    if (!activeClip || !activeClip.videoId) return;
+
+    const currentCues = internalSubtitlesRef.current;
+    if (!currentCues || currentCues.length === 0) {
+      ToastManager.show({
+        type: 'info',
+        title: 'Subtitle Kosong',
+        message: 'Klip ini belum memiliki subtitle untuk diekspor.',
+        duration: 3000,
+      });
+      return;
+    }
+
+    // Periksa file klip video sumber di shared storage maupun internal sandbox
+    const sharedTarget = getClipOutputFilePath(activeClip.videoId, activeClip.start, activeClip.end);
+    const internalTarget = getClipInternalOutputFilePath(activeClip.videoId, activeClip.start, activeClip.end);
+
+    let inputVideoPath = '';
+    try {
+      const sharedInfo = await FileSystem.getInfoAsync(sharedTarget.fileUri);
+      if (sharedInfo.exists) {
+        inputVideoPath = sharedTarget.nativePath;
+      } else {
+        const internalInfo = await FileSystem.getInfoAsync(internalTarget.fileUri);
+        if (internalInfo.exists) {
+          inputVideoPath = internalTarget.nativePath;
+        }
+      }
+    } catch {}
+
+    if (!inputVideoPath) {
+      ToastManager.show({
+        type: 'error',
+        title: 'Video Belum Diunduh',
+        message: 'File klip lokal tidak ditemukan. Silakan unduh klip terlebih dahulu.',
+        duration: 4000,
+      });
+      return;
+    }
+
+    setIsExportingSubtitle(true);
+    ToastManager.show({
+      type: 'info',
+      title: 'Mengekspor Subtitle',
+      message: 'Sedang menempelkan subtitle ke video via FFmpeg...',
+      duration: 3500,
+    });
+
+    try {
+      const targetOutput = getSubtitledClipOutputFilePath(
+        activeClip.videoId,
+        activeClip.start,
+        activeClip.end
+      );
+
+      const subtitleData: ClipSubtitleData = {
+        videoId: activeClip.videoId,
+        start: activeClip.start,
+        end: activeClip.end,
+        lang: 'id',
+        style: {
+          ...DEFAULT_SUBTITLE_STYLE,
+          positionX: subtitlePosRef.current.x,
+          positionY: subtitlePosRef.current.y,
+        },
+        cues: currentCues,
+        updatedAt: Date.now(),
+      };
+
+      const result = await burnClipSubtitles({
+        videoId: activeClip.videoId,
+        start: activeClip.start,
+        end: activeClip.end,
+        inputVideoPath,
+        outputVideoPath: targetOutput.nativePath,
+        subtitleData,
+        duration: activeClip.end - activeClip.start,
+      });
+
+      const filename = result.outputPath.split(/[/\\]/).pop() || 'video';
+      ToastManager.show({
+        type: 'success',
+        title: 'Ekspor Berhasil!',
+        message: `Tersimpan: ${filename}`,
+        duration: 4000,
+      });
+    } catch (err: any) {
+      ToastManager.show({
+        type: 'error',
+        title: 'Ekspor Gagal',
+        message: err.message || 'Gagal menempelkan subtitle ke video.',
+        rawError: err.rawError,
+        errorCode: err.code,
+        duration: 5000,
+      });
+    } finally {
+      setIsExportingSubtitle(false);
+    }
+  }, [activeClip]);
+
   return {
     subtitles,
     setSubtitles,
@@ -331,6 +440,7 @@ export function useClipSubtitle({
     selectedCueId,
     setSelectedCueId,
     isFetchingSubtitles,
+    isExportingSubtitle,
     subtitlePosition,
     handleUpdateSubtitlePosition,
     handleAddCue,
@@ -338,6 +448,7 @@ export function useClipSubtitle({
     handleShiftCueTime,
     handleDeleteCue,
     handleFetchSubtitles,
+    handleExportSubtitledVideo,
     subtitlesRef,
   };
 }

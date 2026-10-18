@@ -21,6 +21,8 @@ import {
   Globe,
   Clock,
   Move,
+  Film,
+  Layout,
 } from 'lucide-react-native';
 import { ClipItem, SubtitleCue } from '../../services/api';
 import { formatTimeWithMs, formatDisplayTime } from './timeUtils';
@@ -59,11 +61,14 @@ const SubtitleCuePill: React.FC<SubtitleCuePillProps> = React.memo(
   }
 );
 
+export type EditorMode = 'subtitle' | 'template' | null;
+
 export interface FeedTopControlsProps {
   activeClip: ClipItem;
   currentClipTime: number;
   isDownloaded: boolean;
   isDownloading: boolean;
+  isExporting?: boolean;
   downloadProgressInfo?: { stage: string; code: string; percent: number };
   hasSubtitles: boolean;
   isSubtitleVisible: boolean;
@@ -71,6 +76,9 @@ export interface FeedTopControlsProps {
   selectedCueId: string | null;
   isFetchingSubtitles: boolean;
   subtitlePosition: { x: number; y: number };
+  activeEditorMode?: EditorMode;
+  onSelectEditorMode?: (mode: EditorMode) => void;
+  onExportClip?: () => void;
   onUpdateSubtitlePosition: (x: number, y: number) => void;
   activeTimeEdit: 'start' | 'end' | null;
   tempTimeValue: string;
@@ -98,6 +106,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
   currentClipTime,
   isDownloaded,
   isDownloading,
+  isExporting,
   downloadProgressInfo,
   hasSubtitles,
   isSubtitleVisible,
@@ -105,6 +114,9 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
   selectedCueId,
   isFetchingSubtitles,
   subtitlePosition,
+  activeEditorMode,
+  onSelectEditorMode,
+  onExportClip,
   onUpdateSubtitlePosition,
   activeTimeEdit,
   tempTimeValue,
@@ -136,7 +148,23 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
   const [showPositionModal, setShowPositionModal] = useState<boolean>(false);
   const [tempPosX, setTempPosX] = useState<string>('50');
   const [tempPosY, setTempPosY] = useState<string>('85');
-  const [isSubtitleEditorOpen, setIsSubtitleEditorOpen] = useState<boolean>(false);
+  const [internalEditorMode, setInternalEditorMode] = useState<EditorMode>(null);
+  const currentMode = activeEditorMode !== undefined ? activeEditorMode : internalEditorMode;
+  const setCurrentMode = onSelectEditorMode || setInternalEditorMode;
+  const isSubtitleEditorOpen = currentMode === 'subtitle';
+
+  useEffect(() => {
+    setInternalEditorMode(null);
+  }, [activeClip.id]);
+
+  const handleToggleEditorMode = (mode: 'subtitle' | 'template') => {
+    const next = currentMode === mode ? null : mode;
+    setCurrentMode(next);
+    if (next !== 'subtitle') {
+      onSelectCue(null);
+    }
+  };
+
   const [startMin, setStartMin] = useState<string>('00');
   const [startSec, setStartSec] = useState<string>('00');
   const [startMs, setStartMs] = useState<string>('000');
@@ -333,7 +361,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
   return (
     <View style={styles.topSection}>
       <View style={styles.timeRangeRow}>
-        {/* SISI KIRI: Mode Done -> Download / Get Subtitle, Mode Normal -> Trash */}
+        {/* SISI KIRI: Mode Done -> Download / Ekspor, Mode Normal -> Trash */}
         <View style={styles.leftActionGroup}>
           {activeClip.status === 'done' ? (
             <View style={styles.doneLeftGroup}>
@@ -362,49 +390,25 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                 </Pressable>
               )}
 
-              {/* Tombol Get Subtitle di kiri atas: HANYA muncul saat track kosong (subtitles.length === 0) */}
-              {subtitles.length === 0 && (
+              {/* Tombol Ekspor (jika sudah terunduh) */}
+              {isDownloaded && (
                 <Pressable
                   style={({ pressed }) => [
                     styles.statusBtn,
-                    styles.getSubtitleBtn,
+                    styles.exportBtn,
+                    isExporting && styles.exportBtnActive,
                     pressed && { opacity: 0.7 },
                   ]}
-                  onPress={() => setShowLangModal(true)}
-                  disabled={isFetchingSubtitles}
+                  onPress={onExportClip}
+                  disabled={isExporting}
                 >
-                  {isFetchingSubtitles ? (
+                  {isExporting ? (
                     <ActivityIndicator size="small" color="#38bdf8" />
                   ) : (
-                    <Globe size={18} color="#38bdf8" />
+                    <Film size={18} color="#38bdf8" />
                   )}
                 </Pressable>
               )}
-
-              {/* Tombol Toggle Mode Subtitle Editor */}
-              <Pressable
-                style={({ pressed }) => [
-                  styles.statusBtn,
-                  isSubtitleEditorOpen
-                    ? styles.subtitleEditorBtnActive
-                    : styles.subtitleEditorBtnInactive,
-                  pressed && { opacity: 0.7 },
-                ]}
-                onPress={() => {
-                  setIsSubtitleEditorOpen((prev) => {
-                    const next = !prev;
-                    if (!next) {
-                      onSelectCue(null);
-                    }
-                    return next;
-                  });
-                }}
-              >
-                <Subtitles
-                  size={18}
-                  color={isSubtitleEditorOpen ? '#ffffff' : 'rgba(255, 255, 255, 0.7)'}
-                />
-              </Pressable>
             </View>
           ) : (
             <Pressable
@@ -583,79 +587,146 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
             </View>
           </View>
         </>
-      ) : isSubtitleEditorOpen ? (
-        /* MODE DONE: Subtitle Mini Track & Inline Editor Layer */
-        <View style={styles.subtitleLayerSection}>
-          {/* 1. HORIZONTAL MINI TRACK (100% width, tap/drag to scrub pointer & select cue) */}
-          <View
-            style={styles.miniTrackWrapper}
-            onLayout={(e) => setTrackLayoutWidth(e.nativeEvent.layout.width)}
-            {...trackPanResponder.panHandlers}
-          >
-            <View style={styles.miniTrackBackground} pointerEvents="none">
-              {/* Needle Playhead (Merah kontras seperti scrubber bawah) */}
-              <View
+      ) : isDownloaded ? (
+        <>
+          {/* Row 2: Mode Switcher Row */}
+          <View style={styles.editorModeRow}>
+            {/* Mode 1: Subtitle */}
+            <Pressable
+              style={({ pressed }) => [
+                styles.modeToggleBtn,
+                currentMode === 'subtitle' && styles.modeToggleBtnActive,
+                pressed && { opacity: 0.7 },
+              ]}
+              onPress={() => handleToggleEditorMode('subtitle')}
+            >
+              <Subtitles
+                size={14}
+                color={currentMode === 'subtitle' ? '#38bdf8' : 'rgba(255, 255, 255, 0.7)'}
+              />
+              <Text
                 style={[
-                  styles.playheadNeedle,
-                  {
-                    left:
-                      clipDuration > 0
-                        ? Math.max(
-                            0,
-                            Math.min(
-                              trackLayoutWidth - 2.5,
-                              (currentClipTime / clipDuration) * trackLayoutWidth
-                            )
-                          )
-                        : 0,
-                  },
+                  styles.modeToggleText,
+                  currentMode === 'subtitle' && styles.modeToggleTextActive,
                 ]}
               >
-                <View style={styles.playheadCap} />
-              </View>
+                Subtitle
+              </Text>
+            </Pressable>
 
-              {/* Subtitle Cue Pills (Visual timeline blocks) */}
-              {subtitles.map((cue, index) => (
-                <SubtitleCuePill
-                  key={cue.id}
-                  cue={cue}
-                  index={index}
-                  clipDuration={clipDuration}
-                  trackWidth={trackLayoutWidth}
-                  isSelected={selectedCueId === cue.id}
-                />
-              ))}
-
-              {subtitles.length === 0 && (
-                <View style={styles.emptyTrackHint}>
-                  <Text style={styles.emptyTrackText}>Belum ada subtitle track</Text>
-                </View>
-              )}
-            </View>
+            {/* Mode 2: Template */}
+            <Pressable
+              style={({ pressed }) => [
+                styles.modeToggleBtn,
+                currentMode === 'template' && styles.modeToggleBtnActive,
+                pressed && { opacity: 0.7 },
+              ]}
+              onPress={() => handleToggleEditorMode('template')}
+            >
+              <Layout
+                size={14}
+                color={currentMode === 'template' ? '#38bdf8' : 'rgba(255, 255, 255, 0.7)'}
+              />
+              <Text
+                style={[
+                  styles.modeToggleText,
+                  currentMode === 'template' && styles.modeToggleTextActive,
+                ]}
+              >
+                Template
+              </Text>
+            </Pressable>
           </View>
 
-          {/* 2. ACTION & EDITOR ROW */}
-          <View style={styles.cueActionsRow}>
-            {/* SISI KIRI: Tombol Tambah Manual & Tombol Posisi Global (X, Y) */}
-            <View style={styles.leftCueButtonsGroup}>
-              <Pressable
-                style={({ pressed }) => [styles.addCueBtn, pressed && { opacity: 0.7 }]}
-                onPress={() => onAddCue(currentClipTime)}
-                hitSlop={6}
+          {/* Row 3: Space Editor untuk Mode yang Aktif */}
+          {currentMode === 'subtitle' && (
+            <View style={styles.subtitleLayerSection}>
+              {/* 1. HORIZONTAL MINI TRACK (100% width, tap/drag to scrub pointer & select cue) */}
+              <View
+                style={styles.miniTrackWrapper}
+                onLayout={(e) => setTrackLayoutWidth(e.nativeEvent.layout.width)}
+                {...trackPanResponder.panHandlers}
               >
-                <Plus size={16} color="#38bdf8" />
-              </Pressable>
+                <View style={styles.miniTrackBackground} pointerEvents="none">
+                  {/* Needle Playhead (Merah kontras seperti scrubber bawah) */}
+                  <View
+                    style={[
+                      styles.playheadNeedle,
+                      {
+                        left:
+                          clipDuration > 0
+                            ? Math.max(
+                                0,
+                                Math.min(
+                                  trackLayoutWidth - 2.5,
+                                  (currentClipTime / clipDuration) * trackLayoutWidth
+                                )
+                              )
+                            : 0,
+                      },
+                    ]}
+                  >
+                    <View style={styles.playheadCap} />
+                  </View>
 
-              <Pressable
-                style={({ pressed }) => [styles.positionBtn, pressed && { opacity: 0.7 }]}
-                onPress={openPositionModal}
-                hitSlop={6}
-              >
-                <Move size={15} color="#38bdf8" />
-              </Pressable>
-            </View>
+                  {/* Subtitle Cue Pills (Visual timeline blocks) */}
+                  {subtitles.map((cue, index) => (
+                    <SubtitleCuePill
+                      key={cue.id}
+                      cue={cue}
+                      index={index}
+                      clipDuration={clipDuration}
+                      trackWidth={trackLayoutWidth}
+                      isSelected={selectedCueId === cue.id}
+                    />
+                  ))}
 
-            {/* SISI KANAN (Dekat jempol): Tombol Icon Edit Teks, Ukuran Font, Hapus */}
+                  {subtitles.length === 0 && (
+                    <View style={styles.emptyTrackHint}>
+                      <Text style={styles.emptyTrackText}>Belum ada subtitle track</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+
+              {/* 2. ACTION & EDITOR ROW */}
+              <View style={styles.cueActionsRow}>
+                {/* SISI KIRI: Tombol Generate Subtitle, Tombol Tambah Manual & Tombol Posisi Global (X, Y) */}
+                <View style={styles.leftCueButtonsGroup}>
+                  {/* Tombol Generate / Ambil Subtitle YouTube (Globe) */}
+                  <Pressable
+                    style={({ pressed }) => [styles.positionBtn, pressed && { opacity: 0.7 }]}
+                    onPress={() => setShowLangModal(true)}
+                    disabled={isFetchingSubtitles}
+                    hitSlop={6}
+                  >
+                    {isFetchingSubtitles ? (
+                      <ActivityIndicator size="small" color="#38bdf8" />
+                    ) : (
+                      <Globe size={15} color="#38bdf8" />
+                    )}
+                  </Pressable>
+
+                  {/* Tombol Tambah Manual (+) */}
+                  <Pressable
+                    style={({ pressed }) => [styles.addCueBtn, pressed && { opacity: 0.7 }]}
+                    onPress={() => onAddCue(currentClipTime)}
+                    hitSlop={6}
+                  >
+                    <Plus size={16} color="#38bdf8" />
+                  </Pressable>
+
+                  {/* Tombol Posisi Global (Move) */}
+                  <Pressable
+                    style={({ pressed }) => [styles.positionBtn, pressed && { opacity: 0.7 }]}
+                    onPress={openPositionModal}
+                    hitSlop={6}
+                  >
+                    <Move size={15} color="#38bdf8" />
+                  </Pressable>
+                </View>
+
+                {/* SISI KANAN (Dekat jempol): Tombol Icon Edit Teks, Ukuran Font, Hapus */}
             {selectedCue ? (
               <View style={styles.cueEditorActionIcons}>
                 {/* 1. Edit Teks (Buka Modal Multiline) */}
@@ -707,7 +778,18 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
             ) : null}
           </View>
         </View>
-      ) : null}
+      )}
+
+      {/* Space Editor untuk Mode Template */}
+      {currentMode === 'template' && (
+        <View style={styles.templateModeContainer}>
+          <Text style={styles.templateModeHint}>
+            Mode Template: Facecam di atas, gameplay di bawah
+          </Text>
+        </View>
+      )}
+    </>
+  ) : null}
 
       {/* MODAL 1: Language Selection Modal */}
       <Modal
@@ -1376,25 +1458,59 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.2,
   },
-  getSubtitleBtn: {
+  exportBtn: {
     backgroundColor: 'rgba(56, 189, 248, 0.12)',
     borderWidth: 1,
     borderColor: 'rgba(56, 189, 248, 0.35)',
   },
-  subtitleEditorBtnInactive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.18)',
-  },
-  subtitleEditorBtnActive: {
-    backgroundColor: '#0284c7',
-    borderWidth: 1,
+  exportBtnActive: {
+    backgroundColor: 'rgba(56, 189, 248, 0.25)',
     borderColor: '#38bdf8',
-    shadowColor: '#38bdf8',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 6,
-    elevation: 3,
+  },
+  editorModeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  modeToggleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  modeToggleBtnActive: {
+    backgroundColor: 'rgba(56, 189, 248, 0.16)',
+    borderColor: '#38bdf8',
+  },
+  modeToggleText: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  modeToggleTextActive: {
+    color: '#38bdf8',
+    fontWeight: '700',
+  },
+  templateModeContainer: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: 'rgba(0, 0, 0, 0.25)',
+  },
+  templateModeHint: {
+    color: 'rgba(255, 255, 255, 0.5)',
+    fontSize: 11,
+    fontStyle: 'italic',
+    textAlign: 'center',
   },
   trashBtnInactive: {
     backgroundColor: 'rgba(239, 68, 68, 0.1)',
