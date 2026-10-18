@@ -14,7 +14,24 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Unify Video Player into Single Seamless Canvas Wrapper with Outer-Canvas Relative Subtitles
+## [Unreleased] - Adapt Gameplay Viewport to 4:3 Ratio with Pure 16:9 Video Source Cropping when Facecam Active
+- **Konteks Struktural**:
+  1. Penyesuaian Viewport Gameplay 4:3 Otomatis saat Facecam Aktif:
+     - Mengubah aspek rasio kontainer viewport gameplay (`mainVideoBox`) secara dinamis menjadi `4:3` khusus saat elemen facecam aktif (`isFacecamActive`).
+     - Jika facecam dinonaktifkan (baik mode landscape murni maupun portrait dengan banner konteks saja), rasio viewport gameplay otomatis kembali ke `16:9`.
+  2. Pemotongan Non-Destruktif Sumber Video 16:9 (*Pure 16:9 Source Cropping*):
+     - Mempertahankan video asli 16:9 tanpa *stretch* maupun distorsi, dengan menghitung `baseVideoWidth = h * (16 / 9)` di mana `h` adalah tinggi viewport 4:3 (`w * 0.75`).
+     - Sisi kiri dan kanan video dipotong rapi secara terpusat (`left = (w - scaledWidth) / 2`) via `overflow: 'hidden'`, dan tetap mendukung kontrol pan horizontal (`cropX`) serta zoom vertikal/horizontal (`cropY`, `zoom`).
+  3. Struktur Tumpukan Vertikal Teratas (*Top-Aligned Vertical Stacking*):
+     - Memanfaatkan perataan atas kanvas portrait (`justifyContent: 'flex-start'`) sehingga banner konteks, facecam (4:3), dan gameplay (4:3) tersusun rapi mengisi area atas kanvas.
+     - Area bawah yang tersisa dibiarkan kosong secara alami (menampilkan latar belakang hitam kanvas) sebagai ruang aman (*safe margin*) navigasi dan deskripsi video platform tanpa memerlukan komponen overlay pemblokir tambahan.
+- **Perubahan Kode Penting**:
+  - [mobile/src/components/FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
+    - Mendefinisikan flag `isFacecamActive = isPortrait && templateConfig.facecam.enabled`.
+    - Memperbarui hook memo `mainVideoStyle` untuk mengkalkulasi dimensi dasar 16:9 terhadap kontainer 4:3 saat facecam aktif.
+    - Menambahkan gaya `mainVideoBox43` (`aspectRatio: 4 / 3`) dan `mainVideoBox169` (`aspectRatio: 16 / 9`) pada kontainer `mainVideoBox`.
+
+## [79f7cfa] - Unify Video Player into Single Seamless Canvas Wrapper with Outer-Canvas Relative Subtitles
 - **Konteks Struktural**:
   1. Penyatuan Kontainer Kanvas Tunggal (*Unified Canvas Wrapper*):
      - Menghapus percabangan pohon JSX ganda yang sebelumnya menduplikasi komponen video player dan subtitle overlay untuk mode 9:16 portrait dan 16:9 landscape.

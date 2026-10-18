@@ -242,13 +242,40 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     };
   }, [templateConfig.facecam, facecamLayout]);
 
+  const isFacecamActive = isPortrait && templateConfig.facecam.enabled;
+
   const mainVideoStyle = useMemo(() => {
     const zoom = Math.max(1.0, templateConfig.mainVideo.zoom || 1.0);
     const cropX = Math.max(0, Math.min(100, templateConfig.mainVideo.cropX ?? 50));
     const cropY = Math.max(0, Math.min(100, templateConfig.mainVideo.cropY ?? 50));
     const w = mainVideoLayout.width || 280;
-    const h = mainVideoLayout.height || (w * (9 / 16));
 
+    if (isFacecamActive) {
+      // Saat facecam aktif: viewport gameplay berasio 4:3 (h = w * 0.75)
+      // Video sumber tetap murni 16:9 dengan baseVideoWidth = h * (16 / 9)
+      // Sisi kiri & kanan dipotong rapi via container overflow hidden tanpa mengubah aspek rasio asli video
+      const h = mainVideoLayout.height || (w * 0.75);
+      const baseVideoWidth = h * (16 / 9);
+      const scaledWidth = baseVideoWidth * zoom;
+      const scaledHeight = h * zoom;
+
+      const maxShiftX = Math.max(0, (scaledWidth - w) / 2);
+      const maxShiftY = Math.max(0, (scaledHeight - h) / 2);
+
+      const left = (w - scaledWidth) / 2 + ((50 - cropX) / 50) * maxShiftX;
+      const top = (h - scaledHeight) / 2 + ((50 - cropY) / 50) * maxShiftY;
+
+      return {
+        position: 'absolute' as const,
+        width: scaledWidth,
+        height: scaledHeight,
+        left,
+        top,
+      };
+    }
+
+    // Default 16:9 (mode landscape murni atau mode portrait dengan banner teks saja)
+    const h = mainVideoLayout.height || (w * (9 / 16));
     const scaledWidth = w * zoom;
     const scaledHeight = h * zoom;
 
@@ -265,7 +292,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
       left,
       top,
     };
-  }, [templateConfig.mainVideo, mainVideoLayout]);
+  }, [templateConfig.mainVideo, isFacecamActive, mainVideoLayout]);
 
   useEffect(() => {
     setActiveEditorMode(null);
@@ -415,11 +442,15 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
                 </View>
               )}
 
-              {/* 3. Viewport Main Video Gameplay (Fills remaining height) */}
+              {/* 3. Viewport Main Video Gameplay (4:3 saat Facecam aktif, 16:9 saat Facecam nonaktif) */}
               <View
                 style={[
                   styles.mainVideoBox,
-                  isPortrait ? styles.mainVideoBoxPortrait : styles.mainVideoBoxLandscape,
+                  !isPortrait
+                    ? styles.mainVideoBoxLandscape
+                    : isFacecamActive
+                    ? styles.mainVideoBox43
+                    : styles.mainVideoBox169,
                   activeEditorMode === 'template' && styles.elementHelperBorder,
                 ]}
                 collapsable={false}
@@ -598,13 +629,17 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
     zIndex: 5,
   },
-  mainVideoBoxPortrait: {
-    width: '100%',
-    flex: 1,
-  },
   mainVideoBoxLandscape: {
     width: '100%',
     height: '100%',
+  },
+  mainVideoBox43: {
+    width: '100%',
+    aspectRatio: 4 / 3,
+  },
+  mainVideoBox169: {
+    width: '100%',
+    aspectRatio: 16 / 9,
   },
   fillVideo: {
     width: '100%',
