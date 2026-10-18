@@ -14,7 +14,22 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Support Main Gameplay Transform in 16:9 Landscape and Seamless Canvas Persistence
+## [Unreleased] - Implement Layout Boundary-Clamped Transforms to Eliminate Viewport Black Cutoff
+- **Konteks Struktural**:
+  1. Penghapusan Celah Hitam (*Black Cutoff*) pada Sudut Viewport Facecam & Gameplay:
+     - Mengidentifikasi akar masalah visual di mana pergeseran crop ($X, Y$) ke area sudut (seperti pojok kanan bawah lokasi streamer) menarik tepi video melewati batas kontainer sehingga menampakkan latar hitam kosong.
+     - Menggantikan konstanta offset statis dengan formula pergeseran matematis adaptif berbasis ukuran fisik kontainer aktual (`onLayout`):
+       $$\text{maxShiftX} = \frac{W_{\text{scaled}} - W_{\text{box}}}{2}, \quad \text{maxShiftY} = \frac{H_{\text{scaled}} - H_{\text{box}}}{2}$$
+     - Mengunci tepi luar video (*boundary clamping*) sehingga saat `cropX = 100%` atau `cropY = 100%`, batas tepi video berhimpit presisi dengan batas kontainer tanpa celah hitam sedikitpun.
+  2. Koreksi Urutan Transformasi Matriks React Native:
+     - Menempatkan `translateX` dan `translateY` sebelum `scale` di dalam array transformasi gaya untuk mencegah pergeseran teramplifikasi berkali-kali lipat oleh faktor perkalian skala zoom native.
+- **Perubahan Kode Penting**:
+  - [mobile/src/components/FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
+    - Menambahkan state dimensi kontainer `facecamLayout` dan `mainVideoLayout`.
+    - Membuat memo helper `facecamTransform` dan `mainVideoTransform` dengan perhitungan batas aman (*safe boundary clamping*).
+    - Memasang listener `onLayout` pada `facecamBox`, `mainVideoBox`, dan `videoBox169`.
+
+## [9a517ab] - Support Main Gameplay Transform in 16:9 Landscape and Seamless Canvas Persistence
 - **Konteks Struktural**:
   1. Penerapan Transform Zoom & Crop pada Mode Landscape 16:9:
      - Memastikan konfigurasi zoom dan crop pada `templateConfig.mainVideo` tetap berlaku secara visual pada pemutar video landscape 16:9 (`videoBox169`) ketika elemen Konteks dan Facecam tidak diaktifkan.

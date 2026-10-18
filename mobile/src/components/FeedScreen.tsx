@@ -211,6 +211,60 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     activeClip,
   });
 
+  const [facecamLayout, setFacecamLayout] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
+  const [mainVideoLayout, setMainVideoLayout] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
+
+  // Transform dinamis yang terkunci rapi di batas frame tanpa pernah menampakkan celah hitam
+  const facecamTransform = useMemo(() => {
+    const zoom = Math.max(1.0, templateConfig.facecam.zoom || 2.0);
+    const cropX = Math.max(0, Math.min(100, templateConfig.facecam.cropX ?? 50));
+    const cropY = Math.max(0, Math.min(100, templateConfig.facecam.cropY ?? 50));
+    const w = facecamLayout.width || 280;
+    const h = facecamLayout.height || (w * 0.75);
+
+    // Pada kontainer 4:3 dengan video 16:9 (contentFit="cover"),
+    // lebar dasar video = h * (16 / 9) = w * (4 / 3)
+    const videoBaseWidth = w * (4 / 3);
+    const videoScaledWidth = videoBaseWidth * zoom;
+    const videoScaledHeight = h * zoom;
+
+    const maxShiftX = Math.max(0, (videoScaledWidth - w) / 2);
+    const maxShiftY = Math.max(0, (videoScaledHeight - h) / 2);
+
+    const translateX = ((50 - cropX) / 50) * maxShiftX;
+    const translateY = ((50 - cropY) / 50) * maxShiftY;
+
+    return [
+      { translateX },
+      { translateY },
+      { scale: zoom },
+    ];
+  }, [templateConfig.facecam, facecamLayout]);
+
+  const mainVideoTransform = useMemo(() => {
+    const zoom = Math.max(1.0, templateConfig.mainVideo.zoom || 1.0);
+    const cropX = Math.max(0, Math.min(100, templateConfig.mainVideo.cropX ?? 50));
+    const cropY = Math.max(0, Math.min(100, templateConfig.mainVideo.cropY ?? 50));
+    const w = mainVideoLayout.width || 280;
+    const h = mainVideoLayout.height || (w * (9 / 16));
+
+    // Pada kontainer 16:9 dengan video 16:9 (contentFit="cover")
+    const videoScaledWidth = w * zoom;
+    const videoScaledHeight = h * zoom;
+
+    const maxShiftX = Math.max(0, (videoScaledWidth - w) / 2);
+    const maxShiftY = Math.max(0, (videoScaledHeight - h) / 2);
+
+    const translateX = ((50 - cropX) / 50) * maxShiftX;
+    const translateY = ((50 - cropY) / 50) * maxShiftY;
+
+    return [
+      { translateX },
+      { translateY },
+      { scale: zoom },
+    ];
+  }, [templateConfig.mainVideo, mainVideoLayout]);
+
   useEffect(() => {
     setActiveEditorMode(null);
   }, [activeClip?.id]);
@@ -343,17 +397,17 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
                       activeEditorMode === 'template' && styles.elementHelperBorder,
                     ]}
                     collapsable={false}
+                    onLayout={(e) => {
+                      const { width, height } = e.nativeEvent.layout;
+                      if (width > 0 && height > 0) {
+                        setFacecamLayout({ width, height });
+                      }
+                    }}
                   >
                     <VideoView
                       style={[
                         styles.fillVideo,
-                        {
-                          transform: [
-                            { scale: templateConfig.facecam.zoom },
-                            { translateX: ((50 - templateConfig.facecam.cropX) / 100) * 160 },
-                            { translateY: ((50 - templateConfig.facecam.cropY) / 100) * 120 },
-                          ],
-                        },
+                        { transform: facecamTransform },
                       ]}
                       player={facecamPlayer}
                       contentFit="cover"
@@ -369,17 +423,17 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
                     activeEditorMode === 'template' && styles.elementHelperBorder,
                   ]}
                   collapsable={false}
+                  onLayout={(e) => {
+                    const { width, height } = e.nativeEvent.layout;
+                    if (width > 0 && height > 0) {
+                      setMainVideoLayout({ width, height });
+                    }
+                  }}
                 >
                   <VideoView
                     style={[
                       styles.fillVideo,
-                      {
-                        transform: [
-                          { scale: templateConfig.mainVideo.zoom },
-                          { translateX: ((50 - templateConfig.mainVideo.cropX) / 100) * 140 },
-                          { translateY: ((50 - templateConfig.mainVideo.cropY) / 100) * 100 },
-                        ],
-                      },
+                      { transform: mainVideoTransform },
                     ]}
                     player={player}
                     contentFit="cover"
@@ -413,18 +467,18 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
               activeEditorMode === 'template' && styles.canvasHelperBorder,
             ]}
             collapsable={false}
+            onLayout={(e) => {
+              const { width, height } = e.nativeEvent.layout;
+              if (width > 0 && height > 0) {
+                setMainVideoLayout({ width, height });
+              }
+            }}
           >
             {streamUrl || (activeClip.status === 'done' && downloadedClips[activeClip.id]) ? (
               <VideoView
                 style={[
                   styles.videoPlayer,
-                  {
-                    transform: [
-                      { scale: templateConfig.mainVideo.zoom },
-                      { translateX: ((50 - templateConfig.mainVideo.cropX) / 100) * 140 },
-                      { translateY: ((50 - templateConfig.mainVideo.cropY) / 100) * 100 },
-                    ],
-                  },
+                  { transform: mainVideoTransform },
                 ]}
                 player={player}
                 contentFit="cover"
