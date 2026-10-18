@@ -5,6 +5,7 @@ export interface SubtitleOverlayProps {
   isVisible: boolean;
   subtitleText: string;
   fontSize?: number;
+  bottomOffset?: number;
 }
 
 // 8 arah offset untuk membentuk outline/border solid di sekeliling teks tanpa celah
@@ -23,13 +24,17 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
   isVisible,
   subtitleText,
   fontSize = 14,
+  bottomOffset = 12,
 }) => {
   if (!isVisible || !subtitleText) return null;
 
   const lineHeight = Math.round(fontSize * 1.35);
 
   return (
-    <View style={styles.subtitleOverlayContainer} pointerEvents="none">
+    <View
+      style={[styles.subtitleOverlayContainer, { bottom: bottomOffset }]}
+      pointerEvents="none"
+    >
       <View style={styles.textContainer}>
         {/* Layer Border / Stroke Hitam Pekat (8 arah) */}
         {STROKE_OFFSETS.map((offset, index) => (
@@ -71,16 +76,15 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
 const styles = StyleSheet.create({
   subtitleOverlayContainer: {
     position: 'absolute',
-    bottom: 28,
-    left: 16,
-    right: 16,
+    left: 12,
+    right: 12,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 10,
   },
   textContainer: {
     position: 'relative',
-    maxWidth: '92%',
+    maxWidth: '94%',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'transparent',

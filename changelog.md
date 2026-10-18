@@ -14,7 +14,26 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Add Subtitle Editor Toggle in Top-Left Controls and Suspend Playback Listening When Closed
+## [Unreleased] - Dock Video Player Directly Above Bottom Controls in Fixed 16:9 Landscape Frame and Align Subtitle Position
+- **Konteks Struktural**:
+  1. Frame Video Player Fixed 16:9 Landscape (`videoBox169`):
+     - Mengisolasi rasio aspek pemutar video menjadi fixed 16:9 landscape (`width: '100%'`, `aspectRatio: 16 / 9`, `overflow: 'hidden'`) di dalam [FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx).
+     - Video internal (`<VideoView>`) disetel dengan `contentFit="contain"`. Jika sumber video YouTube berformat portrait (9:16) atau rasio non-standar lainnya, video otomatis menyesuaikan proporsi di dalam frame 16:9 dengan black pillarbox samping dan tidak pernah meluap (overflow) ataupun terpotong ke luar layar.
+  2. Penempatan Rapat ke Atas Kontrol Playback Bawah (`justifyContent: 'flex-end'`):
+     - Mengubah kontainer tengah `playerContainer` agar merapatkan frame video 16:9 persis di atas komponen scrubber dan tombol navigasi pemutar bawah ([FeedPlaybackControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedPlaybackControls.tsx)).
+     - Area kosong di bagian atas antara kontrol atas dan video dibiarkan bersih (`#0a0a0a`), sehingga posisi video player tetap stabil dan tidak melonjak saat baris editor subtitle dibuka atau ditutup.
+  3. Kalibrasi Posisi Subtitle Overlay Relatif terhadap Frame 16:9:
+     - Memindahkan komponen [SubtitleOverlay.tsx](file:///d:/projects/clipping/mobile/src/components/feed/SubtitleOverlay.tsx) ke dalam pembungkus `videoBox169` sehingga sistem koordinat overlay subtitle 100% terkunci dan relatif terhadap frame video 16:9.
+     - Menambahkan prop `bottomOffset` (default `12`) dan memperbarui padding horizontal (`left: 12`, `right: 12`) untuk memastikan teks subtitle berada tepat di area bawah yang presisi, mudah dibaca, dan proporsional terhadap layar video.
+- **Perubahan Kode Penting**:
+  - [mobile/src/components/FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
+    - Membungkus `<VideoView>` dan `<SubtitleOverlay>` di dalam `videoBox169` dengan rasio 16:9 fixed dan `overflow: 'hidden'`.
+    - Mengubah `playerContainer` dengan `justifyContent: 'flex-end'` agar menempel rapat di atas kontrol bawah.
+  - [mobile/src/components/feed/SubtitleOverlay.tsx](file:///d:/projects/clipping/mobile/src/components/feed/SubtitleOverlay.tsx):
+    - Menambahkan prop `bottomOffset` dengan nilai default 12.
+    - Menyesuaikan padding kiri-kanan menjadi 12 dan `maxWidth: '94%'`.
+
+## [d70ef7f] - Add Subtitle Editor Toggle in Top-Left Controls and Suspend Playback Listening When Closed
 - **Konteks Struktural**:
   1. Penambahan Tombol Toggle Mode Editor Subtitle di Kiri Atas:
      - Mengevaluasi posisi needle terhadap array subtitle pada setiap tick video playback secara terus-menerus terasa berat, membebani CPU, dan redundan jika pengguna hanya ingin menonton klip tanpa mengedit subtitle.

@@ -270,28 +270,32 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
 
       {/* 2. VIDEO PLAYER AREA (expo-video) */}
       <View style={styles.playerContainer}>
-        {streamUrl || (activeClip.status === 'done' && downloadedClips[activeClip.id]) ? (
-          <VideoView
-            style={styles.videoPlayer}
-            player={player}
-            contentFit="contain"
-            nativeControls={false}
-          />
-        ) : (
-          <View style={styles.streamPendingBox}>
-            <ActivityIndicator size="small" color="#ef4444" />
-            <Text style={styles.streamPendingText}>
-              Memuat direct stream dari internal server...
-            </Text>
-          </View>
-        )}
+        {/* Frame Video Fixed 16:9 Landscape - Rapat ke UI kontrol bawah */}
+        <View style={styles.videoBox169}>
+          {streamUrl || (activeClip.status === 'done' && downloadedClips[activeClip.id]) ? (
+            <VideoView
+              style={styles.videoPlayer}
+              player={player}
+              contentFit="contain"
+              nativeControls={false}
+            />
+          ) : (
+            <View style={styles.streamPendingBox}>
+              <ActivityIndicator size="small" color="#ef4444" />
+              <Text style={styles.streamPendingText}>
+                Memuat direct stream dari internal server...
+              </Text>
+            </View>
+          )}
 
-        {/* Subtitle Layer 1 (Realtime Non-Destructive Preview) */}
-        <SubtitleOverlay
-          isVisible={isSubtitleVisible}
-          subtitleText={activeSubtitleCue ? activeSubtitleCue.text : activeSubtitleText}
-          fontSize={activeSubtitleCue?.fontSize || 14}
-        />
+          {/* Subtitle Layer 1 (Realtime Non-Destructive Preview diposisikan relatif di dalam frame 16:9) */}
+          <SubtitleOverlay
+            isVisible={isSubtitleVisible}
+            subtitleText={activeSubtitleCue ? activeSubtitleCue.text : activeSubtitleText}
+            fontSize={activeSubtitleCue?.fontSize || 14}
+            bottomOffset={12}
+          />
+        </View>
       </View>
 
       {/* 3. BOTTOM PLAYBACK CONTROLS (Fixed Height) */}
@@ -363,10 +367,19 @@ const styles = StyleSheet.create({
   },
   playerContainer: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: '#0a0a0a',
+    justifyContent: 'flex-end',
     alignItems: 'center',
+    width: '100%',
+  },
+  videoBox169: {
+    width: '100%',
+    aspectRatio: 16 / 9,
+    backgroundColor: '#000000',
+    position: 'relative',
+    overflow: 'hidden',
     justifyContent: 'center',
-    minHeight: 180,
+    alignItems: 'center',
   },
   videoPlayer: {
     width: '100%',
