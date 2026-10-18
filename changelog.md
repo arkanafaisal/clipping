@@ -14,7 +14,20 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Extract useClipPlayer Hook for Video Playback and Controls
+## [Unreleased] - Extract useClipDownload Hook for Background Download Management
+- **Konteks Struktural**:
+  1. Ekstraksi Logika Unduhan Klip ke Hook Terpisah:
+     - Memindahkan seluruh state dan lifecycle proses unduhan klip dari [FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx) ke dalam custom hook [useClipDownload.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipDownload.ts).
+     - Menjaga 100% keselarasan alur logika asli: polling realtime file progress 300ms dari background Python engine (`clip_progress_{clipId}.json`), deteksi otomatis keberadaan file fisik di storage saat klip aktif berstatus 'done', cleanup interval saat unmount, pembaruan status klip ke LocalStorage draft, dan auto-switch playback ke file lokal setelah unduhan selesai.
+     - Menyediakan method dan state terisolasi: `downloadingClips`, `downloadedClips`, `downloadProgress`, `cookiesModalVisible`, `getDownloadProgressLabel`, dan `handleDownloadClip`.
+- **Perubahan Kode Penting**:
+  - [mobile/src/hooks/useClipDownload.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipDownload.ts):
+    - Dibuat baru dengan fungsi hook `useClipDownload` dan interface `UseClipDownloadParams`.
+  - [mobile/src/components/FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
+    - Mengimpor dan mengonsumsi `useClipDownload`.
+    - Menghapus deklarasi state unduhan lokal, poller interval, dan handler `handleDownloadClip`.
+
+## [2687d0f] - Extract useClipPlayer Hook for Video Playback and Controls
 - **Konteks Struktural**:
   1. Ekstraksi Logika Pemutar Video & Navigasi Playback:
      - Memindahkan seluruh state, lifecycle listener video player (`expo-video`), dan debounced seek handler dari [FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx) ke dalam custom hook [useClipPlayer.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipPlayer.ts).
