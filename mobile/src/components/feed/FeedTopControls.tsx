@@ -259,13 +259,27 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
 
   const handleSaveTimeRange = () => {
     if (!selectedCue) return;
-    const sM = parseInt(startMin, 10) || 0;
-    const sS = parseInt(startSec, 10) || 0;
-    const sMs = parseInt(startMs, 10) || 0;
 
-    const eM = parseInt(endMin, 10) || 0;
-    const eS = parseInt(endSec, 10) || 0;
-    const eMs = parseInt(endMs, 10) || 0;
+    const parseNumber = (val: string) => {
+      const digits = val.replace(/\D/g, '');
+      return digits ? parseInt(digits, 10) : 0;
+    };
+
+    const parseMs = (val: string) => {
+      const digits = val.replace(/\D/g, '');
+      if (!digits) return 0;
+      if (digits.length === 1) return parseInt(digits + '00', 10);
+      if (digits.length === 2) return parseInt(digits + '0', 10);
+      return parseInt(digits.slice(0, 3), 10);
+    };
+
+    const sM = parseNumber(startMin);
+    const sS = parseNumber(startSec);
+    const sMs = parseMs(startMs);
+
+    const eM = parseNumber(endMin);
+    const eS = parseNumber(endSec);
+    const eMs = parseMs(endMs);
 
     let newStart = Math.max(0, sM * 60 + sS + sMs / 1000);
     let newEnd = Math.max(0, eM * 60 + eS + eMs / 1000);
@@ -910,7 +924,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                   style={({ pressed }) => [styles.timePlayheadBtn, pressed && { opacity: 0.7 }]}
                   onPress={setStartToPlayhead}
                 >
-                  <Text style={styles.timePlayheadBtnText}>Set ke Playhead ({formatDisplayTime(currentClipTime)})</Text>
+                  <Text style={styles.timePlayheadBtnText}>Set ke Playhead</Text>
                 </Pressable>
               </View>
 
@@ -920,9 +934,8 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                   <TextInput
                     style={styles.timeBoxInput}
                     value={startMin}
-                    onChangeText={(v) => setStartMin(v.replace(/\D/g, '').slice(0, 2))}
-                    keyboardType="number-pad"
-                    maxLength={2}
+                    onChangeText={setStartMin}
+                    keyboardType="numeric"
                     placeholder="00"
                     placeholderTextColor="rgba(255, 255, 255, 0.3)"
                     selectTextOnFocus
@@ -937,9 +950,8 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                   <TextInput
                     style={styles.timeBoxInput}
                     value={startSec}
-                    onChangeText={(v) => setStartSec(v.replace(/\D/g, '').slice(0, 2))}
-                    keyboardType="number-pad"
-                    maxLength={2}
+                    onChangeText={setStartSec}
+                    keyboardType="numeric"
                     placeholder="00"
                     placeholderTextColor="rgba(255, 255, 255, 0.3)"
                     selectTextOnFocus
@@ -954,9 +966,8 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                   <TextInput
                     style={[styles.timeBoxInput, styles.timeBoxInputMs]}
                     value={startMs}
-                    onChangeText={(v) => setStartMs(v.replace(/\D/g, '').slice(0, 3))}
-                    keyboardType="number-pad"
-                    maxLength={3}
+                    onChangeText={setStartMs}
+                    keyboardType="numeric"
                     placeholder="000"
                     placeholderTextColor="rgba(255, 255, 255, 0.3)"
                     selectTextOnFocus
@@ -974,7 +985,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                   style={({ pressed }) => [styles.timePlayheadBtn, pressed && { opacity: 0.7 }]}
                   onPress={setEndToPlayhead}
                 >
-                  <Text style={styles.timePlayheadBtnText}>Set ke Playhead ({formatDisplayTime(currentClipTime)})</Text>
+                  <Text style={styles.timePlayheadBtnText}>Set ke Playhead</Text>
                 </Pressable>
               </View>
 
@@ -984,9 +995,8 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                   <TextInput
                     style={styles.timeBoxInput}
                     value={endMin}
-                    onChangeText={(v) => setEndMin(v.replace(/\D/g, '').slice(0, 2))}
-                    keyboardType="number-pad"
-                    maxLength={2}
+                    onChangeText={setEndMin}
+                    keyboardType="numeric"
                     placeholder="00"
                     placeholderTextColor="rgba(255, 255, 255, 0.3)"
                     selectTextOnFocus
@@ -1001,9 +1011,8 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                   <TextInput
                     style={styles.timeBoxInput}
                     value={endSec}
-                    onChangeText={(v) => setEndSec(v.replace(/\D/g, '').slice(0, 2))}
-                    keyboardType="number-pad"
-                    maxLength={2}
+                    onChangeText={setEndSec}
+                    keyboardType="numeric"
                     placeholder="00"
                     placeholderTextColor="rgba(255, 255, 255, 0.3)"
                     selectTextOnFocus
@@ -1018,9 +1027,8 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                   <TextInput
                     style={[styles.timeBoxInput, styles.timeBoxInputMs]}
                     value={endMs}
-                    onChangeText={(v) => setEndMs(v.replace(/\D/g, '').slice(0, 3))}
-                    keyboardType="number-pad"
-                    maxLength={3}
+                    onChangeText={setEndMs}
+                    keyboardType="numeric"
                     placeholder="000"
                     placeholderTextColor="rgba(255, 255, 255, 0.3)"
                     selectTextOnFocus

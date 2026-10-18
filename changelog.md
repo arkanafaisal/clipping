@@ -14,7 +14,21 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Implement Track-Wide Scrubbing PanResponder with Dynamic Playhead-Based Cue Selection
+## [Unreleased] - Use Raw Text Inputs in Time Range Modal and Slim Down Set to Playhead Button
+- **Konteks Struktural**:
+  1. Penggunaan Raw Input pada Modal Rentang Waktu Subtitle:
+     - Menghapus manipulasi string agresif (`replace(/\D/g, '')` dan `slice`) pada event `onChangeText` di seluruh 6 kotak waktu ([FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx)), karena memicu lompatan kursor dan pemotongan angka saat pengguna sedang mengetik/menghapus.
+     - Mengubah seluruh kotak input waktu menjadi raw text input (`onChangeText={setStart...}`) dan memindahkan seluruh parsing serta validasi rentang waktu secara eksklusif ke saat tombol simpan ditekan (`handleSaveTimeRange`).
+  2. Perampingan Tombol "Set ke Playhead":
+     - Menghilangkan label angka waktu playhead dalam tanda kurung pada tombol sinkronisasi playhead, menyederhanakannya menjadi label ringkas `"Set ke Playhead"`.
+     - Perubahan ini membuat tombol lebih ramping, proporsional, dan tidak lagi meluap (overflow) keluar dari kartu modal.
+- **Perubahan Kode Penting**:
+  - [mobile/src/components/feed/FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx):
+    - Mengganti `onChangeText` pada 6 kotak input waktu dengan setter langsung tanpa batasan `maxLength`.
+    - Menambahkan parser robust `parseNumber` dan `parseMs` di dalam `handleSaveTimeRange`.
+    - Mempersingkat teks tombol playhead menjadi `"Set ke Playhead"`.
+
+## [27629d3] - Implement Track-Wide Scrubbing PanResponder with Dynamic Playhead-Based Cue Selection
 - **Konteks Struktural**:
   1. Penggantian Tapping Kotak Individual dengan Full-Track Scrubbing (PanResponder):
      - Memilih subtitle melalui sentuhan jari langsung ke kotak-kotak kecil di timeline rentan meleset karena ukuran durasi pendek yang sempit pada layar ponsel.
