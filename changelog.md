@@ -14,7 +14,22 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Standardize Web Player Client Fallback on Cookies Mode Across All Extraction Scripts
+## [Unreleased] - Persist Subtitle JSON in Private App Storage to Prevent Android Scoped Storage Write Errors
+- **Konteks Struktural**:
+  1. Pengalihan File Subtitle JSON ke Private Storage Aplikasi:
+     - Format subtitle merupakan file dokumen JSON (bukan file media). Sesuai aturan Scoped Storage Android, penulisan non-media dari frontend ke shared storage (`/storage/emulated/0/...`) dibatasi oleh OS dan memicu error `ExponentFileSystem.writeAsStringAsync isn't writable`.
+     - Mengalihkan path penyimpanan [getClipSubtitleFilePath](file:///d:/projects/clipping/mobile/src/services/api.ts) dan [getRawSubtitlesCacheFilePath](file:///d:/projects/clipping/mobile/src/services/api.ts) sepenuhnya ke internal sandbox aplikasi (`INTERNAL_CLIPPING_OUTPUT_DIR` di bawah `FileSystem.documentDirectory`).
+     - Menyertakan fallback pembacaan ke shared storage lama pada [loadClipSubtitle](file:///d:/projects/clipping/mobile/src/services/api.ts) jika file riwayat sebelumnya pernah tersimpan di sana.
+  2. Pengamanan Operasi Auto-Save Subtitle di Hook:
+     - Mengubah pemanggilan `saveClipSubtitle` pada [useClipSubtitle.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipSubtitle.ts) agar non-blocking (menangani error via `.catch`) sehingga render UI track subtitle langsung aktif tanpa terhenti oleh I/O disk.
+- **Perubahan Kode Penting**:
+  - [mobile/src/services/api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts):
+    - Mengalihkan `getClipSubtitleFilePath` dan `getRawSubtitlesCacheFilePath` ke `INTERNAL_CLIPPING_OUTPUT_DIR`.
+    - Menyempurnakan `saveClipSubtitle`, `loadClipSubtitle`, `deleteClipSubtitle`, dan `checkClipSubtitleExists` untuk membaca/menulis ke private storage internal.
+  - [mobile/src/hooks/useClipSubtitle.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipSubtitle.ts):
+    - Mengamankan auto-save subtitle dengan `.catch(...)`.
+
+## [e1f3783] - Standardize Web Player Client Fallback on Cookies Mode Across All Extraction Scripts
 - **Konteks Struktural**:
   1. Standarisasi Universal Web Client saat Fallback Cookies:
      - Menstandarkan seluruh skrip ekstraksi backend ([subtitle_fetcher.py](file:///d:/projects/clipping/mobile/scripts/utils/subtitle_fetcher.py), [stream_extractor.py](file:///d:/projects/clipping/mobile/scripts/utils/stream_extractor.py), [heatmap.py](file:///d:/projects/clipping/mobile/scripts/utils/heatmap.py), dan [clip_downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/clip_downloader.py)) agar saat memasuki mode fallback cookies (Pass 2), `player_client` otomatis beralih menjadi `['web', 'mweb']`.

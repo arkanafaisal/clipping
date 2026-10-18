@@ -1188,7 +1188,9 @@ export function getClipSubtitleFilename(start: number, end: number): string {
 }
 
 /**
- * Menghasilkan path file subtitle per-klip di shared storage.
+ * Menghasilkan path file subtitle per-klip di private storage aplikasi (internal sandbox).
+ * Format JSON merupakan file dokumen, bukan media, sehingga disimpan di internal storage
+ * agar 100% bebas dari batasan Android Scoped Storage (java.io.IOException isn't writable).
  */
 export function getClipSubtitleFilePath(
   videoId: string,
@@ -1196,15 +1198,17 @@ export function getClipSubtitleFilePath(
   end: number
 ): { fileUri: string; nativePath: string } {
   const filename = getClipSubtitleFilename(start, end);
-  const nativePath = `${SHARED_CLIPPING_OUTPUT_DIR}/${videoId}/${filename}`;
+  const nativePath = `${INTERNAL_CLIPPING_OUTPUT_DIR}/${videoId}/${filename}`;
   return { fileUri: `file://${nativePath}`, nativePath };
 }
 
 /**
- * Menghasilkan path cache subtitle mentah video utuh di shared storage.
+ * Menghasilkan path cache subtitle mentah video utuh di private storage aplikasi.
  */
-export function getRawSubtitlesCacheFilePath(videoId: string): { fileUri: string; nativePath: string } {
-  const nativePath = `${SHARED_CLIPPING_OUTPUT_DIR}/${videoId}/raw_subtitles.json`;
+export function getRawSubtitlesCacheFilePath(
+  videoId: string
+): { fileUri: string; nativePath: string } {
+  const nativePath = `${INTERNAL_CLIPPING_OUTPUT_DIR}/${videoId}/raw_subtitles.json`;
   return { fileUri: `file://${nativePath}`, nativePath };
 }
 
@@ -1548,20 +1552,23 @@ export async function fetchSubtitlesForVideo(
   // Simpan ke Tier 1 In-Memory
   RAW_SUBTITLES_MEMORY_MAP.set(videoId, result);
 
-  // Simpan ke Tier 2 File Fisik Shared Storage secara asynchronous
+  // Simpan ke Tier 2 File Fisik Private Storage secara asynchronous
   try {
     const folderUri = cachePath.fileUri.substring(0, cachePath.fileUri.lastIndexOf('/'));
-    await FileSystem.makeDirectoryAsync(folderUri, { intermediates: true });
+    const dirInfo = await FileSystem.getInfoAsync(folderUri);
+    if (!dirInfo.exists) {
+      await FileSystem.makeDirectoryAsync(folderUri, { intermediates: true });
+    }
     await FileSystem.writeAsStringAsync(cachePath.fileUri, JSON.stringify(result, null, 2));
   } catch (err) {
-    console.warn('[SubtitleCache] Gagal menyimpan raw_subtitles.json ke shared storage:', err);
+    console.warn('[SubtitleCache] Gagal menyimpan raw_subtitles.json ke private storage:', err);
   }
 
   return result;
 }
 
 /**
- * Membaca data subtitle yang sudah disimpan untuk klip tertentu dari shared storage.
+ * Membaca data subtitle yang sudah disimpan untuk klip tertentu dari private storage aplikasi.
  */
 export async function loadClipSubtitle(
   videoId: string,
@@ -1569,30 +1576,51 @@ export async function loadClipSubtitle(
   end: number
 ): Promise<ClipSubtitleData | null> {
   const { fileUri } = getClipSubtitleFilePath(videoId, start, end);
+
+  // 1. Cek Private Storage (Internal Sandbox)
   try {
     const info = await FileSystem.getInfoAsync(fileUri);
-    if (!info.exists || info.isDirectory) return null;
-    const content = await FileSystem.readAsStringAsync(fileUri);
-    const parsed = JSON.parse(content);
-    if (parsed && Array.isArray(parsed.cues)) {
-      return parsed as ClipSubtitleData;
+    if (info.exists && !info.isDirectory) {
+      const content = await FileSystem.readAsStringAsync(fileUri);
+      const parsed = JSON.parse(content);
+      if (parsed && Array.isArray(parsed.cues)) {
+        return parsed as ClipSubtitleData;
+      }
     }
   } catch {}
+
+  // 2. Fallback legacy jika pernah tersimpan di Shared Storage lama
+  try {
+    const filename = getClipSubtitleFilename(start, end);
+    const legacySharedUri = `file://${SHARED_CLIPPING_OUTPUT_DIR}/${videoId}/${filename}`;
+    const legacyInfo = await FileSystem.getInfoAsync(legacySharedUri);
+    if (legacyInfo.exists && !legacyInfo.isDirectory) {
+      const content = await FileSystem.readAsStringAsync(legacySharedUri);
+      const parsed = JSON.parse(content);
+      if (parsed && Array.isArray(parsed.cues)) {
+        return parsed as ClipSubtitleData;
+      }
+    }
+  } catch {}
+
   return null;
 }
 
 /**
- * Menyimpan data subtitle klip ke file JSON di shared storage.
+ * Menyimpan data subtitle klip ke file JSON di private storage aplikasi (internal sandbox).
  */
 export async function saveClipSubtitle(data: ClipSubtitleData): Promise<void> {
   const { fileUri } = getClipSubtitleFilePath(data.videoId, data.start, data.end);
   const folderUri = fileUri.substring(0, fileUri.lastIndexOf('/'));
-  await FileSystem.makeDirectoryAsync(folderUri, { intermediates: true });
+  const dirInfo = await FileSystem.getInfoAsync(folderUri);
+  if (!dirInfo.exists) {
+    await FileSystem.makeDirectoryAsync(folderUri, { intermediates: true });
+  }
   await FileSystem.writeAsStringAsync(fileUri, JSON.stringify(data, null, 2));
 }
 
 /**
- * Menghapus file subtitle klip dari shared storage.
+ * Menghapus file subtitle klip dari private storage aplikasi.
  */
 export async function deleteClipSubtitle(
   videoId: string,
@@ -1600,16 +1628,26 @@ export async function deleteClipSubtitle(
   end: number
 ): Promise<boolean> {
   const { fileUri } = getClipSubtitleFilePath(videoId, start, end);
+  let deleted = false;
+
   try {
     await FileSystem.deleteAsync(fileUri, { idempotent: true });
-    return true;
-  } catch {
-    return false;
-  }
+    deleted = true;
+  } catch {}
+
+  // Bersihkan juga legacy file di shared storage jika ada
+  try {
+    const filename = getClipSubtitleFilename(start, end);
+    const legacySharedUri = `file://${SHARED_CLIPPING_OUTPUT_DIR}/${videoId}/${filename}`;
+    await FileSystem.deleteAsync(legacySharedUri, { idempotent: true });
+    deleted = true;
+  } catch {}
+
+  return deleted;
 }
 
 /**
- * Memeriksa apakah subtitle klip sudah tersimpan di shared storage.
+ * Memeriksa apakah subtitle klip sudah tersimpan di private storage aplikasi.
  */
 export async function checkClipSubtitleExists(
   videoId: string,
@@ -1619,7 +1657,14 @@ export async function checkClipSubtitleExists(
   const { fileUri } = getClipSubtitleFilePath(videoId, start, end);
   try {
     const info = await FileSystem.getInfoAsync(fileUri);
-    return Boolean(info.exists && !info.isDirectory);
+    if (info.exists && !info.isDirectory) return true;
+  } catch {}
+
+  try {
+    const filename = getClipSubtitleFilename(start, end);
+    const legacySharedUri = `file://${SHARED_CLIPPING_OUTPUT_DIR}/${videoId}/${filename}`;
+    const legacyInfo = await FileSystem.getInfoAsync(legacySharedUri);
+    return Boolean(legacyInfo.exists && !legacyInfo.isDirectory);
   } catch {
     return false;
   }

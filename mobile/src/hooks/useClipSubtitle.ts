@@ -227,7 +227,7 @@ export function useClipSubtitle({
         setSubtitles(sliced);
         setSelectedCueId(null);
 
-        await saveClipSubtitle({
+        saveClipSubtitle({
           videoId: activeClip.videoId,
           start: activeClip.start,
           end: activeClip.end,
@@ -236,7 +236,7 @@ export function useClipSubtitle({
           style: DEFAULT_SUBTITLE_STYLE,
           cues: sliced,
           updatedAt: Date.now(),
-        });
+        }).catch((e) => console.warn('[useClipSubtitle] Gagal auto-save subtitle:', e));
 
         ToastManager.show({
           type: 'success',
