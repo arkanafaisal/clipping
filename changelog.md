@@ -14,7 +14,22 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Fix FFmpeg Drawtext Filter Fontsize Expression by Computing Absolute Integers
+## [Unreleased] - Unify Video Player into Single Seamless Canvas Wrapper with Outer-Canvas Relative Subtitles
+- **Konteks Struktural**:
+  1. Penyatuan Kontainer Kanvas Tunggal (*Unified Canvas Wrapper*):
+     - Menghapus percabangan pohon JSX ganda yang sebelumnya menduplikasi komponen video player dan subtitle overlay untuk mode 9:16 portrait dan 16:9 landscape.
+     - Mengimplementasikan satu kontainer induk tunggal (`canvasWrapper`) tanpa padding yang membungkus video player, viewport facecam, banner konteks, dan subtitle.
+     - Kontainer tunggal secara dinamis menyesuaikan aspek rasio (`16:9` saat kedua elemen nonaktif, dan `9:16` saat elemen teks konteks dan/atau facecam aktif) tanpa pernah me-*remount* instance `<VideoView>`, mencegah layar hitam sesaat dan lag buffer playback ExoPlayer native.
+  2. Presisi Posisi Subtitle Relatif terhadap Kanvas Luar:
+     - Menempatkan `SubtitleOverlay` langsung di bawah `canvasWrapper` induk.
+     - Pada rasio 16:9, koordinat persentase subtitle presisi terhadap kanvas video horizontal.
+     - Pada rasio 9:16, koordinat persentase subtitle bebas ditempatkan di seluruh bentang kanvas vertikal (di atas gameplay, di bawah banner, atau di area mana pun).
+- **Perubahan Kode Penting**:
+  - [mobile/src/components/FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
+    - Mengganti percabangan kondisional `isPortrait ? <canvas916Container> : <videoBox169>` dengan `canvasWrapper` tunggal yang mengonsumsi gaya `canvasPortrait` atau `canvasLandscape`.
+    - Memisahkan gaya `mainVideoBox` menjadi `mainVideoBoxPortrait` (`flex: 1`) dan `mainVideoBoxLandscape` (`width: '100%', height: '100%'`).
+
+## [15bb9f2] - Fix FFmpeg Drawtext Filter Fontsize Expression by Computing Absolute Integers
 - **Konteks Struktural**:
   1. Resolusi Error Ekspor Subtitle FFmpeg (`Undefined constant h*0.045`):
      - Memperbaiki kegagalan ekspor subtitle video di perangkat Android di mana filter `drawtext` FFmpeg menolak opsi `fontsize=h*0.045` dengan pesan error `Undefined constant or missing '(' in 'h*0.045'`.

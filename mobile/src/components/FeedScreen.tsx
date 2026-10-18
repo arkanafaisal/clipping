@@ -360,142 +360,102 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
 
       {/* 2. VIDEO PLAYER AREA (expo-video) */}
       <View style={styles.playerContainer}>
-        {isPortrait ? (
-          /* CANVAS PORTRAIT 9:16 (Saat Elemen Konteks dan/atau Facecam Aktif) */
-          <View
-            style={[
-              styles.canvas916Container,
-              activeEditorMode === 'template' && styles.canvasHelperBorder,
-            ]}
-            collapsable={false}
-          >
-            {streamUrl || (activeClip.status === 'done' && downloadedClips[activeClip.id]) ? (
-              <>
-                {/* 1. Header Banner Konteks (Teks Putih) */}
-                {templateConfig.context.enabled && (
-                  <View
-                    style={[
-                      styles.contextBannerBox,
-                      { paddingVertical: templateConfig.context.paddingY },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.contextBannerText,
-                        { fontSize: templateConfig.context.fontSize },
-                      ]}
-                      numberOfLines={2}
-                    >
-                      {templateConfig.context.text || 'JUDUL VIDEO'}
-                    </Text>
-                  </View>
-                )}
-
-                {/* 2. Viewport Facecam (Rasio 4:3 di atas) */}
-                {templateConfig.facecam.enabled && (
-                  <View
-                    style={[
-                      styles.facecamBox,
-                      activeEditorMode === 'template' && styles.elementHelperBorder,
-                    ]}
-                    collapsable={false}
-                    onLayout={(e) => {
-                      const { width, height } = e.nativeEvent.layout;
-                      if (width > 0 && height > 0) {
-                        setFacecamLayout({ width, height });
-                      }
-                    }}
-                  >
-                    <VideoView
-                      style={facecamVideoStyle}
-                      player={facecamPlayer}
-                      contentFit="cover"
-                      nativeControls={false}
-                    />
-                  </View>
-                )}
-
-                {/* 3. Viewport Main Video Gameplay (Fills remaining height) */}
+        {/* UNIFIED CANVAS WRAPPER (9:16 Portrait saat Konteks/Facecam aktif, 16:9 Landscape saat nonaktif) */}
+        <View
+          style={[
+            styles.canvasWrapper,
+            isPortrait ? styles.canvasPortrait : styles.canvasLandscape,
+            activeEditorMode === 'template' && styles.canvasHelperBorder,
+          ]}
+          collapsable={false}
+        >
+          {streamUrl || (activeClip.status === 'done' && downloadedClips[activeClip.id]) ? (
+            <>
+              {/* 1. Header Banner Konteks (Hanya saat mode portrait & diaktifkan) */}
+              {isPortrait && templateConfig.context.enabled && (
                 <View
                   style={[
-                    styles.mainVideoBox,
+                    styles.contextBannerBox,
+                    { paddingVertical: templateConfig.context.paddingY },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.contextBannerText,
+                      { fontSize: templateConfig.context.fontSize },
+                    ]}
+                    numberOfLines={2}
+                  >
+                    {templateConfig.context.text || 'JUDUL VIDEO'}
+                  </Text>
+                </View>
+              )}
+
+              {/* 2. Viewport Facecam (Hanya saat mode portrait & diaktifkan) */}
+              {isPortrait && templateConfig.facecam.enabled && (
+                <View
+                  style={[
+                    styles.facecamBox,
                     activeEditorMode === 'template' && styles.elementHelperBorder,
                   ]}
                   collapsable={false}
                   onLayout={(e) => {
                     const { width, height } = e.nativeEvent.layout;
                     if (width > 0 && height > 0) {
-                      setMainVideoLayout({ width, height });
+                      setFacecamLayout({ width, height });
                     }
                   }}
                 >
                   <VideoView
-                    style={mainVideoStyle}
-                    player={player}
+                    style={facecamVideoStyle}
+                    player={facecamPlayer}
                     contentFit="cover"
                     nativeControls={false}
                   />
                 </View>
+              )}
 
-                {/* Subtitle Overlay pada Kanvas Portrait */}
-                <SubtitleOverlay
-                  isVisible={isSubtitleVisible}
-                  subtitleText={activeSubtitleCue ? activeSubtitleCue.text : activeSubtitleText}
-                  fontSize={activeSubtitleCue?.fontSize || 14}
-                  positionX={subtitlePosition.x}
-                  positionY={subtitlePosition.y}
+              {/* 3. Viewport Main Video Gameplay (Fills remaining height) */}
+              <View
+                style={[
+                  styles.mainVideoBox,
+                  isPortrait ? styles.mainVideoBoxPortrait : styles.mainVideoBoxLandscape,
+                  activeEditorMode === 'template' && styles.elementHelperBorder,
+                ]}
+                collapsable={false}
+                onLayout={(e) => {
+                  const { width, height } = e.nativeEvent.layout;
+                  if (width > 0 && height > 0) {
+                    setMainVideoLayout({ width, height });
+                  }
+                }}
+              >
+                <VideoView
+                  style={mainVideoStyle}
+                  player={player}
+                  contentFit="cover"
+                  nativeControls={false}
                 />
-              </>
-            ) : (
-              <View style={styles.streamPendingBox}>
-                <ActivityIndicator size="small" color="#ef4444" />
-                <Text style={styles.streamPendingText}>
-                  Memuat direct stream dari internal server...
-                </Text>
               </View>
-            )}
-          </View>
-        ) : (
-          /* CANVAS LANDSCAPE 16:9 (Mode Asli saat Template Dimatikan) */
-          <View
-            style={[
-              styles.videoBox169,
-              activeEditorMode === 'template' && styles.canvasHelperBorder,
-            ]}
-            collapsable={false}
-            onLayout={(e) => {
-              const { width, height } = e.nativeEvent.layout;
-              if (width > 0 && height > 0) {
-                setMainVideoLayout({ width, height });
-              }
-            }}
-          >
-            {streamUrl || (activeClip.status === 'done' && downloadedClips[activeClip.id]) ? (
-              <VideoView
-                style={mainVideoStyle}
-                player={player}
-                contentFit="cover"
-                nativeControls={false}
-              />
-            ) : (
-              <View style={styles.streamPendingBox}>
-                <ActivityIndicator size="small" color="#ef4444" />
-                <Text style={styles.streamPendingText}>
-                  Memuat direct stream dari internal server...
-                </Text>
-              </View>
-            )}
 
-            {/* Subtitle Layer 1 (Realtime Non-Destructive Preview diposisikan relatif di dalam frame 16:9) */}
-            <SubtitleOverlay
-              isVisible={isSubtitleVisible}
-              subtitleText={activeSubtitleCue ? activeSubtitleCue.text : activeSubtitleText}
-              fontSize={activeSubtitleCue?.fontSize || 14}
-              positionX={subtitlePosition.x}
-              positionY={subtitlePosition.y}
-            />
-          </View>
-        )}
+              {/* Subtitle Overlay: Selalu dirender relatif terhadap Canvas Wrapper luar */}
+              <SubtitleOverlay
+                isVisible={isSubtitleVisible}
+                subtitleText={activeSubtitleCue ? activeSubtitleCue.text : activeSubtitleText}
+                fontSize={activeSubtitleCue?.fontSize || 14}
+                positionX={subtitlePosition.x}
+                positionY={subtitlePosition.y}
+              />
+            </>
+          ) : (
+            <View style={styles.streamPendingBox}>
+              <ActivityIndicator size="small" color="#ef4444" />
+              <Text style={styles.streamPendingText}>
+                Memuat direct stream dari internal server...
+              </Text>
+            </View>
+          )}
+        </View>
       </View>
 
       {/* 3. BOTTOM PLAYBACK CONTROLS (Fixed Height) */}
@@ -572,35 +532,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     width: '100%',
   },
-  videoBox169: {
-    width: '100%',
-    aspectRatio: 16 / 9,
-    backgroundColor: '#000000',
-    position: 'relative',
-    overflow: 'hidden',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    borderColor: 'transparent',
-  },
-  videoPlayer: {
-    width: '100%',
-    height: '100%',
-  },
-  canvas916Container: {
-    height: '100%',
-    maxHeight: '100%',
-    maxWidth: '100%',
-    aspectRatio: 9 / 16,
+  canvasWrapper: {
     backgroundColor: '#000000',
     overflow: 'hidden',
     position: 'relative',
     alignSelf: 'center',
-    justifyContent: 'flex-start',
     borderWidth: 1.5,
     borderStyle: 'dashed',
     borderColor: 'transparent',
+    padding: 0,
+    margin: 0,
+  },
+  canvasPortrait: {
+    height: '100%',
+    maxHeight: '100%',
+    maxWidth: '100%',
+    aspectRatio: 9 / 16,
+    justifyContent: 'flex-start',
+  },
+  canvasLandscape: {
+    width: '100%',
+    maxHeight: '100%',
+    maxWidth: '100%',
+    aspectRatio: 16 / 9,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   canvasHelperBorder: {
     borderColor: '#38bdf8',
@@ -634,8 +590,6 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   mainVideoBox: {
-    width: '100%',
-    aspectRatio: 16 / 9,
     backgroundColor: '#000000',
     overflow: 'hidden',
     position: 'relative',
@@ -643,6 +597,14 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     borderColor: 'transparent',
     zIndex: 5,
+  },
+  mainVideoBoxPortrait: {
+    width: '100%',
+    flex: 1,
+  },
+  mainVideoBoxLandscape: {
+    width: '100%',
+    height: '100%',
   },
   fillVideo: {
     width: '100%',
