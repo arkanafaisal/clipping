@@ -179,6 +179,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
   } = useClipTemplate({
     videoId,
     activeClip,
+    isDownloaded: Boolean(activeClip && downloadedClips[activeClip.id]),
   });
 
   // Hook 5: useClipSubtitle
@@ -246,6 +247,11 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
   const isFacecamActive = isPortrait && templateConfig.facecam.enabled;
 
   const mainVideoStyle = useMemo(() => {
+    // Jika tidak dalam mode portrait (misal un-done stream atau facecam nonaktif), tampilkan 100% video standar
+    if (!isPortrait) {
+      return styles.fillVideo;
+    }
+
     const zoom = Math.max(1.0, templateConfig.mainVideo.zoom || 1.0);
     const cropX = Math.max(0, Math.min(100, templateConfig.mainVideo.cropX ?? 50));
     const cropY = Math.max(0, Math.min(100, templateConfig.mainVideo.cropY ?? 50));
@@ -275,7 +281,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
       };
     }
 
-    // Default 16:9 (mode landscape murni atau mode portrait dengan banner teks saja)
+    // Default 16:9 di dalam mode portrait dengan banner konteks saja
     const h = mainVideoLayout.height || (w * (9 / 16));
     const scaledWidth = w * zoom;
     const scaledHeight = h * zoom;
@@ -293,7 +299,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
       left,
       top,
     };
-  }, [templateConfig.mainVideo, isFacecamActive, mainVideoLayout]);
+  }, [isPortrait, isFacecamActive, templateConfig.mainVideo, mainVideoLayout]);
 
   useEffect(() => {
     setActiveEditorMode(null);

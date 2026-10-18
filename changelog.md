@@ -14,7 +14,31 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Fix Android FFmpeg drawbox fill syntax error
+## [Unreleased] - Restrict Template Layout and Portrait Mode to Downloaded Done Clips with Active Facecam
+- **Konteks Struktural**:
+  1. Isolasi Status Aktif Facecam Per-Klip (Mencegah Mode Portrait Otomatis pada Semua Klip):
+     - Memastikan bahwa `facecam.enabled` berstatus per-klip murni dan TIDAK mewarisi flag `enabled: true` dari konfigurasi global video. Konfigurasi global hanya membagikan parameter framing (`zoom`, `cropX`, `cropY`).
+     - Klip lain atau klip baru default dimulai dengan `facecam.enabled: false` sampai pengguna secara eksplisit menyalakan facecam pada klip tersebut.
+  2. Pembatasan Mode Portrait 9:16 Berbasis Syarat Ketat (Mode Edit):
+     - Menetapkan bahwa mode portrait 9:16 HANYA aktif bila memenuhi ketiga syarat:
+       1. Klip berstatus `done` (`activeClip.status === 'done'`).
+       2. Video klip sudah selesai diunduh secara lokal (`isDownloaded === true`).
+       3. Facecam dinyalakan (`templateConfig.facecam.enabled === true`) atau banner konteks diaktifkan.
+     - Klip yang belum selesai diunduh atau berstatus un-done (stream preview) dijamin 100% tetap berformat 16:9 landscape standar (`styles.fillVideo`), bebas dari pemotongan framing maupun kontainer portrait.
+- **Perubahan Kode Penting**:
+  - [mobile/src/services/api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts):
+    - Menyempurnakan tipe `VideoGlobalConfig` agar `facecam` dan `mainVideo` hanya menyimpan `{ zoom, cropX, cropY }` tanpa menyertakan flag `enabled` maupun `portraitEnabled`.
+  - [mobile/src/hooks/useClipTemplate.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipTemplate.ts):
+    - Menerima `isDownloaded` pada `UseClipTemplateParams`.
+    - Mengisolasi `facecam.enabled` agar selalu membaca `clipSaved?.facecam?.enabled ?? false`.
+    - Memperketat kalkulasi `isPortrait` agar selalu `false` jika klip belum diunduh atau belum berstatus `done`.
+  - [mobile/src/components/FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
+    - Mengoper `isDownloaded` ke `useClipTemplate`.
+    - Mengembalikan `styles.fillVideo` pada `mainVideoStyle` saat `!isPortrait` agar pemutaran video stream murni 16:9 tanpa transformasi.
+  - [mobile/src/hooks/useClipSubtitle.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipSubtitle.ts):
+    - Menyelaraskan fallback pembacaan `globalConfig` agar sesuai dengan struktur framing murni `VideoGlobalConfig`.
+
+## [70406b6] - Fix Android FFmpeg drawbox fill syntax error
 - **Konteks Struktural**:
   - Memperbaiki kegagalan inisialisasi filter `drawbox` pada binary FFmpeg mobile Android di mana ekspresi string `t=fill` menimbulkan error `Undefined constant or missing '(' in 'fill'`.
   - Mengganti parameter ketebalan menjadi nilai integer absolut `t={banner_h}` yang kompatibel universal di seluruh versi FFmpeg untuk mengisi kanvas banner putih secara penuh dan solid.

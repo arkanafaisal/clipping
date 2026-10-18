@@ -396,8 +396,19 @@ export function useClipSubtitle({
         if (savedTemplate || globalConfig) {
           activeTemplateConfig = {
             context: savedTemplate?.context || DEFAULT_TEMPLATE_CONFIG.context,
-            facecam: globalConfig?.facecam || savedTemplate?.facecam || DEFAULT_TEMPLATE_CONFIG.facecam,
-            mainVideo: globalConfig?.mainVideo || savedTemplate?.mainVideo || DEFAULT_TEMPLATE_CONFIG.mainVideo,
+            facecam: {
+              ...DEFAULT_TEMPLATE_CONFIG.facecam,
+              zoom: globalConfig?.facecam?.zoom ?? savedTemplate?.facecam?.zoom ?? DEFAULT_TEMPLATE_CONFIG.facecam.zoom,
+              cropX: globalConfig?.facecam?.cropX ?? savedTemplate?.facecam?.cropX ?? DEFAULT_TEMPLATE_CONFIG.facecam.cropX,
+              cropY: globalConfig?.facecam?.cropY ?? savedTemplate?.facecam?.cropY ?? DEFAULT_TEMPLATE_CONFIG.facecam.cropY,
+              enabled: savedTemplate?.facecam?.enabled ?? false,
+            },
+            mainVideo: {
+              ...DEFAULT_TEMPLATE_CONFIG.mainVideo,
+              zoom: globalConfig?.mainVideo?.zoom ?? savedTemplate?.mainVideo?.zoom ?? DEFAULT_TEMPLATE_CONFIG.mainVideo.zoom,
+              cropX: globalConfig?.mainVideo?.cropX ?? savedTemplate?.mainVideo?.cropX ?? DEFAULT_TEMPLATE_CONFIG.mainVideo.cropX,
+              cropY: globalConfig?.mainVideo?.cropY ?? savedTemplate?.mainVideo?.cropY ?? DEFAULT_TEMPLATE_CONFIG.mainVideo.cropY,
+            },
           };
         }
       } catch (e) {}

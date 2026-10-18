@@ -1836,13 +1836,21 @@ export async function deleteClipTemplate(
 
 export interface VideoGlobalConfig {
   subtitlePosition?: { x: number; y: number };
-  facecam?: ClipTemplateConfig['facecam'];
-  mainVideo?: ClipTemplateConfig['mainVideo'];
+  facecam?: {
+    zoom: number;
+    cropX: number;
+    cropY: number;
+  };
+  mainVideo?: {
+    zoom: number;
+    cropX: number;
+    cropY: number;
+  };
   contextStyle?: {
     fontSize: number;
     paddingY: number;
   };
-  portraitEnabled?: boolean;
+  updatedAt?: number;
 }
 
 export const VIDEO_GLOBAL_CONFIG_MEMORY_MAP = new Map<string, VideoGlobalConfig>();
@@ -1895,18 +1903,23 @@ export async function saveVideoGlobalConfig(
     ...updates,
     subtitlePosition: updates.subtitlePosition || current.subtitlePosition,
     facecam: updates.facecam
-      ? { ...(current.facecam || DEFAULT_TEMPLATE_CONFIG.facecam), ...updates.facecam }
+      ? {
+          zoom: updates.facecam.zoom ?? current.facecam?.zoom ?? DEFAULT_TEMPLATE_CONFIG.facecam.zoom,
+          cropX: updates.facecam.cropX ?? current.facecam?.cropX ?? DEFAULT_TEMPLATE_CONFIG.facecam.cropX,
+          cropY: updates.facecam.cropY ?? current.facecam?.cropY ?? DEFAULT_TEMPLATE_CONFIG.facecam.cropY,
+        }
       : current.facecam,
     mainVideo: updates.mainVideo
-      ? { ...(current.mainVideo || DEFAULT_TEMPLATE_CONFIG.mainVideo), ...updates.mainVideo }
+      ? {
+          zoom: updates.mainVideo.zoom ?? current.mainVideo?.zoom ?? DEFAULT_TEMPLATE_CONFIG.mainVideo.zoom,
+          cropX: updates.mainVideo.cropX ?? current.mainVideo?.cropX ?? DEFAULT_TEMPLATE_CONFIG.mainVideo.cropX,
+          cropY: updates.mainVideo.cropY ?? current.mainVideo?.cropY ?? DEFAULT_TEMPLATE_CONFIG.mainVideo.cropY,
+        }
       : current.mainVideo,
     contextStyle: updates.contextStyle
       ? { ...(current.contextStyle || { fontSize: 16, paddingY: 10 }), ...updates.contextStyle }
       : current.contextStyle,
-    portraitEnabled:
-      typeof updates.portraitEnabled === 'boolean'
-        ? updates.portraitEnabled
-        : current.portraitEnabled,
+    updatedAt: Date.now(),
   };
 
   VIDEO_GLOBAL_CONFIG_MEMORY_MAP.set(videoId, merged);
