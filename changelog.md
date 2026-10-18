@@ -14,7 +14,25 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Eliminate Subtitle Overlay Shift and Flickering with Synchronous Flexbox Centering
+## [Unreleased] - Minimize Subtitle Editor UI Elements, Toolbar Action Buttons, and Modal Forms
+- **Konteks Struktural**:
+  1. Simplifikasi Toolbar Action Buttons (Mengurangi Kepadatan Visual & Tabrakan UI):
+     - Mengubah tombol tambah cue manual `+ Subtitle` menjadi tombol icon murni berukuran 32x32 pixel (`<Plus size={16} />`), menghilangkan teks `+ Subtitle` dan redundansi simbol ganda.
+     - Mengubah tombol indikator posisi global `X:... Y:...` di sebelahnya menjadi tombol icon murni 4-arah berukuran 32x32 pixel (`<Move size={15} />`), selaras secara simetris dengan tombol-tombol icon aksi di sisi kanan.
+  2. Simplifikasi Form Modal Posisi Global (X, Y):
+     - Memperpendek label seksi menjadi `KOORDINAT X` dan `KOORDINAT Y` (menghapus keterangan horizontal/vertikal dalam kurung).
+     - Menghapus baris petunjuk redundant (`0 = Kiri, 50 = Tengah, 100 = Kanan` dan `15 = Atas, 50 = Tengah, 85 = Bawah`).
+     - Menyederhanakan tombol quick preset menjadi nama murni (`Kiri`, `Tengah`, `Kanan` dan `Atas`, `Tengah`, `Bawah`) tanpa teks angka kurung.
+     - Mengubah label tombol reset default menjadi `Reset`.
+  3. Pembersihan Icon pada Seluruh Tombol Submit Modal:
+     - Menghapus icon centang `<Check />` pada tombol submit di seluruh modal editor (Modal Edit Teks, Modal Ukuran Font, Modal Rentang Waktu, dan Modal Posisi Global), menyisakan teks `Simpan` yang bersih dan minimalis.
+- **Perubahan Kode Penting**:
+  - [mobile/src/components/feed/FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx):
+    - Mengganti tombol `addCueBtn` dan `positionBtn` menjadi square icon button 32x32 pixel (`styles.addCueBtn`, `styles.positionBtn`).
+    - Menghapus import dan pemanggilan icon `Check` pada tombol `Simpan` di Modal 2, 3, 4, dan 5.
+    - Memperbarui label, teks preset, tombol reset, dan menghapus hint text pada modal posisi global.
+
+## [7f14bbc] - Eliminate Subtitle Overlay Shift and Flickering with Synchronous Flexbox Centering
 - **Konteks Struktural**:
   1. Akar Penyebab Pergeseran Posisi Subtitle (Shift/Glitch dari Kanan Bawah ke Tengah):
      - Sebelumnya, [SubtitleOverlay.tsx](file:///d:/projects/clipping/mobile/src/components/feed/SubtitleOverlay.tsx) menggunakan `onLayout` pada blok teks untuk mengukur dimensi lebar dan tinggi teks (`textLayout.width`, `textLayout.height`) demi menerapkan translasi `translateX: -width / 2` dan `translateY: -height / 2`.

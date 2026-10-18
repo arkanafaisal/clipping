@@ -18,7 +18,6 @@ import {
   Plus,
   X,
   Type,
-  Check,
   Globe,
   Clock,
   Move,
@@ -642,19 +641,17 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
               <Pressable
                 style={({ pressed }) => [styles.addCueBtn, pressed && { opacity: 0.7 }]}
                 onPress={() => onAddCue(currentClipTime)}
+                hitSlop={6}
               >
-                <Plus size={14} color="#38bdf8" />
-                <Text style={styles.addCueBtnText}>+ Subtitle</Text>
+                <Plus size={16} color="#38bdf8" />
               </Pressable>
 
               <Pressable
                 style={({ pressed }) => [styles.positionBtn, pressed && { opacity: 0.7 }]}
                 onPress={openPositionModal}
+                hitSlop={6}
               >
-                <Move size={13} color="#38bdf8" />
-                <Text style={styles.positionBtnText}>
-                  X:{subtitlePosition.x} Y:{subtitlePosition.y}
-                </Text>
+                <Move size={15} color="#38bdf8" />
               </Pressable>
             </View>
 
@@ -705,18 +702,6 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                   hitSlop={6}
                 >
                   <Trash2 size={16} color="#f87171" />
-                </Pressable>
-
-                {/* 5. Deselect / Close */}
-                <Pressable
-                  style={({ pressed }) => [styles.iconActionBtn, pressed && { opacity: 0.6 }]}
-                  onPress={() => {
-                    manuallyDismissedCueIdRef.current = selectedCueId;
-                    onSelectCue(null);
-                  }}
-                  hitSlop={6}
-                >
-                  <X size={16} color="#94a3b8" />
                 </Pressable>
               </View>
             ) : null}
@@ -858,7 +843,6 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                   setShowTextModal(false);
                 }}
               >
-                <Check size={16} color="#ffffff" />
                 <Text style={styles.modalSaveBtnText}>Simpan</Text>
               </Pressable>
             </View>
@@ -948,7 +932,6 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                   setShowFontModal(false);
                 }}
               >
-                <Check size={16} color="#ffffff" />
                 <Text style={styles.modalSaveBtnText}>Simpan</Text>
               </Pressable>
             </View>
@@ -1116,7 +1099,6 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                 style={({ pressed }) => [styles.modalSaveBtn, pressed && { opacity: 0.8 }]}
                 onPress={handleSaveTimeRange}
               >
-                <Check size={16} color="#ffffff" />
                 <Text style={styles.modalSaveBtnText}>Simpan</Text>
               </Pressable>
             </View>
@@ -1151,11 +1133,10 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
               Atur posisi titik pusat teks subtitle (skala 0 - 100 terhadap frame 16:9 video player):
             </Text>
 
-            {/* SEKSI X (HORIZONTAL) */}
+            {/* SEKSI X */}
             <View style={styles.posSectionContainer}>
               <View style={styles.posHeaderRow}>
-                <Text style={styles.timeSectionLabel}>KOORDINAT X (HORIZONTAL)</Text>
-                <Text style={styles.posHintText}>0 = Kiri, 50 = Tengah, 100 = Kanan</Text>
+                <Text style={styles.timeSectionLabel}>KOORDINAT X</Text>
               </View>
               <View style={styles.posInputRow}>
                 <TextInput
@@ -1176,7 +1157,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                     ]}
                     onPress={() => setTempPosX('25')}
                   >
-                    <Text style={[styles.posPresetText, tempPosX === '25' && styles.posPresetTextActive]}>Kiri (25)</Text>
+                    <Text style={[styles.posPresetText, tempPosX === '25' && styles.posPresetTextActive]}>Kiri</Text>
                   </Pressable>
                   <Pressable
                     style={({ pressed }) => [
@@ -1186,7 +1167,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                     ]}
                     onPress={() => setTempPosX('50')}
                   >
-                    <Text style={[styles.posPresetText, tempPosX === '50' && styles.posPresetTextActive]}>Tengah (50)</Text>
+                    <Text style={[styles.posPresetText, tempPosX === '50' && styles.posPresetTextActive]}>Tengah</Text>
                   </Pressable>
                   <Pressable
                     style={({ pressed }) => [
@@ -1196,17 +1177,16 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                     ]}
                     onPress={() => setTempPosX('75')}
                   >
-                    <Text style={[styles.posPresetText, tempPosX === '75' && styles.posPresetTextActive]}>Kanan (75)</Text>
+                    <Text style={[styles.posPresetText, tempPosX === '75' && styles.posPresetTextActive]}>Kanan</Text>
                   </Pressable>
                 </View>
               </View>
             </View>
 
-            {/* SEKSI Y (VERTIKAL) */}
+            {/* SEKSI Y */}
             <View style={styles.posSectionContainer}>
               <View style={styles.posHeaderRow}>
-                <Text style={styles.timeSectionLabel}>KOORDINAT Y (VERTIKAL)</Text>
-                <Text style={styles.posHintText}>15 = Atas, 50 = Tengah, 85 = Bawah</Text>
+                <Text style={styles.timeSectionLabel}>KOORDINAT Y</Text>
               </View>
               <View style={styles.posInputRow}>
                 <TextInput
@@ -1227,7 +1207,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                     ]}
                     onPress={() => setTempPosY('15')}
                   >
-                    <Text style={[styles.posPresetText, tempPosY === '15' && styles.posPresetTextActive]}>Atas (15)</Text>
+                    <Text style={[styles.posPresetText, tempPosY === '15' && styles.posPresetTextActive]}>Atas</Text>
                   </Pressable>
                   <Pressable
                     style={({ pressed }) => [
@@ -1237,7 +1217,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                     ]}
                     onPress={() => setTempPosY('50')}
                   >
-                    <Text style={[styles.posPresetText, tempPosY === '50' && styles.posPresetTextActive]}>Tengah (50)</Text>
+                    <Text style={[styles.posPresetText, tempPosY === '50' && styles.posPresetTextActive]}>Tengah</Text>
                   </Pressable>
                   <Pressable
                     style={({ pressed }) => [
@@ -1247,7 +1227,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                     ]}
                     onPress={() => setTempPosY('85')}
                   >
-                    <Text style={[styles.posPresetText, tempPosY === '85' && styles.posPresetTextActive]}>Bawah (85)</Text>
+                    <Text style={[styles.posPresetText, tempPosY === '85' && styles.posPresetTextActive]}>Bawah</Text>
                   </Pressable>
                 </View>
               </View>
@@ -1261,7 +1241,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                   setTempPosY('85');
                 }}
               >
-                <Text style={styles.modalResetBtnText}>Reset Default</Text>
+                <Text style={styles.modalResetBtnText}>Reset</Text>
               </Pressable>
               <View style={{ flex: 1 }} />
               <Pressable
@@ -1274,7 +1254,6 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                 style={({ pressed }) => [styles.modalSaveBtn, pressed && { opacity: 0.8 }]}
                 onPress={handleSavePosition}
               >
-                <Check size={16} color="#ffffff" />
                 <Text style={styles.modalSaveBtnText}>Simpan</Text>
               </Pressable>
             </View>
@@ -1595,20 +1574,14 @@ const styles = StyleSheet.create({
     height: 36,
   },
   addCueBtn: {
-    flexDirection: 'row',
+    width: 32,
+    height: 32,
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: 'rgba(56, 189, 248, 0.12)',
     borderWidth: 1,
     borderColor: 'rgba(56, 189, 248, 0.35)',
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    height: 30,
-    gap: 4,
-  },
-  addCueBtnText: {
-    color: '#38bdf8',
-    fontSize: 12,
-    fontWeight: '600',
+    borderRadius: 7,
   },
   cueEditorActionIcons: {
     flexDirection: 'row',
@@ -1915,24 +1888,17 @@ const styles = StyleSheet.create({
   leftCueButtonsGroup: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
   positionBtn: {
-    flexDirection: 'row',
+    width: 32,
+    height: 32,
     alignItems: 'center',
-    gap: 5,
+    justifyContent: 'center',
     backgroundColor: 'rgba(56, 189, 248, 0.1)',
     borderWidth: 1,
     borderColor: 'rgba(56, 189, 248, 0.25)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  positionBtnText: {
-    color: '#38bdf8',
-    fontSize: 11,
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-    fontWeight: '700',
+    borderRadius: 7,
   },
   posSectionContainer: {
     backgroundColor: 'rgba(255, 255, 255, 0.03)',
