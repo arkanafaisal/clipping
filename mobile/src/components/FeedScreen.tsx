@@ -5,24 +5,16 @@ import {
   View,
   Pressable,
   ActivityIndicator,
-  BackHandler,
   Keyboard,
 } from 'react-native';
-import { useVideoPlayer, VideoView } from 'expo-video';
+import { VideoView } from 'expo-video';
 import * as FileSystem from 'expo-file-system/legacy';
 import {
   ClipItem,
-  fetchStreamUrl,
-  fetchHeatmap,
   downloadClip,
   getClipOutputFilePath,
-  getClipFilename,
-  formatTimeForFilename,
-  resolvePlayableClipUri,
   checkClipFileExists,
   isRateLimitOrRestrictedError,
-  SHARED_CLIPPING_OUTPUT_DIR,
-  INTERNAL_CLIPPING_OUTPUT_DIR,
   SubtitleCue,
   loadClipSubtitle,
 } from '../services/api';
@@ -36,6 +28,7 @@ import { FeedClipCarousel } from './feed/FeedClipCarousel';
 import { SubtitleOverlay } from './feed/SubtitleOverlay';
 import { formatTime } from './feed/timeUtils';
 import { useClipData } from '../hooks/useClipData';
+import { useClipPlayer } from '../hooks/useClipPlayer';
 
 interface FeedScreenProps {
   videoId: string;
@@ -52,12 +45,6 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
 }) => {
   const DRAFT_KEY = `clips_draft_${videoId}`;
 
-  const [streamUrl, setStreamUrl] = useState<string | null>(null);
-
-  // Manual play/pause button state (decoupled from automated seek/freeze/loop events)
-  const [isContinueState, setIsContinueState] = useState<boolean>(true);
-  const [progressPercent, setProgressPercent] = useState(0);
-  const [currentClipTime, setCurrentClipTime] = useState<number>(0);
   const [downloadingClips, setDownloadingClips] = useState<Record<string, boolean>>({});
   const [downloadedClips, setDownloadedClips] = useState<Record<string, boolean>>({});
   const [downloadProgress, setDownloadProgress] = useState<
@@ -83,6 +70,44 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     };
   }, []);
 
+  const downloadedClipsRef = useRef<Record<string, boolean>>(downloadedClips);
+  useEffect(() => {
+    downloadedClipsRef.current = downloadedClips;
+  }, [downloadedClips]);
+
+  // Shared refs for data & player hooks
+  const clipsRef = useRef<ClipItem[]>([]);
+  const activeClipIdRef = useRef<string | null>(null);
+
+  // Hook 2: useClipPlayer
+  const {
+    player,
+    streamUrl,
+    isContinueState,
+    progressPercent,
+    setProgressPercent,
+    currentClipTime,
+    setCurrentClipTime,
+    trackWidthRef,
+    currentSourceUriRef,
+    seekDebounceTimerRef,
+    pendingSeekTargetRef,
+    centralizedSeek,
+    syncPlayerSourceForClip,
+    togglePlayPause,
+    skipSeconds,
+    initializeStreamAndPlayback,
+  } = useClipPlayer({
+    videoId,
+    clipsRef,
+    activeClipIdRef,
+    downloadedClipsRef,
+    subtitlesRef,
+    setActiveSubtitleText,
+    setCookiesModalVisible,
+    onBack,
+  });
+
   const getDownloadProgressLabel = (info?: { stage: string; code: string; percent: number }): string => {
     if (!info) return 'Proses...';
     const { stage, code, percent } = info;
@@ -104,193 +129,14 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     }
   };
 
-  // Debounce refs for smooth, leak-proof UI adjustments & storage sync
-  const seekDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const seekSafetyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingSeekTargetRef = useRef<number | null>(null);
-  const trackWidthRef = useRef<number>(1);
-  const currentSourceUriRef = useRef<string>('');
-  const downloadedClipsRef = useRef<Record<string, boolean>>(downloadedClips);
-  const isContinueStateRef = useRef<boolean>(isContinueState);
-  const streamUrlRef = useRef<string | null>(streamUrl);
-  const isSourceSwitchingRef = useRef<boolean>(false);
-
-  useEffect(() => {
-    downloadedClipsRef.current = downloadedClips;
-  }, [downloadedClips]);
-
-  useEffect(() => {
-    isContinueStateRef.current = isContinueState;
-  }, [isContinueState]);
-
-  useEffect(() => {
-    streamUrlRef.current = streamUrl;
-  }, [streamUrl]);
-
-  // Video Player instance via expo-video (100ms interval for smooth millisecond UI)
-  // Gunakan null agar player instance stabil dan tidak di-recreate berulang kali saat streamUrl terisi
-  const player = useVideoPlayer(null, (p) => {
-    p.loop = false;
-    p.timeUpdateEventInterval = 0.1;
-  });
-
-  // Helper untuk lock seek target dan auto-release safety timeout
-  const setPendingSeek = useCallback((targetTime: number) => {
-    pendingSeekTargetRef.current = targetTime;
-    if (seekSafetyTimeoutRef.current) {
-      clearTimeout(seekSafetyTimeoutRef.current);
-    }
-    seekSafetyTimeoutRef.current = setTimeout(() => {
-      if (pendingSeekTargetRef.current === targetTime) {
-        pendingSeekTargetRef.current = null;
-      }
-    }, 1500);
-  }, []);
-
-  // Handle Android hardware back button (No on-screen back button)
-  useEffect(() => {
-    const backAction = () => {
-      onBack();
-      return true;
-    };
-    const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
-    return () => backHandler.remove();
-  }, [onBack]);
-
-  // Cleanup debounce timers on unmount
-  useEffect(() => {
-    return () => {
-      if (seekDebounceTimerRef.current) clearTimeout(seekDebounceTimerRef.current);
-      if (seekSafetyTimeoutRef.current) clearTimeout(seekSafetyTimeoutRef.current);
-    };
-  }, []);
-
-  /**
-   * Sinkronisasi sumber pemutar video secara dinamis:
-   * - Mode Lokal: Jika klip berstatus 'done' dan file fisik MP4 sudah terunduh di HP,
-   *   putar file fisik lokal (file://...) dari detik 0.0s s/d durasi klip.
-   * - Mode Stream: Jika klip belum 'done' (atau 'done' tapi belum diunduh),
-   *   putar direct stream online YouTube dan seek ke detik clip.start.
-   */
-  const syncPlayerSourceForClip = useCallback(
-    async (clip: ClipItem, autoPlay: boolean = true) => {
-      if (!player) return;
-      const isDownloaded = Boolean(downloadedClipsRef.current[clip.id]);
-      const isLocalMode = clip.status === 'done' && isDownloaded;
-      const targetTime = isLocalMode ? 0 : Math.max(0, clip.start);
-
-      // Kunci target seek agar timeUpdate tidak menimpa UI sebelum player tiba di target
-      setPendingSeek(targetTime);
-
-      if (isLocalMode) {
-        const fileUri = await resolvePlayableClipUri(videoId, clip.start, clip.end, clip.rank);
-        if (currentSourceUriRef.current !== fileUri) {
-          currentSourceUriRef.current = fileUri;
-          isSourceSwitchingRef.current = true;
-          try {
-            player.replace(fileUri);
-          } catch (err) {
-            console.warn('[Feed] Replace local file error:', err);
-          }
-        } else {
-          // File lokal sama: seek langsung ke 0
-          try {
-            player.currentTime = 0;
-            if (autoPlay && isContinueStateRef.current) {
-              player.play();
-            }
-          } catch (err) {
-            console.warn('[Feed] Play local error:', err);
-          }
-        }
-      } else {
-        const activeStream = streamUrlRef.current;
-        if (activeStream && currentSourceUriRef.current !== activeStream) {
-          currentSourceUriRef.current = activeStream;
-          isSourceSwitchingRef.current = true;
-          try {
-            player.replace(activeStream);
-          } catch (err) {
-            console.warn('[Feed] Replace stream error:', err);
-          }
-        } else {
-          // Stream sama: seek langsung ke start klip
-          try {
-            player.currentTime = targetTime;
-            if (autoPlay && isContinueStateRef.current) {
-              player.play();
-            }
-          } catch (err) {
-            console.warn('[Feed] Play stream error:', err);
-          }
-        }
-      }
-    },
-    [player, videoId, setPendingSeek]
-  );
-
-  /**
-   * Centralized universal debounced seek handler:
-   * Menampung SEMUA seek (crop, extend, skip waktu, tap scrubber) ke dalam 1 gerbang terpusat.
-   * Debounce trailing edge: 500ms sejak interaksi TERAKHIR user.
-   * UI (progress bar, angka rentang, active card) langsung di-update secara instan 0ms tanpa animasi/delay.
-   */
-  const centralizedSeek = useCallback((targetTime: number, shouldPlay: boolean = true) => {
-    setPendingSeek(targetTime);
-
-    // Auto-pause video seketika jika sedang berputar agar frame lama freeze (tanpa mengubah state tombol)
-    if (player && player.playing) {
-      try {
-        player.pause();
-      } catch (e) {}
-    }
-
-    if (seekDebounceTimerRef.current) {
-      clearTimeout(seekDebounceTimerRef.current);
-    }
-
-    // Jika memutar file lokal fisik (file://), matikan debounce (seek instan 0ms)
-    // karena file disk lokal tidak terkena rate limit YouTube
-    const isLocalMode = currentSourceUriRef.current.startsWith('file://');
-    const debounceMs = isLocalMode ? 0 : 500;
-
-    const executeSeek = () => {
-      const finalTarget = pendingSeekTargetRef.current;
-      if (player && finalTarget !== null && !isNaN(finalTarget)) {
-        try {
-          player.currentTime = Math.max(0, finalTarget);
-          if (shouldPlay && isContinueStateRef.current) {
-            player.play();
-          }
-        } catch (e: any) {
-          ToastManager.show({
-            type: 'error',
-            title: 'Gagal Memindahkan Pemutar',
-            message: e?.message || 'Player gagal melakukan seek ke durasi target.',
-            duration: 3500,
-          });
-        }
-      }
-      seekDebounceTimerRef.current = null;
-    };
-
-    if (debounceMs === 0) {
-      executeSeek();
-    } else {
-      seekDebounceTimerRef.current = setTimeout(executeSeek, debounceMs);
-    }
-  }, [player, setPendingSeek]);
-
+  // Hook 1: useClipData
   const {
     clips,
     setClips,
-    clipsRef,
     activeClipId,
     setActiveClipId,
-    activeClipIdRef,
     activeClip,
     loading,
-    setLoading,
     loadingMessage,
     activeTimeEdit,
     setActiveTimeEdit,
@@ -317,236 +163,12 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     seekDebounceTimerRef,
     setProgressPercent,
     setCurrentClipTime,
-    onClipsLoaded: async (loadedClips, existingDownloadMap, initialActiveClip) => {
-      // 2. Fetch direct stream URL untuk video playback
-      try {
-        const directUrl = await fetchStreamUrl(videoId);
-        if (directUrl) {
-          setStreamUrl(directUrl);
-          streamUrlRef.current = directUrl;
-          const isFirstClipLocal = Boolean(
-            initialActiveClip &&
-              initialActiveClip.status === 'done' &&
-              existingDownloadMap[initialActiveClip.id]
-          );
-
-          if (isFirstClipLocal && initialActiveClip) {
-            const { fileUri } = getClipOutputFilePath(
-              videoId,
-              initialActiveClip.start,
-              initialActiveClip.end,
-              initialActiveClip.rank
-            );
-            currentSourceUriRef.current = fileUri;
-            setPendingSeek(0);
-            isSourceSwitchingRef.current = true;
-            player.replace(fileUri);
-            try {
-              player.currentTime = 0;
-              player.play();
-            } catch (playErr) {
-              console.log('[Feed] Auto-play initial local clip error:', playErr);
-            }
-            ToastManager.show({
-              type: 'success',
-              title: 'Memutar File Lokal',
-              message: 'Memutar video klip berkualitas prime dari HP.',
-              duration: 2500,
-            });
-          } else {
-            const firstClipStart = initialActiveClip ? initialActiveClip.start : 0;
-            currentSourceUriRef.current = directUrl;
-            setPendingSeek(firstClipStart);
-            isSourceSwitchingRef.current = true;
-            player.replace(directUrl);
-            // AUTO PLAY: Mulai putar langsung dari posisi start klip pertama
-            try {
-              player.currentTime = firstClipStart;
-              player.play();
-            } catch (playErr) {
-              console.log('[Feed] Auto-play initial clip error:', playErr);
-            }
-            ToastManager.show({
-              type: 'success',
-              title: 'Stream URL Aktif',
-              message: 'Pemutar video siap.',
-              duration: 2500,
-            });
-          }
-        }
-      } catch (streamErr: any) {
-        console.warn('[Feed] Stream fetch error:', streamErr.message);
-        if (isRateLimitOrRestrictedError(streamErr)) {
-          setCookiesModalVisible(true);
-        }
-        ToastManager.show({
-          type: 'info',
-          title: 'Stream Belum Siap',
-          message: streamErr.message || 'Stream URL tidak dapat dimuat.',
-          rawError: streamErr.rawError,
-          errorCode: streamErr.code,
-          duration: 4000,
-        });
-      }
+    onClipsLoaded: (loadedClips, existingDownloadMap, initialActiveClip) => {
+      initializeStreamAndPlayback(initialActiveClip, existingDownloadMap);
     },
+    clipsRef,
+    activeClipIdRef,
   });
-
-  // Track playback time update & handle segment loop
-  useEffect(() => {
-    if (!player) return;
-
-    const sub = player.addListener('timeUpdate', (event) => {
-      const currentActiveId = activeClipIdRef.current || activeClipId;
-      const currentActive = clipsRef.current.find((c) => c.id === currentActiveId) || activeClip;
-      const isLocalMode = currentSourceUriRef.current.startsWith('file://');
-
-      const current = event.currentTime;
-      const duration = currentActive.end - currentActive.start;
-
-      // Cek apakah player sedang dalam proses seek menuju targetTime
-      if (pendingSeekTargetRef.current !== null) {
-        const diff = Math.abs(current - pendingSeekTargetRef.current);
-        if (diff < 1.0) {
-          // Player sudah tiba di sekitar target seek, buka kembali kunci update UI
-          pendingSeekTargetRef.current = null;
-        } else {
-          // Masih dalam transisi seek: jangan biarkan frame lama menimpa progress UI atau mentrigger loop
-          return;
-        }
-      }
-
-      if (duration > 0) {
-        if (isLocalMode) {
-          const pct = Math.max(0, Math.min(100, (current / duration) * 100));
-          setProgressPercent(pct);
-          setCurrentClipTime(Math.max(0, Math.min(duration, current)));
-        } else {
-          const pct = Math.max(0, Math.min(100, ((current - currentActive.start) / duration) * 100));
-          setProgressPercent(pct);
-          const rel = Math.max(0, Math.min(duration, current - currentActive.start));
-          setCurrentClipTime(rel);
-        }
-
-        // Sinkronisasi teks subtitle secara realtime dengan frame video
-        const currentRel = isLocalMode
-          ? Math.max(0, Math.min(duration, current))
-          : Math.max(0, Math.min(duration, current - currentActive.start));
-
-        if (subtitlesRef.current.length > 0) {
-          const matchCue = subtitlesRef.current.find(
-            (c) => currentRel >= c.start && currentRel <= c.end
-          );
-          setActiveSubtitleText(matchCue ? matchCue.text : '');
-        } else {
-          setActiveSubtitleText('');
-        }
-      }
-
-      // Loop current segment & boundary enforcement
-      if (isLocalMode) {
-        if (current >= duration) {
-          player.currentTime = 0;
-          if (isContinueStateRef.current) {
-            player.play();
-          }
-        }
-      } else {
-        // Enforce boundary klip stream:
-        // 1. Loop jika mencapai batas akhir klip (current >= end)
-        // 2. Koreksi seketika jika video meleset atau nyangkut di luar rentang klip (misal detik nol: current < start - 0.5s)
-        if (current >= currentActive.end || current < currentActive.start - 0.5) {
-          player.currentTime = currentActive.start;
-          if (isContinueStateRef.current) {
-            player.play();
-          }
-        }
-      }
-    });
-
-    const statusSub = player.addListener('statusChange', async () => {
-      if (player.status === 'readyToPlay') {
-        // HANYA snap posisi jika sedang terjadi pergantian media source (player.replace),
-        // JANGAN snap pada seek biasa (crop/extend/skip/scrubber) agar posisi seek user tidak tertimpa ke awal klip!
-        if (isSourceSwitchingRef.current) {
-          isSourceSwitchingRef.current = false;
-          const currentActiveId = activeClipIdRef.current || activeClipId;
-          const currentActive = clipsRef.current.find((c) => c.id === currentActiveId) || activeClip;
-          const isLocalMode = currentSourceUriRef.current.startsWith('file://');
-          const targetTime =
-            pendingSeekTargetRef.current !== null
-              ? pendingSeekTargetRef.current
-              : isLocalMode
-              ? 0
-              : Math.max(0, currentActive.start);
-
-          if (Math.abs(player.currentTime - targetTime) > 0.5) {
-            try {
-              player.currentTime = targetTime;
-            } catch (e) {}
-          }
-          if (isContinueStateRef.current && !player.playing) {
-            try {
-              player.play();
-            } catch (e) {}
-          }
-        }
-        return;
-      }
-
-      if (player.status === 'error') {
-        const isLocalMode = currentSourceUriRef.current.startsWith('file://');
-        if (isLocalMode) {
-          console.warn('[Feed] Local file playback error, falling back to stream...');
-          const activeStream = streamUrlRef.current;
-          if (activeStream) {
-            currentSourceUriRef.current = activeStream;
-            setPendingSeek(activeClip.start);
-            isSourceSwitchingRef.current = true;
-            player.replace(activeStream);
-            player.currentTime = activeClip.start;
-            if (isContinueStateRef.current) {
-              player.play();
-            }
-          }
-          return;
-        }
-
-        console.warn('[Feed] Player error detected, stream URL mungkin kadaluwarsa. Mengambil URL baru...');
-        try {
-          const freshUrl = await fetchStreamUrl(videoId, true); // forceRefresh = true
-          if (freshUrl) {
-            setStreamUrl(freshUrl);
-            streamUrlRef.current = freshUrl;
-            currentSourceUriRef.current = freshUrl;
-            setPendingSeek(activeClip.start);
-            isSourceSwitchingRef.current = true;
-            player.replace(freshUrl);
-            player.currentTime = activeClip.start;
-            if (isContinueStateRef.current) {
-              player.play();
-            }
-          }
-        } catch (e: any) {
-          if (isRateLimitOrRestrictedError(e)) {
-            setCookiesModalVisible(true);
-          }
-          ToastManager.show({
-            type: 'error',
-            title: 'Gagal Memperbarui Stream',
-            message: e?.message || 'Server gagal me-refresh stream video.',
-            rawError: e?.rawError,
-            errorCode: e?.code,
-            duration: 4000,
-          });
-        }
-      }
-    });
-
-    return () => {
-      sub.remove();
-      statusSub.remove();
-    };
-  }, [player, videoId, setPendingSeek]);
 
   // Auto-load subtitle yang sudah tersimpan untuk klip aktif
   useEffect(() => {
@@ -722,70 +344,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     }
   };
 
-  // Playback Control Handlers (Force manual control terisolasi dari auto-seek/auto-play)
-  const togglePlayPause = () => {
-    if (!player) return;
-    if (isContinueState) {
-      // Pindah dari continue ke pause: force pause jika video sedang berputar
-      setIsContinueState(false);
-      if (player.playing) {
-        try {
-          player.pause();
-        } catch (e) {}
-      }
-    } else {
-      // Pindah dari pause ke continue: force play jika video sedang berhenti
-      setIsContinueState(true);
-      if (!player.playing) {
-        try {
-          player.play();
-        } catch (e) {}
-      }
-    }
-  };
 
-  const skipSeconds = (seconds: number) => {
-    const currentActiveId = activeClipIdRef.current || activeClipId;
-    const currentActive = clipsRef.current.find((c) => c.id === currentActiveId) || activeClip;
-    const isLocalMode = currentSourceUriRef.current.startsWith('file://');
-    const duration = currentActive.end - currentActive.start;
-
-    if (isLocalMode) {
-      const baseTime =
-        pendingSeekTargetRef.current !== null
-          ? pendingSeekTargetRef.current
-          : player
-          ? player.currentTime
-          : 0;
-
-      const nextTime = Math.max(0, Math.min(Math.max(0, duration - 0.2), baseTime + seconds));
-      if (duration > 0) {
-        const pct = Math.max(0, Math.min(100, (nextTime / duration) * 100));
-        setProgressPercent(pct);
-        setCurrentClipTime(nextTime);
-      }
-      centralizedSeek(nextTime, true);
-    } else {
-      const baseTime =
-        pendingSeekTargetRef.current !== null
-          ? pendingSeekTargetRef.current
-          : player
-          ? player.currentTime
-          : currentActive.start;
-
-      let nextTime = baseTime + seconds;
-      if (nextTime < currentActive.start) nextTime = currentActive.start;
-      if (nextTime >= currentActive.end) nextTime = Math.max(currentActive.start, currentActive.end - 0.2);
-
-      if (duration > 0) {
-        const pct = Math.max(0, Math.min(100, ((nextTime - currentActive.start) / duration) * 100));
-        setProgressPercent(pct);
-        const rel = Math.max(0, Math.min(duration, nextTime - currentActive.start));
-        setCurrentClipTime(rel);
-      }
-      centralizedSeek(nextTime, true);
-    }
-  };
 
   if (loading) {
     return (

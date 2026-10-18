@@ -32,6 +32,8 @@ export interface UseClipDataParams {
     existingDownloadMap: Record<string, boolean>,
     initialActiveClip: ClipItem | null
   ) => void;
+  clipsRef?: React.MutableRefObject<ClipItem[]>;
+  activeClipIdRef?: React.MutableRefObject<string | null>;
 }
 
 export function useClipData({
@@ -48,6 +50,8 @@ export function useClipData({
   setProgressPercent,
   setCurrentClipTime,
   onClipsLoaded,
+  clipsRef: externalClipsRef,
+  activeClipIdRef: externalActiveClipIdRef,
 }: UseClipDataParams) {
   const DRAFT_KEY = `clips_draft_${videoId}`;
 
@@ -62,8 +66,10 @@ export function useClipData({
   const [tempTimeValue, setTempTimeValue] = useState<string>('');
 
   const storageDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const clipsRef = useRef<ClipItem[]>(clips);
-  const activeClipIdRef = useRef<string | null>(activeClipId);
+  const internalClipsRef = useRef<ClipItem[]>(clips);
+  const internalActiveClipIdRef = useRef<string | null>(activeClipId);
+  const clipsRef = externalClipsRef || internalClipsRef;
+  const activeClipIdRef = externalActiveClipIdRef || internalActiveClipIdRef;
 
   useEffect(() => {
     clipsRef.current = clips;

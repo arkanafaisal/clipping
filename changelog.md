@@ -14,7 +14,22 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Extract useClipData Hook for Feed Data and State Management
+## [Unreleased] - Extract useClipPlayer Hook for Video Playback and Controls
+- **Konteks Struktural**:
+  1. Ekstraksi Logika Pemutar Video & Navigasi Playback:
+     - Memindahkan seluruh state, lifecycle listener video player (`expo-video`), dan debounced seek handler dari [FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx) ke dalam custom hook [useClipPlayer.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipPlayer.ts).
+     - Menjaga 100% keselarasan alur logika asli: loop playback segmen (file fisik lokal vs stream YouTube online), sinkronisasi realtime cue subtitle dengan time update player, auto-recovery saat stream URL expired (`forceRefresh = true`), listener hardware back press Android, serta central debounced seek (0ms untuk file lokal, 500ms trailing-edge untuk stream YouTube).
+     - Menyediakan kontrol pemutar terisolasi: `syncPlayerSourceForClip`, `centralizedSeek`, `togglePlayPause`, `skipSeconds`, dan `initializeStreamAndPlayback`.
+- **Perubahan Kode Penting**:
+  - [mobile/src/hooks/useClipPlayer.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipPlayer.ts):
+    - Dibuat baru dengan fungsi hook `useClipPlayer` dan interface `UseClipPlayerParams`.
+  - [mobile/src/hooks/useClipData.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipData.ts):
+    - Menambahkan parameter opsional `clipsRef` dan `activeClipIdRef` agar referensi data klip dapat dibagikan secara sinkron dengan `useClipPlayer`.
+  - [mobile/src/components/FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
+    - Mengimpor dan mengonsumsi `useClipPlayer`.
+    - Menghapus listener `timeUpdate`, `statusChange`, deklarasi player state lokal, dan handler kontrol pemutar manual.
+
+## [8e44eec] - Extract useClipData Hook for Feed Data and State Management
 - **Konteks Struktural**:
   1. Ekstraksi Logika Pengelolaan Data Klip ke Hook Terpisah:
      - Memindahkan logika pengelolaan data klip dari [FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx) ke dalam custom hook [useClipData.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipData.ts).
