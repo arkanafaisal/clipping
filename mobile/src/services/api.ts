@@ -1830,6 +1830,102 @@ export async function deleteClipTemplate(
   }
 }
 
+// ==============================================================================
+// KONFIGURASI GLOBAL TINGKAT VIDEO (SHARED / CONSTANT ANTAR KLIP PADA VIDEO SAMA)
+// ==============================================================================
+
+export interface VideoGlobalConfig {
+  subtitlePosition?: { x: number; y: number };
+  facecam?: ClipTemplateConfig['facecam'];
+  mainVideo?: ClipTemplateConfig['mainVideo'];
+  contextStyle?: {
+    fontSize: number;
+    paddingY: number;
+  };
+  portraitEnabled?: boolean;
+}
+
+export const VIDEO_GLOBAL_CONFIG_MEMORY_MAP = new Map<string, VideoGlobalConfig>();
+
+export function getVideoGlobalConfigFilePath(videoId: string): { fileUri: string; nativePath: string } {
+  const nativePath = `${INTERNAL_CLIPPING_OUTPUT_DIR}/${videoId}/video_config.json`;
+  const fileUri = `file://${nativePath}`;
+  return { fileUri, nativePath };
+}
+
+/**
+ * Membaca konfigurasi global tingkat video (posisi subtitle, crop/zoom facecam & main video).
+ * Menggunakan Tier 1 in-memory map untuk instant 0ms switching antar klip,
+ * dan Tier 2 internal storage (video_config.json) untuk persistensi disk.
+ */
+export async function loadVideoGlobalConfig(videoId: string): Promise<VideoGlobalConfig | null> {
+  if (!videoId) return null;
+  if (VIDEO_GLOBAL_CONFIG_MEMORY_MAP.has(videoId)) {
+    return VIDEO_GLOBAL_CONFIG_MEMORY_MAP.get(videoId)!;
+  }
+
+  const { fileUri } = getVideoGlobalConfigFilePath(videoId);
+  try {
+    const info = await FileSystem.getInfoAsync(fileUri);
+    if (info.exists && !info.isDirectory) {
+      const content = await FileSystem.readAsStringAsync(fileUri);
+      const parsed = JSON.parse(content);
+      if (parsed && typeof parsed === 'object') {
+        VIDEO_GLOBAL_CONFIG_MEMORY_MAP.set(videoId, parsed);
+        return parsed as VideoGlobalConfig;
+      }
+    }
+  } catch {}
+  return null;
+}
+
+/**
+ * Menyimpan konfigurasi global tingkat video.
+ * Otomatis memperbarui in-memory map dan menulis ke video_config.json secara asynchronous.
+ */
+export async function saveVideoGlobalConfig(
+  videoId: string,
+  updates: Partial<VideoGlobalConfig>
+): Promise<VideoGlobalConfig> {
+  if (!videoId) throw new Error('videoId wajib disertakan');
+  const current = (await loadVideoGlobalConfig(videoId)) || {};
+
+  const merged: VideoGlobalConfig = {
+    ...current,
+    ...updates,
+    subtitlePosition: updates.subtitlePosition || current.subtitlePosition,
+    facecam: updates.facecam
+      ? { ...(current.facecam || DEFAULT_TEMPLATE_CONFIG.facecam), ...updates.facecam }
+      : current.facecam,
+    mainVideo: updates.mainVideo
+      ? { ...(current.mainVideo || DEFAULT_TEMPLATE_CONFIG.mainVideo), ...updates.mainVideo }
+      : current.mainVideo,
+    contextStyle: updates.contextStyle
+      ? { ...(current.contextStyle || { fontSize: 16, paddingY: 10 }), ...updates.contextStyle }
+      : current.contextStyle,
+    portraitEnabled:
+      typeof updates.portraitEnabled === 'boolean'
+        ? updates.portraitEnabled
+        : current.portraitEnabled,
+  };
+
+  VIDEO_GLOBAL_CONFIG_MEMORY_MAP.set(videoId, merged);
+
+  try {
+    const { fileUri } = getVideoGlobalConfigFilePath(videoId);
+    const folderUri = fileUri.substring(0, fileUri.lastIndexOf('/'));
+    const dirInfo = await FileSystem.getInfoAsync(folderUri);
+    if (!dirInfo.exists) {
+      await FileSystem.makeDirectoryAsync(folderUri, { intermediates: true });
+    }
+    await FileSystem.writeAsStringAsync(fileUri, JSON.stringify(merged, null, 2));
+  } catch (err) {
+    console.warn('[saveVideoGlobalConfig] Gagal menyimpan video_config.json:', err);
+  }
+
+  return merged;
+}
+
 export interface BurnSubtitlesParams {
   videoId: string;
   start: number;

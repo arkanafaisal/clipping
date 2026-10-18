@@ -6,6 +6,8 @@ import {
   DEFAULT_SUBTITLE_STYLE,
   loadClipSubtitle,
   saveClipSubtitle,
+  loadVideoGlobalConfig,
+  saveVideoGlobalConfig,
   fetchSubtitlesForVideo,
   sliceCuesForClip,
   normalizeSingleTrackCues,
@@ -55,13 +57,17 @@ export function useClipSubtitle({
     subtitlePosRef.current = subtitlePosition;
   }, [subtitlePosition]);
 
-  // Auto-load subtitle yang sudah tersimpan untuk klip aktif
+  // Auto-load subtitle: Cues spesifik per-klip, sedangkan posisi (X/Y) konstan global per video
   useEffect(() => {
     let isCurrent = true;
     async function checkSavedSubtitle() {
       if (!activeClip || !activeClip.videoId) return;
       try {
-        const saved = await loadClipSubtitle(activeClip.videoId, activeClip.start, activeClip.end);
+        const [saved, globalConf] = await Promise.all([
+          loadClipSubtitle(activeClip.videoId, activeClip.start, activeClip.end),
+          loadVideoGlobalConfig(activeClip.videoId),
+        ]);
+
         if (isCurrent) {
           if (saved && Array.isArray(saved.cues)) {
             const clipDuration = activeClip.end - activeClip.start;
@@ -70,13 +76,24 @@ export function useClipSubtitle({
           } else {
             setSubtitles([]);
           }
-          if (saved && saved.style) {
+
+          // Posisi Subtitle: Mewarisi Global Video Config agar konsisten di seluruh klip
+          let posX = 50;
+          let posY = 85;
+          if (globalConf?.subtitlePosition) {
+            posX = globalConf.subtitlePosition.x;
+            posY = globalConf.subtitlePosition.y;
+          } else if (saved && saved.style) {
             const rawX = typeof saved.style.positionX === 'number' ? saved.style.positionX : 50;
             const rawY = typeof saved.style.positionY === 'number' ? saved.style.positionY : 85;
-            const normX = rawX <= 1 && rawX > 0 ? Math.round(rawX * 100) : rawX;
-            const normY = rawY <= 1 && rawY > 0 ? Math.round(rawY * 100) : rawY;
-            setSubtitlePosition({ x: normX, y: normY });
+            posX = rawX <= 1 && rawX > 0 ? Math.round(rawX * 100) : rawX;
+            posY = rawY <= 1 && rawY > 0 ? Math.round(rawY * 100) : rawY;
+            // Backfill ke global config
+            saveVideoGlobalConfig(activeClip.videoId, { subtitlePosition: { x: posX, y: posY } }).catch(() => {});
           }
+          setSubtitlePosition({ x: posX, y: posY });
+          subtitlePosRef.current = { x: posX, y: posY };
+
           setSelectedCueId(null);
         }
       } catch {
@@ -313,6 +330,9 @@ export function useClipSubtitle({
       setSubtitlePosition({ x, y });
       subtitlePosRef.current = { x, y };
       if (activeClip && activeClip.videoId) {
+        // Simpan ke Global Video Config (video_config.json) agar seluruh klip lain di video ini otomatis mewarisi
+        saveVideoGlobalConfig(activeClip.videoId, { subtitlePosition: { x, y } }).catch(() => {});
+
         const currentCues =
           subtitlesRef.current && subtitlesRef.current.length > 0
             ? subtitlesRef.current

@@ -14,7 +14,30 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Synchronize Subtitle Font Scaling Between Frontend Preview and FFmpeg Burner
+## [Unreleased] - Implement Video-Level Global Configuration Hierarchy for Template Framing and Subtitle Position
+- **Konteks Struktural**:
+  1. Arsitektur Konfigurasi Hierarkis (Global Video vs Spesifik Klip):
+     - Memisahkan pengaturan editor menjadi dua tingkatan (*scopes*): Tingkat Video (Global/Shared) dan Tingkat Klip (Per-Klip).
+     - Menjadikan pengaturan **Facecam** (`enabled`, `zoom`, `cropX`, `cropY`), **Gameplay / Main Video** (`zoom`, `cropX`, `cropY`), **Tipografi Konteks** (`fontSize`, `paddingY`), dan **Posisi Subtitle** (`positionX`, `positionY`) konstan di seluruh klip dari `videoId` yang sama.
+     - Sekali pengguna mengatur *crop* kepala streamer atau posisi subtitle pada suatu klip, seluruh klip lain pada video tersebut otomatis mewarisi konfigurasi yang sama tanpa perlu diatur ulang.
+  2. Isolasi Data Spesifik Klip:
+     - Mempertahankan isi teks judul konteks (`context.text`), cue subtitle (`cues`), dan override ukuran font per cue (`cue.fontSize`) tetap terikat secara unik per klip masing-masing.
+  3. Tiered Persistence (Tier 1 In-Memory + Tier 2 Private Storage):
+     - Mengimplementasikan `VIDEO_GLOBAL_CONFIG_MEMORY_MAP` untuk perpindahan antar-klip instan tanpa jeda pembacaan disk (0ms latency).
+     - Menyimpan konfigurasi global secara persisten ke `${INTERNAL_CLIPPING_OUTPUT_DIR}/${videoId}/video_config.json`.
+- **Perubahan Kode Penting**:
+  - [mobile/src/services/api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts):
+    - Mendefinisikan antarmuka `VideoGlobalConfig` dan memory map `VIDEO_GLOBAL_CONFIG_MEMORY_MAP`.
+    - Menambahkan helper `getVideoGlobalConfigFilePath`, `loadVideoGlobalConfig`, dan `saveVideoGlobalConfig`.
+  - [mobile/src/hooks/useClipTemplate.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipTemplate.ts):
+    - Memperbarui `checkSavedTemplate` untuk memuat data global video dan menggabungkannya dengan data spesifik klip.
+    - Menyelaraskan `handleUpdateFacecam` dan `handleUpdateMainVideo` agar langsung memperbarui `video_config.json` di samping template klip lokal.
+    - Menyelaraskan `handleUpdateContext` agar perubahan ukuran/padding banner langsung tersinkronisasi ke seluruh klip.
+  - [mobile/src/hooks/useClipSubtitle.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipSubtitle.ts):
+    - Menginisialisasi `subtitlePosition` dari `globalConf.subtitlePosition`.
+    - Menyimpan pembaruan posisi subtitle di `handleUpdateSubtitlePosition` ke `saveVideoGlobalConfig` agar seluruh klip pada video otomatis sinkron.
+
+## [34b57db] - Synchronize Subtitle Font Scaling Between Frontend Preview and FFmpeg Burner
 - **Konteks Struktural**:
   1. Sinkronisasi Presisi Skala Font Subtitle (WYSIWYG 1:1 Parity):
      - Mengatasi kendala visual di mana ukuran teks subtitle pada hasil ekspor FFmpeg menciut (~37% lebih kecil) dibandingkan dengan tampilan preview mode edit di HP.
