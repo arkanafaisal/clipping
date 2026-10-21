@@ -14,7 +14,46 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Add Full Video Download in Dashboard, Prioritize Local Offline Playback, and Fast Local Clip Cutting
+## [Unreleased] - Streamline Notifications to Single-Context Titles, Eliminate False-Positive Cookie Handling, and Add Manual Cookie Renewal in Dashboard
+- **Konteks Struktural**:
+  1. Penyederhanaan Notifikasi Toast (Single-Context Title & Raw Error Modal):
+     - Menghapus rendering deskripsi kalimat panjang (`message`) pada banner toast di [Toast.tsx](file:///d:/projects/clipping/mobile/src/components/Toast.tsx) sehingga tampilan notifikasi menjadi ringkas satu baris yang murni menjelaskan status fitur berhasil/gagal ("Fitur X Berhasil" / "Fitur X Gagal").
+     - Memindahkan seluruh konteks teknis dan rincian error secara eksklusif ke modal debug error (`rawError`), yang dapat diakses pengguna melalui tombol bug/code (`Code2`) pada banner error tanpa membebani antarmuka pengguna dengan saran atau kalimat deskripsi yang berbelit.
+  2. Eliminasi Asumsi Error Cookies & Bot Blocking Palsu:
+     - Menghentikan kebiasaan aplikasi yang secara keliru mengklasifikasikan setiap kegagalan teknis (error jaringan, FFmpeg cut, format tidak tersedia, timeout) sebagai error rate limit / bot / cookies di [api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts).
+     - Menghapus kemunculan modal input cookies secara otomatis (`setCookiesModalVisible(true)`) dari seluruh blok `catch` pada player ([useClipPlayer.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipPlayer.ts)), pengunduh klip ([useClipDownload.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipDownload.ts)), layar feed ([FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx)), dan dashboard ([Dashboard.tsx](file:///d:/projects/clipping/mobile/src/components/Dashboard.tsx)).
+  3. Mekanisme Pembaruan Cookies Mandiri di Dashboard / Workspace:
+     - Menambahkan tombol aksi "COOKIES" mandiri pada bilah proyek tersimpan di [Dashboard.tsx](file:///d:/projects/clipping/mobile/src/components/Dashboard.tsx). Pengguna dapat membuka [CookiesModal.tsx](file:///d:/projects/clipping/mobile/src/components/CookiesModal.tsx) kapan saja secara sadar untuk menimpa file cookies melalui Google Drive publik tanpa terganggu popup otomatis saat terjadi kegagalan teknis non-bot.
+- **Perubahan Kode Penting**:
+  - [mobile/src/components/Toast.tsx](file:///d:/projects/clipping/mobile/src/components/Toast.tsx):
+    - `ToastContainer`: Menghapus komponen teks `toast.message` dari container pill dan hanya merender `toast.title` secara ringkas.
+    - Menyesuaikan label informasi di debug modal menjadi "Fitur / Konteks" dan "Raw Error / Respon Server".
+  - [mobile/src/services/api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts):
+    - `isRateLimitOrRestrictedError`: Mengetatkan filter deteksi agar hanya merespons kata kunci verifikasi bot YouTube nyata (`sign in to confirm`, `bot verification`) dan tidak menganggap sembarang HTTP 403 atau error umum sebagai bot.
+    - `downloadClip`: Menghapus fallback yang menganggap kegagalan tanpa `cookiePath` sebagai `RATE_LIMIT_EXCEEDED` atau `COOKIES_INVALID_OR_EXPIRED`.
+  - [mobile/src/hooks/useClipPlayer.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipPlayer.ts):
+    - Menghapus parameter `setCookiesModalVisible` dari `UseClipPlayerParams`.
+    - Menghapus panggilan auto-popup cookies dan menyederhanakan seluruh toast menjadi single-context: "Gagal Memindahkan Pemutar", "Gagal Memperbarui Stream", "Memutar File Lokal", "Memutar Full Video Lokal", "Stream Video Siap", dan "Stream Video Gagal".
+  - [mobile/src/hooks/useClipDownload.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipDownload.ts):
+    - Menghapus state `cookiesModalVisible` dan logika auto-popup cookies pada blok penanganan error unduhan.
+    - Menyederhanakan toast unduhan menjadi: "Klip Sudah Ada", "Sedang Mengunduh Klip", "Memulai Unduhan Klip", "Unduh Klip Berhasil", dan "Unduh Klip Gagal".
+  - [mobile/src/components/FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
+    - Menghapus impor dan elemen `CookiesModal` serta ref `setCookiesModalVisibleRef`.
+  - [mobile/src/components/Dashboard.tsx](file:///d:/projects/clipping/mobile/src/components/Dashboard.tsx):
+    - Menambahkan tombol "COOKIES" di samping tombol "IMPORT" pada bilah proyek tersimpan.
+    - Menghapus seluruh trigger `setCookiesModalVisible(true)` dari blok penanganan error pembuatan workshop, pembukaan workshop, dan pengunduhan full video.
+    - Menyederhanakan seluruh toast menjadi ringkas: "Gagal Membuat Workshop", "Gagal Membuka Workshop", "Unduh Full Video Berhasil", "Unduh Full Video Gagal", "Draft Dihapus", "Draft Klip Kosong", "Belum Ada Klip Selesai", "Gagal Kirim WhatsApp", "Impor Workshop Berhasil", dan "Impor Workshop Gagal".
+  - [mobile/src/components/CookiesModal.tsx](file:///d:/projects/clipping/mobile/src/components/CookiesModal.tsx):
+    - Memperbarui judul dan deskripsi modal menjadi "Perbarui Cookies YouTube".
+    - Menyederhanakan toast hasil pembaruan menjadi "Pembaruan Cookies Berhasil" dan "Pembaruan Cookies Gagal".
+  - [mobile/src/hooks/useClipData.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipData.ts):
+    - Menyederhanakan toast status menjadi "Gagal Membuka Workshop", "Memutar File Lokal", dan "Mode Stream YouTube".
+  - [mobile/src/components/StorageConfigSection.tsx](file:///d:/projects/clipping/mobile/src/components/StorageConfigSection.tsx):
+    - Menyederhanakan toast verifikasi storage menjadi "Verifikasi Storage Berhasil" dan "Verifikasi Storage Gagal".
+  - [mobile/src/app/index.tsx](file:///d:/projects/clipping/mobile/src/app/index.tsx):
+    - Menyederhanakan toast koneksi startup menjadi "Server Python Terhubung" dan "Server Python Offline".
+
+## [41311ea] - Add Full Video Download in Dashboard, Prioritize Local Offline Playback, and Fast Local Clip Cutting
 - **Konteks Struktural**:
   1. Pengunduhan Full Video di Dashboard / Shared Storage:
      - Menambahkan tombol unduh video utuh (full video) pada setiap kartu video di Dashboard ([WorkshopCard.tsx](file:///d:/projects/clipping/mobile/src/components/WorkshopCard.tsx) dan [Dashboard.tsx](file:///d:/projects/clipping/mobile/src/components/Dashboard.tsx)) dengan indikator status offline dan progress real-time.

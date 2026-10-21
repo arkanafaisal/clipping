@@ -54,9 +54,8 @@ export const CookiesModal: React.FC<CookiesModalProps> = ({
       setDriveLink('');
       ToastManager.show({
         type: 'success',
-        title: 'Cookies Berhasil Diperbarui',
-        message: 'File cookies.txt berhasil ditimpa di penyimpanan privat dan siap digunakan.',
-        duration: 4000,
+        title: 'Pembaruan Cookies Berhasil',
+        duration: 3000,
       });
       onSuccess?.(savedPath);
       onClose();
@@ -66,9 +65,8 @@ export const CookiesModal: React.FC<CookiesModalProps> = ({
       setErrorMessage(msg);
       ToastManager.show({
         type: 'error',
-        title: 'Gagal Mengimpor Cookies',
-        message: msg,
-        rawError: err.rawError,
+        title: 'Pembaruan Cookies Gagal',
+        rawError: err.rawError || msg,
         errorCode: err.code,
         duration: 5000,
       });
@@ -94,9 +92,9 @@ export const CookiesModal: React.FC<CookiesModalProps> = ({
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <View style={styles.modalCard}>
-          <Text style={styles.title}>Batas YouTube / Cookies Kedaluwarsa</Text>
+          <Text style={styles.title}>Perbarui Cookies YouTube</Text>
           <Text style={styles.subtitle}>
-            Batas permintaan YouTube terlampaui atau cookies kedaluwarsa. Tolong masukkan link file cookies.txt terbaru dari Google Drive (akses publik) untuk menimpa cookies lama.
+            Masukkan link file cookies.txt publik dari Google Drive untuk memperbarui sesi YouTube.
           </Text>
 
           <TextInput

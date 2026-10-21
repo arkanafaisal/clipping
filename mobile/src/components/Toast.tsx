@@ -196,8 +196,7 @@ export const ToastContainer: React.FC = () => {
           <View style={styles.contentRow}>
             {renderIcon()}
             <View style={styles.textContainer}>
-              <Text style={styles.titleText}>{toast.title}</Text>
-              {toast.message ? <Text style={styles.messageText}>{toast.message}</Text> : null}
+              <Text style={styles.titleText} numberOfLines={1}>{toast.title}</Text>
             </View>
 
             {/* Icon Button Khusus Debug Modal (Selalu muncul untuk tipe error atau jika ada rawError) */}
@@ -253,8 +252,8 @@ export const ToastContainer: React.FC = () => {
               </View>
             ) : null}
 
-            <Text style={styles.sectionLabel}>Pesan Pengguna:</Text>
-            <Text style={styles.userMsgText}>{debugData?.message || debugData?.title}</Text>
+            <Text style={styles.sectionLabel}>Fitur / Konteks:</Text>
+            <Text style={styles.userMsgText}>{debugData?.title}</Text>
 
             <Text style={styles.sectionLabel}>Raw Error / Respon Server:</Text>
             <ScrollView

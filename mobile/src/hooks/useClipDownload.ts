@@ -5,11 +5,9 @@ import {
   downloadClip,
   getClipOutputFilePath,
   checkClipFileExists,
-  isRateLimitOrRestrictedError,
 } from '../services/api';
 import { LocalStorage } from '../services/storage';
 import { ToastManager } from '../components/Toast';
-import { formatTime } from '../components/feed/timeUtils';
 
 export interface UseClipDownloadParams {
   videoId: string;
@@ -40,7 +38,6 @@ export function useClipDownload({
     Record<string, { stage: string; code: string; percent: number }>
   >({});
   const activeDownloadPollersRef = useRef<Record<string, ReturnType<typeof setInterval>>>({});
-  const [cookiesModalVisible, setCookiesModalVisible] = useState(false);
 
   const internalDownloadedClipsRef = useRef<Record<string, boolean>>(downloadedClips);
   const downloadedClipsRef = externalDownloadedClipsRef || internalDownloadedClipsRef;
@@ -101,7 +98,6 @@ export function useClipDownload({
       ToastManager.show({
         type: 'info',
         title: 'Klip Sudah Ada',
-        message: 'File klip video berkualitas penuh sudah terunduh di folder output.',
         duration: 2500,
       });
       return;
@@ -110,8 +106,7 @@ export function useClipDownload({
     if (downloadingClips[clipId]) {
       ToastManager.show({
         type: 'info',
-        title: 'Sedang Mengunduh',
-        message: 'Klip sedang diproses di latar belakang...',
+        title: 'Sedang Mengunduh Klip',
         duration: 2000,
       });
       return;
@@ -157,8 +152,7 @@ export function useClipDownload({
     ToastManager.show({
       type: 'info',
       title: 'Memulai Unduhan Klip',
-      message: `Mengunduh Klip #${activeClip.rank || ''} (${formatTime(activeClip.start)} - ${formatTime(activeClip.end)})...`,
-      duration: 3000,
+      duration: 2500,
     });
 
     try {
@@ -189,31 +183,15 @@ export function useClipDownload({
 
       ToastManager.show({
         type: 'success',
-        title: 'Klip Berhasil Diunduh',
-        message: 'Tersimpan di storage & otomatis beralih memutar file lokal.',
-        duration: 3500,
+        title: 'Unduh Klip Berhasil',
+        duration: 3000,
       });
     } catch (err: any) {
       setDownloadingClips((prev) => ({ ...prev, [clipId]: false }));
-      if (isRateLimitOrRestrictedError(err) || err.code === 'COOKIES_INVALID_OR_EXPIRED') {
-        setCookiesModalVisible(true);
-      }
-      const title =
-        err.code === 'STORAGE_PERMISSION_DENIED'
-          ? 'Izin Akses Penyimpanan Ditolak'
-          : err.code === 'COOKIES_INVALID_OR_EXPIRED'
-          ? 'Cookies Tidak Valid / Kedaluwarsa'
-          : err.code === 'COOKIES_FILE_NOT_FOUND'
-          ? 'File Cookies Tidak Ditemukan'
-          : err.code === 'RATE_LIMIT_EXCEEDED'
-          ? 'Batas Permintaan YouTube (Mode Anonim)'
-          : 'Gagal Mengunduh Klip';
-
       ToastManager.show({
         type: 'error',
-        title,
-        message: err.message || 'Terjadi kesalahan saat mengunduh klip.',
-        rawError: err.rawError,
+        title: 'Unduh Klip Gagal',
+        rawError: err.rawError || err.message,
         errorCode: err.code,
         duration: 5000,
       });
@@ -252,8 +230,6 @@ export function useClipDownload({
     downloadProgress,
     setDownloadProgress,
     downloadedClipsRef,
-    cookiesModalVisible,
-    setCookiesModalVisible,
     getDownloadProgressLabel,
     handleDownloadClip,
   };

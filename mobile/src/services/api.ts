@@ -133,14 +133,11 @@ export function isRateLimitOrRestrictedError(err: any): boolean {
   ) {
     return false;
   }
-  if (err.code === 'RATE_LIMIT_EXCEEDED' || err.code === 'COOKIES_INVALID_OR_EXPIRED') return true;
   return (
-    fullText.includes('429') ||
-    fullText.includes('403') ||
-    fullText.includes('forbidden') ||
-    fullText.includes('rate limit') ||
-    fullText.includes('bot') ||
-    fullText.includes('sign in')
+    fullText.includes('sign in to confirm') ||
+    fullText.includes('bot verification') ||
+    fullText.includes('confirm you’re not a bot') ||
+    fullText.includes('confirm you\'re not a bot')
   );
 }
 
@@ -1112,14 +1109,8 @@ export async function downloadClip(
           code = 'STORAGE_PERMISSION_DENIED';
         } else if (lowerRaw.includes('requested format is not available') || lowerRaw.includes('format is not available')) {
           code = 'FORMAT_NOT_AVAILABLE';
-        } else if (payload?.cookies_attempted || data?.cookies_attempted) {
-          code = 'COOKIES_INVALID_OR_EXPIRED';
-        } else if (!cookiePath) {
-          code = 'RATE_LIMIT_EXCEEDED';
-        } else if ((payload?.cookies_path || data?.cookies_path) && (payload?.cookies_file_exists === false || data?.cookies_file_exists === false)) {
-          code = 'COOKIES_FILE_NOT_FOUND';
-        } else if (isRateLimitOrRestrictedError({ message: rawError, rawError })) {
-          code = cookiePath ? 'COOKIES_INVALID_OR_EXPIRED' : 'RATE_LIMIT_EXCEEDED';
+        } else if (lowerRaw.includes('sign in to confirm') || lowerRaw.includes('bot verification')) {
+          code = 'BOT_DETECTED';
         }
 
         throw new ApiError(code, rawError);
@@ -1185,14 +1176,11 @@ export async function downloadClip(
         continue;
       }
       if (error instanceof ApiError) throw error;
-      const isLimit = isRateLimitOrRestrictedError(error);
       let code = 'DOWNLOAD_FAILED';
       if (isErrPermission) {
         code = 'STORAGE_PERMISSION_DENIED';
-      } else if (isLimit) {
-        code = cookiePath ? 'COOKIES_INVALID_OR_EXPIRED' : 'RATE_LIMIT_EXCEEDED';
       } else if (error.name === 'AbortError') {
-        code = 'NETWORK_ERROR';
+        code = 'NETWORK_TIMEOUT';
       }
       throw new ApiError(code, error.message);
     }

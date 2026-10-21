@@ -8,7 +8,7 @@ import {
   Alert,
   Linking,
 } from 'react-native';
-import { Download } from 'lucide-react-native';
+import { Cookie, Download } from 'lucide-react-native';
 import { WorkshopCard, WorkshopItem } from './WorkshopCard';
 import { WorkshopInputForm } from './WorkshopInputForm';
 import { ImportWorkshopModal } from './ImportWorkshopModal';
@@ -21,7 +21,6 @@ import {
   fetchStreamUrl,
   checkFullVideoExists,
   downloadFullVideo,
-  isRateLimitOrRestrictedError,
 } from '../services/api';
 
 const WORKSHOPS_STORAGE_KEY = 'workshops_list';
@@ -171,16 +170,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
       onOpenWorkshop?.(videoId, count);
     } catch (err: any) {
       setIsExtracting(false);
-      if (isRateLimitOrRestrictedError(err)) {
-        setCookiesModalVisible(true);
-      }
       ToastManager.show({
         type: 'error',
         title: 'Gagal Membuat Workshop',
-        message: err.message || 'Server gagal mengambil data.',
         rawError: err.rawError || err.stack || err.message,
         errorCode: err.code || 'WORKSHOP_ERROR',
-        duration: 8000,
+        duration: 6000,
       });
     }
   };
@@ -218,14 +213,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
       // 2. Ambil direct stream URL (jika belum ada full video lokal)
       const hasFull = await checkFullVideoExists(videoId);
       if (!hasFull) {
-        try {
-          await fetchStreamUrl(videoId);
-        } catch (streamErr: any) {
-          if (isRateLimitOrRestrictedError(streamErr)) {
-            setCookiesModalVisible(true);
-          }
-          throw streamErr;
-        }
+        await fetchStreamUrl(videoId);
       }
 
       // 3. Update lastUpdated
@@ -239,13 +227,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
       // 4. Masuk ke FeedScreen setelah respons berhasil
       onOpenWorkshop?.(videoId, count);
     } catch (err: any) {
-      if (isRateLimitOrRestrictedError(err)) {
-        setCookiesModalVisible(true);
-      }
       ToastManager.show({
         type: 'error',
         title: 'Gagal Membuka Workshop',
-        message: err.message || 'Server sedang offline.',
         rawError: err.rawError || err.stack || err.message,
         errorCode: err.code,
         duration: 5000,
@@ -279,8 +263,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
 
       ToastManager.show({
         type: 'success',
-        title: 'Full Video Tersimpan',
-        message: 'Video utuh berhasil diunduh ke folder shared storage.',
+        title: 'Unduh Full Video Berhasil',
         duration: 3500,
       });
     } catch (err: any) {
@@ -288,13 +271,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
         ...prev,
         [videoId]: { exists: false, isDownloading: false, percent: 0 },
       }));
-      if (isRateLimitOrRestrictedError(err)) {
-        setCookiesModalVisible(true);
-      }
       ToastManager.show({
         type: 'error',
-        title: 'Gagal Unduh Full Video',
-        message: err.message || 'Gagal mengunduh video utuh.',
+        title: 'Unduh Full Video Gagal',
         rawError: err.rawError || err.stack || err.message,
         errorCode: err.code || 'DOWNLOAD_FAILED',
         duration: 6000,
@@ -315,7 +294,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
           ToastManager.show({
             type: 'info',
             title: 'Draft Dihapus',
-            message: `Workshop ${videoId} telah dihapus.`,
+            duration: 2000,
           });
         },
       },
@@ -328,8 +307,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
     if (!stored) {
       ToastManager.show({
         type: 'info',
-        title: 'Perhatian',
-        message: 'Tidak ada draft klip untuk video ini.',
+        title: 'Draft Klip Kosong',
+        duration: 2000,
       });
       return;
     }
@@ -343,8 +322,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
       if (doneClips.length === 0) {
         ToastManager.show({
           type: 'info',
-          title: 'Perhatian',
-          message: 'Tidak ada klip yang ditandai Selesai (Hijau) pada video ini.',
+          title: 'Belum Ada Klip Selesai',
+          duration: 2500,
         });
         return;
       }
@@ -370,9 +349,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
       console.error(err);
       ToastManager.show({
         type: 'error',
-        title: 'Gagal',
-        message: 'Gagal memproses draft klip untuk WhatsApp.',
+        title: 'Gagal Kirim WhatsApp',
         rawError: err?.stack || err?.message,
+        duration: 4000,
       });
     }
   };
@@ -398,16 +377,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
       setImportModalVisible(false);
       ToastManager.show({
         type: 'success',
-        title: 'Import Sukses',
-        message: `Workshop ${wsData.videoId} berhasil di-import.`,
+        title: 'Impor Workshop Berhasil',
+        duration: 2500,
       });
       loadSavedWorkshops();
     } catch (err: any) {
       ToastManager.show({
         type: 'error',
-        title: 'Format Tidak Valid',
-        message: 'Format data JSON yang Anda paste tidak valid.',
+        title: 'Impor Workshop Gagal',
         rawError: err instanceof Error ? err.message : String(err),
+        duration: 4000,
       });
     }
   };
@@ -439,14 +418,25 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
           </View>
         </View>
 
-        <TouchableOpacity
-          style={styles.importBtn}
-          onPress={() => setImportModalVisible(true)}
-          activeOpacity={0.8}
-        >
-          <Download size={13} color="rgba(255, 255, 255, 0.85)" />
-          <Text style={styles.importBtnText}>IMPORT</Text>
-        </TouchableOpacity>
+        <View style={styles.actionButtonGroup}>
+          <TouchableOpacity
+            style={styles.cookieBtn}
+            onPress={() => setCookiesModalVisible(true)}
+            activeOpacity={0.8}
+          >
+            <Cookie size={13} color="rgba(255, 255, 255, 0.85)" />
+            <Text style={styles.actionBtnText}>COOKIES</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.importBtn}
+            onPress={() => setImportModalVisible(true)}
+            activeOpacity={0.8}
+          >
+            <Download size={13} color="rgba(255, 255, 255, 0.85)" />
+            <Text style={styles.actionBtnText}>IMPORT</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* 4. Workshop Cards List */}
@@ -540,18 +530,34 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: 'rgba(255, 255, 255, 0.7)',
   },
-  importBtn: {
+  actionButtonGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  cookieBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     backgroundColor: '#262626',
-    paddingHorizontal: 12,
+    paddingHorizontal: 11,
     paddingVertical: 7,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.08)',
   },
-  importBtnText: {
+  importBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#262626',
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  actionBtnText: {
     fontSize: 10,
     fontWeight: '800',
     color: 'rgba(255, 255, 255, 0.85)',

@@ -223,10 +223,9 @@ export function useClipData({
           ToastManager.show({
             type: 'error',
             title: 'Gagal Membuka Workshop',
-            message: err.message || 'Gagal memuat data workshop.',
             rawError: err.rawError || err.stack || err.message,
             errorCode: err.code || 'LOAD_ERROR',
-            duration: 6000,
+            duration: 5000,
           });
           onBack();
         }
@@ -415,7 +414,6 @@ export function useClipData({
         ToastManager.show({
           type: 'success',
           title: 'Memutar File Lokal',
-          message: 'Klip telah terunduh, beralih ke video lokal offline.',
           duration: 2500,
         });
       }
@@ -425,8 +423,7 @@ export function useClipData({
         syncPlayerSourceForClip(targetClip, true);
         ToastManager.show({
           type: 'info',
-          title: 'Mode Stream',
-          message: 'Beralih kembali ke streaming YouTube.',
+          title: 'Mode Stream YouTube',
           duration: 2000,
         });
       }

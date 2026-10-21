@@ -7,7 +7,6 @@ import {
   getClipOutputFilePath,
   resolvePlayableClipUri,
   resolvePlayableFullVideoUri,
-  isRateLimitOrRestrictedError,
 } from '../services/api';
 import { ToastManager } from '../components/Toast';
 
@@ -17,7 +16,6 @@ export interface UseClipPlayerParams {
   activeClipIdRef: React.MutableRefObject<string | null>;
   activeClip?: ClipItem;
   downloadedClipsRef: React.MutableRefObject<Record<string, boolean>>;
-  setCookiesModalVisible: (visible: boolean) => void;
   onBack: () => void;
 }
 
@@ -27,7 +25,6 @@ export function useClipPlayer({
   activeClipIdRef,
   activeClip,
   downloadedClipsRef,
-  setCookiesModalVisible,
   onBack,
 }: UseClipPlayerParams) {
   const getActiveClip = useCallback((): ClipItem => {
@@ -233,7 +230,7 @@ export function useClipPlayer({
             ToastManager.show({
               type: 'error',
               title: 'Gagal Memindahkan Pemutar',
-              message: e?.message || 'Player gagal melakukan seek ke durasi target.',
+              rawError: e?.message,
               duration: 3500,
             });
           }
@@ -375,14 +372,10 @@ export function useClipPlayer({
             }
           }
         } catch (e: any) {
-          if (isRateLimitOrRestrictedError(e)) {
-            setCookiesModalVisible(true);
-          }
           ToastManager.show({
             type: 'error',
             title: 'Gagal Memperbarui Stream',
-            message: e?.message || 'Server gagal me-refresh stream video.',
-            rawError: e?.rawError,
+            rawError: e?.rawError || e?.message,
             errorCode: e?.code,
             duration: 4000,
           });
@@ -399,7 +392,6 @@ export function useClipPlayer({
     videoId,
     setPendingSeek,
     getActiveClip,
-    setCookiesModalVisible,
   ]);
 
   // Playback Control Handlers (Force manual control terisolasi dari auto-seek/auto-play)
@@ -501,7 +493,6 @@ export function useClipPlayer({
         ToastManager.show({
           type: 'success',
           title: 'Memutar File Lokal',
-          message: 'Memutar video klip berkualitas prime dari HP.',
           duration: 2500,
         });
         return;
@@ -522,7 +513,6 @@ export function useClipPlayer({
           ToastManager.show({
             type: 'success',
             title: 'Memutar Full Video Lokal',
-            message: 'Memutar video offline langsung dari file HP.',
             duration: 2500,
           });
           return;
@@ -549,27 +539,22 @@ export function useClipPlayer({
           }
           ToastManager.show({
             type: 'success',
-            title: 'Stream URL Aktif',
-            message: 'Pemutar video siap.',
+            title: 'Stream Video Siap',
             duration: 2500,
           });
         }
       } catch (streamErr: any) {
         console.warn('[Feed] Stream fetch error:', streamErr.message);
-        if (isRateLimitOrRestrictedError(streamErr)) {
-          setCookiesModalVisible(true);
-        }
         ToastManager.show({
-          type: 'info',
-          title: 'Stream Belum Siap',
-          message: streamErr.message || 'Stream URL tidak dapat dimuat.',
-          rawError: streamErr.rawError,
+          type: 'error',
+          title: 'Stream Video Gagal',
+          rawError: streamErr.rawError || streamErr.message,
           errorCode: streamErr.code,
           duration: 4000,
         });
       }
     },
-    [videoId, player, setPendingSeek, setCookiesModalVisible]
+    [videoId, player, setPendingSeek]
   );
 
   return {

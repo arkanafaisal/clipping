@@ -39,18 +39,16 @@ export const StorageConfigSection: React.FC = () => {
       if (result.success) {
         ToastManager.show({
           type: 'success',
-          title: 'Verifikasi Berhasil',
-          message: 'Fisik hello.txt berhasil ditulis dan dibaca dari disk!',
+          title: 'Verifikasi Storage Berhasil',
           duration: 3000,
         });
       } else {
         ToastManager.show({
           type: 'error',
-          title: 'Verifikasi Gagal',
-          message: 'Akses shared storage ditolak oleh sistem. Klik ikon kode di kanan untuk melihat detail debug.',
+          title: 'Verifikasi Storage Gagal',
           rawError: result.traceback || result.error || result.message,
           errorCode: 'STORAGE_VERIFICATION_FAILED',
-          duration: 7000,
+          duration: 6000,
         });
       }
     }

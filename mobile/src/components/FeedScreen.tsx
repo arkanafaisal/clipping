@@ -9,7 +9,6 @@ import {
 } from 'react-native';
 import { VideoView } from 'expo-video';
 import { ClipItem } from '../services/api';
-import { CookiesModal } from './CookiesModal';
 import { FeedTopControls } from './feed/FeedTopControls';
 import { FeedPlaybackControls } from './feed/FeedPlaybackControls';
 import { FeedClipCarousel } from './feed/FeedClipCarousel';
@@ -34,12 +33,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
   const clipsRef = useRef<ClipItem[]>([]);
   const activeClipIdRef = useRef<string | null>(null);
   const downloadedClipsRef = useRef<Record<string, boolean>>({});
-  const setCookiesModalVisibleRef = useRef<(visible: boolean) => void>(() => {});
   const setDownloadedClipsRef = useRef<React.Dispatch<React.SetStateAction<Record<string, boolean>>>>(() => {});
-
-  const handleSetCookiesModalVisible = useCallback((visible: boolean) => {
-    setCookiesModalVisibleRef.current(visible);
-  }, []);
 
   const handleSetDownloadedClips = useCallback<React.Dispatch<React.SetStateAction<Record<string, boolean>>>>((val) => {
     setDownloadedClipsRef.current(val);
@@ -67,7 +61,6 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     clipsRef,
     activeClipIdRef,
     downloadedClipsRef,
-    setCookiesModalVisible: handleSetCookiesModalVisible,
     onBack,
   });
 
@@ -116,8 +109,6 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     downloadedClips,
     setDownloadedClips,
     downloadProgress,
-    cookiesModalVisible,
-    setCookiesModalVisible,
     getDownloadProgressLabel,
     handleDownloadClip,
   } = useClipDownload({
@@ -131,10 +122,6 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     onUpdateWorkshopDone,
     downloadedClipsRef,
   });
-
-  useEffect(() => {
-    setCookiesModalVisibleRef.current = setCookiesModalVisible;
-  }, [setCookiesModalVisible]);
 
   useEffect(() => {
     setDownloadedClipsRef.current = setDownloadedClips;
@@ -238,12 +225,6 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
         clipColumns={clipColumns}
         activeClipId={activeClipId}
         onSelectClip={handleSelectClip}
-      />
-
-      {/* 5. Cookies Modal for Rate Limits */}
-      <CookiesModal
-        visible={cookiesModalVisible}
-        onClose={() => setCookiesModalVisible(false)}
       />
     </View>
   );
