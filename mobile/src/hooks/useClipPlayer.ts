@@ -7,7 +7,6 @@ import {
   getClipOutputFilePath,
   resolvePlayableClipUri,
   isRateLimitOrRestrictedError,
-  SubtitleCue,
 } from '../services/api';
 import { ToastManager } from '../components/Toast';
 
@@ -17,8 +16,6 @@ export interface UseClipPlayerParams {
   activeClipIdRef: React.MutableRefObject<string | null>;
   activeClip?: ClipItem;
   downloadedClipsRef: React.MutableRefObject<Record<string, boolean>>;
-  subtitlesRef: React.MutableRefObject<SubtitleCue[]>;
-  setActiveSubtitleText: (text: string) => void;
   setCookiesModalVisible: (visible: boolean) => void;
   onBack: () => void;
 }
@@ -29,8 +26,6 @@ export function useClipPlayer({
   activeClipIdRef,
   activeClip,
   downloadedClipsRef,
-  subtitlesRef,
-  setActiveSubtitleText,
   setCookiesModalVisible,
   onBack,
 }: UseClipPlayerParams) {
@@ -79,43 +74,6 @@ export function useClipPlayer({
     p.loop = false;
     p.timeUpdateEventInterval = 0.1;
   });
-
-  // Secondary Video Player khusus viewport Facecam (audio dimatikan 100% untuk cegah gema)
-  // Memiliki surface native ExoPlayer tersendiri agar tidak tabrakan/hitam di Android
-  const facecamPlayer = useVideoPlayer(null, (p) => {
-    p.loop = false;
-    p.muted = true;
-    p.timeUpdateEventInterval = 0.1;
-  });
-
-  // Track apakah facecam aktif (hanya saat mode portrait dan facecam diaktifkan)
-  // Menghindari 2 hardware video decoder 1080p60 berjalan bersamaan di HP berspesifikasi rendah
-  const isFacecamActiveRef = useRef<boolean>(false);
-
-  const setIsFacecamActive = useCallback((active: boolean) => {
-    isFacecamActiveRef.current = active;
-    if (!active) {
-      try {
-        if (facecamPlayer.playing) {
-          facecamPlayer.pause();
-        }
-      } catch (e) {}
-    } else {
-      const currentUri = currentSourceUriRef.current;
-      if (currentUri) {
-        try {
-          facecamPlayer.replace(currentUri);
-          facecamPlayer.muted = true;
-          if (player) {
-            facecamPlayer.currentTime = player.currentTime;
-            if (player.playing && isContinueStateRef.current) {
-              facecamPlayer.play();
-            }
-          }
-        } catch (e) {}
-      }
-    }
-  }, [facecamPlayer, player]);
 
   // Helper untuk lock seek target dan auto-release safety timeout
   const setPendingSeek = useCallback((targetTime: number) => {
@@ -172,10 +130,6 @@ export function useClipPlayer({
           isSourceSwitchingRef.current = true;
           try {
             player.replace(fileUri);
-            if (isFacecamActiveRef.current) {
-              facecamPlayer.replace(fileUri);
-              facecamPlayer.muted = true;
-            }
           } catch (err) {
             console.warn('[Feed] Replace local file error:', err);
           }
@@ -183,10 +137,8 @@ export function useClipPlayer({
           // File lokal sama: seek langsung ke 0
           try {
             player.currentTime = 0;
-            if (isFacecamActiveRef.current) facecamPlayer.currentTime = 0;
             if (autoPlay && isContinueStateRef.current) {
               player.play();
-              if (isFacecamActiveRef.current) facecamPlayer.play();
             }
           } catch (err) {
             console.warn('[Feed] Play local error:', err);
@@ -199,10 +151,6 @@ export function useClipPlayer({
           isSourceSwitchingRef.current = true;
           try {
             player.replace(activeStream);
-            if (isFacecamActiveRef.current) {
-              facecamPlayer.replace(activeStream);
-              facecamPlayer.muted = true;
-            }
           } catch (err) {
             console.warn('[Feed] Replace stream error:', err);
           }
@@ -210,10 +158,8 @@ export function useClipPlayer({
           // Stream sama: seek langsung ke start klip
           try {
             player.currentTime = targetTime;
-            if (isFacecamActiveRef.current) facecamPlayer.currentTime = targetTime;
             if (autoPlay && isContinueStateRef.current) {
               player.play();
-              if (isFacecamActiveRef.current) facecamPlayer.play();
             }
           } catch (err) {
             console.warn('[Feed] Play stream error:', err);
@@ -221,7 +167,7 @@ export function useClipPlayer({
         }
       }
     },
-    [player, facecamPlayer, videoId, setPendingSeek, downloadedClipsRef]
+    [player, videoId, setPendingSeek, downloadedClipsRef]
   );
 
   /**
@@ -238,7 +184,6 @@ export function useClipPlayer({
       if (player && player.playing) {
         try {
           player.pause();
-          if (isFacecamActiveRef.current) facecamPlayer.pause();
         } catch (e) {}
       }
 
@@ -257,10 +202,8 @@ export function useClipPlayer({
           try {
             const seekTime = Math.max(0, finalTarget);
             player.currentTime = seekTime;
-            if (isFacecamActiveRef.current) facecamPlayer.currentTime = seekTime;
             if (shouldPlay && isContinueStateRef.current) {
               player.play();
-              if (isFacecamActiveRef.current) facecamPlayer.play();
             }
           } catch (e: any) {
             ToastManager.show({
@@ -280,7 +223,7 @@ export function useClipPlayer({
         seekDebounceTimerRef.current = setTimeout(executeSeek, debounceMs);
       }
     },
-    [player, facecamPlayer, setPendingSeek]
+    [player, setPendingSeek]
   );
 
   // Track playback time update & handle segment loop
@@ -317,30 +260,14 @@ export function useClipPlayer({
           const rel = Math.max(0, Math.min(duration, current - currentActive.start));
           setCurrentClipTime(rel);
         }
-
-        // Sinkronisasi teks subtitle secara realtime dengan frame video
-        const currentRel = isLocalMode
-          ? Math.max(0, Math.min(duration, current))
-          : Math.max(0, Math.min(duration, current - currentActive.start));
-
-        if (subtitlesRef.current.length > 0) {
-          const matchCue = subtitlesRef.current.find(
-            (c) => currentRel >= c.start && currentRel <= c.end
-          );
-          setActiveSubtitleText(matchCue ? matchCue.text : '');
-        } else {
-          setActiveSubtitleText('');
-        }
       }
 
       // Loop current segment & boundary enforcement
       if (isLocalMode) {
         if (current >= duration) {
           player.currentTime = 0;
-          if (isFacecamActiveRef.current) facecamPlayer.currentTime = 0;
           if (isContinueStateRef.current) {
             player.play();
-            if (isFacecamActiveRef.current) facecamPlayer.play();
           }
         }
       } else {
@@ -349,10 +276,8 @@ export function useClipPlayer({
         // 2. Koreksi seketika jika video meleset atau nyangkut di luar rentang klip (misal detik nol: current < start - 0.5s)
         if (current >= currentActive.end || current < currentActive.start - 0.5) {
           player.currentTime = currentActive.start;
-          if (isFacecamActiveRef.current) facecamPlayer.currentTime = currentActive.start;
           if (isContinueStateRef.current) {
             player.play();
-            if (isFacecamActiveRef.current) facecamPlayer.play();
           }
         }
       }
@@ -376,15 +301,11 @@ export function useClipPlayer({
           if (Math.abs(player.currentTime - targetTime) > 0.5) {
             try {
               player.currentTime = targetTime;
-              if (isFacecamActiveRef.current) facecamPlayer.currentTime = targetTime;
             } catch (e) {}
           }
           if (isContinueStateRef.current) {
             if (!player.playing) {
               try { player.play(); } catch (e) {}
-            }
-            if (isFacecamActiveRef.current && !facecamPlayer.playing) {
-              try { facecamPlayer.play(); } catch (e) {}
             }
           }
         }
@@ -449,8 +370,6 @@ export function useClipPlayer({
     videoId,
     setPendingSeek,
     getActiveClip,
-    subtitlesRef,
-    setActiveSubtitleText,
     setCookiesModalVisible,
   ]);
 
@@ -462,17 +381,15 @@ export function useClipPlayer({
       setIsContinueState(false);
       try {
         if (player.playing) player.pause();
-        if (facecamPlayer.playing) facecamPlayer.pause();
       } catch (e) {}
     } else {
       // Pindah dari pause ke continue: force play jika video sedang berhenti
       setIsContinueState(true);
       try {
         if (!player.playing) player.play();
-        if (isFacecamActiveRef.current && !facecamPlayer.playing) facecamPlayer.play();
       } catch (e) {}
     }
-  }, [player, facecamPlayer]);
+  }, [player]);
 
   const skipSeconds = useCallback(
     (seconds: number) => {
@@ -544,16 +461,8 @@ export function useClipPlayer({
             setPendingSeek(0);
             isSourceSwitchingRef.current = true;
             player.replace(fileUri);
-            if (isFacecamActiveRef.current) {
-              facecamPlayer.replace(fileUri);
-              facecamPlayer.muted = true;
-            }
             try {
               player.currentTime = 0;
-              if (isFacecamActiveRef.current) {
-                facecamPlayer.currentTime = 0;
-                facecamPlayer.play();
-              }
               player.play();
             } catch (playErr) {
               console.log('[Feed] Auto-play initial local clip error:', playErr);
@@ -570,17 +479,9 @@ export function useClipPlayer({
             setPendingSeek(firstClipStart);
             isSourceSwitchingRef.current = true;
             player.replace(directUrl);
-            if (isFacecamActiveRef.current) {
-              facecamPlayer.replace(directUrl);
-              facecamPlayer.muted = true;
-            }
             // AUTO PLAY: Mulai putar langsung dari posisi start klip pertama
             try {
               player.currentTime = firstClipStart;
-              if (isFacecamActiveRef.current) {
-                facecamPlayer.currentTime = firstClipStart;
-                facecamPlayer.play();
-              }
               player.play();
             } catch (playErr) {
               console.log('[Feed] Auto-play initial clip error:', playErr);
@@ -613,7 +514,6 @@ export function useClipPlayer({
 
   return {
     player,
-    facecamPlayer,
     streamUrl,
     setStreamUrl,
     streamUrlRef,
@@ -634,6 +534,5 @@ export function useClipPlayer({
     togglePlayPause,
     skipSeconds,
     initializeStreamAndPlayback,
-    setIsFacecamActive,
   };
 }

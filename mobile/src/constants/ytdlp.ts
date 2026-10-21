@@ -123,25 +123,6 @@ export const PRIME_CLIP_DOWNLOAD_OPTS: YtdlOpts = {
 };
 
 
-// ==============================================================================
-// Konfigurasi Ekstraksi Subtitle / Closed Captions:
-// - Mengambil track subtitle otomatis (ASR) atau manual tanpa mendownload media video
-// - Mendukung pemilihan multi-bahasa dinamis (Bahasa Indonesia & English diutamakan)
-// ==============================================================================
-export const SUBTITLE_YTDL_OPTS: YtdlOpts = {
-  skip_download: true,
-  writesubtitles: true,
-  writeautomaticsub: true,
-  subtitleslangs: ['id', 'en', 'ja', 'all'],
-  quiet: true,
-  no_warnings: true,
-  extract_flat: false,
-  extractor_args: {
-    youtube: {
-      player_client: ['android', 'ios'],
-    },
-  },
-};
 
 
 

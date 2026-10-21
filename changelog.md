@@ -14,7 +14,40 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Decouple Facecam Player and Enforce Mobile Hardware-Accelerated Bitrate Capping on Video Cut
+## [Unreleased] - Streamline App: Remove Subtitle, Template, and Export Modules to Focus Exclusively on Clip Selection, Trimming, and Downloading
+- **Konteks Struktural**:
+  1. Penghapusan Fitur Kompleks (Subtitle, Template Framing, dan Video Burn/Export):
+     - Menghapus seluruh modul ekspor video, subtitle fetcher & burner, dan template layouting (facecam, banner konteks judul) sesuai keputusan fungsional aplikasi agar fokus 100% pada pemilihan klip (heatmap carousel), perentangan durasi (trimming/crop/extend), dan pengunduhan MP4 langsung.
+     - Proses pasca-produksi (seperti pengeditan template framing, penambahan subtitle, dan ekspor) didelegasikan sepenuhnya ke aplikasi video editor eksternal (seperti CapCut) demi efisiensi proses dan performa maksimal.
+  2. Optimalisasi Resource dan Hardware Decoder:
+     - Mengeliminasi secondary video player (`facecamPlayer`) dan sinkronisasi cue subtitle per frame waktu, menyisakan tepat 1 hardware video decoder native (`player`) pada rasio murni 16:9 (`contentFit="contain"`).
+     - Menghilangkan beban ganda memory, rendering canvas multi-viewport, dan decoding thread ExoPlayer pada HP spesifikasi rendah.
+  3. Pembersihan Modular Backend dan Frontend:
+     - Menghapus endpoint API `/api/subtitles` dan `/api/burn-subtitles` dari backend pass-through server [mobile_api/main.py](file:///d:/projects/clipping/mobile_api/main.py).
+     - Menghapus file skrip utilitas `subtitle_burner.py` dan `subtitle_fetcher.py`.
+     - Menyederhanakan [mobile/src/components/feed/FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx) dari 2.746 baris menjadi ~360 baris kontrol esensial (Trash, Done, Download status/progress, dan tombol fine-tune Start/End extend/crop).
+     - Menghapus hooks `useClipSubtitle.ts`, `useClipTemplate.ts`, dan komponen `SubtitleOverlay.tsx`.
+- **Perubahan Kode Penting**:
+  - [mobile_api/main.py](file:///d:/projects/clipping/mobile_api/main.py):
+    - Menghapus import `burn_subtitles_to_video` dan `extract_subtitles_data`.
+    - Menghapus route `/api/subtitles` dan `/api/burn-subtitles`.
+  - [mobile/scripts/utils/subtitle_burner.py](file:///d:/projects/clipping/mobile/scripts/utils/subtitle_burner.py) & [mobile/scripts/utils/subtitle_fetcher.py](file:///d:/projects/clipping/mobile/scripts/utils/subtitle_fetcher.py):
+    - Dihapus permanen dari repositori.
+  - [mobile/src/constants/ytdlp.ts](file:///d:/projects/clipping/mobile/src/constants/ytdlp.ts):
+    - Menghapus `SUBTITLE_YTDL_OPTS`.
+  - [mobile/src/services/api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts):
+    - Menghapus interface `SubtitleCue`, `ClipTemplateConfig`, `VideoGlobalConfig`, fungsi path subtitle (`getSubtitledClipFilename`, `getSubtitledClipOutputFilePath`), dan seluruh API fungsi subtitle/template/burn.
+  - [mobile/src/hooks/useClipPlayer.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipPlayer.ts):
+    - Menghapus `facecamPlayer`, `isFacecamActiveRef`, `setIsFacecamActive`, dan sinkronisasi `SubtitleCue`.
+    - Menjaga single player expo-video untuk pemutaran video streaming maupun file fisik lokal.
+  - [mobile/src/components/feed/FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx):
+    - Menghapus subtitle cue pills timeline, subtitle editor toolbar/modal, template editor modal, dan tombol ekspor.
+    - Mempertahankan kontrol rentang waktu (Start/End), fine-tune Extend (+5, +1) dan Crop (-5, -1), tombol status Trash & Done, serta tombol Download interaktif.
+  - [mobile/src/components/FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
+    - Menghapus penggunaan `useClipSubtitle`, `useClipTemplate`, `SubtitleOverlay`, serta container layout portrait multi-viewport (`contextBannerBox`, `facecamBox`, dsb.).
+    - Menggunakan viewport pemutar video 16:9 bersih dengan `contentFit="contain"`.
+
+## [3ef6f81] - Decouple Facecam Player and Enforce Mobile Hardware-Accelerated Bitrate Capping on Video Cut
 - **Konteks Struktural**:
   1. Pengurangan Beban Decoder Native Hardware 50% (Decoupling Facecam Player):
      - Mengatasi kendala lag berat pada pemutaran video lokal di HP berspesifikasi prosesor rendah di mana sebelumnya dua instance `useVideoPlayer` (`player` dan `facecamPlayer`) sama-sama aktif mendekode stream 1080p 60fps secara bersamaan meskipun facecam sedang tidak ditampilkan (`!isFacecamActive`).
