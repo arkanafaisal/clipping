@@ -16,7 +16,13 @@ import { CookiesModal } from './CookiesModal';
 import { StorageConfigSection } from './StorageConfigSection';
 import { LocalStorage } from '../services/storage';
 import { ToastManager } from './Toast';
-import { fetchHeatmap, fetchStreamUrl, isRateLimitOrRestrictedError } from '../services/api';
+import {
+  fetchHeatmap,
+  fetchStreamUrl,
+  checkFullVideoExists,
+  downloadFullVideo,
+  isRateLimitOrRestrictedError,
+} from '../services/api';
 
 const WORKSHOPS_STORAGE_KEY = 'workshops_list';
 const BOT_NUMBER = '6285742923730';
@@ -41,6 +47,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
   const [importModalVisible, setImportModalVisible] = useState(false);
   const [cookiesModalVisible, setCookiesModalVisible] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
+  const [fullVideoStatus, setFullVideoStatus] = useState<
+    Record<string, { exists: boolean; isDownloading: boolean; percent: number }>
+  >({});
 
   // Load workshops & attach current doneCount from drafts
   const loadSavedWorkshops = useCallback(async () => {
@@ -67,6 +76,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
           );
           synced.sort((a, b) => (b.lastUpdated || 0) - (a.lastUpdated || 0));
           setWorkshops(synced);
+
+          // Cek keberadaan file fisik full video untuk setiap workshop
+          const statusMap: Record<string, { exists: boolean; isDownloading: boolean; percent: number }> = {};
+          await Promise.all(
+            synced.map(async (ws) => {
+              const exists = await checkFullVideoExists(ws.videoId);
+              statusMap[ws.videoId] = { exists, isDownloading: false, percent: 0 };
+            })
+          );
+          setFullVideoStatus((prev) => ({ ...prev, ...statusMap }));
         }
       }
     } catch (e) {
@@ -196,8 +215,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
         await LocalStorage.setItem(`clips_draft_${videoId}`, JSON.stringify(formattedClips));
       }
 
-      // 2. Ambil direct stream URL
-      await fetchStreamUrl(videoId);
+      // 2. Ambil direct stream URL (jika belum ada full video lokal)
+      const hasFull = await checkFullVideoExists(videoId);
+      if (!hasFull) {
+        try {
+          await fetchStreamUrl(videoId);
+        } catch (streamErr: any) {
+          if (isRateLimitOrRestrictedError(streamErr)) {
+            setCookiesModalVisible(true);
+          }
+          throw streamErr;
+        }
+      }
 
       // 3. Update lastUpdated
       const existingIndex = workshops.findIndex((w) => w.videoId === videoId);
@@ -220,6 +249,55 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
         rawError: err.rawError || err.stack || err.message,
         errorCode: err.code,
         duration: 5000,
+      });
+    }
+  };
+
+  const handleDownloadFullVideo = async (videoId: string) => {
+    if (fullVideoStatus[videoId]?.isDownloading) return;
+    setFullVideoStatus((prev) => ({
+      ...prev,
+      [videoId]: { exists: false, isDownloading: true, percent: 0 },
+    }));
+
+    try {
+      await downloadFullVideo(videoId, (info) => {
+        setFullVideoStatus((prev) => ({
+          ...prev,
+          [videoId]: {
+            ...prev[videoId],
+            percent: info.percent || 0,
+            isDownloading: true,
+          },
+        }));
+      });
+
+      setFullVideoStatus((prev) => ({
+        ...prev,
+        [videoId]: { exists: true, isDownloading: false, percent: 100 },
+      }));
+
+      ToastManager.show({
+        type: 'success',
+        title: 'Full Video Tersimpan',
+        message: 'Video utuh berhasil diunduh ke folder shared storage.',
+        duration: 3500,
+      });
+    } catch (err: any) {
+      setFullVideoStatus((prev) => ({
+        ...prev,
+        [videoId]: { exists: false, isDownloading: false, percent: 0 },
+      }));
+      if (isRateLimitOrRestrictedError(err)) {
+        setCookiesModalVisible(true);
+      }
+      ToastManager.show({
+        type: 'error',
+        title: 'Gagal Unduh Full Video',
+        message: err.message || 'Gagal mengunduh video utuh.',
+        rawError: err.rawError || err.stack || err.message,
+        errorCode: err.code || 'DOWNLOAD_FAILED',
+        duration: 6000,
       });
     }
   };
@@ -382,6 +460,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
           <WorkshopCard
             key={ws.videoId}
             workshop={ws}
+            hasFullVideo={Boolean(fullVideoStatus[ws.videoId]?.exists)}
+            isDownloadingFullVideo={Boolean(fullVideoStatus[ws.videoId]?.isDownloading)}
+            downloadPercent={fullVideoStatus[ws.videoId]?.percent || 0}
+            onDownloadFullVideo={handleDownloadFullVideo}
             onPress={(vid) => handleOpenExisting(vid, ws.count || 50)}
             onDelete={handleDeleteWorkshop}
             onBulkWA={handleBulkWA}

@@ -743,6 +743,58 @@ export function getClipInternalOutputFilePath(
 }
 
 /**
+ * Menghasilkan alokasi lokasi file tujuan download full video pada shared storage:
+ * /storage/emulated/0/clipping/output/<videoId>/full.mp4
+ */
+export function getFullVideoFilePath(videoId: string): { fileUri: string; nativePath: string } {
+  const nativePath = `${SHARED_CLIPPING_OUTPUT_DIR}/${videoId}/full.mp4`;
+  const fileUri = `file://${nativePath}`;
+  return { fileUri, nativePath };
+}
+
+/**
+ * Memeriksa apakah file video utuh (full video) sudah terunduh secara fisik di shared storage.
+ */
+export async function checkFullVideoExists(videoId: string): Promise<boolean> {
+  try {
+    const { fileUri } = getFullVideoFilePath(videoId);
+    const info = await FileSystem.getInfoAsync(fileUri);
+    if (info.exists && ((info as any).size === undefined || (info as any).size > 0)) {
+      return true;
+    }
+  } catch {}
+  try {
+    const altPath = `file://${SHARED_CLIPPING_OUTPUT_DIR}/${videoId}/full_video.mp4`;
+    const altInfo = await FileSystem.getInfoAsync(altPath);
+    if (altInfo.exists && ((altInfo as any).size === undefined || (altInfo as any).size > 0)) {
+      return true;
+    }
+  } catch {}
+  return false;
+}
+
+/**
+ * Menyelesaikan fileUri video utuh lokal jika ada di shared storage.
+ */
+export async function resolvePlayableFullVideoUri(videoId: string): Promise<string | null> {
+  try {
+    const { fileUri } = getFullVideoFilePath(videoId);
+    const info = await FileSystem.getInfoAsync(fileUri);
+    if (info.exists && ((info as any).size === undefined || (info as any).size > 0)) {
+      return fileUri;
+    }
+  } catch {}
+  try {
+    const altPath = `file://${SHARED_CLIPPING_OUTPUT_DIR}/${videoId}/full_video.mp4`;
+    const altInfo = await FileSystem.getInfoAsync(altPath);
+    if (altInfo.exists && ((altInfo as any).size === undefined || (altInfo as any).size > 0)) {
+      return altPath;
+    }
+  } catch {}
+  return null;
+}
+
+/**
  * Menyelesaikan fileUri yang valid dan dapat diputar untuk klip lokal.
  * Mendeteksi format baru "<start> - <end>.mp4" terlebih dahulu, dengan fallback backward-compatible ke format lama.
  */
@@ -976,6 +1028,16 @@ export async function downloadClip(
       } catch {}
     }
 
+    // Cek apakah file fisik full video sudah ada di shared storage untuk pemotongan lokal super cepat
+    const fullVideo = getFullVideoFilePath(videoId);
+    let sourceVideoPath: string | undefined = undefined;
+    try {
+      const fullInfo = await FileSystem.getInfoAsync(fullVideo.fileUri);
+      if (fullInfo.exists && ((fullInfo as any).size === undefined || (fullInfo as any).size > 0)) {
+        sourceVideoPath = fullVideo.nativePath;
+      }
+    } catch {}
+
     try {
       let data: any = null;
       const isNative = Platform.OS === 'android' && isPythonInitialized();
@@ -990,6 +1052,7 @@ export async function downloadClip(
           stream_url: cachedStreamUrl || undefined,
           cookie_path: cookiePath,
           progress_path: progressPath,
+          source_video_path: sourceVideoPath,
         });
       } else {
         // Fallback ke DEV_API_BASE_URL (port 3006 / Termux) jika mode dev
@@ -1007,6 +1070,7 @@ export async function downloadClip(
             cookie_path: cookiePath,
             ydl_opts: clipYdlOpts,
             progress_path: progressPath,
+            source_video_path: sourceVideoPath,
           }),
           signal: controller.signal,
         });
@@ -1136,3 +1200,112 @@ export async function downloadClip(
 
   throw lastError || new ApiError('DOWNLOAD_FAILED', 'Gagal mengunduh klip video.');
 }
+
+/**
+ * Mendownload satu video penuh YouTube secara utuh ke shared storage:
+ * /storage/emulated/0/clipping/output/<videoId>/full.mp4
+ * Digunakan untuk mode offline playback dan pemotongan klip instan 0ms secara lokal.
+ */
+export async function downloadFullVideo(
+  videoId: string,
+  onProgress?: (info: { stage: string; code: string; percent: number }) => void
+): Promise<{ status: string; output_path: string; fileUri: string }> {
+  const { fileUri, nativePath } = getFullVideoFilePath(videoId);
+  const targetDirUri = `file://${SHARED_CLIPPING_OUTPUT_DIR}/${videoId}`;
+
+  try {
+    const dirInfo = await FileSystem.getInfoAsync(targetDirUri);
+    if (!dirInfo.exists) {
+      await FileSystem.makeDirectoryAsync(targetDirUri, { intermediates: true });
+    }
+  } catch {}
+
+  const cookiePath = await getValidCookiesPath();
+  const progressFile = `${FileSystem.cacheDirectory}full_progress_${videoId}.json`;
+  const nativeProgressPath = progressFile.replace('file://', '');
+
+  const nativeInfo = getNativeRunnerInfo();
+  const nativeFfmpeg = nativeInfo?.ffmpegExists ? nativeInfo.ffmpegPath : undefined;
+
+  const ydlOpts = {
+    ...PRIME_CLIP_DOWNLOAD_OPTS,
+    writeinfojson: false,
+    ...(nativeFfmpeg ? { ffmpeg_location: nativeFfmpeg } : {}),
+  };
+
+  let isPolling = true;
+  const pollInterval = setInterval(async () => {
+    if (!isPolling) return;
+    try {
+      const pInfo = await FileSystem.getInfoAsync(progressFile);
+      if (pInfo.exists) {
+        const raw = await FileSystem.readAsStringAsync(progressFile);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && parsed.stage && onProgress) {
+            onProgress(parsed);
+          }
+        }
+      }
+    } catch {}
+  }, 300);
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 600000); // 10 menit timeout untuk full video
+
+  try {
+    let data: any = null;
+    const isNative = Platform.OS === 'android' && isPythonInitialized();
+
+    if (isNative) {
+      data = await executePythonScript('utils.clip_downloader', 'download_full_video_direct', {
+        video_id: videoId,
+        output_path: nativePath,
+        cookie_path: cookiePath,
+        ydl_opts: ydlOpts,
+        progress_path: nativeProgressPath,
+      });
+    } else {
+      const response = await fetch(`${DEV_API_BASE_URL}/api/download-full-video`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          video_id: videoId,
+          output_path: nativePath,
+          cookie_path: cookiePath,
+          ydl_opts: ydlOpts,
+          progress_path: nativeProgressPath,
+        }),
+        signal: controller.signal,
+      });
+      data = await response.json().catch(() => ({}));
+    }
+
+    clearTimeout(timeoutId);
+    isPolling = false;
+    clearInterval(pollInterval);
+    FileSystem.deleteAsync(progressFile, { idempotent: true }).catch(() => {});
+
+    const payload = (data?.data && typeof data.data === 'object') ? data.data : data;
+
+    if (!payload || payload.status !== 'success') {
+      const rawError = payload?.error || (payload ? JSON.stringify(payload, null, 2) : 'Gagal mengunduh full video');
+      let code = payload?.code || data?.code || 'DOWNLOAD_FAILED';
+      throw new ApiError(code, rawError);
+    }
+
+    return {
+      status: 'success',
+      output_path: nativePath,
+      fileUri,
+    };
+  } catch (err: any) {
+    clearTimeout(timeoutId);
+    isPolling = false;
+    clearInterval(pollInterval);
+    FileSystem.deleteAsync(progressFile, { idempotent: true }).catch(() => {});
+    if (err instanceof ApiError) throw err;
+    throw new ApiError(err.name === 'AbortError' ? 'TIMEOUT' : 'DOWNLOAD_FAILED', err.message);
+  }
+}
+

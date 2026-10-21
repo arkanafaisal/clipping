@@ -6,6 +6,7 @@ import {
   fetchStreamUrl,
   getClipOutputFilePath,
   resolvePlayableClipUri,
+  resolvePlayableFullVideoUri,
   isRateLimitOrRestrictedError,
 } from '../services/api';
 import { ToastManager } from '../components/Toast';
@@ -108,22 +109,20 @@ export function useClipPlayer({
 
   /**
    * Sinkronisasi sumber pemutar video secara dinamis:
-   * - Mode Lokal: Jika klip berstatus 'done' dan file fisik MP4 sudah terunduh di HP,
-   *   putar file fisik lokal (file://...) dari detik 0.0s s/d durasi klip.
-   * - Mode Stream: Jika klip belum 'done' (atau 'done' tapi belum diunduh),
-   *   putar direct stream online YouTube dan seek ke detik clip.start.
+   * 1. Mode Klip Done Lokal: Jika klip berstatus 'done' dan file fisik MP4 klip sudah terunduh di HP,
+   *    putar file fisik klip lokal (file://...) dari detik 0.0s s/d durasi klip.
+   * 2. Mode Full Video Lokal: Jika klip belum berstatus 'done' atau belum di-cut, TETAPI file fisik full video
+   *    sudah terunduh di shared storage, putar file full video lokal (file://.../full.mp4) dari detik clip.start.
+   * 3. Mode Stream Online: Jika file fisik belum ada sama sekali, putar direct stream online YouTube dari detik clip.start.
    */
   const syncPlayerSourceForClip = useCallback(
     async (clip: ClipItem, autoPlay: boolean = true) => {
       if (!player) return;
       const isDownloaded = Boolean(downloadedClipsRef.current[clip.id]);
-      const isLocalMode = clip.status === 'done' && isDownloaded;
-      const targetTime = isLocalMode ? 0 : Math.max(0, clip.start);
+      const isClipDoneLocal = clip.status === 'done' && isDownloaded;
 
-      // Kunci target seek agar timeUpdate tidak menimpa UI sebelum player tiba di target
-      setPendingSeek(targetTime);
-
-      if (isLocalMode) {
+      if (isClipDoneLocal) {
+        setPendingSeek(0);
         const fileUri = await resolvePlayableClipUri(videoId, clip.start, clip.end, clip.rank);
         if (currentSourceUriRef.current !== fileUri) {
           currentSourceUriRef.current = fileUri;
@@ -134,7 +133,6 @@ export function useClipPlayer({
             console.warn('[Feed] Replace local file error:', err);
           }
         } else {
-          // File lokal sama: seek langsung ke 0
           try {
             player.currentTime = 0;
             if (autoPlay && isContinueStateRef.current) {
@@ -145,24 +143,50 @@ export function useClipPlayer({
           }
         }
       } else {
-        const activeStream = streamUrlRef.current;
-        if (activeStream && currentSourceUriRef.current !== activeStream) {
-          currentSourceUriRef.current = activeStream;
-          isSourceSwitchingRef.current = true;
-          try {
-            player.replace(activeStream);
-          } catch (err) {
-            console.warn('[Feed] Replace stream error:', err);
+        // Prioritas Utama: Periksa apakah file full video lokal tersedia di shared storage
+        const fullVideoUri = await resolvePlayableFullVideoUri(videoId);
+        const targetTime = Math.max(0, clip.start);
+        setPendingSeek(targetTime);
+
+        if (fullVideoUri) {
+          if (currentSourceUriRef.current !== fullVideoUri) {
+            currentSourceUriRef.current = fullVideoUri;
+            isSourceSwitchingRef.current = true;
+            try {
+              player.replace(fullVideoUri);
+            } catch (err) {
+              console.warn('[Feed] Replace full video error:', err);
+            }
+          } else {
+            try {
+              player.currentTime = targetTime;
+              if (autoPlay && isContinueStateRef.current) {
+                player.play();
+              }
+            } catch (err) {
+              console.warn('[Feed] Play full video error:', err);
+            }
           }
         } else {
-          // Stream sama: seek langsung ke start klip
-          try {
-            player.currentTime = targetTime;
-            if (autoPlay && isContinueStateRef.current) {
-              player.play();
+          // Fallback: Mode stream online YouTube
+          const activeStream = streamUrlRef.current;
+          if (activeStream && currentSourceUriRef.current !== activeStream) {
+            currentSourceUriRef.current = activeStream;
+            isSourceSwitchingRef.current = true;
+            try {
+              player.replace(activeStream);
+            } catch (err) {
+              console.warn('[Feed] Replace stream error:', err);
             }
-          } catch (err) {
-            console.warn('[Feed] Play stream error:', err);
+          } else {
+            try {
+              player.currentTime = targetTime;
+              if (autoPlay && isContinueStateRef.current) {
+                player.play();
+              }
+            } catch (err) {
+              console.warn('[Feed] Play stream error:', err);
+            }
           }
         }
       }
@@ -232,7 +256,12 @@ export function useClipPlayer({
 
     const sub = player.addListener('timeUpdate', (event) => {
       const currentActive = getActiveClip();
-      const isLocalMode = currentSourceUriRef.current.startsWith('file://');
+      const currentSource = currentSourceUriRef.current;
+      const isClipDoneLocal =
+        currentActive.status === 'done' &&
+        Boolean(downloadedClipsRef.current[currentActive.id]) &&
+        !currentSource.endsWith('/full.mp4') &&
+        !currentSource.endsWith('/full_video.mp4');
 
       const current = event.currentTime;
       const duration = currentActive.end - currentActive.start;
@@ -250,7 +279,7 @@ export function useClipPlayer({
       }
 
       if (duration > 0) {
-        if (isLocalMode) {
+        if (isClipDoneLocal) {
           const pct = Math.max(0, Math.min(100, (current / duration) * 100));
           setProgressPercent(pct);
           setCurrentClipTime(Math.max(0, Math.min(duration, current)));
@@ -263,7 +292,7 @@ export function useClipPlayer({
       }
 
       // Loop current segment & boundary enforcement
-      if (isLocalMode) {
+      if (isClipDoneLocal) {
         if (current >= duration) {
           player.currentTime = 0;
           if (isContinueStateRef.current) {
@@ -271,9 +300,9 @@ export function useClipPlayer({
           }
         }
       } else {
-        // Enforce boundary klip stream:
+        // Enforce boundary klip (baik mode full video lokal maupun online stream):
         // 1. Loop jika mencapai batas akhir klip (current >= end)
-        // 2. Koreksi seketika jika video meleset atau nyangkut di luar rentang klip (misal detik nol: current < start - 0.5s)
+        // 2. Koreksi seketika jika video meleset atau nyangkut di luar rentang klip
         if (current >= currentActive.end || current < currentActive.start - 0.5) {
           player.currentTime = currentActive.start;
           if (isContinueStateRef.current) {
@@ -394,10 +423,15 @@ export function useClipPlayer({
   const skipSeconds = useCallback(
     (seconds: number) => {
       const currentActive = getActiveClip();
-      const isLocalMode = currentSourceUriRef.current.startsWith('file://');
+      const currentSource = currentSourceUriRef.current;
+      const isClipDoneLocal =
+        currentActive.status === 'done' &&
+        Boolean(downloadedClipsRef.current[currentActive.id]) &&
+        !currentSource.endsWith('/full.mp4') &&
+        !currentSource.endsWith('/full_video.mp4');
       const duration = currentActive.end - currentActive.start;
 
-      if (isLocalMode) {
+      if (isClipDoneLocal) {
         const baseTime =
           pendingSeekTargetRef.current !== null
             ? pendingSeekTargetRef.current
@@ -436,63 +470,89 @@ export function useClipPlayer({
     [player, centralizedSeek, activeClip, clipsRef, activeClipIdRef]
   );
 
-  // Inisialisasi awal stream dan auto-play klip pertama
+  // Inisialisasi awal stream dan auto-play klip pertama (Prioritaskan offline full video)
   const initializeStreamAndPlayback = useCallback(
     async (initialActiveClip: ClipItem | null, existingDownloadMap: Record<string, boolean>) => {
+      const firstClipStart = initialActiveClip ? initialActiveClip.start : 0;
+      const isFirstClipLocal = Boolean(
+        initialActiveClip &&
+          initialActiveClip.status === 'done' &&
+          existingDownloadMap[initialActiveClip.id]
+      );
+
+      // 1. Jika klip pertama sudah selesai di-cut secara lokal
+      if (isFirstClipLocal && initialActiveClip) {
+        const { fileUri } = getClipOutputFilePath(
+          videoId,
+          initialActiveClip.start,
+          initialActiveClip.end,
+          initialActiveClip.rank
+        );
+        currentSourceUriRef.current = fileUri;
+        setPendingSeek(0);
+        isSourceSwitchingRef.current = true;
+        player.replace(fileUri);
+        try {
+          player.currentTime = 0;
+          player.play();
+        } catch (playErr) {
+          console.log('[Feed] Auto-play initial local clip error:', playErr);
+        }
+        ToastManager.show({
+          type: 'success',
+          title: 'Memutar File Lokal',
+          message: 'Memutar video klip berkualitas prime dari HP.',
+          duration: 2500,
+        });
+        return;
+      }
+
+      // 2. Prioritas Kedua: Cek apakah file fisik full video lokal sudah ada di shared storage
+      try {
+        const fullVideoUri = await resolvePlayableFullVideoUri(videoId);
+        if (fullVideoUri) {
+          currentSourceUriRef.current = fullVideoUri;
+          setPendingSeek(firstClipStart);
+          isSourceSwitchingRef.current = true;
+          player.replace(fullVideoUri);
+          try {
+            player.currentTime = firstClipStart;
+            player.play();
+          } catch (e) {}
+          ToastManager.show({
+            type: 'success',
+            title: 'Memutar Full Video Lokal',
+            message: 'Memutar video offline langsung dari file HP.',
+            duration: 2500,
+          });
+          return;
+        }
+      } catch (checkErr) {
+        console.warn('[Feed] Check full video error:', checkErr);
+      }
+
+      // 3. Fallback: Ambil stream URL YouTube online jika belum ada file lokal
       try {
         const directUrl = await fetchStreamUrl(videoId);
         if (directUrl) {
           setStreamUrl(directUrl);
           streamUrlRef.current = directUrl;
-          const isFirstClipLocal = Boolean(
-            initialActiveClip &&
-              initialActiveClip.status === 'done' &&
-              existingDownloadMap[initialActiveClip.id]
-          );
-
-          if (isFirstClipLocal && initialActiveClip) {
-            const { fileUri } = getClipOutputFilePath(
-              videoId,
-              initialActiveClip.start,
-              initialActiveClip.end,
-              initialActiveClip.rank
-            );
-            currentSourceUriRef.current = fileUri;
-            setPendingSeek(0);
-            isSourceSwitchingRef.current = true;
-            player.replace(fileUri);
-            try {
-              player.currentTime = 0;
-              player.play();
-            } catch (playErr) {
-              console.log('[Feed] Auto-play initial local clip error:', playErr);
-            }
-            ToastManager.show({
-              type: 'success',
-              title: 'Memutar File Lokal',
-              message: 'Memutar video klip berkualitas prime dari HP.',
-              duration: 2500,
-            });
-          } else {
-            const firstClipStart = initialActiveClip ? initialActiveClip.start : 0;
-            currentSourceUriRef.current = directUrl;
-            setPendingSeek(firstClipStart);
-            isSourceSwitchingRef.current = true;
-            player.replace(directUrl);
-            // AUTO PLAY: Mulai putar langsung dari posisi start klip pertama
-            try {
-              player.currentTime = firstClipStart;
-              player.play();
-            } catch (playErr) {
-              console.log('[Feed] Auto-play initial clip error:', playErr);
-            }
-            ToastManager.show({
-              type: 'success',
-              title: 'Stream URL Aktif',
-              message: 'Pemutar video siap.',
-              duration: 2500,
-            });
+          currentSourceUriRef.current = directUrl;
+          setPendingSeek(firstClipStart);
+          isSourceSwitchingRef.current = true;
+          player.replace(directUrl);
+          try {
+            player.currentTime = firstClipStart;
+            player.play();
+          } catch (playErr) {
+            console.log('[Feed] Auto-play initial clip error:', playErr);
           }
+          ToastManager.show({
+            type: 'success',
+            title: 'Stream URL Aktif',
+            message: 'Pemutar video siap.',
+            duration: 2500,
+          });
         }
       } catch (streamErr: any) {
         console.warn('[Feed] Stream fetch error:', streamErr.message);

@@ -14,7 +14,45 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Streamline App: Remove Subtitle, Template, and Export Modules to Focus Exclusively on Clip Selection, Trimming, and Downloading
+## [Unreleased] - Add Full Video Download in Dashboard, Prioritize Local Offline Playback, and Fast Local Clip Cutting
+- **Konteks Struktural**:
+  1. Pengunduhan Full Video di Dashboard / Shared Storage:
+     - Menambahkan tombol unduh video utuh (full video) pada setiap kartu video di Dashboard ([WorkshopCard.tsx](file:///d:/projects/clipping/mobile/src/components/WorkshopCard.tsx) dan [Dashboard.tsx](file:///d:/projects/clipping/mobile/src/components/Dashboard.tsx)) dengan indikator status offline dan progress real-time.
+     - Menyimpan file video utuh di shared storage perangkat (`/storage/emulated/0/clipping/output/<videoId>/full.mp4`) agar user dapat mengelola, melihat, dan menghapus video secara mandiri tanpa harus mereset data privat aplikasi.
+  2. Prioritas Pemutaran Video Lokal (Offline-First Resilient):
+     - Memprioritaskan pemutaran file lokal di [useClipPlayer.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipPlayer.ts): jika klip belum di-cut namun full video sudah ada di shared storage, player memutar langsung dari file fisik lokal (`file://.../full.mp4`) dari detik `clip.start` s/d `clip.end` dengan transisi seek instan 0ms tanpa buffering atau ketergantungan koneksi internet.
+     - Memungkinkan workshop dibuka dan dimainkan secara offline 100% tanpa blocking request URL stream YouTube.
+  3. Pemotongan Klip Cepat secara Lokal (Fast Local FFmpeg Cut):
+     - Mengarahkan pipeline pemotongan klip di [clip_downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/clip_downloader.py) dan [api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts) untuk mendeteksi keberadaan file full video di shared storage terlebih dahulu.
+     - Jika full video lokal ada, FFmpeg langsung memotong klip secara offline menggunakan fast seek input `-ss` dan `filter_complex` tanpa melalui tahap pengunduhan YouTube (Stage 1), menghasilkan waktu potong 1-2 detik, hemat kuota internet 100%, serta bebas risiko blokir 403 / Error 429.
+- **Perubahan Kode Penting**:
+  - [mobile/scripts/utils/clip_downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/clip_downloader.py):
+    - `download_clip_direct`: Menambahkan parameter `source_video_path`. Jika file lokal tersedia, eksekusi pemotongan FFmpeg offline langsung dijalankan tanpa mengunduh stream YouTube.
+    - Menambahkan fungsi `download_full_video_direct` untuk mengunduh video utuh kualitas 1080p/720p H.264 + AAC dengan realtime progress hook ke shared storage.
+    - Menambahkan alias backward compatibility `download_youtube_clip_range`.
+  - [mobile_api/main.py](file:///d:/projects/clipping/mobile_api/main.py):
+    - Meneruskan `source_video_path` pada endpoint `/api/download-clip`.
+    - Menambahkan endpoint pass-through `/api/download-full-video` untuk mendelegasikan pengunduhan video utuh ke `download_full_video_direct`.
+  - [mobile/src/services/api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts):
+    - Menambahkan `getFullVideoFilePath`, `checkFullVideoExists`, dan `resolvePlayableFullVideoUri`.
+    - Menambahkan fungsi `downloadFullVideo` dengan progress polling ke background runner.
+    - Mengintegrasikan pengecekan `source_video_path` pada `downloadClip`.
+  - [mobile/src/hooks/useClipPlayer.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipPlayer.ts):
+    - `syncPlayerSourceForClip`: Memprioritaskan pemutaran `fullVideoUri` jika klip belum di-cut, dengan loop rentang `clip.start` s/d `clip.end`.
+    - `timeUpdate`: Menyesuaikan kalkulasi progress dan boundary enforcement untuk mode full video lokal.
+    - `skipSeconds`: Menyesuaikan pergeseran waktu berbasis durasi klip relatif pada file full video.
+    - `initializeStreamAndPlayback`: Memulai pemutaran langsung dari file full video lokal jika tersedia, mendukung mode offline penuh.
+  - [mobile/src/components/WorkshopCard.tsx](file:///d:/projects/clipping/mobile/src/components/WorkshopCard.tsx):
+    - Menambahkan tombol unduh "Full Video", indikator persentase loading saat mengunduh, dan badge "OFFLINE READY" / "Full" saat video utuh tersimpan di shared storage.
+  - [mobile/src/components/Dashboard.tsx](file:///d:/projects/clipping/mobile/src/components/Dashboard.tsx):
+    - Mengelola state `fullVideoStatus` per video ID.
+    - Menambahkan `handleDownloadFullVideo` dan mengizinkan pembukaan workshop offline jika full video sudah ada.
+  - [mobile/src/components/FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
+    - Mengizinkan pemutar video merender jika `currentSourceUriRef.current` memegang file lokal full video meskipun `streamUrl` belum tersedia.
+  - [mobile/src/hooks/useClipData.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipData.ts):
+    - Mengabaikan `full.mp4` dan `full_video.mp4` dari proses pencocokan klip individu yang sudah di-cut.
+
+## [7c2cd89] - Streamline App: Remove Subtitle, Template, and Export Modules to Focus Exclusively on Clip Selection, Trimming, and Downloading
 - **Konteks Struktural**:
   1. Penghapusan Fitur Kompleks (Subtitle, Template Framing, dan Video Burn/Export):
      - Menghapus seluruh modul ekspor video, subtitle fetcher & burner, dan template layouting (facecam, banner konteks judul) sesuai keputusan fungsional aplikasi agar fokus 100% pada pemilihan klip (heatmap carousel), perentangan durasi (trimming/crop/extend), dan pengunduhan MP4 langsung.

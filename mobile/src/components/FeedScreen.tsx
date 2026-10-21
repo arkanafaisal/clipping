@@ -188,7 +188,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
 
       {/* 2. VIDEO PLAYER AREA (expo-video, single clean hardware player) */}
       <View style={styles.playerContainer}>
-        {streamUrl || (activeClip.status === 'done' && downloadedClips[activeClip.id]) ? (
+        {currentSourceUriRef.current || streamUrl || (activeClip.status === 'done' && downloadedClips[activeClip.id]) ? (
           <VideoView
             style={styles.videoPlayer}
             player={player}

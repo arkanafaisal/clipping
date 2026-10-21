@@ -10,7 +10,7 @@ if os.path.exists(_mobile_scripts) and _mobile_scripts not in sys.path:
 from flask import Flask, jsonify, request
 from utils.stream_extractor import get_direct_stream_url
 from utils.heatmap import get_raw_heatmap
-from utils.clip_downloader import download_youtube_clip_range
+from utils.clip_downloader import download_clip_direct, download_full_video_direct
 
 app = Flask(__name__)
 
@@ -105,29 +105,78 @@ def download_clip(video_id=None):
         opts = body.get("ydl_opts")
         stream_url = body.get("stream_url")
         cookie_path = body.get("cookie_path")
+        progress_path = body.get("progress_path")
+        source_video_path = body.get("source_video_path")
 
-        path, ret_url, code, err, meta = download_youtube_clip_range(vid, start, end, output_path, opts, stream_url, cookie_path)
-        if code or err:
-            err_code = code or "DOWNLOAD_FAILED"
-            status_code = 400 if ("REQUIRED" in str(code) or "INVALID" in str(code)) else 500
-            res_data = {
+        res = download_clip_direct(
+            video_id=vid,
+            start=start,
+            end=end,
+            output_path=output_path,
+            stream_url=stream_url,
+            cookie_path=cookie_path,
+            ydl_opts=opts,
+            progress_path=progress_path,
+            source_video_path=source_video_path
+        )
+        if res.get("status") == "error":
+            err_code = res.get("code") or "DOWNLOAD_FAILED"
+            status_code = 400 if ("REQUIRED" in str(err_code) or "INVALID" in str(err_code)) else 500
+            return jsonify({
                 "code": err_code,
                 "message": err_code,
-                "error": err or str(code),
-                "stream_url": ret_url
-            }
-            if meta:
-                res_data.update(meta)
-            return jsonify(res_data), status_code
+                "error": res.get("error") or str(err_code),
+                "stream_url": res.get("stream_url")
+            }), status_code
 
-        res_data = {
+        return jsonify({
             "status": "success",
-            "output_path": path,
-            "stream_url": ret_url
-        }
-        if meta:
-            res_data.update(meta)
-        return jsonify(res_data), 200
+            "output_path": res.get("output_path"),
+            "stream_url": res.get("stream_url"),
+            "source": res.get("source")
+        }), 200
+    except Exception as e:
+        return jsonify({
+            "code": "DOWNLOAD_FAILED",
+            "message": "DOWNLOAD_FAILED",
+            "error": str(e)
+        }), 500
+
+@app.route("/api/download-full-video", methods=["POST"])
+@app.route("/api/download-full-video/<video_id>", methods=["POST"])
+def download_full_video(video_id=None):
+    """
+    Endpoint Pass-Through murni untuk mendownload satu video penuh YouTube secara utuh ke shared storage.
+    Front-end mengirimkan konfigurasi dinamis: video_id, output_path, ydl_opts, cookie_path, progress_path.
+    """
+    try:
+        body = request.get_json(silent=True) or {}
+        vid = body.get("video_id") or video_id or request.args.get("video_id")
+        output_path = body.get("output_path")
+        opts = body.get("ydl_opts")
+        cookie_path = body.get("cookie_path")
+        progress_path = body.get("progress_path")
+
+        res = download_full_video_direct(
+            video_id=vid,
+            output_path=output_path,
+            cookie_path=cookie_path,
+            ydl_opts=opts,
+            progress_path=progress_path
+        )
+        if res.get("status") == "error":
+            err_code = res.get("code") or "DOWNLOAD_FAILED"
+            status_code = 400 if ("REQUIRED" in str(err_code) or "INVALID" in str(err_code)) else 500
+            return jsonify({
+                "code": err_code,
+                "message": err_code,
+                "error": res.get("error") or str(err_code)
+            }), status_code
+
+        return jsonify({
+            "status": "success",
+            "output_path": res.get("output_path")
+        }), 200
     except Exception as e:
         return jsonify({
             "code": "DOWNLOAD_FAILED",

@@ -173,7 +173,7 @@ export function useClipData({
 
           // 1. Pencocokan nama file di direktori (Format baru: "00.12 - 01.35.mp4", atau format lama)
           const fileMatchInDir = dirFiles.find((f) => {
-            if (!f.endsWith('.mp4')) return false;
+            if (!f.endsWith('.mp4') || f === 'full.mp4' || f === 'full_video.mp4') return false;
             if (f === filename || (f.includes(startFormatted) && f.includes(endFormatted))) {
               return true;
             }
