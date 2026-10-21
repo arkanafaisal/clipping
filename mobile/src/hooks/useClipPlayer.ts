@@ -88,6 +88,35 @@ export function useClipPlayer({
     p.timeUpdateEventInterval = 0.1;
   });
 
+  // Track apakah facecam aktif (hanya saat mode portrait dan facecam diaktifkan)
+  // Menghindari 2 hardware video decoder 1080p60 berjalan bersamaan di HP berspesifikasi rendah
+  const isFacecamActiveRef = useRef<boolean>(false);
+
+  const setIsFacecamActive = useCallback((active: boolean) => {
+    isFacecamActiveRef.current = active;
+    if (!active) {
+      try {
+        if (facecamPlayer.playing) {
+          facecamPlayer.pause();
+        }
+      } catch (e) {}
+    } else {
+      const currentUri = currentSourceUriRef.current;
+      if (currentUri) {
+        try {
+          facecamPlayer.replace(currentUri);
+          facecamPlayer.muted = true;
+          if (player) {
+            facecamPlayer.currentTime = player.currentTime;
+            if (player.playing && isContinueStateRef.current) {
+              facecamPlayer.play();
+            }
+          }
+        } catch (e) {}
+      }
+    }
+  }, [facecamPlayer, player]);
+
   // Helper untuk lock seek target dan auto-release safety timeout
   const setPendingSeek = useCallback((targetTime: number) => {
     pendingSeekTargetRef.current = targetTime;
@@ -143,8 +172,10 @@ export function useClipPlayer({
           isSourceSwitchingRef.current = true;
           try {
             player.replace(fileUri);
-            facecamPlayer.replace(fileUri);
-            facecamPlayer.muted = true;
+            if (isFacecamActiveRef.current) {
+              facecamPlayer.replace(fileUri);
+              facecamPlayer.muted = true;
+            }
           } catch (err) {
             console.warn('[Feed] Replace local file error:', err);
           }
@@ -152,10 +183,10 @@ export function useClipPlayer({
           // File lokal sama: seek langsung ke 0
           try {
             player.currentTime = 0;
-            facecamPlayer.currentTime = 0;
+            if (isFacecamActiveRef.current) facecamPlayer.currentTime = 0;
             if (autoPlay && isContinueStateRef.current) {
               player.play();
-              facecamPlayer.play();
+              if (isFacecamActiveRef.current) facecamPlayer.play();
             }
           } catch (err) {
             console.warn('[Feed] Play local error:', err);
@@ -168,8 +199,10 @@ export function useClipPlayer({
           isSourceSwitchingRef.current = true;
           try {
             player.replace(activeStream);
-            facecamPlayer.replace(activeStream);
-            facecamPlayer.muted = true;
+            if (isFacecamActiveRef.current) {
+              facecamPlayer.replace(activeStream);
+              facecamPlayer.muted = true;
+            }
           } catch (err) {
             console.warn('[Feed] Replace stream error:', err);
           }
@@ -177,10 +210,10 @@ export function useClipPlayer({
           // Stream sama: seek langsung ke start klip
           try {
             player.currentTime = targetTime;
-            facecamPlayer.currentTime = targetTime;
+            if (isFacecamActiveRef.current) facecamPlayer.currentTime = targetTime;
             if (autoPlay && isContinueStateRef.current) {
               player.play();
-              facecamPlayer.play();
+              if (isFacecamActiveRef.current) facecamPlayer.play();
             }
           } catch (err) {
             console.warn('[Feed] Play stream error:', err);
@@ -205,7 +238,7 @@ export function useClipPlayer({
       if (player && player.playing) {
         try {
           player.pause();
-          facecamPlayer.pause();
+          if (isFacecamActiveRef.current) facecamPlayer.pause();
         } catch (e) {}
       }
 
@@ -224,10 +257,10 @@ export function useClipPlayer({
           try {
             const seekTime = Math.max(0, finalTarget);
             player.currentTime = seekTime;
-            facecamPlayer.currentTime = seekTime;
+            if (isFacecamActiveRef.current) facecamPlayer.currentTime = seekTime;
             if (shouldPlay && isContinueStateRef.current) {
               player.play();
-              facecamPlayer.play();
+              if (isFacecamActiveRef.current) facecamPlayer.play();
             }
           } catch (e: any) {
             ToastManager.show({
@@ -304,10 +337,10 @@ export function useClipPlayer({
       if (isLocalMode) {
         if (current >= duration) {
           player.currentTime = 0;
-          facecamPlayer.currentTime = 0;
+          if (isFacecamActiveRef.current) facecamPlayer.currentTime = 0;
           if (isContinueStateRef.current) {
             player.play();
-            facecamPlayer.play();
+            if (isFacecamActiveRef.current) facecamPlayer.play();
           }
         }
       } else {
@@ -316,10 +349,10 @@ export function useClipPlayer({
         // 2. Koreksi seketika jika video meleset atau nyangkut di luar rentang klip (misal detik nol: current < start - 0.5s)
         if (current >= currentActive.end || current < currentActive.start - 0.5) {
           player.currentTime = currentActive.start;
-          facecamPlayer.currentTime = currentActive.start;
+          if (isFacecamActiveRef.current) facecamPlayer.currentTime = currentActive.start;
           if (isContinueStateRef.current) {
             player.play();
-            facecamPlayer.play();
+            if (isFacecamActiveRef.current) facecamPlayer.play();
           }
         }
       }
@@ -343,14 +376,14 @@ export function useClipPlayer({
           if (Math.abs(player.currentTime - targetTime) > 0.5) {
             try {
               player.currentTime = targetTime;
-              facecamPlayer.currentTime = targetTime;
+              if (isFacecamActiveRef.current) facecamPlayer.currentTime = targetTime;
             } catch (e) {}
           }
           if (isContinueStateRef.current) {
             if (!player.playing) {
               try { player.play(); } catch (e) {}
             }
-            if (!facecamPlayer.playing) {
+            if (isFacecamActiveRef.current && !facecamPlayer.playing) {
               try { facecamPlayer.play(); } catch (e) {}
             }
           }
@@ -436,7 +469,7 @@ export function useClipPlayer({
       setIsContinueState(true);
       try {
         if (!player.playing) player.play();
-        if (!facecamPlayer.playing) facecamPlayer.play();
+        if (isFacecamActiveRef.current && !facecamPlayer.playing) facecamPlayer.play();
       } catch (e) {}
     }
   }, [player, facecamPlayer]);
@@ -511,13 +544,17 @@ export function useClipPlayer({
             setPendingSeek(0);
             isSourceSwitchingRef.current = true;
             player.replace(fileUri);
-            facecamPlayer.replace(fileUri);
-            facecamPlayer.muted = true;
+            if (isFacecamActiveRef.current) {
+              facecamPlayer.replace(fileUri);
+              facecamPlayer.muted = true;
+            }
             try {
               player.currentTime = 0;
-              facecamPlayer.currentTime = 0;
+              if (isFacecamActiveRef.current) {
+                facecamPlayer.currentTime = 0;
+                facecamPlayer.play();
+              }
               player.play();
-              facecamPlayer.play();
             } catch (playErr) {
               console.log('[Feed] Auto-play initial local clip error:', playErr);
             }
@@ -533,14 +570,18 @@ export function useClipPlayer({
             setPendingSeek(firstClipStart);
             isSourceSwitchingRef.current = true;
             player.replace(directUrl);
-            facecamPlayer.replace(directUrl);
-            facecamPlayer.muted = true;
+            if (isFacecamActiveRef.current) {
+              facecamPlayer.replace(directUrl);
+              facecamPlayer.muted = true;
+            }
             // AUTO PLAY: Mulai putar langsung dari posisi start klip pertama
             try {
               player.currentTime = firstClipStart;
-              facecamPlayer.currentTime = firstClipStart;
+              if (isFacecamActiveRef.current) {
+                facecamPlayer.currentTime = firstClipStart;
+                facecamPlayer.play();
+              }
               player.play();
-              facecamPlayer.play();
             } catch (playErr) {
               console.log('[Feed] Auto-play initial clip error:', playErr);
             }
@@ -593,5 +634,6 @@ export function useClipPlayer({
     togglePlayPause,
     skipSeconds,
     initializeStreamAndPlayback,
+    setIsFacecamActive,
   };
 }

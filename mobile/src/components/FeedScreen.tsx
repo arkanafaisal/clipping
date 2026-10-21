@@ -79,6 +79,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     togglePlayPause,
     skipSeconds,
     initializeStreamAndPlayback,
+    setIsFacecamActive,
   } = useClipPlayer({
     videoId,
     clipsRef,
@@ -245,6 +246,10 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
   }, [templateConfig.facecam, facecamLayout]);
 
   const isFacecamActive = isPortrait && templateConfig.facecam.enabled;
+
+  useEffect(() => {
+    setIsFacecamActive(isFacecamActive);
+  }, [isFacecamActive, setIsFacecamActive]);
 
   const mainVideoStyle = useMemo(() => {
     // Jika tidak dalam mode portrait (misal un-done stream atau facecam nonaktif), tampilkan 100% video standar
