@@ -14,7 +14,27 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Revert Base Time Display During Millisecond Editing to Render Exclusive In-Place Input Field
+## [Unreleased] - Compact Facecam Controls Layout and Support Direct In-Place Numeric Inputs on Tap
+- **Konteks Struktural**:
+  1. Penataan Ulang Ukuran Panel Kontrol Facecam Menjadi Ultra-Kompak:
+     - Mengidentifikasi kendala tombol plus (`+`) pada stepper pengaturan Facecam yang terdorong keluar batas layar (*overflow/clipped*) pada layar sempit karena padding, margin, dan lebar elemen stepper yang terlalu besar di samping viewport 4:3.
+     - Merestrukturisasi dimensi komponen [FacecamHighlightSection.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FacecamHighlightSection.tsx):
+       - Mengurangi padding kontainer dari 12px menjadi 8px/4px, gap dari 12px menjadi 8px, dan tinggi maksimum facecam menjadi 125px.
+       - Mengatur `minWidth: 0` pada panel kontrol kanan dan memangkas ukuran tombol stepper dari 20x20 menjadi 17x17 dengan ikon size 9.
+       - Memperkecil total lebar baris stepper sehingga menyisakan ruang margin yang lega (~80px) dan menjamin tombol plus (`+`) selalu tampil utuh di dalam layar.
+  2. Dukungan Input Angka Manual Langsung di Tempat (In-Place Numeric Input):
+     - Menambahkan mode pengetikan manual ketika angka nilai ZOOM, POS X, atau POS Y disentuh/diklik oleh pengguna.
+     - Angka nilai seketika berubah menjadi `TextInput` mandiri berfokus otomatis (`autoFocus`, `selectTextOnFocus`) dengan tipe keyboard `number-pad`.
+     - Ketika pengguna selesai mengetik dan menyentuh area lain (`onBlur`) atau menekan tombol selesai (`onSubmitEditing`), nilai baru otomatis divalidasi, di-clamp ke rentang aman (Zoom 100-400%, Pos X 0-100%, Pos Y 0-100%), dan disimpan ke konfigurasi secara persisten.
+- **Perubahan Kode Penting**:
+  - [mobile/src/components/feed/FacecamHighlightSection.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FacecamHighlightSection.tsx):
+    - Mengintegrasikan state `activeEditField` dan `tempInputValue` untuk transisi dinamis antara tampilan nilai dan `TextInput` interaktif.
+    - Menambahkan fungsi `handleStartEdit` dan `handleCommitEdit` dengan sanitasi serta batas validasi angka.
+    - Menyesuaikan stylesheet untuk layout ultra-ramping (`fieldInput`, `valueBtn`, `stepBtn`, `settingRow`, `container`).
+  - [GEMINI.md](file:///d:/projects/clipping/GEMINI.md):
+    - Menambahkan aturan learned rule `24. [UX]` terkait keharusan memperhitungkan lebar sisa layar dan penerapan elemen kompak berskala aman.
+
+## [286040a] - Revert Base Time Display During Millisecond Editing to Render Exclusive In-Place Input Field
 - **Konteks Struktural**:
   1. Pengembalian Tampilan Murni Milidetik Saat Mode Sunting Aktif:
      - Mengeliminasi rendering teks waktu dasar dan tanda titik (`formatDisplayTime(time).`) yang sebelumnya disisipkan saat pengguna mengetuk angka waktu untuk mengubah milidetik pada [FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx).
