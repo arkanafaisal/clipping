@@ -14,7 +14,22 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Compact Facecam Controls Layout and Support Direct In-Place Numeric Inputs on Tap
+## [Unreleased] - Synchronize Python Engine Scripts to Embedded Native Bundle for Production and Dev Builds
+- **Konteks Struktural**:
+  1. Sinkronisasi Skrip Python ke Native Chaquopy Bundle:
+     - Menyalin seluruh skrip Python versi terbaru dari direktori pengembangan utama ([mobile/scripts/utils/](file:///d:/projects/clipping/mobile/scripts/utils)) ke dalam bundle modul native Chaquopy ([mobile/modules/python-runner/android/src/main/python/utils/](file:///d:/projects/clipping/mobile/modules/python-runner/android/src/main/python/utils)) menjelang persiapan build APK production dan development.
+     - Memastikan seluruh modul utilitas (termasuk pemotongan offline klip cepat, batas bitrate FFmpeg 1080p 60fps, dan sinkronisasi cookies Google Drive) tersedia secara mandiri di dalam paket bundle tanpa ketergantungan file luar saat aplikasi di-install di perangkat produksi baru.
+  2. Jaminan Override Skrip Folder Luar untuk Kelanjutan Mode Development:
+     - Memverifikasi arsitektur resolver `setup_paths` pada `runner.py`:
+       - Direktori shared storage (`/storage/emulated/0/clipping/scripts` dan `utils/`) selalu disisipkan di posisi awal (`sys.path.insert(0, ...)`).
+       - Modul native akan selalu mendahulukan pembacaan skrip dari folder luar tersebut saat berjalan di mode development, sehingga pembaruan skrip di HP dapat diuji coba seketika tanpa perlu proses build ulang APK.
+- **Perubahan Kode Penting**:
+  - [mobile/modules/python-runner/android/src/main/python/utils/](file:///d:/projects/clipping/mobile/modules/python-runner/android/src/main/python/utils):
+    - Menyinkronkan seluruh 14 file utilitas Python ke versi mutakhir yang identik dengan direktori sumber pengembangan (`mobile/scripts/utils/`).
+  - [changelog.md](file:///d:/projects/clipping/changelog.md):
+    - Mendokumentasikan persiapan bundle native APK dan verifikasi override skrip shared storage.
+
+## [2dc8877] - Compact Facecam Controls Layout and Support Direct In-Place Numeric Inputs on Tap
 - **Konteks Struktural**:
   1. Penataan Ulang Ukuran Panel Kontrol Facecam Menjadi Ultra-Kompak:
      - Mengidentifikasi kendala tombol plus (`+`) pada stepper pengaturan Facecam yang terdorong keluar batas layar (*overflow/clipped*) pada layar sempit karena padding, margin, dan lebar elemen stepper yang terlalu besar di samping viewport 4:3.

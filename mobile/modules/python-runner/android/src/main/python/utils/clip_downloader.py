@@ -39,7 +39,8 @@ def download_clip_direct(
     stream_url: str = None,
     cookie_path: str = None,
     ydl_opts: dict = None,
-    progress_path: str = None
+    progress_path: str = None,
+    source_video_path: str = None
 ) -> dict:
     """
     Mendownload satu klip video YouTube secara mandiri menggunakan metode 2-tahap:
@@ -166,6 +167,101 @@ def download_clip_direct(
 
     youtube_url = f"https://www.youtube.com/watch?v={video_id}"
     captured_stream_url = stream_url
+
+    # 3.1. Jalur Cepat: Jika file fisik full video lokal tersedia di shared storage, potong langsung dengan FFmpeg offline
+    if source_video_path and os.path.exists(source_video_path) and os.path.getsize(source_video_path) > 0:
+        write_progress("STAGE_INIT", "CUTTING_FROM_LOCAL_SOURCE", 0, force=True)
+        cut_start = start_num
+        cut_dur = end_num - start_num
+        fast_seek = max(0.0, cut_start - 10.0)
+        rel_start = cut_start - fast_seek
+
+        filter_str = (
+            f"[0:v]trim=start={rel_start}:duration={cut_dur},setpts=PTS-STARTPTS[v];"
+            f"[0:a]atrim=start={rel_start}:duration={cut_dur},asetpts=PTS-STARTPTS[a]"
+        )
+        ffmpeg_cut_cmd = [
+            ffmpeg_bin, "-y",
+            "-ss", str(fast_seek),
+            "-i", source_video_path,
+            "-filter_complex", filter_str,
+            "-map", "[v]",
+            "-map", "[a]",
+            "-c:v", "libx264",
+            "-preset", "ultrafast",
+            "-crf", "22",
+            "-maxrate", "8M",
+            "-bufsize", "12M",
+            "-pix_fmt", "yuv420p",
+            "-profile:v", "high",
+            "-level", "4.2",
+            "-movflags", "+faststart",
+            "-c:a", "aac",
+            "-b:a", "128k",
+            "-progress", ffmpeg_prog_file,
+            "-nostats",
+            "-loglevel", "warning",
+            output_path
+        ]
+
+        write_progress("STAGE_2_CUT", "STARTING_FFMPEG", 0, force=True)
+        try:
+            with open(ffmpeg_err_file, "w", encoding="utf-8", errors="replace") as err_f:
+                proc = subprocess.Popen(ffmpeg_cut_cmd, stdout=subprocess.DEVNULL, stderr=err_f, text=True)
+                while proc.poll() is None:
+                    time.sleep(0.25)
+                    if os.path.exists(ffmpeg_prog_file):
+                        try:
+                            with open(ffmpeg_prog_file, "r", encoding="utf-8", errors="replace") as f_p:
+                                lines = f_p.read().splitlines()
+                            for line in reversed(lines):
+                                if line.startswith("out_time_us="):
+                                    val = line.split("=")[1].strip()
+                                    us = int(val)
+                                    dur_us = cut_dur * 1000000.0
+                                    pct = int((us / dur_us) * 100) if dur_us > 0 else 50
+                                    write_progress("STAGE_2_CUT", "CUTTING_PRECISION", pct)
+                                    break
+                        except Exception:
+                            pass
+                proc.wait(timeout=180)
+        except Exception as e_proc:
+            cleanup_temp_files()
+            return {
+                "status": "error",
+                "code": "FFMPEG_CUT_ERROR",
+                "error": f"Eksekusi FFmpeg potong lokal gagal: {str(e_proc)}",
+                "traceback": traceback.format_exc(),
+                "stream_url": captured_stream_url
+            }
+
+        err_output = ""
+        if os.path.exists(ffmpeg_err_file):
+            try:
+                with open(ffmpeg_err_file, "r", encoding="utf-8", errors="replace") as err_f:
+                    err_output = err_f.read()
+            except Exception:
+                pass
+
+        cleanup_temp_files()
+
+        if proc.returncode != 0 or not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
+            return {
+                "status": "error",
+                "code": "FFMPEG_CUT_ERROR",
+                "error": f"Pemotongan FFmpeg lokal gagal (exit code {proc.returncode}):\n{err_output}",
+                "traceback": err_output or f"Exit code {proc.returncode}",
+                "stream_url": captured_stream_url
+            }
+
+        write_progress("STAGE_COMPLETE", "COMPLETED", 100, force=True)
+        return {
+            "status": "success",
+            "output_path": output_path,
+            "stream_url": captured_stream_url,
+            "source": "local_full_video"
+        }
+
     cookies_available = bool(cookie_path and os.path.exists(cookie_path))
     cookies_attempted = False
     captured_errors = []
@@ -419,7 +515,15 @@ def download_clip_direct(
             "-map", "[a]",
             "-c:v", "libx264",
             "-preset", "ultrafast",
+            "-crf", "22",
+            "-maxrate", "8M",
+            "-bufsize", "12M",
+            "-pix_fmt", "yuv420p",
+            "-profile:v", "high",
+            "-level", "4.2",
+            "-movflags", "+faststart",
             "-c:a", "aac",
+            "-b:a", "128k",
             "-progress", ffmpeg_prog_file,
             "-nostats",
             "-loglevel", "warning",
@@ -439,7 +543,15 @@ def download_clip_direct(
             "-map", "[a]",
             "-c:v", "libx264",
             "-preset", "ultrafast",
+            "-crf", "22",
+            "-maxrate", "8M",
+            "-bufsize", "12M",
+            "-pix_fmt", "yuv420p",
+            "-profile:v", "high",
+            "-level", "4.2",
+            "-movflags", "+faststart",
             "-c:a", "aac",
+            "-b:a", "128k",
             "-progress", ffmpeg_prog_file,
             "-nostats",
             "-loglevel", "warning",
@@ -503,3 +615,157 @@ def download_clip_direct(
         "output_path": output_path,
         "stream_url": captured_stream_url
     }
+
+
+def download_full_video_direct(
+    video_id: str,
+    output_path: str,
+    cookie_path: str = None,
+    ydl_opts: dict = None,
+    progress_path: str = None
+) -> dict:
+    """
+    Mendownload satu video YouTube utuh secara mandiri menggunakan yt-dlp ke shared storage.
+    Video di-download dalam format MP4 prime 1080p/720p H.264 + AAC dengan progress tracking realtime.
+    """
+    if not video_id:
+        return {"status": "error", "code": "VIDEO_ID_REQUIRED", "error": "Parameter 'video_id' wajib diisi."}
+    if not output_path:
+        return {"status": "error", "code": "OUTPUT_PATH_REQUIRED", "error": "Parameter 'output_path' wajib disertakan."}
+
+    output_dir = os.path.dirname(output_path)
+    if output_dir:
+        try:
+            os.makedirs(output_dir, exist_ok=True)
+        except Exception as e:
+            return {"status": "error", "code": "STORAGE_PERMISSION_DENIED", "error": f"Gagal membuat direktori tujuan: {str(e)}"}
+
+    last_write_time = 0.0
+    def write_progress(stage: str, code: str, percent: int = 0, force: bool = False):
+        nonlocal last_write_time
+        if not progress_path:
+            return
+        now = time.time()
+        if not force and (now - last_write_time) < 0.25:
+            return
+        last_write_time = now
+        try:
+            payload = {"stage": stage, "code": code, "percent": max(0, min(100, int(percent))), "time": now}
+            tmp_prog = f"{progress_path}.tmp"
+            with open(tmp_prog, "w", encoding="utf-8") as f:
+                json.dump(payload, f)
+            if os.path.exists(tmp_prog):
+                os.replace(tmp_prog, progress_path)
+        except Exception:
+            pass
+
+    write_progress("STAGE_INIT", "PREPARING_METADATA", 0, force=True)
+
+    opts = (ydl_opts or {}).copy()
+    ffmpeg_bin = opts.get("ffmpeg_location") or os.getenv("FFMPEG_BINARY") or "ffmpeg"
+    if os.path.isabs(ffmpeg_bin):
+        ffmpeg_dir = os.path.dirname(ffmpeg_bin)
+        if ffmpeg_dir and ffmpeg_dir not in os.environ.get("PATH", ""):
+            os.environ["PATH"] = ffmpeg_dir + os.pathsep + os.environ.get("PATH", "")
+
+    cookies_available = bool(cookie_path and os.path.exists(cookie_path))
+    captured_errors = []
+
+    def ytdl_hook(d):
+        if d.get("status") == "downloading":
+            total = d.get("total_bytes") or d.get("total_bytes_estimate") or 0
+            downloaded = d.get("downloaded_bytes") or 0
+            pct = int((downloaded / total) * 100) if total > 0 else 0
+            write_progress("STAGE_1_COPY", "DOWNLOADING_FULL_VIDEO", pct)
+        elif d.get("status") == "finished":
+            write_progress("STAGE_2_CUT", "MERGING_STREAMS", 98)
+
+    def run_full_download(use_cookie: bool) -> bool:
+        yt_logger = YtLogger()
+        run_opts = {
+            "format": "bestvideo[ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+            "outtmpl": output_path,
+            "merge_output_format": "mp4",
+            "ffmpeg_location": ffmpeg_bin,
+            "quiet": True,
+            "no_warnings": True,
+            "logger": yt_logger,
+            "progress_hooks": [ytdl_hook],
+            "nocheckcertificate": True,
+            "postprocessors": [{
+                "key": "FFmpegVideoConvertor",
+                "preferedformat": "mp4",
+            }],
+        }
+        if use_cookie and cookies_available:
+            run_opts["cookiefile"] = cookie_path
+
+        youtube_url = f"https://www.youtube.com/watch?v={video_id}"
+        try:
+            with yt_dlp.YoutubeDL(run_opts) as ydl:
+                ydl.download([youtube_url])
+            if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+                return True
+            raise Exception("File output tidak terbentuk setelah proses unduh selesai.")
+        except Exception as e:
+            tail = yt_logger.get_tail()
+            err_msg = f"{str(e)}\n\nLog yt-dlp:\n{tail}" if tail else str(e)
+            captured_errors.append(f"[{'Cookies' if use_cookie else 'Anonim'}] {err_msg}")
+            return False
+
+    # 1. Coba Anonim
+    success = run_full_download(use_cookie=False)
+
+    # 2. Coba Cookies jika anonim gagal
+    if not success and cookies_available:
+        success = run_full_download(use_cookie=True)
+
+    if not success or not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
+        full_err_text = "\n\n".join(captured_errors) if captured_errors else "Gagal mengunduh video utuh dari YouTube."
+        eval_err = captured_errors[-1].lower() if captured_errors else full_err_text.lower()
+        if any(k in eval_err for k in ["429", "rate limit", "too many requests"]):
+            code = "RATE_LIMIT_EXCEEDED"
+        elif any(k in eval_err for k in ["403", "forbidden", "access denied", "bot", "captcha", "sign in"]):
+            code = "COOKIES_INVALID_OR_EXPIRED" if cookies_available else "RATE_LIMIT_EXCEEDED"
+        elif "requested format is not available" in eval_err:
+            code = "FORMAT_NOT_AVAILABLE"
+        elif any(k in eval_err for k in ["permission denied", "errno 13", "operation not permitted"]):
+            code = "STORAGE_PERMISSION_DENIED"
+        else:
+            code = "DOWNLOAD_FAILED"
+        return {"status": "error", "code": code, "error": full_err_text}
+
+    write_progress("STAGE_COMPLETE", "COMPLETED", 100, force=True)
+    return {"status": "success", "output_path": output_path}
+
+
+def download_youtube_clip_range(
+    video_id: str,
+    start: float,
+    end: float,
+    output_path: str,
+    ydl_opts: dict = None,
+    stream_url: str = None,
+    cookie_path: str = None,
+    progress_path: str = None,
+    source_video_path: str = None
+):
+    """
+    Backward compatibility wrapper yang mendelegasikan pemanggilan ke download_clip_direct.
+    """
+    res = download_clip_direct(
+        video_id=video_id,
+        start=start,
+        end=end,
+        output_path=output_path,
+        stream_url=stream_url,
+        cookie_path=cookie_path,
+        ydl_opts=ydl_opts,
+        progress_path=progress_path,
+        source_video_path=source_video_path
+    )
+    if res.get("status") == "success":
+        return res.get("output_path"), res.get("stream_url"), None, None, res
+    else:
+        return None, res.get("stream_url"), res.get("code"), res.get("error"), res
+
