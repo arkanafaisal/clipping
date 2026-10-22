@@ -14,7 +14,25 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Refine In-Place Millisecond Input Presentation in Feed Top Banner
+## [Unreleased] - Streamline Top Controls: Fix MM:SS Format, Hide Saved Badge and Irrelevant Left Controls on Done Clips
+- **Konteks Struktural**:
+  1. Penghapusan Total Badge Tersimpan dan Minimalisasi Tombol Status Done:
+     - Menghapus badge centang dan teks "Tersimpan" saat klip telah berstatus terdownload pada [FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx), mengeliminasi masalah teks yang meluber dan bertumpuk dengan elemen navigasi lainnya.
+     - Saat klip sudah terdownload, tombol download hilang sepenuhnya dan hanya menyisakan tombol centang hijau (*mark as done*).
+  2. Format Waktu Terstandarisasi Menit & Detik (MM:SS) Tanpa Jam:
+     - Mengubah fungsi [formatDisplayTime](file:///d:/projects/clipping/mobile/src/components/feed/timeUtils.ts) agar secara kaku hanya menghasilkan format `MM:SS` (modulo 3600 untuk menit dan modulo 60 untuk detik), mengeliminasi jam dan milidetik secara menyeluruh dari banner rentang atas. Hal ini menjaga lebar teks selalu ramping dan konstan (5 karakter), mencegah benturan visual dengan tombol kontrol samping pada layar ponsel dengan aspek rasio sempit.
+     - Detail jam lengkap tetap dapat dipantau pengguna pada kartu klip di horizontal carousel bawah.
+  3. Menyembunyikan Tombol Aksi Kiri Saat Mode Klip Done:
+     - Menyembunyikan tombol penambahan klip custom (`Plus`) dan pengubah jumlah klip (`SlidersHorizontal`) di sisi kiri saat klip aktif berstatus `done`, karena opsi manipulasi rentang tidak lagi relevan untuk klip yang sudah diselesaikan.
+- **Perubahan Kode Penting**:
+  - [mobile/src/components/feed/timeUtils.ts](file:///d:/projects/clipping/mobile/src/components/feed/timeUtils.ts):
+    - Memperbarui fungsi `formatDisplayTime` agar selalu mengembalikan string format `MM:SS` secara mutlak.
+  - [mobile/src/components/feed/FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx):
+    - Menggunakan `formatDisplayTime` untuk semua render waktu pada banner atas.
+    - Menghapus badge "Tersimpan" dan menghapus style `downloadedBadge` / `downloadedBadgeText`.
+    - Menyembunyikan grup tombol kiri saat `activeClip.status === 'done'`.
+
+## [6b32109] - Refine In-Place Millisecond Input Presentation in Feed Top Banner
 - **Konteks Struktural**:
   1. Presentasi Waktu Murni HH:MM:SS / MM:SS dengan Input Milidetik Kontekstual:
      - Memastikan banner rentang atas pada [FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx) selalu menampilkan waktu dasar bersih dalam format jam:menit:detik murni tanpa pecahan milidetik saat mode baca/diam.

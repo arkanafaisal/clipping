@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { Trash2, CheckCircle2, Download, Plus, SlidersHorizontal } from 'lucide-react-native';
 import { ClipItem } from '../../services/api';
-import { formatTime } from './timeUtils';
+import { formatDisplayTime } from './timeUtils';
 
 export interface FeedTopControlsProps {
   activeClip: ClipItem;
@@ -60,43 +60,47 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
   return (
     <View style={styles.topSection}>
       <View style={styles.timeRangeRow}>
-        {/* SISI KIRI (2 BUTTONS): Tambah Custom & Ubah Jumlah Klip Heatmap */}
-        <View style={styles.leftActionGroup}>
-          <Pressable
-            style={({ pressed }) => [
-              styles.statusBtn,
-              styles.customAddBtn,
-              pressed && { opacity: 0.7 },
-            ]}
-            onPress={onAddCustomPress}
-            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-          >
-            <Plus size={18} color="#c4b5fd" />
-          </Pressable>
+        {/* SISI KIRI (2 BUTTONS): Tambah Custom & Ubah Jumlah Klip Heatmap (Hanya tampil jika belum done) */}
+        {activeClip.status !== 'done' ? (
+          <View style={styles.leftActionGroup}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.statusBtn,
+                styles.customAddBtn,
+                pressed && { opacity: 0.7 },
+              ]}
+              onPress={onAddCustomPress}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+            >
+              <Plus size={18} color="#c4b5fd" />
+            </Pressable>
 
-          <Pressable
-            style={({ pressed }) => [
-              styles.statusBtn,
-              styles.visibleCountBtn,
-              pressed && { opacity: 0.7 },
-            ]}
-            onPress={onChangeVisibleCountPress}
-            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-          >
-            <SlidersHorizontal size={17} color="#38bdf8" />
-          </Pressable>
-        </View>
+            <Pressable
+              style={({ pressed }) => [
+                styles.statusBtn,
+                styles.visibleCountBtn,
+                pressed && { opacity: 0.7 },
+              ]}
+              onPress={onChangeVisibleCountPress}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+            >
+              <SlidersHorizontal size={17} color="#38bdf8" />
+            </Pressable>
+          </View>
+        ) : (
+          <View style={styles.leftActionGroup} />
+        )}
 
-        {/* SISI TENGAH: Rentang Waktu Murni HH:MM:SS / MM:SS (Milidetik tersembunyi hingga input ditekan) */}
+        {/* SISI TENGAH: Rentang Waktu Murni MM:SS (Jam dan Milidetik tersembunyi total dari banner) */}
         <View style={styles.centerTimeWrapper} pointerEvents="box-none">
           {activeClip.status === 'done' ? (
             <View style={styles.timeDisplay}>
               <Text style={styles.timeNumberText}>
-                {formatTime(currentClipTime)}
+                {formatDisplayTime(currentClipTime)}
               </Text>
               <Text style={styles.timeSeparatorText}>/</Text>
               <Text style={[styles.timeNumberText, styles.timeMsDim]}>
-                {formatTime(activeClip.end - activeClip.start)}
+                {formatDisplayTime(activeClip.end - activeClip.start)}
               </Text>
             </View>
           ) : (
@@ -104,7 +108,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
               {activeTimeEdit === 'start' ? (
                 <View style={styles.timeEditWrapper}>
                   <Text style={styles.timeNumberText}>
-                    {formatTime(activeClip.start)}.
+                    {formatDisplayTime(activeClip.start)}.
                   </Text>
                   <TextInput
                     style={styles.timeInput}
@@ -126,7 +130,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 6 }}
                 >
                   <Text style={styles.timeNumberText}>
-                    {formatTime(activeClip.start)}
+                    {formatDisplayTime(activeClip.start)}
                   </Text>
                 </Pressable>
               )}
@@ -136,7 +140,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
               {activeTimeEdit === 'end' ? (
                 <View style={styles.timeEditWrapper}>
                   <Text style={styles.timeNumberText}>
-                    {formatTime(activeClip.end)}.
+                    {formatDisplayTime(activeClip.end)}.
                   </Text>
                   <TextInput
                     style={styles.timeInput}
@@ -158,7 +162,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                   hitSlop={{ top: 8, bottom: 8, left: 6, right: 8 }}
                 >
                   <Text style={styles.timeNumberText}>
-                    {formatTime(activeClip.end)}
+                    {formatDisplayTime(activeClip.end)}
                   </Text>
                 </Pressable>
               )}
@@ -166,16 +170,11 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
           )}
         </View>
 
-        {/* SISI KANAN (2 BUTTONS): Trash/Delete & Done/Download */}
+        {/* SISI KANAN: Trash & Done / Download & Done */}
         <View style={styles.rightActionGroup}>
           {activeClip.status === 'done' ? (
             <>
-              {isDownloaded ? (
-                <View style={[styles.statusBtn, styles.downloadedBadge]}>
-                  <CheckCircle2 size={16} color="#34d399" />
-                  <Text style={styles.downloadedBadgeText}>Tersimpan</Text>
-                </View>
-              ) : (
+              {!isDownloaded && (
                 <Pressable
                   style={({ pressed }) => [
                     styles.statusBtn,
@@ -467,20 +466,6 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
     fontWeight: '700',
     letterSpacing: 0.2,
-  },
-  downloadedBadge: {
-    width: 'auto',
-    paddingHorizontal: 8,
-    flexDirection: 'row',
-    gap: 5,
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
-  },
-  downloadedBadgeText: {
-    color: '#34d399',
-    fontSize: 11,
-    fontWeight: '700',
   },
   trashBtnInactive: {
     backgroundColor: 'rgba(239, 68, 68, 0.1)',

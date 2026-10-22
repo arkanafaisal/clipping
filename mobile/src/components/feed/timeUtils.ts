@@ -20,8 +20,12 @@ export function formatTimeWithMs(seconds: number): string {
 }
 
 export function formatDisplayTime(seconds: number): string {
-  // Banner rentang atas selalu menampilkan jam, menit, dan detik murni tanpa milidetik
-  return formatTime(seconds);
+  // Banner rentang atas fix hanya menampilkan menit dan detik murni (MM:SS), jam dan milidetik di-hide total
+  if (seconds === undefined || seconds === null || isNaN(seconds)) return '00:00';
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  const pad = (num: number) => num.toString().padStart(2, '0');
+  return `${pad(m)}:${pad(s)}`;
 }
 
 /**
