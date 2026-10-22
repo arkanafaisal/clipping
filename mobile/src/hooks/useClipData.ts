@@ -61,6 +61,9 @@ export function useClipData({
   const [loading, setLoading] = useState(true);
   const [loadingMessage, setLoadingMessage] = useState('Memuat data klip...');
 
+  // State Jumlah Klip Heatmap yang Terlihat (1 - 100, default 50)
+  const [visibleHeatmapCount, setVisibleHeatmapCount] = useState<number>(initialCount || 50);
+
   // State Edit Presisi Milidetik (Mode Klip)
   const [activeTimeEdit, setActiveTimeEdit] = useState<'start' | 'end' | null>(null);
   const [tempTimeValue, setTempTimeValue] = useState<string>('');
@@ -120,13 +123,26 @@ export function useClipData({
           } catch (e) {}
         }
 
+        // Baca konfigurasi visible heatmap count tersimpan jika ada
+        try {
+          const savedCount = await LocalStorage.getItem(`clipping_visible_count_${videoId}`);
+          if (savedCount) {
+            const parsedCount = parseInt(savedCount, 10);
+            if (!isNaN(parsedCount) && parsedCount > 0) {
+              setVisibleHeatmapCount(parsedCount);
+            }
+          }
+        } catch {}
+
         if (loadedClips.length === 0) {
           setLoadingMessage('Mengekstrak Heatmap AI (Bisa memakan waktu belasan detik)...');
-          const heatmapData = await fetchHeatmap(videoId, initialCount, 5);
+          // Ekstrak 100 klip penuh dengan offset 0 (tepat pada momen puncak)
+          const heatmapData = await fetchHeatmap(videoId, 100, 0);
           loadedClips = heatmapData.clips.map((c: any, idx: number) => ({
             ...c,
             status: 'none' as const,
             rank: c.rank || idx + 1,
+            isCustom: false,
           }));
           await LocalStorage.setItem(DRAFT_KEY, JSON.stringify(loadedClips));
         }
@@ -433,6 +449,29 @@ export function useClipData({
   // Toggle clip Trash/Skip status (merah)
   const handleToggleTrash = () => {
     const currentActiveId = activeClipIdRef.current || activeClipId;
+    const currentClip = clipsRef.current.find((c) => c.id === currentActiveId);
+
+    // Jika klip custom: benar-benar hapus secara permanen (bukan hanya menandai trash)
+    if (currentClip && (currentClip.isCustom || currentClip.rank === 'custom')) {
+      const updated = clipsRef.current.filter((c) => c.id !== currentActiveId);
+      clipsRef.current = updated;
+      setClips(updated);
+      LocalStorage.setItem(DRAFT_KEY, JSON.stringify(updated));
+
+      // Pindahkan active clip ke klip terdekat yang masih ada
+      const remaining = [...updated].sort((a, b) => a.start - b.start);
+      if (remaining.length > 0) {
+        handleSelectClip(remaining[0].id);
+      }
+      ToastManager.show({
+        type: 'info',
+        title: 'Klip Custom Dihapus',
+        duration: 2000,
+      });
+      return;
+    }
+
+    // Klip heatmap biasa: toggle status 'trash' vs 'none'
     const updated = clipsRef.current.map((c) => {
       if (c.id === currentActiveId) {
         const nextStatus = (c.status === 'trash' ? 'none' : 'trash') as 'none' | 'trash';
@@ -444,15 +483,86 @@ export function useClipData({
     setClips(updated);
   };
 
-  // Group clips into pairs (columns of 2 rows) sorted chronologically (memoized agar tidak di-recompute setiap tick)
-  const sortedClips = useMemo(() => [...clips].sort((a, b) => a.start - b.start), [clips]);
+  // Tambah Rentang Klip Custom dari pengguna
+  const handleAddCustomClip = (start: number, end: number) => {
+    const newClip: ClipItem = {
+      id: `custom_${Date.now()}`,
+      rank: 'custom',
+      videoId,
+      start: Number(start.toFixed(3)),
+      end: Number(end.toFixed(3)),
+      status: 'none',
+      isCustom: true,
+    };
+
+    const updated = [...clipsRef.current, newClip];
+    clipsRef.current = updated;
+    setClips(updated);
+    LocalStorage.setItem(DRAFT_KEY, JSON.stringify(updated));
+
+    handleSelectClip(newClip.id);
+    ToastManager.show({
+      type: 'success',
+      title: 'Klip Custom Ditambahkan',
+      duration: 2500,
+    });
+  };
+
+  // Ubah Jumlah Klip Heatmap yang Terlihat
+  const handleSetVisibleHeatmapCount = (count: number) => {
+    const validCount = Math.max(1, Math.min(100, count));
+    setVisibleHeatmapCount(validCount);
+    LocalStorage.setItem(`clipping_visible_count_${videoId}`, String(validCount));
+
+    // Cek apakah klip aktif saat ini masih termasuk dalam daftar klip yang terlihat
+    const customClips = clipsRef.current.filter((c) => c.isCustom || c.rank === 'custom');
+    const heatmapClips = clipsRef.current
+      .filter((c) => !c.isCustom && c.rank !== 'custom')
+      .sort((a, b) => {
+        const rankA = typeof a.rank === 'number' ? a.rank : 999;
+        const rankB = typeof b.rank === 'number' ? b.rank : 999;
+        return rankA - rankB;
+      })
+      .slice(0, validCount);
+
+    const visibleList = [...customClips, ...heatmapClips].sort((a, b) => a.start - b.start);
+    const isCurrentStillVisible = visibleList.some((c) => c.id === (activeClipIdRef.current || activeClipId));
+    if (!isCurrentStillVisible && visibleList.length > 0) {
+      handleSelectClip(visibleList[0].id);
+    }
+
+    ToastManager.show({
+      type: 'success',
+      title: `Menampilkan ${validCount} Klip Heatmap`,
+      duration: 2000,
+    });
+  };
+
+  // Filter klip yang tampak:
+  // 1. Klip Custom: SELALU DITAMPILKAN
+  // 2. Klip Heatmap: Diambil N klip teratas berdasarkan ranking intensitas (rank 1..N)
+  // 3. Gabungan keduanya diurutkan secara kronologis berdasarkan waktu mulai (start)
+  const visibleClips = useMemo(() => {
+    const customClips = clips.filter((c) => c.isCustom || c.rank === 'custom');
+    const heatmapClips = clips
+      .filter((c) => !c.isCustom && c.rank !== 'custom')
+      .sort((a, b) => {
+        const rankA = typeof a.rank === 'number' ? a.rank : 999;
+        const rankB = typeof b.rank === 'number' ? b.rank : 999;
+        return rankA - rankB;
+      })
+      .slice(0, visibleHeatmapCount);
+
+    return [...customClips, ...heatmapClips].sort((a, b) => a.start - b.start);
+  }, [clips, visibleHeatmapCount]);
+
   const clipColumns = useMemo(() => {
     const cols: ClipItem[][] = [];
-    for (let i = 0; i < sortedClips.length; i += 2) {
-      cols.push(sortedClips.slice(i, i + 2));
+    for (let i = 0; i < visibleClips.length; i += 2) {
+      cols.push(visibleClips.slice(i, i + 2));
     }
     return cols;
-  }, [sortedClips]);
+  }, [visibleClips]);
 
   return {
     clips,
@@ -466,11 +576,14 @@ export function useClipData({
     setLoading,
     loadingMessage,
     setLoadingMessage,
+    visibleHeatmapCount,
+    setVisibleHeatmapCount: handleSetVisibleHeatmapCount,
+    handleAddCustomClip,
     activeTimeEdit,
     setActiveTimeEdit,
     tempTimeValue,
     setTempTimeValue,
-    sortedClips,
+    sortedClips: visibleClips,
     clipColumns,
     handleUpdateStart,
     handleUpdateEnd,

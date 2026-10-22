@@ -1,4 +1,4 @@
-import React, { useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -12,6 +12,8 @@ import { ClipItem } from '../services/api';
 import { FeedTopControls } from './feed/FeedTopControls';
 import { FeedPlaybackControls } from './feed/FeedPlaybackControls';
 import { FeedClipCarousel } from './feed/FeedClipCarousel';
+import { CustomRangeModal } from './feed/CustomRangeModal';
+import { VisibleCountModal } from './feed/VisibleCountModal';
 import { useClipData } from '../hooks/useClipData';
 import { useClipPlayer } from '../hooks/useClipPlayer';
 import { useClipDownload } from '../hooks/useClipDownload';
@@ -36,6 +38,10 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
   const activeClipIdRef = useRef<string | null>(null);
   const downloadedClipsRef = useRef<Record<string, boolean>>({});
   const setDownloadedClipsRef = useRef<React.Dispatch<React.SetStateAction<Record<string, boolean>>>>(() => {});
+
+  // Modal dialog states
+  const [isCustomModalVisible, setIsCustomModalVisible] = useState(false);
+  const [isVisibleCountModalVisible, setIsVisibleCountModalVisible] = useState(false);
 
   const handleSetDownloadedClips = useCallback<React.Dispatch<React.SetStateAction<Record<string, boolean>>>>((val) => {
     setDownloadedClipsRef.current(val);
@@ -75,6 +81,9 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     activeClip,
     loading,
     loadingMessage,
+    visibleHeatmapCount,
+    setVisibleHeatmapCount,
+    handleAddCustomClip,
     activeTimeEdit,
     setActiveTimeEdit,
     tempTimeValue,
@@ -152,7 +161,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
         />
       )}
 
-      {/* 1. TOP CONTROLS (Trimming, Done/Trash, Download) */}
+      {/* 1. TOP CONTROLS (Trimming, Done/Trash, Download, Custom & Visible Count) */}
       <FeedTopControls
         activeClip={activeClip}
         currentClipTime={currentClipTime}
@@ -161,6 +170,9 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
         downloadProgressInfo={downloadProgress[activeClip.id]}
         activeTimeEdit={activeTimeEdit}
         tempTimeValue={tempTimeValue}
+        visibleHeatmapCount={visibleHeatmapCount}
+        onAddCustomPress={() => setIsCustomModalVisible(true)}
+        onChangeVisibleCountPress={() => setIsVisibleCountModalVisible(true)}
         getDownloadProgressLabel={getDownloadProgressLabel}
         onToggleTrash={handleToggleTrash}
         onToggleDone={handleToggleDone}
@@ -234,6 +246,22 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
         clipColumns={clipColumns}
         activeClipId={activeClipId}
         onSelectClip={handleSelectClip}
+      />
+
+      {/* Modal Dialog: Tambah Rentang Custom */}
+      <CustomRangeModal
+        visible={isCustomModalVisible}
+        currentPlaybackTime={player?.currentTime || (activeClip ? activeClip.start + currentClipTime : 0)}
+        onClose={() => setIsCustomModalVisible(false)}
+        onAddCustomRange={handleAddCustomClip}
+      />
+
+      {/* Modal Dialog: Ubah Jumlah Klip Heatmap yang Terlihat */}
+      <VisibleCountModal
+        visible={isVisibleCountModalVisible}
+        currentCount={visibleHeatmapCount}
+        onClose={() => setIsVisibleCountModalVisible(false)}
+        onApplyCount={setVisibleHeatmapCount}
       />
     </View>
   );

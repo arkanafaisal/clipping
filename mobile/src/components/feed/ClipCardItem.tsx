@@ -4,11 +4,12 @@ import { formatTime } from './timeUtils';
 
 export interface ClipCardProps {
   id: string;
-  rank: number;
+  rank: number | string;
   start: number;
   clipNumber: number;
   isActive: boolean;
   status: 'none' | 'done' | 'trash';
+  isCustom?: boolean;
   onSelect: (id: string) => void;
 }
 
@@ -18,14 +19,16 @@ export interface ClipCardProps {
  * Menggunakan Pressable dengan delayPressIn={0} dan onPressIn agar merespons instan 0ms saat disentuh.
  */
 export const ClipCardItem = React.memo<ClipCardProps>(
-  ({ id, rank, start, clipNumber, isActive, status, onSelect }) => {
+  ({ id, rank, start, clipNumber, isActive, status, isCustom, onSelect }) => {
     const isDone = status === 'done';
     const isTrash = status === 'trash';
+    const isCustomClip = Boolean(isCustom || rank === 'custom');
 
     return (
       <Pressable
         style={({ pressed }) => [
           styles.clipCard,
+          isCustomClip && styles.clipCardCustom,
           isDone && styles.clipCardDone,
           isTrash && styles.clipCardTrash,
           isActive && styles.clipCardActive,
@@ -34,12 +37,20 @@ export const ClipCardItem = React.memo<ClipCardProps>(
         onPress={() => onSelect(id)}
       >
         {/* Rank Badge */}
-        <View style={[styles.rankBadge, isTrash && styles.rankBadgeTrash]}>
-          <Text style={styles.rankBadgeText}>#{rank || clipNumber}</Text>
+        <View
+          style={[
+            styles.rankBadge,
+            isCustomClip && styles.rankBadgeCustom,
+            isTrash && styles.rankBadgeTrash,
+          ]}
+        >
+          <Text style={styles.rankBadgeText}>
+            {isCustomClip ? 'CUST' : `#${rank || clipNumber}`}
+          </Text>
         </View>
 
-        <Text style={[styles.clipCardTitle, isTrash && styles.clipCardTitleTrash]}>
-          KLIP {clipNumber}
+        <Text style={[styles.clipCardTitle, isCustomClip && styles.clipCardTitleCustom, isTrash && styles.clipCardTitleTrash]}>
+          {isCustomClip ? 'CUSTOM' : `KLIP ${clipNumber}`}
         </Text>
         <Text style={styles.clipCardTime}>{formatTime(start)}</Text>
       </Pressable>
@@ -50,7 +61,8 @@ export const ClipCardItem = React.memo<ClipCardProps>(
     prev.isActive === next.isActive &&
     prev.status === next.status &&
     prev.start === next.start &&
-    prev.rank === next.rank
+    prev.rank === next.rank &&
+    prev.isCustom === next.isCustom
 );
 
 const styles = StyleSheet.create({
@@ -65,6 +77,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     position: 'relative',
     padding: 4,
+  },
+  clipCardCustom: {
+    borderColor: 'rgba(139, 92, 246, 0.45)',
+    backgroundColor: '#1a1625',
   },
   clipCardActive: {
     borderColor: '#ffffff',
@@ -90,6 +106,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.4)',
   },
+  rankBadgeCustom: {
+    backgroundColor: '#8b5cf6',
+    borderColor: 'rgba(255, 255, 255, 0.6)',
+  },
   rankBadgeTrash: {
     backgroundColor: '#7f1d1d',
   },
@@ -104,6 +124,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textTransform: 'uppercase',
     marginBottom: 2,
+  },
+  clipCardTitleCustom: {
+    color: '#c4b5fd',
   },
   clipCardTitleTrash: {
     color: '#fca5a5',

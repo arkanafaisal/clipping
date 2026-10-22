@@ -34,6 +34,7 @@ export const FeedClipCarousel: React.FC<FeedClipCarouselProps> = ({
                   clipNumber={clipNumber}
                   isActive={clip.id === activeClipId}
                   status={clip.status || 'none'}
+                  isCustom={Boolean(clip.isCustom || clip.rank === 'custom')}
                   onSelect={onSelectClip}
                 />
               );

@@ -14,7 +14,48 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Add Local vs Stream Playback Selection Modal, Fix Scrubber Seeking on Full Video, and Optimize Local Debouncing
+## [Unreleased] - Add Custom Range, Configurable Heatmap Visible Count, Zero-Offset Extraction, and Balanced Top Bar Controls
+- **Konteks Struktural**:
+  1. Fitur Penambahan Rentang Klip Custom (User-Defined Range):
+     - Menambahkan komponen [CustomRangeModal.tsx](file:///d:/projects/clipping/mobile/src/components/feed/CustomRangeModal.tsx) yang memungkinkan pengguna membuat rentang klip kustom secara fleksibel saat menemukan momen spesifik di luar klip bawaan heatmap YouTube.
+     - Menyediakan opsi pengambilan waktu playback saat ini secara instan ("Ambil Posisi Playback Sekarang") serta tombol penambahan durasi cepat (+5s, +10s, +15s, +30s).
+     - Menambahkan penanda ranking `"custom"` (`isCustom: true`) dengan aksen badge ungu (`CUST`) di [ClipCardItem.tsx](file:///d:/projects/clipping/mobile/src/components/feed/ClipCardItem.tsx). Klip custom memiliki aturan keterlihatan khusus: selalu ditampilkan di carousel tanpa terpengaruh limitasi jumlah filter heatmap.
+     - Penyesuaian perilaku tombol Trash pada [useClipData.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipData.ts): klip heatmap ditandai sebagai status `trash`, sedangkan klip custom dihapus secara total dan permanen dari daftar klip.
+  2. Fitur Pengaturan Jumlah Klip Heatmap yang Terlihat (Visible Heatmap Count Filter):
+     - Menambahkan komponen [VisibleCountModal.tsx](file:///d:/projects/clipping/mobile/src/components/feed/VisibleCountModal.tsx) untuk mengatur jumlah klip heatmap teratas yang ingin ditampilkan (1–100, default 50) dengan tombol stepper dan preset cepat (10, 20, 30, 50, 75, 100). Nilai ini disimpan secara persisten di `LocalStorage` per video.
+     - Menghitung daftar klip yang tampak secara dinamis di [useClipData.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipData.ts) dengan menggabungkan semua klip custom dan N klip heatmap teratas berdasarkan intensitas, lalu mengurutkannya secara kronologis berdasarkan waktu mulai (`start`).
+  3. Pemurnian Heatmap AI (Zero Offset & Preservasi Nilai Pecahan Natural):
+     - Menghapus penambahan dan pengurangan offset manual 5 detik pada [api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts) dan [useClipData.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipData.ts) (`offset = 0`), sehingga rentang klip dimulai tepat di awal puncak aksi tanpa jeda tunggu (pre-roll).
+     - Menghapus pembulatan buatan `Math.round(start)` dan `Math.round(end)` agar nilai pecahan asli dari YouTube heatmap tetap dipertahankan secara presisi dan natural.
+  4. Penyempurnaan Tata Letak Bilah Kontrol Atas (Balanced Symmetrical Controls):
+     - Menyembunyikan milidetik dari tampilan rentang waktu atas pada [FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx) dan [timeUtils.ts](file:///d:/projects/clipping/mobile/src/components/feed/timeUtils.ts), sehingga banner selalu bersih menampilkan format jam, menit, dan detik murni (`HH:MM:SS` / `MM:SS`). Milidetik hanya muncul saat input ditekan untuk diedit.
+     - Menyusun tata letak bilah atas secara simetris dan seimbang: sisi kiri memuat 2 tombol aksi (`Tambah Custom` dan `Jumlah Klip Heatmap`), sisi tengah menampilkan rentang waktu, dan sisi kanan memuat 2 tombol aksi (`Trash / Hapus` dan `Mark as Done / Download`).
+- **Perubahan Kode Penting**:
+  - [mobile/src/components/feed/CustomRangeModal.tsx](file:///d:/projects/clipping/mobile/src/components/feed/CustomRangeModal.tsx):
+    - Membuat modal dialog pembuatan rentang waktu kustom dengan validasi waktu mulai dan selesai.
+  - [mobile/src/components/feed/VisibleCountModal.tsx](file:///d:/projects/clipping/mobile/src/components/feed/VisibleCountModal.tsx):
+    - Membuat modal dialog konfigurasi batas jumlah klip heatmap terlihat beserta chip preset cepat.
+  - [mobile/src/components/feed/timeUtils.ts](file:///d:/projects/clipping/mobile/src/components/feed/timeUtils.ts):
+    - Mengubah `formatDisplayTime` agar selalu mengembalikan `formatTime` murni (tanpa ekstensi milidetik desimal pada banner).
+    - Menambahkan fungsi helper `parseTimeToSeconds` untuk mengonversi string waktu (`HH:MM:SS`, `MM:SS`, `SS`) menjadi detik desimal.
+  - [mobile/src/services/api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts):
+    - Memperbarui interface `ClipItem` dengan properti `rank: number | string` dan `isCustom?: boolean`.
+    - Mengatur default `offset: number = 0` dan `numClips: number = 100` pada `fetchHeatmap`, serta menghapus pembulatan `Math.round()` pada `start` dan `end`.
+    - Mengakomodasi tipe `rank?: number | string` pada fungsi `getClipOutputFilePath`, `getClipInternalOutputFilePath`, `resolvePlayableClipUri`, dan `downloadClip`.
+  - [mobile/src/components/feed/ClipCardItem.tsx](file:///d:/projects/clipping/mobile/src/components/feed/ClipCardItem.tsx):
+    - Mendukung properti `isCustom` dan `rank` bertipe string/custom dengan badge ungu khusus `#8b5cf6` (`CUST`).
+  - [mobile/src/components/feed/FeedClipCarousel.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedClipCarousel.tsx):
+    - Meneruskan properti `isCustom` ke `ClipCardItem`.
+  - [mobile/src/hooks/useClipData.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipData.ts):
+    - Mengintegrasikan state `visibleHeatmapCount`, handler `handleAddCustomClip`, dan handler `handleSetVisibleHeatmapCount`.
+    - Menyesuaikan `handleToggleTrash` agar menghapus klip custom secara permanen dari state dan penyimpanan lokal.
+    - Menghitung `visibleClips` dan `clipColumns` dengan menyertakan seluruh klip custom ditambah N klip heatmap teratas terurut kronologis.
+  - [mobile/src/components/feed/FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx):
+    - Menata ulang header kontrol atas: 2 tombol aksi di sisi kiri, rentang waktu murni tanpa milidetik di tengah, dan 2 tombol status di sisi kanan.
+  - [mobile/src/components/FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
+    - Mengintegrasikan `CustomRangeModal` dan `VisibleCountModal` ke dalam alur kerja FeedScreen.
+
+## [706095e] - Add Local vs Stream Playback Selection Modal, Fix Scrubber Seeking on Full Video, and Optimize Local Debouncing
 - **Konteks Struktural**:
   1. Dialog Pemilihan Sumber Pemutar (Play Mode Selection):
      - Menambahkan komponen [PlayModeModal.tsx](file:///d:/projects/clipping/mobile/src/components/PlayModeModal.tsx) di [Dashboard.tsx](file:///d:/projects/clipping/mobile/src/components/Dashboard.tsx) yang secara interaktif menanyakan preferensi pemutaran ("Video Lokal Offline" vs "Streaming YouTube Online") saat pengguna menekan kartu workshop yang telah memiliki file full video.

@@ -7,12 +7,13 @@ import { DEFAULT_GDRIVE_DOWNLOAD_CONFIG } from '../constants/gdrive';
 
 export interface ClipItem {
   id: string;
-  rank: number;
+  rank: number | string;
   videoId: string;
   start: number;
   end: number;
   value?: number;
   status?: 'none' | 'done' | 'trash';
+  isCustom?: boolean;
 }
 
 export interface HeatmapResponse {
@@ -321,7 +322,7 @@ export async function fetchStreamUrl(videoId: string, forceRefresh: boolean = fa
 export async function fetchHeatmap(
   videoId: string,
   numClips: number = 100,
-  offset: number = 5
+  offset: number = 0
 ): Promise<HeatmapResponse> {
   try {
     const cookiePath = await getValidCookiesPath();
@@ -388,7 +389,7 @@ export async function fetchHeatmap(
 
       if (end <= start) {
         const mid = (origStart + origEnd) / 2;
-        start = Math.max(0, Math.floor(mid - 1));
+        start = Math.max(0, mid - 1);
         end = start + 2;
       } else {
         start = Math.max(0, start);
@@ -398,10 +399,11 @@ export async function fetchHeatmap(
         id: `clip_${origStart}`,
         rank: index + 1,
         videoId: videoId,
-        start: Math.round(start),
-        end: Math.round(end),
+        start: Number(start.toFixed(3)),
+        end: Number(end.toFixed(3)),
         value: moment.value,
         status: 'none' as const,
+        isCustom: false,
       };
     });
 
@@ -715,7 +717,7 @@ export function getClipOutputFilePath(
   videoId: string,
   start: number,
   end: number,
-  rank?: number
+  rank?: number | string
 ): { fileUri: string; nativePath: string } {
   const filename = getClipFilename(start, end);
   const nativePath = `${SHARED_CLIPPING_OUTPUT_DIR}/${videoId}/${filename}`;
@@ -731,7 +733,7 @@ export function getClipInternalOutputFilePath(
   videoId: string,
   start: number,
   end: number,
-  rank?: number
+  rank?: number | string
 ): { fileUri: string; nativePath: string } {
   const filename = getClipFilename(start, end);
   const nativePath = `${INTERNAL_CLIPPING_OUTPUT_DIR}/${videoId}/${filename}`;
@@ -799,7 +801,7 @@ export async function resolvePlayableClipUri(
   videoId: string,
   start: number,
   end: number,
-  rank?: number
+  rank?: number | string
 ): Promise<string> {
   // 1. Cek format baru di shared storage
   const shared = getClipOutputFilePath(videoId, start, end, rank);
@@ -971,7 +973,7 @@ export async function downloadClip(
   videoId: string,
   start: number,
   end: number,
-  rank?: number,
+  rank?: number | string,
   progressPath?: string
 ): Promise<{ status: string; output_path: string; fileUri: string; stream_url?: string }> {
   // Kandidat 1: Shared Storage (/storage/emulated/0/clipping/output/...)

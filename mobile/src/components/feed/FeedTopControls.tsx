@@ -8,9 +8,9 @@ import {
   ActivityIndicator,
   Platform,
 } from 'react-native';
-import { Trash2, CheckCircle2, Download } from 'lucide-react-native';
+import { Trash2, CheckCircle2, Download, Plus, SlidersHorizontal } from 'lucide-react-native';
 import { ClipItem } from '../../services/api';
-import { formatTimeWithMs, formatDisplayTime } from './timeUtils';
+import { formatTimeWithMs, formatTime } from './timeUtils';
 
 export interface FeedTopControlsProps {
   activeClip: ClipItem;
@@ -20,6 +20,9 @@ export interface FeedTopControlsProps {
   downloadProgressInfo?: { stage: string; code: string; percent: number };
   activeTimeEdit: 'start' | 'end' | null;
   tempTimeValue: string;
+  visibleHeatmapCount?: number;
+  onAddCustomPress?: () => void;
+  onChangeVisibleCountPress?: () => void;
   getDownloadProgressLabel: (info?: { stage: string; code: string; percent: number }) => string;
   onToggleTrash: () => void;
   onToggleDone: () => void;
@@ -39,6 +42,9 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
   downloadProgressInfo,
   activeTimeEdit,
   tempTimeValue,
+  visibleHeatmapCount = 50,
+  onAddCustomPress,
+  onChangeVisibleCountPress,
   getDownloadProgressLabel,
   onToggleTrash,
   onToggleDone,
@@ -49,13 +55,111 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
   onUpdateStart,
   onUpdateEnd,
 }) => {
+  const isCustomClip = Boolean(activeClip.isCustom || activeClip.rank === 'custom');
+
   return (
     <View style={styles.topSection}>
       <View style={styles.timeRangeRow}>
-        {/* SISI KIRI: Mode Done -> Download / Status, Mode Normal -> Trash */}
+        {/* SISI KIRI (2 BUTTONS): Tambah Custom & Ubah Jumlah Klip Heatmap */}
         <View style={styles.leftActionGroup}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.statusBtn,
+              styles.customAddBtn,
+              pressed && { opacity: 0.7 },
+            ]}
+            onPress={onAddCustomPress}
+            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+          >
+            <Plus size={18} color="#c4b5fd" />
+          </Pressable>
+
+          <Pressable
+            style={({ pressed }) => [
+              styles.statusBtn,
+              styles.visibleCountBtn,
+              pressed && { opacity: 0.7 },
+            ]}
+            onPress={onChangeVisibleCountPress}
+            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+          >
+            <SlidersHorizontal size={17} color="#38bdf8" />
+          </Pressable>
+        </View>
+
+        {/* SISI TENGAH: Rentang Waktu Murni HH:MM:SS / MM:SS (Milidetik tersembunyi hingga input ditekan) */}
+        <View style={styles.centerTimeWrapper} pointerEvents="box-none">
           {activeClip.status === 'done' ? (
-            <View style={styles.doneLeftGroup}>
+            <View style={styles.timeDisplay}>
+              <Text style={styles.timeNumberText}>
+                {formatTime(currentClipTime)}
+              </Text>
+              <Text style={styles.timeSeparatorText}>/</Text>
+              <Text style={[styles.timeNumberText, styles.timeMsDim]}>
+                {formatTime(activeClip.end - activeClip.start)}
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.timeDisplay}>
+              {activeTimeEdit === 'start' ? (
+                <TextInput
+                  style={styles.timeInput}
+                  value={tempTimeValue}
+                  onChangeText={(val) => onMsTimeChange('start', val)}
+                  onBlur={onBlurTimeEdit}
+                  keyboardType="number-pad"
+                  maxLength={2}
+                  autoFocus
+                  selectTextOnFocus
+                  placeholder="00"
+                  placeholderTextColor="rgba(255, 255, 255, 0.4)"
+                />
+              ) : (
+                <Pressable
+                  style={styles.timePressable}
+                  onPress={() => onStartEditTime('start')}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 6 }}
+                >
+                  <Text style={styles.timeNumberText}>
+                    {formatTime(activeClip.start)}
+                  </Text>
+                </Pressable>
+              )}
+
+              <Text style={styles.timeSeparatorText}>-</Text>
+
+              {activeTimeEdit === 'end' ? (
+                <TextInput
+                  style={styles.timeInput}
+                  value={tempTimeValue}
+                  onChangeText={(val) => onMsTimeChange('end', val)}
+                  onBlur={onBlurTimeEdit}
+                  keyboardType="number-pad"
+                  maxLength={2}
+                  autoFocus
+                  selectTextOnFocus
+                  placeholder="00"
+                  placeholderTextColor="rgba(255, 255, 255, 0.4)"
+                />
+              ) : (
+                <Pressable
+                  style={styles.timePressable}
+                  onPress={() => onStartEditTime('end')}
+                  hitSlop={{ top: 8, bottom: 8, left: 6, right: 8 }}
+                >
+                  <Text style={styles.timeNumberText}>
+                    {formatTime(activeClip.end)}
+                  </Text>
+                </Pressable>
+              )}
+            </View>
+          )}
+        </View>
+
+        {/* SISI KANAN (2 BUTTONS): Trash/Delete & Done/Download */}
+        <View style={styles.rightActionGroup}>
+          {activeClip.status === 'done' ? (
+            <>
               {isDownloaded ? (
                 <View style={[styles.statusBtn, styles.downloadedBadge]}>
                   <CheckCircle2 size={16} color="#34d399" />
@@ -84,108 +188,55 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                   )}
                 </Pressable>
               )}
-            </View>
+
+              <Pressable
+                style={({ pressed }) => [
+                  styles.statusBtn,
+                  styles.doneBtnActive,
+                  pressed && { opacity: 0.7 },
+                ]}
+                onPressIn={onToggleDone}
+              >
+                <CheckCircle2 size={18} color="#ffffff" />
+              </Pressable>
+            </>
           ) : (
-            <Pressable
-              style={({ pressed }) => [
-                styles.statusBtn,
-                activeClip.status === 'trash' ? styles.trashBtnActive : styles.trashBtnInactive,
-                pressed && { opacity: 0.7 },
-              ]}
-              onPressIn={onToggleTrash}
-            >
-              <Trash2
-                size={18}
-                color={activeClip.status === 'trash' ? '#ffffff' : '#f87171'}
-              />
-            </Pressable>
-          )}
-        </View>
-
-        {/* SISI TENGAH: Mode Done -> Durasi Realtime, Mode Normal -> Rentang Waktu */}
-        <View style={styles.centerTimeWrapper} pointerEvents="box-none">
-          {activeClip.status === 'done' ? (
-            <View style={styles.timeDisplay}>
-              <Text style={[styles.timeNumberText, styles.timeMsText]}>
-                {formatTimeWithMs(currentClipTime)}
-              </Text>
-              <Text style={styles.timeSeparatorText}>/</Text>
-              <Text style={[styles.timeNumberText, styles.timeMsText, styles.timeMsDim]}>
-                {formatTimeWithMs(activeClip.end - activeClip.start)}
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.timeDisplay}>
-              {activeTimeEdit === 'start' ? (
-                <TextInput
-                  style={styles.timeInput}
-                  value={tempTimeValue}
-                  onChangeText={(val) => onMsTimeChange('start', val)}
-                  onBlur={onBlurTimeEdit}
-                  keyboardType="number-pad"
-                  maxLength={2}
-                  autoFocus
-                  selectTextOnFocus
-                  placeholder="00"
-                  placeholderTextColor="rgba(255, 255, 255, 0.4)"
+            <>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.statusBtn,
+                  isCustomClip
+                    ? styles.trashCustomBtn
+                    : (activeClip.status === 'trash' ? styles.trashBtnActive : styles.trashBtnInactive),
+                  pressed && { opacity: 0.7 },
+                ]}
+                onPressIn={onToggleTrash}
+              >
+                <Trash2
+                  size={18}
+                  color={
+                    isCustomClip
+                      ? '#fca5a5'
+                      : (activeClip.status === 'trash' ? '#ffffff' : '#f87171')
+                  }
                 />
-              ) : (
-                <Pressable
-                  style={styles.timePressable}
-                  onPress={() => onStartEditTime('start')}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 6 }}
-                >
-                  <Text style={styles.timeNumberText}>
-                    {formatDisplayTime(activeClip.start)}
-                  </Text>
-                </Pressable>
-              )}
+              </Pressable>
 
-              <Text style={styles.timeSeparatorText}>-</Text>
-
-              {activeTimeEdit === 'end' ? (
-                <TextInput
-                  style={styles.timeInput}
-                  value={tempTimeValue}
-                  onChangeText={(val) => onMsTimeChange('end', val)}
-                  onBlur={onBlurTimeEdit}
-                  keyboardType="number-pad"
-                  maxLength={2}
-                  autoFocus
-                  selectTextOnFocus
-                  placeholder="00"
-                  placeholderTextColor="rgba(255, 255, 255, 0.4)"
+              <Pressable
+                style={({ pressed }) => [
+                  styles.statusBtn,
+                  styles.doneBtnInactive,
+                  pressed && { opacity: 0.7 },
+                ]}
+                onPressIn={onToggleDone}
+              >
+                <CheckCircle2
+                  size={18}
+                  color="#34d399"
                 />
-              ) : (
-                <Pressable
-                  style={styles.timePressable}
-                  onPress={() => onStartEditTime('end')}
-                  hitSlop={{ top: 8, bottom: 8, left: 6, right: 8 }}
-                >
-                  <Text style={styles.timeNumberText}>
-                    {formatDisplayTime(activeClip.end)}
-                  </Text>
-                </Pressable>
-              )}
-            </View>
+              </Pressable>
+            </>
           )}
-        </View>
-
-        {/* SISI KANAN: Tombol Done */}
-        <View style={styles.rightActionGroup}>
-          <Pressable
-            style={({ pressed }) => [
-              styles.statusBtn,
-              activeClip.status === 'done' ? styles.doneBtnActive : styles.doneBtnInactive,
-              pressed && { opacity: 0.7 },
-            ]}
-            onPressIn={onToggleDone}
-          >
-            <CheckCircle2
-              size={18}
-              color={activeClip.status === 'done' ? '#ffffff' : '#34d399'}
-            />
-          </Pressable>
         </View>
       </View>
 
@@ -288,7 +339,29 @@ const styles = StyleSheet.create({
   leftActionGroup: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 6,
     zIndex: 10,
+  },
+  customAddBtn: {
+    backgroundColor: 'rgba(139, 92, 246, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.35)',
+  },
+  visibleCountBtn: {
+    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.35)',
+  },
+  visibleCountBadgeText: {
+    color: '#38bdf8',
+    fontSize: 11,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontWeight: '800',
+  },
+  trashCustomBtn: {
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.45)',
   },
   doneLeftGroup: {
     flexDirection: 'row',
@@ -353,6 +426,7 @@ const styles = StyleSheet.create({
   rightActionGroup: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 6,
     zIndex: 10,
   },
   statusBtn: {
