@@ -132,8 +132,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
     setIsExtracting(true);
 
     try {
-      // 1. Ekstrak heatmap
-      const data = await fetchHeatmap(videoId, count, 0);
+      // 1. Ekstrak heatmap 100 klip penuh
+      const data = await fetchHeatmap(videoId, 100, 0);
       if (!data.clips || data.clips.length === 0) {
         throw new Error('Heatmap tidak mengembalikan segmen klip.');
       }
@@ -145,6 +145,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
       }));
       const videoTitle = data.title || `YouTube Video (${videoId})`;
       await LocalStorage.setItem(`clips_draft_${videoId}`, JSON.stringify(formattedClips));
+      await LocalStorage.setItem(`clipping_full_fetched_${videoId}`, 'true');
 
       // 2. Ambil direct stream URL
       await fetchStreamUrl(videoId);
@@ -202,7 +203,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
       }
 
       if (!hasValidClips) {
-        const data = await fetchHeatmap(videoId, count, 0);
+        const data = await fetchHeatmap(videoId, 100, 0);
         if (!data.clips || data.clips.length === 0) {
           throw new Error('Heatmap tidak mengembalikan klip.');
         }
@@ -214,6 +215,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
         }));
 
         await LocalStorage.setItem(`clips_draft_${videoId}`, JSON.stringify(formattedClips));
+        await LocalStorage.setItem(`clipping_full_fetched_${videoId}`, 'true');
       }
 
       // 2. Ambil direct stream URL jika memilih mode stream online

@@ -134,17 +134,59 @@ export function useClipData({
           }
         } catch {}
 
-        if (loadedClips.length === 0) {
-          setLoadingMessage('Mengekstrak Heatmap AI (Bisa memakan waktu belasan detik)...');
-          // Ekstrak 100 klip penuh dengan offset 0 (tepat pada momen puncak)
-          const heatmapData = await fetchHeatmap(videoId, 100, 0);
-          loadedClips = heatmapData.clips.map((c: any, idx: number) => ({
-            ...c,
-            status: 'none' as const,
-            rank: c.rank || idx + 1,
-            isCustom: false,
-          }));
-          await LocalStorage.setItem(DRAFT_KEY, JSON.stringify(loadedClips));
+        // Cek apakah draft belum ada atau masih versi lama (hanya 50 klip heatmap)
+        const nonCustomClips = loadedClips.filter((c) => !c.isCustom && c.rank !== 'custom');
+        const hasAttemptedFull = await LocalStorage.getItem(`clipping_full_fetched_${videoId}`);
+
+        if (loadedClips.length === 0 || (!hasAttemptedFull && nonCustomClips.length < 100)) {
+          setLoadingMessage('Mengekstrak Heatmap AI (100 Klip)...');
+          try {
+            // Ekstrak 100 klip penuh dengan offset 0 (tepat pada momen puncak)
+            const heatmapData = await fetchHeatmap(videoId, 100, 0);
+            if (heatmapData.clips && heatmapData.clips.length > 0) {
+              if (loadedClips.length === 0) {
+                loadedClips = heatmapData.clips.map((c: any, idx: number) => ({
+                  ...c,
+                  status: 'none' as const,
+                  rank: c.rank || idx + 1,
+                  isCustom: false,
+                }));
+              } else {
+                // Auto-upgrade: pertahankan status 'done'/'trash' dan custom clips yang sudah ada
+                const existingStatusMap = new Map<string, ClipItem>();
+                loadedClips.forEach((c) => {
+                  existingStatusMap.set(c.id, c);
+                });
+
+                const customClips = loadedClips.filter((c) => c.isCustom || c.rank === 'custom');
+                const mergedHeatmap = heatmapData.clips.map((c, idx) => {
+                  const existing = existingStatusMap.get(c.id);
+                  if (existing) {
+                    return {
+                      ...c,
+                      status: existing.status,
+                      start: existing.start,
+                      end: existing.end,
+                      rank: c.rank || idx + 1,
+                      isCustom: false,
+                    };
+                  }
+                  return {
+                    ...c,
+                    status: 'none' as const,
+                    rank: c.rank || idx + 1,
+                    isCustom: false,
+                  };
+                });
+                loadedClips = [...customClips, ...mergedHeatmap];
+              }
+              await LocalStorage.setItem(DRAFT_KEY, JSON.stringify(loadedClips));
+              await LocalStorage.setItem(`clipping_full_fetched_${videoId}`, 'true');
+            }
+          } catch (err: any) {
+            console.warn('[useClipData] Heatmap fetch/upgrade error:', err);
+            if (loadedClips.length === 0) throw err;
+          }
         }
 
         let initialActiveClip: ClipItem | null = null;

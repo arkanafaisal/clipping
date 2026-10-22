@@ -50,7 +50,7 @@ export const ClipCardItem = React.memo<ClipCardProps>(
         </View>
 
         <Text style={[styles.clipCardTitle, isCustomClip && styles.clipCardTitleCustom, isTrash && styles.clipCardTitleTrash]}>
-          {isCustomClip ? 'CUSTOM' : `KLIP ${clipNumber}`}
+          KLIP {clipNumber}
         </Text>
         <Text style={styles.clipCardTime}>{formatTime(start)}</Text>
       </Pressable>
@@ -58,6 +58,7 @@ export const ClipCardItem = React.memo<ClipCardProps>(
   },
   (prev, next) =>
     prev.id === next.id &&
+    prev.clipNumber === next.clipNumber &&
     prev.isActive === next.isActive &&
     prev.status === next.status &&
     prev.start === next.start &&

@@ -14,7 +14,23 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Anchor Video Player Flush Against Scrubber Progress Bar and Support Dynamic Aspect Ratio
+## [Unreleased] - Fix 100 Heatmap Clip Limit Support and Resolve Real-Time Re-Indexing in Clip Carousel
+- **Konteks Struktural**:
+  1. Penyelamatan dan Auto-Upgrade Heatmap 100 Klip:
+     - Mengubah pemanggilan `fetchHeatmap` pada [Dashboard.tsx](file:///d:/projects/clipping/mobile/src/components/Dashboard.tsx) agar selalu mengambil 100 klip penuh (bukan 50), sehingga draft yang disimpan di memori lokal memiliki seluruh data heatmap AI untuk difilter dinamis oleh pengguna hingga batas maksimum (100 klip).
+     - Menambahkan mekanisme *auto-upgrade* pada [useClipData.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipData.ts) yang mendeteksi draf lama (yang hanya memiliki 50 klip heatmap), lalu mengambil 100 klip penuh dan menggabungkannya secara transparan (*merge*) tanpa menghilangkan status `done`/`trash` maupun klip custom yang sudah ada.
+  2. Perbaikan Penomoran "KLIP X" dan Re-render Memoized Carousel Seketika:
+     - Memperbaiki komparator `React.memo` pada [ClipCardItem.tsx](file:///d:/projects/clipping/mobile/src/components/feed/ClipCardItem.tsx) dengan menyertakan pengecekan `prev.clipNumber === next.clipNumber`. Sebelumnya ketiadaan pengecekan ini menyebabkan kartu klip tidak merender ulang saat nomor urutnya bergeser setelah klip custom disisipkan, menimbulkan fenomena penomoran kembar/lompat (misal `2 3 3 5 5 7 7`) sebelum pengguna keluar-masuk kamar.
+     - Menyamakan judul teks kartu menjadi `KLIP ${clipNumber}` secara terpadu untuk semua klip (termasuk klip custom yang tetap mempertahankan aksen ungu dan badge `CUST` di pojok kanan atas), sehingga penomoran selalu berurutan kronologis 1, 2, 3, 4, 5... secara konsisten.
+- **Perubahan Kode Penting**:
+  - [mobile/src/components/feed/ClipCardItem.tsx](file:///d:/projects/clipping/mobile/src/components/feed/ClipCardItem.tsx):
+    - Menyertakan `clipNumber` dalam komparator memo dan mengubah teks judul kartu menjadi `KLIP ${clipNumber}`.
+  - [mobile/src/hooks/useClipData.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipData.ts):
+    - Mengintegrasikan mekanisme auto-upgrade 100 klip saat mendeteksi draft memiliki kurang dari 100 klip heatmap.
+  - [mobile/src/components/Dashboard.tsx](file:///d:/projects/clipping/mobile/src/components/Dashboard.tsx):
+    - Memastikan ekstraksi awal selalu mengambil 100 klip penuh.
+
+## [f1f531f] - Anchor Video Player Flush Against Scrubber Progress Bar and Support Dynamic Aspect Ratio
 - **Konteks Struktural**:
   1. Penyesuaian Posisi Video Player Menempel Langsung di Atas Scrubber:
      - Mengubah perataan vertikal kontainer pemutar video pada [FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx) dari tengah (`justifyContent: 'center'`) menjadi menempel ke dasar (`justifyContent: 'flex-end'`), sehingga frame video (baik saat menonton online, full video, maupun klip lokal yang sudah dipotong/mark as done) selalu duduk tepat di atas bar progress scrubber tanpa jeda hitam (void).
