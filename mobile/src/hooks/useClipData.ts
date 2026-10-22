@@ -561,16 +561,34 @@ export function useClipData({
     const heatmapClips = clipsRef.current
       .filter((c) => !c.isCustom && c.rank !== 'custom')
       .sort((a, b) => {
-        const rankA = typeof a.rank === 'number' ? a.rank : 999;
-        const rankB = typeof b.rank === 'number' ? b.rank : 999;
+        const numA = typeof a.rank === 'number' ? a.rank : parseInt(String(a.rank), 10);
+        const numB = typeof b.rank === 'number' ? b.rank : parseInt(String(b.rank), 10);
+        const rankA = isNaN(numA) ? 999 : numA;
+        const rankB = isNaN(numB) ? 999 : numB;
         return rankA - rankB;
       })
       .slice(0, validCount);
 
     const visibleList = [...customClips, ...heatmapClips].sort((a, b) => a.start - b.start);
-    const isCurrentStillVisible = visibleList.some((c) => c.id === (activeClipIdRef.current || activeClipId));
+    const currentActiveId = activeClipIdRef.current || activeClipId;
+    const isCurrentStillVisible = visibleList.some((c) => c.id === currentActiveId);
+
     if (!isCurrentStillVisible && visibleList.length > 0) {
-      handleSelectClip(visibleList[0].id);
+      // Cari klip di visibleList yang titik waktunya (start) paling mendekati klip sebelumnya
+      const currentActive = clipsRef.current.find((c) => c.id === currentActiveId);
+      const currentStart = currentActive ? currentActive.start : 0;
+
+      let closestClip = visibleList[0];
+      let minDiff = Math.abs(visibleList[0].start - currentStart);
+      for (let i = 1; i < visibleList.length; i++) {
+        const diff = Math.abs(visibleList[i].start - currentStart);
+        if (diff < minDiff) {
+          minDiff = diff;
+          closestClip = visibleList[i];
+        }
+      }
+
+      handleSelectClip(closestClip.id);
     }
 
     ToastManager.show({
@@ -589,8 +607,10 @@ export function useClipData({
     const heatmapClips = clips
       .filter((c) => !c.isCustom && c.rank !== 'custom')
       .sort((a, b) => {
-        const rankA = typeof a.rank === 'number' ? a.rank : 999;
-        const rankB = typeof b.rank === 'number' ? b.rank : 999;
+        const numA = typeof a.rank === 'number' ? a.rank : parseInt(String(a.rank), 10);
+        const numB = typeof b.rank === 'number' ? b.rank : parseInt(String(b.rank), 10);
+        const rankA = isNaN(numA) ? 999 : numA;
+        const rankB = isNaN(numB) ? 999 : numB;
         return rankA - rankB;
       })
       .slice(0, visibleHeatmapCount);

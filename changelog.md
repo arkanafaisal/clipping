@@ -14,7 +14,26 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Fix Player Freeze Collision on Debounced Seek and Segment Boundary Loop
+## [Unreleased] - Auto-Scroll Carousel and Fallback to Nearest Clip on Visible Count Change
+- **Konteks Struktural**:
+  1. Resolusi Karosel Hilang / Void Akibat Perubahan Visible Heatmap Count:
+     - Mengidentifikasi penyebab karosel tampak kosong (*blank void* / "hilang") ketika pengguna mengubah jumlah klip terlihat (*visible count*, misal dari 50 menjadi 10 klip).
+     - Analisis akar masalah:
+       - Ketika pengguna berada di klip dengan rank > 10 (misal kolom ke-8 atau x = 800px), ScrollView karosel berada pada posisi scroll offset horizontal yang jauh ke kanan.
+       - Ketika jumlah klip dikurangi menjadi 10 klip (5 kolom), total lebar konten karosel mengecil menjadi ~470px.
+       - Komponen `ScrollView` bawaan React Native tidak otomatis melakukan *clamp* atau mereset posisi scroll yang melebihi lebar konten baru, sehingga viewport pengguna tertinggal di area kosong (*empty void*) di luar batas kanan konten.
+  2. Auto-Scroll Cerdas & Pemilihan Klip Terdekat (*Nearest Clip Fallback*):
+     - Menambahkan referensi `scrollViewRef` dan efek `useEffect` pada [FeedClipCarousel.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedClipCarousel.tsx) yang secara otomatis melakukan scroll horizontal ke kolom kartu klip aktif (`Math.max(0, colIndex * 94 - 40)`), dan langsung mereset ke awal (`x: 0`) jika klip berada di luar jangkauan, sehingga karosel selalu tampil di depan mata pengguna tanpa pernah menghilang.
+     - Memperbarui `handleSetVisibleHeatmapCount` pada [useClipData.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipData.ts) agar ketika klip aktif saat ini terpotong di luar batas jumlah heatmap yang baru, sistem secara otomatis mencari dan memilih klip terlihat yang memiliki selisih waktu (`start`) paling terdekat dengan posisi menonton pengguna sebelumnya, alih-alih memaksa melompat jauh ke detik 0:00.
+     - Menyempurnakan pemilahan rank pada `sort` agar tahan terhadap tipe data `rank` angka maupun string numerik.
+- **Perubahan Kode Penting**:
+  - [mobile/src/components/feed/FeedClipCarousel.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedClipCarousel.tsx):
+    - Mengintegrasikan `useRef<ScrollView>` dan auto-scroll ke kartu aktif atau reset offset saat `clipColumns` dan `activeClipId` berubah.
+  - [mobile/src/hooks/useClipData.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipData.ts):
+    - Mengimplementasikan pencarian klip terdekat (*closest clip by timestamp*) saat klip aktif terpotong oleh filter visible count.
+    - Menghandle parsing `rank` angka dan string numerik secara robust.
+
+## [4385e0c] - Fix Player Freeze Collision on Debounced Seek and Segment Boundary Loop
 - **Konteks Struktural**:
   1. Resolusi Race Condition dan Freeze pada Pemutar Video:
      - Mengidentifikasi akar masalah pemutar video macet (*hang* / beku tidak bergerak) ketika user melakukan crop atau mengubah milidetik di bagian kanan klip saat video sedang diputar di sekitar 5 detik akhir.
