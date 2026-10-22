@@ -14,7 +14,24 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Streamline Top Controls: Fix MM:SS Format, Hide Saved Badge and Irrelevant Left Controls on Done Clips
+## [Unreleased] - Anchor Video Player Flush Against Scrubber Progress Bar and Support Dynamic Aspect Ratio
+- **Konteks Struktural**:
+  1. Penyesuaian Posisi Video Player Menempel Langsung di Atas Scrubber:
+     - Mengubah perataan vertikal kontainer pemutar video pada [FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx) dari tengah (`justifyContent: 'center'`) menjadi menempel ke dasar (`justifyContent: 'flex-end'`), sehingga frame video (baik saat menonton online, full video, maupun klip lokal yang sudah dipotong/mark as done) selalu duduk tepat di atas bar progress scrubber tanpa jeda hitam (void).
+     - Menghapus border pemisah atas pada [FeedPlaybackControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedPlaybackControls.tsx) agar track scrubber dan knob progress menempel (*flush*) secara presisi ke tepi bawah video persis seperti aplikasi pemutar video modern (YouTube / CapCut).
+  2. Deteksi Rasio Aspek Video Dinamis:
+     - Menambahkan pembacaan ukuran dan rasio aspek video asli secara dinamis (`videoTrackChange` & `sourceLoad`) pada [useClipPlayer.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipPlayer.ts).
+     - Menghitung dimensi container video secara matematis di [FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx) agar membungkus aspek rasio video secara pas tanpa letterboxing buatan di sisi bawah.
+- **Perubahan Kode Penting**:
+  - [mobile/src/hooks/useClipPlayer.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipPlayer.ts):
+    - Mengekspos state `videoAspectRatio` dan memasang listener pada event track video.
+  - [mobile/src/components/FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
+    - Mengintegrasikan pengukuran layout (`playerLayout`) dan perhitungan memoized `videoContainerStyle`.
+    - Memposisikan `playerContainer` dengan `justifyContent: 'flex-end'`.
+  - [mobile/src/components/feed/FeedPlaybackControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedPlaybackControls.tsx):
+    - Menghilangkan `borderTopWidth` dan `borderTopColor` pada `bottomPlayback`.
+
+## [5dc256b] - Streamline Top Controls: Fix MM:SS Format, Hide Saved Badge and Irrelevant Left Controls on Done Clips
 - **Konteks Struktural**:
   1. Penghapusan Total Badge Tersimpan dan Minimalisasi Tombol Status Done:
      - Menghapus badge centang dan teks "Tersimpan" saat klip telah berstatus terdownload pada [FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx), mengeliminasi masalah teks yang meluber dan bertumpuk dengan elemen navigasi lainnya.

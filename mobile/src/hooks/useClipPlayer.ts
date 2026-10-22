@@ -75,6 +75,38 @@ export function useClipPlayer({
     p.timeUpdateEventInterval = 0.1;
   });
 
+  // Aspect ratio video (default 16/9, dinamis membaca track asli video)
+  const [videoAspectRatio, setVideoAspectRatio] = useState<number>(16 / 9);
+
+  // Monitor perubahan track dan load video untuk menyesuaikan rasio aspek secara dinamis
+  useEffect(() => {
+    if (!player) return;
+
+    const updateRatioFromTrack = (track: any) => {
+      if (track?.size?.width && track?.size?.height && track.size.height > 0) {
+        const ratio = track.size.width / track.size.height;
+        if (ratio > 0.1 && ratio < 10) {
+          setVideoAspectRatio(ratio);
+        }
+      }
+    };
+
+    const subTrack = player.addListener('videoTrackChange', (payload: any) => {
+      updateRatioFromTrack(payload?.videoTrack);
+    });
+
+    const subSource = player.addListener('sourceLoad', (payload: any) => {
+      if (payload?.availableVideoTracks && payload.availableVideoTracks.length > 0) {
+        updateRatioFromTrack(payload.availableVideoTracks[0]);
+      }
+    });
+
+    return () => {
+      subTrack.remove();
+      subSource.remove();
+    };
+  }, [player]);
+
   // Helper untuk lock seek target dan auto-release safety timeout
   const setPendingSeek = useCallback((targetTime: number) => {
     pendingSeekTargetRef.current = targetTime;
@@ -567,6 +599,7 @@ export function useClipPlayer({
 
   return {
     player,
+    videoAspectRatio,
     streamUrl,
     setStreamUrl,
     streamUrlRef,

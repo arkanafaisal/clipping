@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import {
   StyleSheet,
   Text,
@@ -50,6 +50,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
   // Hook 2: useClipPlayer
   const {
     player,
+    videoAspectRatio,
     streamUrl,
     isContinueState,
     progressPercent,
@@ -72,6 +73,33 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     playMode,
     onBack,
   });
+
+  // Layout player container untuk anchoring video tepat di atas progress bar
+  const [playerLayout, setPlayerLayout] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
+
+  const videoContainerStyle = useMemo(() => {
+    const { width: cWidth, height: cHeight } = playerLayout;
+    const targetRatio = videoAspectRatio || 16 / 9;
+
+    if (cWidth <= 0 || cHeight <= 0) {
+      return { width: '100%' as const, aspectRatio: targetRatio };
+    }
+
+    const containerRatio = cWidth / cHeight;
+    if (containerRatio > targetRatio) {
+      // Container lebih lebar dari rasio video
+      return {
+        width: cHeight * targetRatio,
+        height: cHeight,
+      };
+    } else {
+      // Container lebih tinggi dari rasio video (kondisi portrait standar): lebar penuh, tinggi sesuai aspek rasio
+      return {
+        width: cWidth,
+        height: cWidth / targetRatio,
+      };
+    }
+  }, [playerLayout, videoAspectRatio]);
 
   // Hook 1: useClipData
   const {
@@ -188,15 +216,25 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
         onUpdateEnd={handleUpdateEnd}
       />
 
-      {/* 2. VIDEO PLAYER AREA (expo-video, single clean hardware player) */}
-      <View style={styles.playerContainer}>
+      {/* 2. VIDEO PLAYER AREA (expo-video, diturunkan mepet di atas seek bar) */}
+      <View
+        style={styles.playerContainer}
+        onLayout={(e) => {
+          const { width, height } = e.nativeEvent.layout;
+          if (width > 0 && height > 0) {
+            setPlayerLayout({ width, height });
+          }
+        }}
+      >
         {currentSourceUriRef.current || streamUrl || (activeClip.status === 'done' && downloadedClips[activeClip.id]) ? (
-          <VideoView
-            style={styles.videoPlayer}
-            player={player}
-            contentFit="contain"
-            nativeControls={false}
-          />
+          <View style={videoContainerStyle}>
+            <VideoView
+              style={styles.videoPlayer}
+              player={player}
+              contentFit="contain"
+              nativeControls={false}
+            />
+          </View>
         ) : (
           <View style={styles.streamPendingBox}>
             <ActivityIndicator size="small" color="#ef4444" />
@@ -293,7 +331,7 @@ const styles = StyleSheet.create({
   playerContainer: {
     flex: 1,
     backgroundColor: '#000000',
-    justifyContent: 'center',
+    justifyContent: 'flex-end',
     alignItems: 'center',
     width: '100%',
   },

@@ -93,8 +93,6 @@ export const FeedPlaybackControls: React.FC<FeedPlaybackControlsProps> = ({
 const styles = StyleSheet.create({
   bottomPlayback: {
     backgroundColor: '#121212',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.08)',
   },
   progressBarTrack: {
     width: '100%',
