@@ -14,7 +14,30 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Synchronize Lockfile Following expo-clipboard Removal
+## [Unreleased] - Fix Player Freeze Collision on Debounced Seek and Segment Boundary Loop
+- **Konteks Struktural**:
+  1. Resolusi Race Condition dan Freeze pada Pemutar Video:
+     - Mengidentifikasi akar masalah pemutar video macet (*hang* / beku tidak bergerak) ketika user melakukan crop atau mengubah milidetik di bagian kanan klip saat video sedang diputar di sekitar 5 detik akhir.
+     - Analisis akar masalah:
+       1. Saat user mengubah rentang akhir klip (`end` berkurang atau disesuaikan), sistem melakukan preview seek ke posisi 3 detik sebelum batas akhir (`newEnd - 3`).
+       2. Karena pemutar video sedang berjalan di detik-detik akhir tersebut, posisi playback (`currentTime`) berada sangat dekat dengan target seek (`Math.abs(current - targetSeek) < 1.0`).
+       3. Handler event `timeUpdate` salah menduga bahwa native player sudah selesai melakukan perpindahan seek (karena selisih jarak < 1.0s), sehingga langsung mereset `pendingSeekTargetRef.current = null`.
+       4. Ketika timer debounce (150ms/350ms) selesai menghitung mundur dan fungsi `executeSeek` berjalan, ia membaca `pendingSeekTargetRef.current` yang sudah bernilai `null`, menyebabkan perintah `player.currentTime = seekTime` dan `player.play()` terlewat sama sekali.
+       5. Karena `player.pause()` sebelumnya dipanggil di awal debounce untuk membekukan frame lama, pemutar video ditinggalkan dalam kondisi ter-pause permanen tanpa adanya pemicu play lanjutan.
+       6. Ditambah lagi, pemotongan batas akhir klip yang mendadak menyebabkan kondisi `current >= currentActive.end` terpenuhi di `timeUpdate`, memicu pemaksaan posisi ke `start` klip secara bersamaan dengan eksekusi debounce seek, menimbulkan tabrakan status pemutar (*state conflict*).
+  2. Isolasi Penuh State Debounce dan Proteksi Waktu Nyata:
+     - Memisahkan penyimpanan target seek debounce ke dalam ref khusus (`debouncedSeekTargetRef`) yang sepenuhnya kebal dan terisolasi dari mutasi event `timeUpdate`.
+     - Menambahkan flag `isDebouncingSeekRef` untuk menonaktifkan evaluasi `timeUpdate` dan pengecekan batas klip (*boundary loop check*) selama interaksi penyesuaian durasi/seek berlangsung.
+     - Mengunci aktivasi `pendingSeekTargetRef` hanya setelah perintah `player.currentTime` benar-benar dikirimkan ke modul native ExoPlayer/AVPlayer, mempersempit toleransi verifikasi kedatangan dari 1.0s menjadi 0.4s.
+     - Menjamin panggilan `player.play()` selalu tereksekusi pada fungsi `executeSeek` ketika `isContinueStateRef.current` aktif, termasuk menyediakan fallback penyelamat agar pemutar tidak pernah terdampar dalam kondisi *paused/frozen*.
+- **Perubahan Kode Penting**:
+  - [mobile/src/hooks/useClipPlayer.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipPlayer.ts):
+    - Menambahkan `debouncedSeekTargetRef`, `debouncedShouldPlayRef`, dan `isDebouncingSeekRef`.
+    - Mengisolasi pembacaan target seek pada `executeSeek` dan menjamin pemutaran kembali.
+    - Mengabaikan `timeUpdate` selama status debounce aktif agar frame transisi tidak menimpa UI atau memicu reset segmen.
+    - Menambahkan fungsi `cancelPendingSeekDebounce` pada inisialisasi pergantian sumber klip di `syncPlayerSourceForClip`.
+
+## [3bd2b3a] - Synchronize Lockfile Following expo-clipboard Removal
 - **Konteks Struktural**:
   - Menyinkronkan [package-lock.json](file:///d:/projects/clipping/mobile/package-lock.json) setelah penghapusan pustaka `expo-clipboard` guna menjaga konsistensi integritas dependensi proyek.
 - **Perubahan Kode Penting**:

@@ -54,6 +54,9 @@ export function useClipPlayer({
   const seekDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seekSafetyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingSeekTargetRef = useRef<number | null>(null);
+  const debouncedSeekTargetRef = useRef<number | null>(null);
+  const debouncedShouldPlayRef = useRef<boolean>(true);
+  const isDebouncingSeekRef = useRef<boolean>(false);
   const trackWidthRef = useRef<number>(1);
   const currentSourceUriRef = useRef<string>('');
   const isContinueStateRef = useRef<boolean>(isContinueState);
@@ -120,6 +123,15 @@ export function useClipPlayer({
     }, 1500);
   }, []);
 
+  const cancelPendingSeekDebounce = useCallback(() => {
+    if (seekDebounceTimerRef.current) {
+      clearTimeout(seekDebounceTimerRef.current);
+      seekDebounceTimerRef.current = null;
+    }
+    debouncedSeekTargetRef.current = null;
+    isDebouncingSeekRef.current = false;
+  }, []);
+
   // Handle Android hardware back button (No on-screen back button)
   useEffect(() => {
     const backAction = () => {
@@ -135,6 +147,8 @@ export function useClipPlayer({
     return () => {
       if (seekDebounceTimerRef.current) clearTimeout(seekDebounceTimerRef.current);
       if (seekSafetyTimeoutRef.current) clearTimeout(seekSafetyTimeoutRef.current);
+      debouncedSeekTargetRef.current = null;
+      isDebouncingSeekRef.current = false;
     };
   }, []);
 
@@ -149,6 +163,7 @@ export function useClipPlayer({
   const syncPlayerSourceForClip = useCallback(
     async (clip: ClipItem, autoPlay: boolean = true) => {
       if (!player) return;
+      cancelPendingSeekDebounce();
       const isDownloaded = Boolean(downloadedClipsRef.current[clip.id]);
       const isClipDoneLocal = clip.status === 'done' && isDownloaded;
 
@@ -228,14 +243,17 @@ export function useClipPlayer({
   /**
    * Centralized universal debounced seek handler:
    * Menampung SEMUA seek (crop, extend, skip waktu, tap scrubber) ke dalam 1 gerbang terpusat.
-   * Debounce trailing edge: 500ms sejak interaksi TERAKHIR user.
+   * Debounce trailing edge: 150ms (file lokal) / 350ms (stream online).
    * UI (progress bar, angka rentang, active card) langsung di-update secara instan 0ms tanpa animasi/delay.
    */
   const centralizedSeek = useCallback(
     (targetTime: number, shouldPlay: boolean = true) => {
-      setPendingSeek(targetTime);
+      // Simpan target seek dan status play di ref terisolasi khusus debounce
+      debouncedSeekTargetRef.current = targetTime;
+      debouncedShouldPlayRef.current = shouldPlay;
+      isDebouncingSeekRef.current = true;
 
-      // Auto-pause video seketika jika sedang berputar agar frame lama freeze (tanpa mengubah state tombol)
+      // Auto-pause video seketika jika sedang berputar agar frame lama freeze (tanpa mengubah state tombol isContinueState)
       if (player && player.playing) {
         try {
           player.pause();
@@ -254,12 +272,17 @@ export function useClipPlayer({
       const debounceMs = isLocalMode ? 150 : 350;
 
       const executeSeek = () => {
-        const finalTarget = pendingSeekTargetRef.current;
-        if (player && finalTarget !== null && !isNaN(finalTarget)) {
+        isDebouncingSeekRef.current = false;
+        const targetToSeek = debouncedSeekTargetRef.current;
+        const playAfterSeek = debouncedShouldPlayRef.current;
+        debouncedSeekTargetRef.current = null;
+
+        if (player && targetToSeek !== null && !isNaN(targetToSeek)) {
           try {
-            const seekTime = Math.max(0, finalTarget);
+            const seekTime = Math.max(0, targetToSeek);
+            setPendingSeek(seekTime);
             player.currentTime = seekTime;
-            if (shouldPlay && isContinueStateRef.current) {
+            if (playAfterSeek && isContinueStateRef.current) {
               player.play();
             }
           } catch (e: any) {
@@ -270,6 +293,11 @@ export function useClipPlayer({
               duration: 3500,
             });
           }
+        } else if (player && playAfterSeek && isContinueStateRef.current) {
+          // Fallback penyelamat: pastikan playback tetap berjalan jika continue aktif
+          try {
+            if (!player.playing) player.play();
+          } catch (e) {}
         }
         seekDebounceTimerRef.current = null;
       };
@@ -284,6 +312,12 @@ export function useClipPlayer({
     if (!player) return;
 
     const sub = player.addListener('timeUpdate', (event) => {
+      // 1. Selama masa debounce seek (user sedang menggeser scrubber atau klik crop/ms berturut-turut):
+      // Abaikan seluruh event timeUpdate agar frame lama tidak menimpa progress UI dan tidak mentrigger boundary loop
+      if (isDebouncingSeekRef.current) {
+        return;
+      }
+
       const currentActive = getActiveClip();
       const currentSource = currentSourceUriRef.current;
       const isClipDoneLocal =
@@ -295,11 +329,11 @@ export function useClipPlayer({
       const current = event.currentTime;
       const duration = currentActive.end - currentActive.start;
 
-      // Cek apakah player sedang dalam proses seek menuju targetTime
+      // 2. Cek apakah native player sedang dalam proses seek menuju targetTime yang baru saja dieksekusi
       if (pendingSeekTargetRef.current !== null) {
         const diff = Math.abs(current - pendingSeekTargetRef.current);
-        if (diff < 1.0) {
-          // Player sudah tiba di sekitar target seek, buka kembali kunci update UI
+        if (diff < 0.4) {
+          // Native player telah tiba di target seek, buka kembali kunci update UI
           pendingSeekTargetRef.current = null;
         } else {
           // Masih dalam transisi seek: jangan biarkan frame lama menimpa progress UI atau mentrigger loop
@@ -320,9 +354,10 @@ export function useClipPlayer({
         }
       }
 
-      // Loop current segment & boundary enforcement
+      // 3. Loop current segment & boundary enforcement
       if (isClipDoneLocal) {
         if (current >= duration) {
+          setPendingSeek(0);
           player.currentTime = 0;
           if (isContinueStateRef.current) {
             player.play();
@@ -330,9 +365,9 @@ export function useClipPlayer({
         }
       } else {
         // Enforce boundary klip (baik mode full video lokal maupun online stream):
-        // 1. Loop jika mencapai batas akhir klip (current >= end)
-        // 2. Koreksi seketika jika video meleset atau nyangkut di luar rentang klip
+        // Loop jika mencapai batas akhir klip (current >= end) atau di luar batas start
         if (current >= currentActive.end || current < currentActive.start - 0.5) {
+          setPendingSeek(currentActive.start);
           player.currentTime = currentActive.start;
           if (isContinueStateRef.current) {
             player.play();
@@ -463,7 +498,9 @@ export function useClipPlayer({
 
       if (isClipDoneLocal) {
         const baseTime =
-          pendingSeekTargetRef.current !== null
+          debouncedSeekTargetRef.current !== null
+            ? debouncedSeekTargetRef.current
+            : pendingSeekTargetRef.current !== null
             ? pendingSeekTargetRef.current
             : player
             ? player.currentTime
@@ -478,7 +515,9 @@ export function useClipPlayer({
         centralizedSeek(nextTime, true);
       } else {
         const baseTime =
-          pendingSeekTargetRef.current !== null
+          debouncedSeekTargetRef.current !== null
+            ? debouncedSeekTargetRef.current
+            : pendingSeekTargetRef.current !== null
             ? pendingSeekTargetRef.current
             : player
             ? player.currentTime
@@ -614,6 +653,7 @@ export function useClipPlayer({
     seekDebounceTimerRef,
     pendingSeekTargetRef,
     setPendingSeek,
+    cancelPendingSeekDebounce,
     isSourceSwitchingRef,
     centralizedSeek,
     syncPlayerSourceForClip,
