@@ -14,7 +14,17 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Consolidate Shared Storage and Cookies into Unified Settings Modal and Streamline Dashboard Header
+## [Unreleased] - Refine In-Place Millisecond Input Presentation in Feed Top Banner
+- **Konteks Struktural**:
+  1. Presentasi Waktu Murni HH:MM:SS / MM:SS dengan Input Milidetik Kontekstual:
+     - Memastikan banner rentang atas pada [FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx) selalu menampilkan waktu dasar bersih dalam format jam:menit:detik murni tanpa pecahan milidetik saat mode baca/diam.
+     - Saat teks waktu ditekan untuk diedit, angka waktu dasar tetap dipertahankan dengan tanda titik (`.`) dan kotak input kecil terfokus khusus milidetik (`timeEditWrapper`), sehingga pengguna melihat waktu secara utuh (`HH:MM:SS.[MS]`) tanpa kehilangan konteks detik atau jam saat menyunting presisi fraksi.
+- **Perubahan Kode Penting**:
+  - [mobile/src/components/feed/FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx):
+    - Mengintegrasikan kontainer `timeEditWrapper` yang menampilkan `formatTime(start).` atau `formatTime(end).` bersamaan dengan `TextInput` milidetik beraksen cyan `#38bdf8`.
+    - Membersihkan impor fungsi yang tidak terpakai (`formatTimeWithMs`).
+
+## [dbb8f3c] - Consolidate Shared Storage and Cookies into Unified Settings Modal and Streamline Dashboard Header
 - **Konteks Struktural**:
   1. Unifikasi Konfigurasi ke dalam Modal Pengaturan Tunggal:
      - Menggabungkan konfigurasi direktori penyimpanan bersama (Shared Storage Output) dan pengujian disk permission dengan sinkronisasi cookies YouTube (Google Drive) ke dalam satu modal terpadu [SettingsModal.tsx](file:///d:/projects/clipping/mobile/src/components/SettingsModal.tsx).

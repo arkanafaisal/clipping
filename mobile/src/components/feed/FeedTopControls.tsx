@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { Trash2, CheckCircle2, Download, Plus, SlidersHorizontal } from 'lucide-react-native';
 import { ClipItem } from '../../services/api';
-import { formatTimeWithMs, formatTime } from './timeUtils';
+import { formatTime } from './timeUtils';
 
 export interface FeedTopControlsProps {
   activeClip: ClipItem;
@@ -102,18 +102,23 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
           ) : (
             <View style={styles.timeDisplay}>
               {activeTimeEdit === 'start' ? (
-                <TextInput
-                  style={styles.timeInput}
-                  value={tempTimeValue}
-                  onChangeText={(val) => onMsTimeChange('start', val)}
-                  onBlur={onBlurTimeEdit}
-                  keyboardType="number-pad"
-                  maxLength={2}
-                  autoFocus
-                  selectTextOnFocus
-                  placeholder="00"
-                  placeholderTextColor="rgba(255, 255, 255, 0.4)"
-                />
+                <View style={styles.timeEditWrapper}>
+                  <Text style={styles.timeNumberText}>
+                    {formatTime(activeClip.start)}.
+                  </Text>
+                  <TextInput
+                    style={styles.timeInput}
+                    value={tempTimeValue}
+                    onChangeText={(val) => onMsTimeChange('start', val)}
+                    onBlur={onBlurTimeEdit}
+                    keyboardType="number-pad"
+                    maxLength={2}
+                    autoFocus
+                    selectTextOnFocus
+                    placeholder="00"
+                    placeholderTextColor="rgba(255, 255, 255, 0.4)"
+                  />
+                </View>
               ) : (
                 <Pressable
                   style={styles.timePressable}
@@ -129,18 +134,23 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
               <Text style={styles.timeSeparatorText}>-</Text>
 
               {activeTimeEdit === 'end' ? (
-                <TextInput
-                  style={styles.timeInput}
-                  value={tempTimeValue}
-                  onChangeText={(val) => onMsTimeChange('end', val)}
-                  onBlur={onBlurTimeEdit}
-                  keyboardType="number-pad"
-                  maxLength={2}
-                  autoFocus
-                  selectTextOnFocus
-                  placeholder="00"
-                  placeholderTextColor="rgba(255, 255, 255, 0.4)"
-                />
+                <View style={styles.timeEditWrapper}>
+                  <Text style={styles.timeNumberText}>
+                    {formatTime(activeClip.end)}.
+                  </Text>
+                  <TextInput
+                    style={styles.timeInput}
+                    value={tempTimeValue}
+                    onChangeText={(val) => onMsTimeChange('end', val)}
+                    onBlur={onBlurTimeEdit}
+                    keyboardType="number-pad"
+                    maxLength={2}
+                    autoFocus
+                    selectTextOnFocus
+                    placeholder="00"
+                    placeholderTextColor="rgba(255, 255, 255, 0.4)"
+                  />
+                </View>
               ) : (
                 <Pressable
                   style={styles.timePressable}
@@ -408,20 +418,25 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.25)',
   },
+  timeEditWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
   timeInput: {
-    minWidth: 44,
+    minWidth: 32,
     height: 28,
     backgroundColor: '#18181b',
     borderRadius: 6,
-    paddingHorizontal: 6,
+    paddingHorizontal: 4,
     paddingVertical: 0,
     textAlign: 'center',
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
     fontSize: 13,
     fontWeight: '800',
     borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.35)',
-    color: 'rgba(255, 255, 255, 0.95)',
+    borderColor: '#38bdf8',
+    color: '#38bdf8',
   },
   rightActionGroup: {
     flexDirection: 'row',
