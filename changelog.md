@@ -14,7 +14,30 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Fix 100 Heatmap Clip Limit Support and Resolve Real-Time Re-Indexing in Clip Carousel
+## [Unreleased] - Synchronize Lockfile Following expo-clipboard Removal
+- **Konteks Struktural**:
+  - Menyinkronkan [package-lock.json](file:///d:/projects/clipping/mobile/package-lock.json) setelah penghapusan pustaka `expo-clipboard` guna menjaga konsistensi integritas dependensi proyek.
+- **Perubahan Kode Penting**:
+  - [mobile/package-lock.json](file:///d:/projects/clipping/mobile/package-lock.json):
+    - Menghapus entri paket `expo-clipboard`.
+
+## [3ca3c89] - Remove Native expo-clipboard Dependency to Resolve Startup Crash Without Rebuilding APK
+- **Konteks Struktural**:
+  1. Resolusi Error Startup dan Black Screen:
+     - Mengidentifikasi dan memperbaiki penyebab crash fatal saat inisialisasi aplikasi (`TypeError: Cannot read property 'ErrorBoundary' of undefined` pada `_layout.tsx`) yang berakar dari evaluasi modul `Dashboard.tsx:15` -> [ExportWorkshopModal.tsx](file:///d:/projects/clipping/mobile/src/components/ExportWorkshopModal.tsx).
+     - Crash terjadi karena pustaka `expo-clipboard` membutuhkan modul biner native (Kotlin/Java) yang belum ter-bundle di dalam APK development yang sedang digunakan pengguna di perangkat fisik.
+  2. Eliminasi Ketergantungan Native untuk Ekspor Workshop:
+     - Menghapus pustaka `expo-clipboard` secara menyeluruh dari [package.json](file:///d:/projects/clipping/mobile/package.json) dan [ExportWorkshopModal.tsx](file:///d:/projects/clipping/mobile/src/components/ExportWorkshopModal.tsx).
+     - Menjadikan teks JSON di kotak pratinjau dapat diseleksi langsung (`selectable={true}`) menggunakan mekanisme seleksi bawaan sistem operasi tanpa ketergantungan modul native apa pun.
+     - Memfokuskan aksi ekspor pada tombol tunggal *"Kirim ke WhatsApp"* (`Linking.openURL`) yang sepenuhnya murni JavaScript/OS-intent, memungkinkan pengguna melanjutkan pengujian aplikasi secara instan tanpa perlu melakukan build ulang APK development.
+- **Perubahan Kode Penting**:
+  - [mobile/src/components/ExportWorkshopModal.tsx](file:///d:/projects/clipping/mobile/src/components/ExportWorkshopModal.tsx):
+    - Menghapus impor `expo-clipboard` dan handler `handleCopyToClipboard`.
+    - Menambahkan `selectable={true}` pada preview teks JSON dan menyederhanakan tombol aksi ke WhatsApp.
+  - [mobile/package.json](file:///d:/projects/clipping/mobile/package.json):
+    - Menghapus dependensi `expo-clipboard`.
+
+## [7de28f0] - Fix 100 Heatmap Clip Limit Support and Resolve Real-Time Re-Indexing in Clip Carousel
 - **Konteks Struktural**:
   1. Penyelamatan dan Auto-Upgrade Heatmap 100 Klip:
      - Mengubah pemanggilan `fetchHeatmap` pada [Dashboard.tsx](file:///d:/projects/clipping/mobile/src/components/Dashboard.tsx) agar selalu mengambil 100 klip penuh (bukan 50), sehingga draft yang disimpan di memori lokal memiliki seluruh data heatmap AI untuk difilter dinamis oleh pengguna hingga batas maksimum (100 klip).

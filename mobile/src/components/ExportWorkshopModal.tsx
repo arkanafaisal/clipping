@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   Modal,
   StyleSheet,
@@ -9,8 +9,7 @@ import {
   Platform,
   Linking,
 } from 'react-native';
-import * as Clipboard from 'expo-clipboard';
-import { Share2, Copy, MessageCircle, X, Check } from 'lucide-react-native';
+import { Share2, MessageCircle, X } from 'lucide-react-native';
 import { ToastManager } from './Toast';
 
 const BOT_NUMBER = '6285742923730';
@@ -30,39 +29,9 @@ export const ExportWorkshopModal: React.FC<ExportWorkshopModalProps> = ({
   exportDataJson,
   onClose,
 }) => {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopyToClipboard = async () => {
-    try {
-      await Clipboard.setStringAsync(exportDataJson);
-      setCopied(true);
-      ToastManager.show({
-        type: 'success',
-        title: 'JSON Workshop Disalin ke Clipboard',
-        duration: 2500,
-      });
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err: any) {
-      ToastManager.show({
-        type: 'error',
-        title: 'Gagal Menyalin ke Clipboard',
-        rawError: err?.message || String(err),
-        duration: 3000,
-      });
-    }
-  };
-
   const handleSendToWA = async () => {
     try {
-      // Salin juga data JSON ke clipboard agar pengguna bisa langsung menempelkannya jika URL kepanjangan
-      await Clipboard.setStringAsync(exportDataJson);
-
-      let commandText = `!import_json ${exportDataJson}`;
-      // Jika teks JSON terlalu besar untuk URL (> 2000 karakter), buat pesan ringkas
-      if (commandText.length > 2000) {
-        commandText = `!import_json (Data JSON tersalin di clipboard, silakan tempel di sini)\nVideo: https://youtube.com/watch?v=${videoId}`;
-      }
-
+      const commandText = `!import_json ${exportDataJson}`;
       const encoded = encodeURIComponent(commandText);
       const waUrl = `https://wa.me/${BOT_NUMBER}?text=${encoded}`;
 
@@ -75,7 +44,7 @@ export const ExportWorkshopModal: React.FC<ExportWorkshopModalProps> = ({
 
       ToastManager.show({
         type: 'success',
-        title: 'Membuka WhatsApp & JSON Disalin',
+        title: 'Membuka WhatsApp...',
         duration: 3000,
       });
       onClose();
@@ -114,47 +83,27 @@ export const ExportWorkshopModal: React.FC<ExportWorkshopModalProps> = ({
           </Text>
 
           <Text style={styles.description}>
-            Ekspor seluruh 100 klip heatmap beserta klip custom dalam format JSON utuh untuk diimpor kembali ke perangkat lain.
+            Kirim seluruh 100 klip heatmap beserta klip custom dalam format JSON ke WhatsApp untuk dibagikan atau dicadangkan.
           </Text>
 
-          {/* Preview Box */}
+          {/* Preview Box (Dapat diseleksi dan disalin manual tanpa modul native) */}
           <View style={styles.previewContainer}>
             <ScrollView style={styles.previewScroll} showsVerticalScrollIndicator={false}>
-              <Text style={styles.previewText} numberOfLines={8}>
+              <Text style={styles.previewText} selectable={true}>
                 {exportDataJson}
               </Text>
             </ScrollView>
           </View>
 
-          {/* Action Buttons */}
+          {/* Action Button: Kirim ke WhatsApp */}
           <View style={styles.actionsContainer}>
-            {/* 1. Salin ke Clipboard */}
-            <TouchableOpacity
-              style={[styles.actionBtn, styles.copyBtn]}
-              onPress={handleCopyToClipboard}
-              activeOpacity={0.8}
-            >
-              {copied ? (
-                <>
-                  <Check size={16} color="#34d399" />
-                  <Text style={[styles.actionBtnText, { color: '#34d399' }]}>Berhasil Disalin!</Text>
-                </>
-              ) : (
-                <>
-                  <Copy size={16} color="#38bdf8" />
-                  <Text style={[styles.actionBtnText, { color: '#38bdf8' }]}>Salin ke Clipboard</Text>
-                </>
-              )}
-            </TouchableOpacity>
-
-            {/* 2. Kirim ke WhatsApp */}
             <TouchableOpacity
               style={[styles.actionBtn, styles.waBtn]}
               onPress={handleSendToWA}
               activeOpacity={0.8}
             >
-              <MessageCircle size={16} color="#34d399" />
-              <Text style={[styles.actionBtnText, { color: '#34d399' }]}>Kirim ke WhatsApp</Text>
+              <MessageCircle size={18} color="#34d399" />
+              <Text style={styles.waBtnText}>Kirim ke WhatsApp</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -244,15 +193,12 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderWidth: 1,
   },
-  copyBtn: {
-    backgroundColor: 'rgba(56, 189, 248, 0.12)',
-    borderColor: 'rgba(56, 189, 248, 0.3)',
-  },
   waBtn: {
     backgroundColor: 'rgba(16, 185, 129, 0.12)',
     borderColor: 'rgba(16, 185, 129, 0.3)',
   },
-  actionBtnText: {
+  waBtnText: {
+    color: '#34d399',
     fontSize: 13,
     fontWeight: '700',
   },
