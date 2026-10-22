@@ -8,14 +8,13 @@ import {
   Alert,
   Linking,
 } from 'react-native';
-import { Cookie, Download } from 'lucide-react-native';
+import { Settings, Download } from 'lucide-react-native';
 import { WorkshopCard, WorkshopItem } from './WorkshopCard';
 import { WorkshopInputForm } from './WorkshopInputForm';
 import { ImportWorkshopModal } from './ImportWorkshopModal';
 import { ExportWorkshopModal } from './ExportWorkshopModal';
-import { CookiesModal } from './CookiesModal';
+import { SettingsModal } from './SettingsModal';
 import { PlayModeModal } from './PlayModeModal';
-import { StorageConfigSection } from './StorageConfigSection';
 import { LocalStorage } from '../services/storage';
 import { ToastManager } from './Toast';
 import {
@@ -50,7 +49,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
   const [exportDataJson, setExportDataJson] = useState('');
   const [exportWorkshopTitle, setExportWorkshopTitle] = useState('');
   const [exportVideoId, setExportVideoId] = useState('');
-  const [cookiesModalVisible, setCookiesModalVisible] = useState(false);
+  const [settingsModalVisible, setSettingsModalVisible] = useState(false);
   const [playModeTarget, setPlayModeTarget] = useState<{ videoId: string; count: number } | null>(null);
   const [isExtracting, setIsExtracting] = useState(false);
   const [fullVideoStatus, setFullVideoStatus] = useState<
@@ -463,12 +462,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
     <ScrollView style={styles.screen} contentContainerStyle={styles.scrollContent}>
       {/* 1. Dashboard Header */}
       <View style={styles.header}>
-        <Text style={styles.titleGradient}>Clipping Workshop</Text>
+        <View style={styles.headerTitleRow}>
+          <Text style={styles.titleGradient}>Clipping Workshop</Text>
+          <TouchableOpacity
+            style={styles.settingsBtn}
+            onPress={() => setSettingsModalVisible(true)}
+            activeOpacity={0.7}
+          >
+            <Settings size={20} color="rgba(255, 255, 255, 0.85)" />
+          </TouchableOpacity>
+        </View>
         <Text style={styles.subtitle}>Buat dan kelola video klip dari AI Heatmap</Text>
       </View>
-
-      {/* 1b. Konfigurasi Shared Storage & Verifikasi hello.txt */}
-      <StorageConfigSection />
 
       {/* 2. Input Form (Link & Klip) */}
       <WorkshopInputForm
@@ -486,25 +491,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
           </View>
         </View>
 
-        <View style={styles.actionButtonGroup}>
-          <TouchableOpacity
-            style={styles.cookieBtn}
-            onPress={() => setCookiesModalVisible(true)}
-            activeOpacity={0.8}
-          >
-            <Cookie size={13} color="rgba(255, 255, 255, 0.85)" />
-            <Text style={styles.actionBtnText}>COOKIES</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.importBtn}
-            onPress={() => setImportModalVisible(true)}
-            activeOpacity={0.8}
-          >
-            <Download size={13} color="rgba(255, 255, 255, 0.85)" />
-            <Text style={styles.actionBtnText}>IMPORT</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+          style={styles.importBtn}
+          onPress={() => setImportModalVisible(true)}
+          activeOpacity={0.8}
+        >
+          <Download size={13} color="rgba(255, 255, 255, 0.85)" />
+          <Text style={styles.actionBtnText}>IMPORT</Text>
+        </TouchableOpacity>
       </View>
 
       {/* 4. Workshop Cards List */}
@@ -546,10 +540,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
         onClose={() => setExportModalVisible(false)}
       />
 
-      {/* 6. Cookies Modal for Rate Limits */}
-      <CookiesModal
-        visible={cookiesModalVisible}
-        onClose={() => setCookiesModalVisible(false)}
+      {/* 6. Settings Modal (Shared Storage & Cookies) */}
+      <SettingsModal
+        visible={settingsModalVisible}
+        onClose={() => setSettingsModalVisible(false)}
       />
 
       {/* 7. Modal Pilihan Mode Pemutaran (Lokal vs Stream) */}
@@ -586,11 +580,23 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: 20,
   },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   titleGradient: {
     fontSize: 28,
     fontWeight: '900',
     color: '#ef4444',
     letterSpacing: 0.5,
+  },
+  settingsBtn: {
+    padding: 8,
+    backgroundColor: '#18181b',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   subtitle: {
     fontSize: 13,
@@ -625,22 +631,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
     color: 'rgba(255, 255, 255, 0.7)',
-  },
-  actionButtonGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  cookieBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#262626',
-    paddingHorizontal: 11,
-    paddingVertical: 7,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
   },
   importBtn: {
     flexDirection: 'row',

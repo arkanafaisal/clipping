@@ -14,7 +14,25 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Streamline Dashboard Creation, Remove Cluttered Badges, Add Offline Cloud Indicator, and Implement Full Workshop JSON Export/Import
+## [Unreleased] - Consolidate Shared Storage and Cookies into Unified Settings Modal and Streamline Dashboard Header
+- **Konteks Struktural**:
+  1. Unifikasi Konfigurasi ke dalam Modal Pengaturan Tunggal:
+     - Menggabungkan konfigurasi direktori penyimpanan bersama (Shared Storage Output) dan pengujian disk permission dengan sinkronisasi cookies YouTube (Google Drive) ke dalam satu modal terpadu [SettingsModal.tsx](file:///d:/projects/clipping/mobile/src/components/SettingsModal.tsx).
+     - Menghapus komponen statis inline `StorageConfigSection` dari [Dashboard.tsx](file:///d:/projects/clipping/mobile/src/components/Dashboard.tsx) untuk menghemat ruang vertikal layar utama.
+  2. Optimalisasi Tombol Pengaturan dan Header Ruang Proyek:
+     - Menempatkan tombol ikon `Settings` tepat di sisi kanan judul "Clipping Workshop" pada header Dashboard untuk mengakses modal pengaturan kapan saja secara intuitif.
+     - Menghilangkan tombol `COOKIES` dari bilah judul "Proyek Tersimpan" pada [Dashboard.tsx](file:///d:/projects/clipping/mobile/src/components/Dashboard.tsx), sehingga melegakan ruang horizontal bilah proyek dan mencegah tombol `IMPORT` tergeser ke kanan atau terpotong pada layar berukuran standar.
+- **Perubahan Kode Penting**:
+  - [mobile/src/components/SettingsModal.tsx](file:///d:/projects/clipping/mobile/src/components/SettingsModal.tsx):
+    - Membuat modal pengaturan modular berisi dua seksi: Shared Storage (inspeksi & modifikasi direktori root, pengujian ulang izin baca/tulis) dan Cookies YouTube (input link publik Google Drive, validasi link, tombol sinkronisasi dengan indikator pemrosesan).
+  - [mobile/src/components/Dashboard.tsx](file:///d:/projects/clipping/mobile/src/components/Dashboard.tsx):
+    - Mengganti state `cookiesModalVisible` menjadi `settingsModalVisible`.
+    - Menambahkan tombol `Settings` di sebelah kanan judul utama pada `headerTitleRow`.
+    - Menghapus pemanggilan `<StorageConfigSection />` dari aliran tata letak utama.
+    - Menghapus tombol `COOKIES` dari `sectionHeader`, memberikan ruang leluasa pada tombol `IMPORT`.
+    - Mengganti `<CookiesModal />` dengan `<SettingsModal />`.
+
+## [3921bbd] - Streamline Dashboard Creation, Remove Cluttered Badges, Add Offline Cloud Indicator, and Implement Full Workshop JSON Export/Import
 - **Konteks Struktural**:
   1. Penyederhanaan Form Pembuatan Workshop di Dashboard:
      - Menghapus input jumlah klip pada [WorkshopInputForm.tsx](file:///d:/projects/clipping/mobile/src/components/WorkshopInputForm.tsx) dan memfokuskan antarmuka pada input tautan YouTube serta tombol buat yang lebih bersih dan ringkas. Nilai awal difiksasi default pada 50 klip, yang selanjutnya dapat diatur secara fleksibel di dalam kamar workshop.
