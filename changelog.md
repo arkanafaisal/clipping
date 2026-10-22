@@ -14,7 +14,36 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Auto-Scroll Carousel and Fallback to Nearest Clip on Visible Count Change
+## [Unreleased] - Restore 4:3 Facecam Highlight Preview with Real-Time Framing Controls Above Main Video Player
+- **Konteks Struktural**:
+  1. Restorasi Fitur Highlight Facecam (4:3 Landscape) Mengisi Gap Vertikal:
+     - Setelah pemutar video utama 16:9 diturunkan posisinya hingga mepet di atas progress bar pencarian (seek bar), tercipta celah/gap hitam kosong antara kontrol pemotongan atas (FeedTopControls) dan pemutar video utama.
+     - Mengembalikan komponen preview Facecam Highlight khusus sebagai sarana validasi visual klip tanpa menyertakan beban subtitle banner atau template flex-call.
+     - Rasio viewport facecam diatur standar 4:3 landscape, diposisikan sejajar di sisi kiri atas, berdampingan dengan panel pengaturan framing interaktif di sisi kanan.
+  2. Panel Kontrol Framing Interaktif Real-Time (Tanpa Modal):
+     - Menyediakan kontrol langsung di tempat (*inline/on-site*) tanpa modal pop-up:
+       - Tombol Toggle status ON/OFF.
+       - Stepper ZOOM (100% s/d 400%, step 25%).
+       - Stepper POS X (0% s/d 100%, step 5%).
+       - Stepper POS Y (0% s/d 100%, step 5%).
+     - Menggunakan rumus transformasi koordinat presisi dari arsitektur teruji commit `a61ae99` untuk cropping resolusi 16:9 murni ke viewport 4:3 tanpa distorsi aspek rasio.
+     - Menyimpan konfigurasi framing secara persisten per video ID via `LocalStorage` (`clipping_facecam_<videoId>`).
+  3. Proteksi Kinerja Hardware Decoder (Decoupled Performance Safeguard):
+     - Menyediakan opsi mematikan facecam sepenuhnya (OFF) untuk HP berspesifikasi rendah agar tidak mengalami lag.
+     - Saat facecam nonaktif (OFF), elemen `VideoView` untuk facecam tidak dirender sama sekali dan instance secondary player (`facecamPlayer`) dihentikan 100% (paused & idle), menjamin 0% beban decoding ganda pada native `MediaCodec`.
+     - Hasil unduhan MP4 tetap berupa video 16:9 murni utuh tanpa watermark atau framing terbakar.
+- **Perubahan Kode Penting**:
+  - [mobile/src/components/feed/FacecamHighlightSection.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FacecamHighlightSection.tsx):
+    - Komponen baru: Viewport 4:3 docked left dengan badge rasio, container nonaktif hemat baterai, dan panel kontrol bertingkat di sebelah kanan untuk toggle, Zoom, Pos X, dan Pos Y.
+  - [mobile/src/hooks/useClipPlayer.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipPlayer.ts):
+    - Mengintegrasikan secondary `facecamPlayer` (muted) dengan sinkronisasi instan terhadap playback stream, seek, dan loop, yang aktif bersyarat hanya saat `isFacecamActiveRef.current === true`.
+  - [mobile/src/components/FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
+    - Mengintegrasikan `FacecamHighlightSection` di dalam `playerContainer` dengan distribusi `justifyContent: 'space-between'` untuk memposisikan facecam di atas dan main player 16:9 mepet di bawah.
+    - Mengelola state `facecamConfig` dengan persistensi storage lokal per video ID.
+  - [changelog.md](file:///d:/projects/clipping/changelog.md):
+    - Memperbarui commit ID lampau line 339 dari `[7c2cd89]` menjadi `[a61ae99]`, memperbarui commit ID sebelumnya menjadi `[a86cef3]`, dan mendokumentasikan pembaruan facecam highlight preview.
+
+## [a86cef3] - Auto-Scroll Carousel and Fallback to Nearest Clip on Visible Count Change
 - **Konteks Struktural**:
   1. Resolusi Karosel Hilang / Void Akibat Perubahan Visible Heatmap Count:
      - Mengidentifikasi penyebab karosel tampak kosong (*blank void* / "hilang") ketika pengguna mengubah jumlah klip terlihat (*visible count*, misal dari 50 menjadi 10 klip).
@@ -336,7 +365,7 @@ Format Entri:
   - [mobile/src/hooks/useClipData.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipData.ts):
     - Mengabaikan `full.mp4` dan `full_video.mp4` dari proses pencocokan klip individu yang sudah di-cut.
 
-## [7c2cd89] - Streamline App: Remove Subtitle, Template, and Export Modules to Focus Exclusively on Clip Selection, Trimming, and Downloading
+## [a61ae99] - Streamline App: Remove Subtitle, Template, and Export Modules to Focus Exclusively on Clip Selection, Trimming, and Downloading
 - **Konteks Struktural**:
   1. Penghapusan Fitur Kompleks (Subtitle, Template Framing, dan Video Burn/Export):
      - Menghapus seluruh modul ekspor video, subtitle fetcher & burner, dan template layouting (facecam, banner konteks judul) sesuai keputusan fungsional aplikasi agar fokus 100% pada pemilihan klip (heatmap carousel), perentangan durasi (trimming/crop/extend), dan pengunduhan MP4 langsung.

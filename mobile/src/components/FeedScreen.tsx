@@ -9,11 +9,17 @@ import {
 } from 'react-native';
 import { VideoView } from 'expo-video';
 import { ClipItem } from '../services/api';
+import { LocalStorage } from '../services/storage';
 import { FeedTopControls } from './feed/FeedTopControls';
 import { FeedPlaybackControls } from './feed/FeedPlaybackControls';
 import { FeedClipCarousel } from './feed/FeedClipCarousel';
 import { CustomRangeModal } from './feed/CustomRangeModal';
 import { VisibleCountModal } from './feed/VisibleCountModal';
+import {
+  FacecamHighlightSection,
+  FacecamConfig,
+  DEFAULT_FACECAM_CONFIG,
+} from './feed/FacecamHighlightSection';
 import { useClipData } from '../hooks/useClipData';
 import { useClipPlayer } from '../hooks/useClipPlayer';
 import { useClipDownload } from '../hooks/useClipDownload';
@@ -50,6 +56,8 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
   // Hook 2: useClipPlayer
   const {
     player,
+    facecamPlayer,
+    setIsFacecamActive,
     videoAspectRatio,
     streamUrl,
     isContinueState,
@@ -73,6 +81,40 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     playMode,
     onBack,
   });
+
+  // Facecam Highlight State & Persistent Framing Settings
+  const [facecamConfig, setFacecamConfig] = useState<FacecamConfig>(DEFAULT_FACECAM_CONFIG);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const saved = await LocalStorage.getItem(`clipping_facecam_${videoId}`);
+        if (saved && mounted) {
+          const parsed = JSON.parse(saved);
+          setFacecamConfig((prev) => ({ ...prev, ...parsed }));
+        }
+      } catch (e) {}
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [videoId]);
+
+  const handleUpdateFacecamConfig = useCallback(
+    (updates: Partial<FacecamConfig>) => {
+      setFacecamConfig((prev) => {
+        const next = { ...prev, ...updates };
+        LocalStorage.setItem(`clipping_facecam_${videoId}`, JSON.stringify(next)).catch(() => {});
+        return next;
+      });
+    },
+    [videoId]
+  );
+
+  useEffect(() => {
+    setIsFacecamActive(facecamConfig.enabled);
+  }, [facecamConfig.enabled, setIsFacecamActive]);
 
   // Layout player container untuk anchoring video tepat di atas progress bar
   const [playerLayout, setPlayerLayout] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
@@ -226,6 +268,14 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
           }
         }}
       >
+        {/* Facecam Highlight Preview & Framing Controls (Mengisi space celah atas) */}
+        <FacecamHighlightSection
+          facecamPlayer={facecamPlayer}
+          config={facecamConfig}
+          onUpdateConfig={handleUpdateFacecamConfig}
+          hasPlayableSource={Boolean(currentSourceUriRef.current || streamUrl)}
+        />
+
         {currentSourceUriRef.current || streamUrl || (activeClip.status === 'done' && downloadedClips[activeClip.id]) ? (
           <View style={videoContainerStyle}>
             <VideoView
@@ -331,7 +381,7 @@ const styles = StyleSheet.create({
   playerContainer: {
     flex: 1,
     backgroundColor: '#000000',
-    justifyContent: 'flex-end',
+    justifyContent: 'space-between',
     alignItems: 'center',
     width: '100%',
   },

@@ -78,6 +78,38 @@ export function useClipPlayer({
     p.timeUpdateEventInterval = 0.1;
   });
 
+  // Secondary Video Player khusus Facecam Highlight (Muted, decoupled 100% saat nonaktif)
+  const facecamPlayer = useVideoPlayer(null, (p) => {
+    p.loop = false;
+    p.muted = true;
+  });
+
+  const isFacecamActiveRef = useRef<boolean>(false);
+  const setIsFacecamActive = useCallback((active: boolean) => {
+    isFacecamActiveRef.current = active;
+    if (active && facecamPlayer) {
+      try {
+        const curUri = currentSourceUriRef.current;
+        if (curUri) {
+          facecamPlayer.replace(curUri);
+          facecamPlayer.muted = true;
+          if (player) {
+            facecamPlayer.currentTime = player.currentTime;
+            if (player.playing && isContinueStateRef.current) {
+              facecamPlayer.play();
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[useClipPlayer] Sync facecam active error:', e);
+      }
+    } else if (!active && facecamPlayer) {
+      try {
+        if (facecamPlayer.playing) facecamPlayer.pause();
+      } catch (e) {}
+    }
+  }, [facecamPlayer, player]);
+
   // Aspect ratio video (default 16/9, dinamis membaca track asli video)
   const [videoAspectRatio, setVideoAspectRatio] = useState<number>(16 / 9);
 
@@ -175,12 +207,20 @@ export function useClipPlayer({
           isSourceSwitchingRef.current = true;
           try {
             player.replace(fileUri);
+            if (isFacecamActiveRef.current && facecamPlayer) {
+              facecamPlayer.replace(fileUri);
+              facecamPlayer.muted = true;
+            }
           } catch (err) {
             console.warn('[Feed] Replace local file error:', err);
           }
         } else {
           try {
             player.currentTime = 0;
+            if (isFacecamActiveRef.current && facecamPlayer) {
+              facecamPlayer.currentTime = 0;
+              if (autoPlay && isContinueStateRef.current) facecamPlayer.play();
+            }
             if (autoPlay && isContinueStateRef.current) {
               player.play();
             }
@@ -200,12 +240,20 @@ export function useClipPlayer({
             isSourceSwitchingRef.current = true;
             try {
               player.replace(fullVideoUri);
+              if (isFacecamActiveRef.current && facecamPlayer) {
+                facecamPlayer.replace(fullVideoUri);
+                facecamPlayer.muted = true;
+              }
             } catch (err) {
               console.warn('[Feed] Replace full video error:', err);
             }
           } else {
             try {
               player.currentTime = targetTime;
+              if (isFacecamActiveRef.current && facecamPlayer) {
+                facecamPlayer.currentTime = targetTime;
+                if (autoPlay && isContinueStateRef.current) facecamPlayer.play();
+              }
               if (autoPlay && isContinueStateRef.current) {
                 player.play();
               }
@@ -221,12 +269,20 @@ export function useClipPlayer({
             isSourceSwitchingRef.current = true;
             try {
               player.replace(activeStream);
+              if (isFacecamActiveRef.current && facecamPlayer) {
+                facecamPlayer.replace(activeStream);
+                facecamPlayer.muted = true;
+              }
             } catch (err) {
               console.warn('[Feed] Replace stream error:', err);
             }
           } else {
             try {
               player.currentTime = targetTime;
+              if (isFacecamActiveRef.current && facecamPlayer) {
+                facecamPlayer.currentTime = targetTime;
+                if (autoPlay && isContinueStateRef.current) facecamPlayer.play();
+              }
               if (autoPlay && isContinueStateRef.current) {
                 player.play();
               }
@@ -259,6 +315,11 @@ export function useClipPlayer({
           player.pause();
         } catch (e) {}
       }
+      if (isFacecamActiveRef.current && facecamPlayer && facecamPlayer.playing) {
+        try {
+          facecamPlayer.pause();
+        } catch (e) {}
+      }
 
       if (seekDebounceTimerRef.current) {
         clearTimeout(seekDebounceTimerRef.current);
@@ -282,6 +343,12 @@ export function useClipPlayer({
             const seekTime = Math.max(0, targetToSeek);
             setPendingSeek(seekTime);
             player.currentTime = seekTime;
+            if (isFacecamActiveRef.current && facecamPlayer) {
+              facecamPlayer.currentTime = seekTime;
+              if (playAfterSeek && isContinueStateRef.current) {
+                facecamPlayer.play();
+              }
+            }
             if (playAfterSeek && isContinueStateRef.current) {
               player.play();
             }
@@ -297,6 +364,7 @@ export function useClipPlayer({
           // Fallback penyelamat: pastikan playback tetap berjalan jika continue aktif
           try {
             if (!player.playing) player.play();
+            if (isFacecamActiveRef.current && facecamPlayer && !facecamPlayer.playing) facecamPlayer.play();
           } catch (e) {}
         }
         seekDebounceTimerRef.current = null;
@@ -359,6 +427,12 @@ export function useClipPlayer({
         if (current >= duration) {
           setPendingSeek(0);
           player.currentTime = 0;
+          if (isFacecamActiveRef.current && facecamPlayer) {
+            try {
+              facecamPlayer.currentTime = 0;
+              if (isContinueStateRef.current) facecamPlayer.play();
+            } catch (e) {}
+          }
           if (isContinueStateRef.current) {
             player.play();
           }
@@ -369,6 +443,12 @@ export function useClipPlayer({
         if (current >= currentActive.end || current < currentActive.start - 0.5) {
           setPendingSeek(currentActive.start);
           player.currentTime = currentActive.start;
+          if (isFacecamActiveRef.current && facecamPlayer) {
+            try {
+              facecamPlayer.currentTime = currentActive.start;
+              if (isContinueStateRef.current) facecamPlayer.play();
+            } catch (e) {}
+          }
           if (isContinueStateRef.current) {
             player.play();
           }
@@ -475,15 +555,19 @@ export function useClipPlayer({
       setIsContinueState(false);
       try {
         if (player.playing) player.pause();
+        if (facecamPlayer && facecamPlayer.playing) facecamPlayer.pause();
       } catch (e) {}
     } else {
       // Pindah dari pause ke continue: force play jika video sedang berhenti
       setIsContinueState(true);
       try {
         if (!player.playing) player.play();
+        if (isFacecamActiveRef.current && facecamPlayer && !facecamPlayer.playing) {
+          facecamPlayer.play();
+        }
       } catch (e) {}
     }
-  }, [player]);
+  }, [player, facecamPlayer]);
 
   const skipSeconds = useCallback(
     (seconds: number) => {
@@ -561,6 +645,14 @@ export function useClipPlayer({
         setPendingSeek(0);
         isSourceSwitchingRef.current = true;
         player.replace(fileUri);
+        if (isFacecamActiveRef.current && facecamPlayer) {
+          try {
+            facecamPlayer.replace(fileUri);
+            facecamPlayer.muted = true;
+            facecamPlayer.currentTime = 0;
+            facecamPlayer.play();
+          } catch (e) {}
+        }
         try {
           player.currentTime = 0;
           player.play();
@@ -584,6 +676,14 @@ export function useClipPlayer({
             setPendingSeek(firstClipStart);
             isSourceSwitchingRef.current = true;
             player.replace(fullVideoUri);
+            if (isFacecamActiveRef.current && facecamPlayer) {
+              try {
+                facecamPlayer.replace(fullVideoUri);
+                facecamPlayer.muted = true;
+                facecamPlayer.currentTime = firstClipStart;
+                facecamPlayer.play();
+              } catch (e) {}
+            }
             try {
               player.currentTime = firstClipStart;
               player.play();
@@ -610,6 +710,14 @@ export function useClipPlayer({
           setPendingSeek(firstClipStart);
           isSourceSwitchingRef.current = true;
           player.replace(directUrl);
+          if (isFacecamActiveRef.current && facecamPlayer) {
+            try {
+              facecamPlayer.replace(directUrl);
+              facecamPlayer.muted = true;
+              facecamPlayer.currentTime = firstClipStart;
+              facecamPlayer.play();
+            } catch (e) {}
+          }
           try {
             player.currentTime = firstClipStart;
             player.play();
@@ -633,11 +741,14 @@ export function useClipPlayer({
         });
       }
     },
-    [videoId, player, setPendingSeek, playMode]
+    [videoId, player, facecamPlayer, setPendingSeek, playMode]
   );
 
   return {
     player,
+    facecamPlayer,
+    isFacecamActiveRef,
+    setIsFacecamActive,
     videoAspectRatio,
     streamUrl,
     setStreamUrl,
