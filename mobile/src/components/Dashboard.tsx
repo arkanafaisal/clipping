@@ -18,7 +18,6 @@ import { PlayModeModal } from './PlayModeModal';
 import { LocalStorage } from '../services/storage';
 import { ToastManager } from './Toast';
 import {
-  fetchHeatmap,
   fetchStreamUrl,
   checkFullVideoExists,
   downloadFullVideo,
@@ -132,26 +131,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
     setIsExtracting(true);
 
     try {
-      // 1. Ekstrak heatmap 100 klip penuh
-      const data = await fetchHeatmap(videoId, 100, 0);
-      if (!data.clips || data.clips.length === 0) {
-        throw new Error('Heatmap tidak mengembalikan segmen klip.');
-      }
-
-      const formattedClips = data.clips.map((c, idx) => ({
-        ...c,
-        status: 'none' as const,
-        rank: c.rank || idx + 1,
-      }));
-      const videoTitle = data.title || `YouTube Video (${videoId})`;
-      await LocalStorage.setItem(`clips_draft_${videoId}`, JSON.stringify(formattedClips));
-      await LocalStorage.setItem(`clipping_full_fetched_${videoId}`, 'true');
-
-      // 2. Ambil direct stream URL
+      // 1. Ambil direct stream URL terlebih dahulu agar video siap diputar saat masuk kamar
       await fetchStreamUrl(videoId);
 
-      // 3. Simpan workshop ke daftar
+      // 2. Inisialisasi draft klip kosong jika belum ada draft tersimpan
+      const existingDraft = await LocalStorage.getItem(`clips_draft_${videoId}`);
+      if (!existingDraft) {
+        await LocalStorage.setItem(`clips_draft_${videoId}`, '[]');
+      }
+
+      // 3. Simpan / perbarui workshop ke daftar
       const existingIndex = workshops.findIndex((w) => w.videoId === videoId);
+      const videoTitle = existingIndex >= 0 ? workshops[existingIndex].title : `YouTube Video (${videoId})`;
       let updatedList: WorkshopItem[];
 
       if (existingIndex >= 0) {
@@ -173,13 +164,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
       await saveWorkshops(updatedList);
       setIsExtracting(false);
 
-      // 4. Masuk ke FeedScreen setelah data berhasil diperoleh
+      // 4. Masuk ke FeedScreen setelah stream siap
       onOpenWorkshop?.(videoId, count);
     } catch (err: any) {
       setIsExtracting(false);
       ToastManager.show({
         type: 'error',
-        title: 'Gagal Membuat Workshop',
+        title: 'Gagal Menyiapkan Workshop',
         rawError: err.rawError || err.stack || err.message,
         errorCode: err.code || 'WORKSHOP_ERROR',
         duration: 6000,
@@ -189,33 +180,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
 
   const handleOpenExisting = async (videoId: string, count: number, playMode: 'local' | 'stream' = 'local') => {
     try {
-      // 1. Cek apakah draft sudah ada, jika belum fetch heatmap
-      let savedDraft = await LocalStorage.getItem(`clips_draft_${videoId}`);
-      let hasValidClips = false;
-
-      if (savedDraft) {
-        try {
-          const parsed = JSON.parse(savedDraft);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            hasValidClips = true;
-          }
-        } catch (e) {}
-      }
-
-      if (!hasValidClips) {
-        const data = await fetchHeatmap(videoId, 100, 0);
-        if (!data.clips || data.clips.length === 0) {
-          throw new Error('Heatmap tidak mengembalikan klip.');
-        }
-
-        const formattedClips = data.clips.map((c, idx) => ({
-          ...c,
-          status: 'none' as const,
-          rank: c.rank || idx + 1,
-        }));
-
-        await LocalStorage.setItem(`clips_draft_${videoId}`, JSON.stringify(formattedClips));
-        await LocalStorage.setItem(`clipping_full_fetched_${videoId}`, 'true');
+      // 1. Cek apakah draft sudah ada, jika belum inisialisasi draft kosong
+      const savedDraft = await LocalStorage.getItem(`clips_draft_${videoId}`);
+      if (!savedDraft) {
+        await LocalStorage.setItem(`clips_draft_${videoId}`, '[]');
       }
 
       // 2. Ambil direct stream URL jika memilih mode stream online

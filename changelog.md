@@ -14,7 +14,36 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Synchronize Python Engine Scripts to Embedded Native Bundle for Production and Dev Builds
+## [Unreleased] - Support Zero-Heatmap Rooms with Pure In-Memory Visual Fallback and On-Demand Extraction
+- **Konteks Struktural**:
+  1. Penanganan Room Video Tanpa Heatmap / Ekstraksi Heatmap Gagal:
+     - Mengubah alur pembuatan room di [Dashboard.tsx](file:///d:/projects/clipping/mobile/src/components/Dashboard.tsx):
+       - Menghapus kewajiban ekstraksi heatmap saat pertama kali menekan "Buat".
+       - Hanya mengambil direct stream URL (`fetchStreamUrl`) agar pengguna dapat langsung menonton video saat masuk kamar, dan menginisialisasi draft klip kosong (`[]`) di storage tanpa memblokir atau melempar error.
+       - Pada pembukaan workshop lama (`handleOpenExisting`), tidak lagi melempar error bila draft kosong atau heatmap tidak ada.
+  2. Visual Fallback 1 Klip Murni di Tampilan (In-Memory Carousel Fallback):
+     - Pada [useClipData.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipData.ts), ketika panjang klip bernilai 0 (`clips.length === 0`):
+       - Menyediakan 1 klip fallback virtual (`id: 'fallback_init'`, rank: 1, rentang 0:00 - 0:15) pada `visibleClips`, `clipColumns`, dan `activeClip` agar antarmuka carousel, pemutar video, dan kontrol tidak mengalami crash.
+       - **Bebas Persistensi JSON**: Klip fallback ini 100% virtual di antarmuka dan TIDAK PERNAH disimpan ke dalam file JSON draft workspace (`clips_draft_${videoId}`).
+       - Begitu pengguna menambahkan klip custom (`+`) atau mengekstrak heatmap, klip fallback ini otomatis lenyap.
+       - Jika pengguna berinteraksi langsung dengan tombol crop/extend, milidetik, atau tombol selesai (done) saat klip fallback aktif, aksi tersebut otomatis mengonversi rentang menjadi klip custom resmi di memori dan storage.
+  3. Ekstraksi Heatmap On-Demand via Modal Jumlah Klip Heatmap:
+     - Ketika pengguna membuka modal jumlah klip heatmap ([VisibleCountModal.tsx](file:///d:/projects/clipping/mobile/src/components/feed/VisibleCountModal.tsx)) dan menekan tombol "Terapkan":
+       - Jika klip heatmap belum ada di workspace (`existingHeatmapClips.length === 0`), sistem secara otomatis menjalankan ekstraksi `fetchHeatmap(videoId, 100, 0)`.
+       - Jika berhasil, klip heatmap digabungkan dengan klip custom yang ada, disimpan ke storage, dan visual fallback otomatis hilang.
+       - Jika heatmap tidak tersedia atau gagal diekstrak, sistem menampilkan notifikasi Toast tanpa mengeluarkan pengguna dari kamar, sehingga pemotongan klip manual tetap dapat dilakukan dengan normal.
+- **Perubahan Kode Penting**:
+  - [mobile/src/components/Dashboard.tsx](file:///d:/projects/clipping/mobile/src/components/Dashboard.tsx):
+    - `handleCreateWorkshop`: Menghapus panggilan wajib `fetchHeatmap` dan menggantinya dengan inisialisasi draft kosong (`[]`) setelah `fetchStreamUrl` berhasil.
+    - `handleOpenExisting`: Mengeliminasi pengecekan throw error pada klip heatmap yang kosong, memastikan pembukaan room selalu lancar.
+    - Menghapus import `fetchHeatmap` yang tidak lagi digunakan di Dashboard.
+  - [mobile/src/hooks/useClipData.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipData.ts):
+    - `loadData`: Mengizinkan `loadedClips` kosong tanpa melempar exception atau memanggil `onBack()`.
+    - `activeClip`, `visibleClips`, `clipColumns`: Menyediakan 1 klip fallback virtual murni ketika `clips.length === 0`.
+    - `handleUpdateStart`, `handleUpdateEnd`, `handleMsTimeChange`, `handleToggleDone`: Mengonversi visual fallback menjadi klip custom saat diedit atau ditandai done.
+    - `handleSetVisibleHeatmapCount`: Menambahkan pengecekan on-demand untuk mengekstrak heatmap saat user menekan 'Terapkan' jika klip heatmap belum tersedia.
+
+## [2a524f8] - Synchronize Python Engine Scripts to Embedded Native Bundle for Production and Dev Builds
 - **Konteks Struktural**:
   1. Sinkronisasi Skrip Python ke Native Chaquopy Bundle:
      - Menyalin seluruh skrip Python versi terbaru dari direktori pengembangan utama ([mobile/scripts/utils/](file:///d:/projects/clipping/mobile/scripts/utils)) ke dalam bundle modul native Chaquopy ([mobile/modules/python-runner/android/src/main/python/utils/](file:///d:/projects/clipping/mobile/modules/python-runner/android/src/main/python/utils)) menjelang persiapan build APK production dan development.

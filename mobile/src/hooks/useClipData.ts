@@ -82,17 +82,31 @@ export function useClipData({
     activeClipIdRef.current = activeClipId;
   }, [activeClipId]);
 
-  // Active clip reference
+  const FALLBACK_VIRTUAL_CLIP_ID = 'fallback_init';
+
+  // Active clip reference (Fallback virtual 1 klip jika belum ada klip sama sekali di workspace)
   const activeClip = useMemo(() => {
-    return (
-      clips.find((c) => c.id === activeClipId) ||
-      clips[0] || {
-        id: 'temp',
+    if (clips.length === 0) {
+      return {
+        id: FALLBACK_VIRTUAL_CLIP_ID,
         rank: 1,
         videoId,
         start: 0,
         end: 15,
         status: 'none' as const,
+        isCustom: false,
+      };
+    }
+    return (
+      clips.find((c) => c.id === activeClipId) ||
+      clips[0] || {
+        id: FALLBACK_VIRTUAL_CLIP_ID,
+        rank: 1,
+        videoId,
+        start: 0,
+        end: 15,
+        status: 'none' as const,
+        isCustom: false,
       }
     );
   }, [clips, activeClipId, videoId]);
@@ -134,69 +148,74 @@ export function useClipData({
           }
         } catch {}
 
-        // Cek apakah draft belum ada atau masih versi lama (hanya 50 klip heatmap)
+        // Jika room sudah memiliki klip heatmap lama (<100) dan belum pernah full-fetch, lakukan upgrade di latar belakang
         const nonCustomClips = loadedClips.filter((c) => !c.isCustom && c.rank !== 'custom');
         const hasAttemptedFull = await LocalStorage.getItem(`clipping_full_fetched_${videoId}`);
 
-        if (loadedClips.length === 0 || (!hasAttemptedFull && nonCustomClips.length < 100)) {
-          setLoadingMessage('Mengekstrak Heatmap AI (100 Klip)...');
+        if (nonCustomClips.length > 0 && nonCustomClips.length < 100 && !hasAttemptedFull) {
           try {
-            // Ekstrak 100 klip penuh dengan offset 0 (tepat pada momen puncak)
             const heatmapData = await fetchHeatmap(videoId, 100, 0);
             if (heatmapData.clips && heatmapData.clips.length > 0) {
-              if (loadedClips.length === 0) {
-                loadedClips = heatmapData.clips.map((c: any, idx: number) => ({
+              const existingStatusMap = new Map<string, ClipItem>();
+              loadedClips.forEach((c) => {
+                existingStatusMap.set(c.id, c);
+              });
+
+              const customClips = loadedClips.filter((c) => c.isCustom || c.rank === 'custom');
+              const mergedHeatmap = heatmapData.clips.map((c, idx) => {
+                const existing = existingStatusMap.get(c.id);
+                if (existing) {
+                  return {
+                    ...c,
+                    status: existing.status,
+                    start: existing.start,
+                    end: existing.end,
+                    rank: c.rank || idx + 1,
+                    isCustom: false,
+                  };
+                }
+                return {
                   ...c,
                   status: 'none' as const,
                   rank: c.rank || idx + 1,
                   isCustom: false,
-                }));
-              } else {
-                // Auto-upgrade: pertahankan status 'done'/'trash' dan custom clips yang sudah ada
-                const existingStatusMap = new Map<string, ClipItem>();
-                loadedClips.forEach((c) => {
-                  existingStatusMap.set(c.id, c);
-                });
-
-                const customClips = loadedClips.filter((c) => c.isCustom || c.rank === 'custom');
-                const mergedHeatmap = heatmapData.clips.map((c, idx) => {
-                  const existing = existingStatusMap.get(c.id);
-                  if (existing) {
-                    return {
-                      ...c,
-                      status: existing.status,
-                      start: existing.start,
-                      end: existing.end,
-                      rank: c.rank || idx + 1,
-                      isCustom: false,
-                    };
-                  }
-                  return {
-                    ...c,
-                    status: 'none' as const,
-                    rank: c.rank || idx + 1,
-                    isCustom: false,
-                  };
-                });
-                loadedClips = [...customClips, ...mergedHeatmap];
-              }
+                };
+              });
+              loadedClips = [...customClips, ...mergedHeatmap];
               await LocalStorage.setItem(DRAFT_KEY, JSON.stringify(loadedClips));
               await LocalStorage.setItem(`clipping_full_fetched_${videoId}`, 'true');
             }
           } catch (err: any) {
-            console.warn('[useClipData] Heatmap fetch/upgrade error:', err);
-            if (loadedClips.length === 0) throw err;
+            console.warn('[useClipData] Heatmap upgrade error:', err);
           }
         }
 
         let initialActiveClip: ClipItem | null = null;
+        if (loadedClips.length > 0) {
+          const initialVisible = [...loadedClips].sort((a, b) => a.start - b.start);
+          initialActiveClip = initialVisible[0];
+          if (isMounted) {
+            setActiveClipId(initialVisible[0].id);
+            activeClipIdRef.current = initialVisible[0].id;
+          }
+        } else {
+          initialActiveClip = {
+            id: FALLBACK_VIRTUAL_CLIP_ID,
+            rank: 1,
+            videoId,
+            start: 0,
+            end: 15,
+            status: 'none' as const,
+            isCustom: false,
+          };
+          if (isMounted) {
+            setActiveClipId(FALLBACK_VIRTUAL_CLIP_ID);
+            activeClipIdRef.current = FALLBACK_VIRTUAL_CLIP_ID;
+          }
+        }
+
         if (isMounted) {
           setClips(loadedClips);
-          const initialVisible = [...loadedClips].sort((a, b) => a.start - b.start);
-          if (initialVisible.length > 0) {
-            initialActiveClip = initialVisible[0];
-            setActiveClipId(initialVisible[0].id);
-          }
           setLoading(false);
         }
 
@@ -317,6 +336,31 @@ export function useClipData({
   // - Seek video terpusat dieksekusi 1x setelah user berhenti menekan tombol (debounce 500ms trailing)
   const handleUpdateStart = (delta: number) => {
     const currentActiveId = activeClipIdRef.current || activeClipId;
+
+    // Jika belum ada klip asli di workspace (sedang berinteraksi dengan visual fallback), konversi jadi klip custom
+    if (clipsRef.current.length === 0 || currentActiveId === FALLBACK_VIRTUAL_CLIP_ID) {
+      const targetStart = Math.max(0, Math.min(0 + delta, 15 - 1));
+      const newClip: ClipItem = {
+        id: `custom_${Date.now()}`,
+        rank: 'custom',
+        videoId,
+        start: targetStart,
+        end: 15,
+        status: 'none',
+        isCustom: true,
+      };
+      const updated = [newClip];
+      clipsRef.current = updated;
+      setClips(updated);
+      activeClipIdRef.current = newClip.id;
+      setActiveClipId(newClip.id);
+      LocalStorage.setItem(DRAFT_KEY, JSON.stringify(updated));
+      setProgressPercent(0);
+      setCurrentClipTime(0);
+      onSeek(targetStart, true);
+      return;
+    }
+
     let targetStart = 0;
     const updated = clipsRef.current.map((c) => {
       if (c.id === currentActiveId) {
@@ -336,6 +380,35 @@ export function useClipData({
 
   const handleUpdateEnd = (delta: number) => {
     const currentActiveId = activeClipIdRef.current || activeClipId;
+
+    // Jika belum ada klip asli di workspace, konversi visual fallback jadi klip custom
+    if (clipsRef.current.length === 0 || currentActiveId === FALLBACK_VIRTUAL_CLIP_ID) {
+      const newEnd = Math.max(0 + 1, 15 + delta);
+      const targetSeek = Math.max(0, newEnd - 3);
+      const newClip: ClipItem = {
+        id: `custom_${Date.now()}`,
+        rank: 'custom',
+        videoId,
+        start: 0,
+        end: newEnd,
+        status: 'none',
+        isCustom: true,
+      };
+      const updated = [newClip];
+      clipsRef.current = updated;
+      setClips(updated);
+      activeClipIdRef.current = newClip.id;
+      setActiveClipId(newClip.id);
+      LocalStorage.setItem(DRAFT_KEY, JSON.stringify(updated));
+      if (newEnd > 0) {
+        const pct = Math.max(0, Math.min(100, (targetSeek / newEnd) * 100));
+        setProgressPercent(pct);
+        setCurrentClipTime(targetSeek);
+      }
+      onSeek(targetSeek, true);
+      return;
+    }
+
     let targetSeek = 0;
     let newEnd = 0;
     const updated = clipsRef.current.map((c) => {
@@ -376,6 +449,58 @@ export function useClipData({
     if (isNaN(msValue)) return;
 
     const currentActiveId = activeClipIdRef.current || activeClipId;
+
+    // Jika visual fallback diedit milidetiknya, konversi jadi klip custom
+    if (clipsRef.current.length === 0 || currentActiveId === FALLBACK_VIRTUAL_CLIP_ID) {
+      const safeMs = Math.max(0, Math.min(99, msValue));
+      if (type === 'start') {
+        const validStart = Math.max(0, Math.min(safeMs / 100, 15 - 0.1));
+        const newClip: ClipItem = {
+          id: `custom_${Date.now()}`,
+          rank: 'custom',
+          videoId,
+          start: validStart,
+          end: 15,
+          status: 'none',
+          isCustom: true,
+        };
+        const updated = [newClip];
+        clipsRef.current = updated;
+        setClips(updated);
+        activeClipIdRef.current = newClip.id;
+        setActiveClipId(newClip.id);
+        LocalStorage.setItem(DRAFT_KEY, JSON.stringify(updated));
+        setProgressPercent(0);
+        setCurrentClipTime(0);
+        onSeek(validStart, true);
+      } else {
+        const validEnd = Math.max(0.1, 15 + safeMs / 100);
+        const targetSeek = Math.max(0, validEnd - 3);
+        const newClip: ClipItem = {
+          id: `custom_${Date.now()}`,
+          rank: 'custom',
+          videoId,
+          start: 0,
+          end: validEnd,
+          status: 'none',
+          isCustom: true,
+        };
+        const updated = [newClip];
+        clipsRef.current = updated;
+        setClips(updated);
+        activeClipIdRef.current = newClip.id;
+        setActiveClipId(newClip.id);
+        LocalStorage.setItem(DRAFT_KEY, JSON.stringify(updated));
+        if (validEnd > 0) {
+          const pct = Math.max(0, Math.min(100, (targetSeek / validEnd) * 100));
+          setProgressPercent(pct);
+          setCurrentClipTime(targetSeek);
+        }
+        onSeek(targetSeek, true);
+      }
+      return;
+    }
+
     const currentClip = clipsRef.current.find((c) => c.id === currentActiveId);
     if (!currentClip) return;
 
@@ -434,18 +559,57 @@ export function useClipData({
       setProgressPercent(0);
       setCurrentClipTime(0);
 
-      const targetClip = clipsRef.current.find((c) => c.id === clipId);
+      const targetClip =
+        clipsRef.current.find((c) => c.id === clipId) ||
+        (clipId === FALLBACK_VIRTUAL_CLIP_ID
+          ? {
+              id: FALLBACK_VIRTUAL_CLIP_ID,
+              rank: 1,
+              videoId,
+              start: 0,
+              end: 15,
+              status: 'none' as const,
+              isCustom: false,
+            }
+          : undefined);
       if (!targetClip) return;
 
       // Pindahkan playback sumber secara dinamis (Lokal vs Stream) dan lakukan seek seketika
       syncPlayerSourceForClip(targetClip, true);
     },
-    [syncPlayerSourceForClip, setProgressPercent, setCurrentClipTime, seekDebounceTimerRef]
+    [syncPlayerSourceForClip, setProgressPercent, setCurrentClipTime, seekDebounceTimerRef, videoId]
   );
 
   // Toggle clip Done status (hijau)
   const handleToggleDone = async () => {
     const currentActiveId = activeClipIdRef.current || activeClipId;
+
+    // Jika visual fallback ditandai done, konversi menjadi klip custom selesai
+    if (clipsRef.current.length === 0 || currentActiveId === FALLBACK_VIRTUAL_CLIP_ID) {
+      const newClip: ClipItem = {
+        id: `custom_${Date.now()}`,
+        rank: 'custom',
+        videoId,
+        start: 0,
+        end: 15,
+        status: 'done',
+        isCustom: true,
+      };
+      const updated = [newClip];
+      clipsRef.current = updated;
+      setClips(updated);
+      activeClipIdRef.current = newClip.id;
+      setActiveClipId(newClip.id);
+      LocalStorage.setItem(DRAFT_KEY, JSON.stringify(updated));
+      onUpdateWorkshopDone?.(videoId, 1);
+      ToastManager.show({
+        type: 'success',
+        title: 'Klip Ditandai Selesai',
+        duration: 2000,
+      });
+      return;
+    }
+
     let nextStatus: 'none' | 'done' = 'done';
     let targetClip: ClipItem | undefined;
     const updated = clipsRef.current.map((c) => {
@@ -491,6 +655,16 @@ export function useClipData({
   // Toggle clip Trash/Skip status (merah)
   const handleToggleTrash = () => {
     const currentActiveId = activeClipIdRef.current || activeClipId;
+
+    if (clipsRef.current.length === 0 || currentActiveId === FALLBACK_VIRTUAL_CLIP_ID) {
+      ToastManager.show({
+        type: 'info',
+        title: 'Klip Fallback',
+        duration: 2500,
+      });
+      return;
+    }
+
     const currentClip = clipsRef.current.find((c) => c.id === currentActiveId);
 
     // Jika klip custom: benar-benar hapus secara permanen (bukan hanya menandai trash)
@@ -550,13 +724,85 @@ export function useClipData({
     });
   };
 
-  // Ubah Jumlah Klip Heatmap yang Terlihat
-  const handleSetVisibleHeatmapCount = (count: number) => {
+  // Ubah Jumlah Klip Heatmap yang Terlihat (atau Ekstrak Heatmap on-demand jika belum ada)
+  const handleSetVisibleHeatmapCount = async (count: number) => {
     const validCount = Math.max(1, Math.min(100, count));
     setVisibleHeatmapCount(validCount);
     LocalStorage.setItem(`clipping_visible_count_${videoId}`, String(validCount));
 
-    // Cek apakah klip aktif saat ini masih termasuk dalam daftar klip yang terlihat
+    const existingHeatmapClips = clipsRef.current.filter((c) => !c.isCustom && c.rank !== 'custom');
+
+    // Jika belum ada klip heatmap (misal room dibuat tanpa fetch heatmap atau video baru),
+    // lakukan ekstraksi heatmap AI saat user menekan 'Terapkan'
+    if (existingHeatmapClips.length === 0) {
+      ToastManager.show({
+        type: 'info',
+        title: 'Mengekstrak Heatmap AI...',
+        duration: 4000,
+      });
+      try {
+        const heatmapData = await fetchHeatmap(videoId, 100, 0);
+        if (heatmapData.clips && heatmapData.clips.length > 0) {
+          const customClips = clipsRef.current.filter((c) => c.isCustom || c.rank === 'custom');
+          const formattedHeatmap: ClipItem[] = heatmapData.clips.map((c: any, idx: number) => ({
+            ...c,
+            status: 'none' as const,
+            rank: c.rank || idx + 1,
+            isCustom: false,
+          }));
+
+          const updated = [...customClips, ...formattedHeatmap];
+          clipsRef.current = updated;
+          setClips(updated);
+          await LocalStorage.setItem(DRAFT_KEY, JSON.stringify(updated));
+          await LocalStorage.setItem(`clipping_full_fetched_${videoId}`, 'true');
+
+          if (heatmapData.title) {
+            try {
+              const savedWorkshops = await LocalStorage.getItem('workshops_list');
+              if (savedWorkshops) {
+                const list = JSON.parse(savedWorkshops);
+                const idx = list.findIndex((w: any) => w.videoId === videoId);
+                if (idx >= 0) {
+                  list[idx].title = heatmapData.title;
+                  await LocalStorage.setItem('workshops_list', JSON.stringify(list));
+                }
+              }
+            } catch {}
+          }
+
+          // Pilih klip pertama dari daftar yang tampak
+          const visibleList = [...customClips, ...formattedHeatmap.slice(0, validCount)].sort((a, b) => a.start - b.start);
+          if (visibleList.length > 0) {
+            handleSelectClip(visibleList[0].id);
+          }
+
+          ToastManager.show({
+            type: 'success',
+            title: `Heatmap Dimuat (${formattedHeatmap.length} Klip)`,
+            duration: 2500,
+          });
+        } else {
+          ToastManager.show({
+            type: 'info',
+            title: 'Heatmap Tidak Tersedia',
+            duration: 3000,
+          });
+        }
+      } catch (err: any) {
+        console.warn('[useClipData] Heatmap fetch error on apply count:', err);
+        ToastManager.show({
+          type: 'error',
+          title: 'Gagal Mengambil Heatmap',
+          rawError: err.rawError || err.stack || err.message,
+          errorCode: err.code || 'HEATMAP_ERROR',
+          duration: 5000,
+        });
+      }
+      return;
+    }
+
+    // Jika klip heatmap sudah ada di memori/storage, sesuaikan count seperti biasa
     const customClips = clipsRef.current.filter((c) => c.isCustom || c.rank === 'custom');
     const heatmapClips = clipsRef.current
       .filter((c) => !c.isCustom && c.rank !== 'custom')
@@ -574,7 +820,6 @@ export function useClipData({
     const isCurrentStillVisible = visibleList.some((c) => c.id === currentActiveId);
 
     if (!isCurrentStillVisible && visibleList.length > 0) {
-      // Cari klip di visibleList yang titik waktunya (start) paling mendekati klip sebelumnya
       const currentActive = clipsRef.current.find((c) => c.id === currentActiveId);
       const currentStart = currentActive ? currentActive.start : 0;
 
@@ -602,7 +847,22 @@ export function useClipData({
   // 1. Klip Custom: SELALU DITAMPILKAN
   // 2. Klip Heatmap: Diambil N klip teratas berdasarkan ranking intensitas (rank 1..N)
   // 3. Gabungan keduanya diurutkan secara kronologis berdasarkan waktu mulai (start)
+  // 4. Jika clips.length === 0 (belum ada klip di workspace), sediakan 1 klip fallback virtual murni di UI
   const visibleClips = useMemo(() => {
+    if (clips.length === 0) {
+      return [
+        {
+          id: FALLBACK_VIRTUAL_CLIP_ID,
+          rank: 1,
+          videoId,
+          start: 0,
+          end: 15,
+          status: 'none' as const,
+          isCustom: false,
+        },
+      ];
+    }
+
     const customClips = clips.filter((c) => c.isCustom || c.rank === 'custom');
     const heatmapClips = clips
       .filter((c) => !c.isCustom && c.rank !== 'custom')
@@ -616,7 +876,7 @@ export function useClipData({
       .slice(0, visibleHeatmapCount);
 
     return [...customClips, ...heatmapClips].sort((a, b) => a.start - b.start);
-  }, [clips, visibleHeatmapCount]);
+  }, [clips, visibleHeatmapCount, videoId]);
 
   const clipColumns = useMemo(() => {
     const cols: ClipItem[][] = [];
