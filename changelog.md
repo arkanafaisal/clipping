@@ -14,7 +14,21 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Restore 4:3 Facecam Highlight Preview with Real-Time Framing Controls Above Main Video Player
+## [Unreleased] - Revert Base Time Display During Millisecond Editing to Render Exclusive In-Place Input Field
+- **Konteks Struktural**:
+  1. Pengembalian Tampilan Murni Milidetik Saat Mode Sunting Aktif:
+     - Mengeliminasi rendering teks waktu dasar dan tanda titik (`formatDisplayTime(time).`) yang sebelumnya disisipkan saat pengguna mengetuk angka waktu untuk mengubah milidetik pada [FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx).
+     - Memastikan bahwa saat pengguna masuk ke mode edit milidetik (`start` atau `end`), elemen yang ditampilkan murni hanya kotak input milidetik (`TextInput`), menjaga antarmuka tetap minimal, bersih, dan fokus tanpa penambahan elemen spekulatif yang tidak diminta.
+- **Perubahan Kode Penting**:
+  - [mobile/src/components/feed/FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx):
+    - Mengembalikan `TextInput` mandiri tanpa pembungkus `timeEditWrapper` atau teks waktu dasar pada kondisi `activeTimeEdit === 'start'` maupun `activeTimeEdit === 'end'`.
+    - Menghapus style `timeEditWrapper` dan menetapkan `minWidth: 44` pada `timeInput` untuk kenyamanan pengetikan dua digit angka.
+  - [changelog.md](file:///d:/projects/clipping/changelog.md):
+    - Menghapus dokumentasi spekulatif terkait `timeEditWrapper` pada commit `6b32109` dan mencatat pemulihan antarmuka input milidetik murni.
+  - [GEMINI.md](file:///d:/projects/clipping/GEMINI.md):
+    - Menambahkan aturan baru `23. [UX]` yang melarang penambahan angka waktu dasar spekulatif saat menyunting input milidetik.
+
+## [94582d1] - Restore 4:3 Facecam Highlight Preview with Real-Time Framing Controls Above Main Video Player
 - **Konteks Struktural**:
   1. Restorasi Fitur Highlight Facecam (4:3 Landscape) Mengisi Gap Vertikal:
      - Setelah pemutar video utama 16:9 diturunkan posisinya hingga mepet di atas progress bar pencarian (seek bar), tercipta celah/gap hitam kosong antara kontrol pemotongan atas (FeedTopControls) dan pemutar video utama.
@@ -161,12 +175,10 @@ Format Entri:
 
 ## [6b32109] - Refine In-Place Millisecond Input Presentation in Feed Top Banner
 - **Konteks Struktural**:
-  1. Presentasi Waktu Murni HH:MM:SS / MM:SS dengan Input Milidetik Kontekstual:
+  1. Presentasi Waktu Murni HH:MM:SS / MM:SS pada Banner Rentang Atas:
      - Memastikan banner rentang atas pada [FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx) selalu menampilkan waktu dasar bersih dalam format jam:menit:detik murni tanpa pecahan milidetik saat mode baca/diam.
-     - Saat teks waktu ditekan untuk diedit, angka waktu dasar tetap dipertahankan dengan tanda titik (`.`) dan kotak input kecil terfokus khusus milidetik (`timeEditWrapper`), sehingga pengguna melihat waktu secara utuh (`HH:MM:SS.[MS]`) tanpa kehilangan konteks detik atau jam saat menyunting presisi fraksi.
 - **Perubahan Kode Penting**:
   - [mobile/src/components/feed/FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx):
-    - Mengintegrasikan kontainer `timeEditWrapper` yang menampilkan `formatTime(start).` atau `formatTime(end).` bersamaan dengan `TextInput` milidetik beraksen cyan `#38bdf8`.
     - Membersihkan impor fungsi yang tidak terpakai (`formatTimeWithMs`).
 
 ## [dbb8f3c] - Consolidate Shared Storage and Cookies into Unified Settings Modal and Streamline Dashboard Header

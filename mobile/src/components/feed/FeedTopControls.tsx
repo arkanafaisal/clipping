@@ -106,23 +106,18 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
           ) : (
             <View style={styles.timeDisplay}>
               {activeTimeEdit === 'start' ? (
-                <View style={styles.timeEditWrapper}>
-                  <Text style={styles.timeNumberText}>
-                    {formatDisplayTime(activeClip.start)}.
-                  </Text>
-                  <TextInput
-                    style={styles.timeInput}
-                    value={tempTimeValue}
-                    onChangeText={(val) => onMsTimeChange('start', val)}
-                    onBlur={onBlurTimeEdit}
-                    keyboardType="number-pad"
-                    maxLength={2}
-                    autoFocus
-                    selectTextOnFocus
-                    placeholder="00"
-                    placeholderTextColor="rgba(255, 255, 255, 0.4)"
-                  />
-                </View>
+                <TextInput
+                  style={styles.timeInput}
+                  value={tempTimeValue}
+                  onChangeText={(val) => onMsTimeChange('start', val)}
+                  onBlur={onBlurTimeEdit}
+                  keyboardType="number-pad"
+                  maxLength={2}
+                  autoFocus
+                  selectTextOnFocus
+                  placeholder="00"
+                  placeholderTextColor="rgba(255, 255, 255, 0.4)"
+                />
               ) : (
                 <Pressable
                   style={styles.timePressable}
@@ -138,23 +133,18 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
               <Text style={styles.timeSeparatorText}>-</Text>
 
               {activeTimeEdit === 'end' ? (
-                <View style={styles.timeEditWrapper}>
-                  <Text style={styles.timeNumberText}>
-                    {formatDisplayTime(activeClip.end)}.
-                  </Text>
-                  <TextInput
-                    style={styles.timeInput}
-                    value={tempTimeValue}
-                    onChangeText={(val) => onMsTimeChange('end', val)}
-                    onBlur={onBlurTimeEdit}
-                    keyboardType="number-pad"
-                    maxLength={2}
-                    autoFocus
-                    selectTextOnFocus
-                    placeholder="00"
-                    placeholderTextColor="rgba(255, 255, 255, 0.4)"
-                  />
-                </View>
+                <TextInput
+                  style={styles.timeInput}
+                  value={tempTimeValue}
+                  onChangeText={(val) => onMsTimeChange('end', val)}
+                  onBlur={onBlurTimeEdit}
+                  keyboardType="number-pad"
+                  maxLength={2}
+                  autoFocus
+                  selectTextOnFocus
+                  placeholder="00"
+                  placeholderTextColor="rgba(255, 255, 255, 0.4)"
+                />
               ) : (
                 <Pressable
                   style={styles.timePressable}
@@ -417,17 +407,12 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.25)',
   },
-  timeEditWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-  },
   timeInput: {
-    minWidth: 32,
+    minWidth: 44,
     height: 28,
     backgroundColor: '#18181b',
     borderRadius: 6,
-    paddingHorizontal: 4,
+    paddingHorizontal: 6,
     paddingVertical: 0,
     textAlign: 'center',
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
