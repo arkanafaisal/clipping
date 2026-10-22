@@ -14,7 +14,36 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Streamline Notifications to Single-Context Titles, Eliminate False-Positive Cookie Handling, and Add Manual Cookie Renewal in Dashboard
+## [Unreleased] - Add Local vs Stream Playback Selection Modal, Fix Scrubber Seeking on Full Video, and Optimize Local Debouncing
+- **Konteks Struktural**:
+  1. Dialog Pemilihan Sumber Pemutar (Play Mode Selection):
+     - Menambahkan komponen [PlayModeModal.tsx](file:///d:/projects/clipping/mobile/src/components/PlayModeModal.tsx) di [Dashboard.tsx](file:///d:/projects/clipping/mobile/src/components/Dashboard.tsx) yang secara interaktif menanyakan preferensi pemutaran ("Video Lokal Offline" vs "Streaming YouTube Online") saat pengguna menekan kartu workshop yang telah memiliki file full video.
+     - Jika file full video belum tersedia di shared storage, aplikasi langsung membuka workshop dalam mode stream online tanpa memunculkan modal dialog.
+     - Preferensi mode (`playMode: 'local' | 'stream'`) diteruskan secara transparan dari Dashboard melalui [app/index.tsx](file:///d:/projects/clipping/mobile/src/app/index.tsx) menuju [FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx) dan [useClipPlayer.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipPlayer.ts), memungkinkan pengguna tetap memilih mode stream YouTube secara sadar meskipun file lokal tersedia.
+  2. Perbaikan Kegagalan Lompat / Hold Progress Bar Scrubber pada Video Lokal:
+     - Memperbaiki bug pada `onScrubberPress` di [FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx) yang sebelumnya keliru memperlakukan semua URI `file://` sebagai file klip individual berdurasi 0–15 detik, sehingga memicu reset boundary loop seketika pada file full video (`full.mp4`).
+     - Membedakan kalkulasi waktu lompat antara klip terpotong individual (`(pct / 100) * duration`) dan video utuh/stream (`currentActive.start + (pct / 100) * duration`).
+     - Memperbaiki snap target pada handler `readyToPlay` di [useClipPlayer.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipPlayer.ts) agar tidak mereset target waktu `full.mp4` ke detik 0.
+  3. Optimalisasi Debouncing Video Lokal untuk Mencegah Choking Decoder:
+     - Mengubah debounce seek video lokal dari 0ms menjadi 150ms di [useClipPlayer.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipPlayer.ts). Debounce 150ms menyerap semburan micro-events saat user menggeser atau menahan scrubber, menjaga stabilitas hardware decoder video HP tanpa terasa lambat atau lagging, sementara transisi pindah klip tetap instan.
+- **Perubahan Kode Penting**:
+  - [mobile/src/components/PlayModeModal.tsx](file:///d:/projects/clipping/mobile/src/components/PlayModeModal.tsx):
+    - Membuat modal pilihan sumber pemutar dengan opsi "Gunakan Video Lokal" (bebas kuota / offline) dan "Streaming YouTube" (online).
+  - [mobile/src/components/Dashboard.tsx](file:///d:/projects/clipping/mobile/src/components/Dashboard.tsx):
+    - Mengintegrasikan `PlayModeModal` dan fungsi `handleCardPress` yang mendeteksi ketersediaan full video sebelum membuka workshop.
+    - Menyesuaikan `handleOpenExisting` untuk menerima parameter `playMode` dan hanya memanggil `fetchStreamUrl` jika mode stream dipilih.
+  - [mobile/src/app/index.tsx](file:///d:/projects/clipping/mobile/src/app/index.tsx):
+    - Menambahkan `playMode` pada interface `ActiveWorkshop` dan meneruskannya ke `FeedScreen`.
+  - [mobile/src/components/FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
+    - Menerima props `playMode` dan meneruskannya ke hook `useClipPlayer`.
+    - Memperbaiki `onScrubberPress` agar mendeteksi file klip terpotong vs video utuh `full.mp4`.
+  - [mobile/src/hooks/useClipPlayer.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipPlayer.ts):
+    - Menambahkan parameter `playMode` pada `useClipPlayer`.
+    - Mengatur `debounceMs = isLocalMode ? 150 : 350` di `centralizedSeek`.
+    - Memperbaiki target snap pada `statusChange` (`readyToPlay`) untuk membedakan klip terpotong dengan `full.mp4`.
+    - Mengkondisikan pemutaran `fullVideoUri` di `syncPlayerSourceForClip` dan `initializeStreamAndPlayback` agar menghormati preferensi `playMode === 'stream'`.
+
+## [f163785] - Streamline Notifications to Single-Context Titles, Eliminate False-Positive Cookie Handling, and Add Manual Cookie Renewal in Dashboard
 - **Konteks Struktural**:
   1. Penyederhanaan Notifikasi Toast (Single-Context Title & Raw Error Modal):
      - Menghapus rendering deskripsi kalimat panjang (`message`) pada banner toast di [Toast.tsx](file:///d:/projects/clipping/mobile/src/components/Toast.tsx) sehingga tampilan notifikasi menjadi ringkas satu baris yang murni menjelaskan status fitur berhasil/gagal ("Fitur X Berhasil" / "Fitur X Gagal").

@@ -13,6 +13,7 @@ import { WorkshopCard, WorkshopItem } from './WorkshopCard';
 import { WorkshopInputForm } from './WorkshopInputForm';
 import { ImportWorkshopModal } from './ImportWorkshopModal';
 import { CookiesModal } from './CookiesModal';
+import { PlayModeModal } from './PlayModeModal';
 import { StorageConfigSection } from './StorageConfigSection';
 import { LocalStorage } from '../services/storage';
 import { ToastManager } from './Toast';
@@ -37,7 +38,7 @@ function formatTimeWithMs(seconds: number): string {
 }
 
 interface DashboardProps {
-  onOpenWorkshop?: (videoId: string, count: number) => void;
+  onOpenWorkshop?: (videoId: string, count: number, playMode?: 'local' | 'stream') => void;
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
@@ -45,6 +46,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [importModalVisible, setImportModalVisible] = useState(false);
   const [cookiesModalVisible, setCookiesModalVisible] = useState(false);
+  const [playModeTarget, setPlayModeTarget] = useState<{ videoId: string; count: number } | null>(null);
   const [isExtracting, setIsExtracting] = useState(false);
   const [fullVideoStatus, setFullVideoStatus] = useState<
     Record<string, { exists: boolean; isDownloading: boolean; percent: number }>
@@ -180,7 +182,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
     }
   };
 
-  const handleOpenExisting = async (videoId: string, count: number) => {
+  const handleOpenExisting = async (videoId: string, count: number, playMode: 'local' | 'stream' = 'local') => {
     try {
       // 1. Cek apakah draft sudah ada, jika belum fetch heatmap
       let savedDraft = await LocalStorage.getItem(`clips_draft_${videoId}`);
@@ -210,9 +212,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
         await LocalStorage.setItem(`clips_draft_${videoId}`, JSON.stringify(formattedClips));
       }
 
-      // 2. Ambil direct stream URL (jika belum ada full video lokal)
-      const hasFull = await checkFullVideoExists(videoId);
-      if (!hasFull) {
+      // 2. Ambil direct stream URL jika memilih mode stream online
+      if (playMode === 'stream') {
         await fetchStreamUrl(videoId);
       }
 
@@ -225,8 +226,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
       }
 
       // 4. Masuk ke FeedScreen setelah respons berhasil
-      onOpenWorkshop?.(videoId, count);
+      setPlayModeTarget(null);
+      onOpenWorkshop?.(videoId, count, playMode);
     } catch (err: any) {
+      setPlayModeTarget(null);
       ToastManager.show({
         type: 'error',
         title: 'Gagal Membuka Workshop',
@@ -234,6 +237,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
         errorCode: err.code,
         duration: 5000,
       });
+    }
+  };
+
+  const handleCardPress = async (videoId: string, count: number) => {
+    const hasFull = Boolean(fullVideoStatus[videoId]?.exists) || (await checkFullVideoExists(videoId));
+    if (hasFull) {
+      setPlayModeTarget({ videoId, count });
+    } else {
+      handleOpenExisting(videoId, count, 'stream');
     }
   };
 
@@ -454,7 +466,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
             isDownloadingFullVideo={Boolean(fullVideoStatus[ws.videoId]?.isDownloading)}
             downloadPercent={fullVideoStatus[ws.videoId]?.percent || 0}
             onDownloadFullVideo={handleDownloadFullVideo}
-            onPress={(vid) => handleOpenExisting(vid, ws.count || 50)}
+            onPress={(vid) => handleCardPress(vid, ws.count || 50)}
             onDelete={handleDeleteWorkshop}
             onBulkWA={handleBulkWA}
           />
@@ -472,6 +484,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
       <CookiesModal
         visible={cookiesModalVisible}
         onClose={() => setCookiesModalVisible(false)}
+      />
+
+      {/* 7. Modal Pilihan Mode Pemutaran (Lokal vs Stream) */}
+      <PlayModeModal
+        visible={Boolean(playModeTarget)}
+        onClose={() => setPlayModeTarget(null)}
+        onSelectLocal={() => {
+          if (playModeTarget) {
+            const { videoId, count } = playModeTarget;
+            handleOpenExisting(videoId, count, 'local');
+          }
+        }}
+        onSelectStream={() => {
+          if (playModeTarget) {
+            const { videoId, count } = playModeTarget;
+            handleOpenExisting(videoId, count, 'stream');
+          }
+        }}
       />
     </ScrollView>
   );

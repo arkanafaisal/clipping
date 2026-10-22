@@ -16,6 +16,7 @@ export interface UseClipPlayerParams {
   activeClipIdRef: React.MutableRefObject<string | null>;
   activeClip?: ClipItem;
   downloadedClipsRef: React.MutableRefObject<Record<string, boolean>>;
+  playMode?: 'local' | 'stream';
   onBack: () => void;
 }
 
@@ -25,6 +26,7 @@ export function useClipPlayer({
   activeClipIdRef,
   activeClip,
   downloadedClipsRef,
+  playMode = 'local',
   onBack,
 }: UseClipPlayerParams) {
   const getActiveClip = useCallback((): ClipItem => {
@@ -140,8 +142,8 @@ export function useClipPlayer({
           }
         }
       } else {
-        // Prioritas Utama: Periksa apakah file full video lokal tersedia di shared storage
-        const fullVideoUri = await resolvePlayableFullVideoUri(videoId);
+        // Prioritas Utama: Periksa apakah file full video lokal tersedia di shared storage (HANYA jika playMode !== 'stream')
+        const fullVideoUri = playMode === 'stream' ? null : await resolvePlayableFullVideoUri(videoId);
         const targetTime = Math.max(0, clip.start);
         setPendingSeek(targetTime);
 
@@ -188,7 +190,7 @@ export function useClipPlayer({
         }
       }
     },
-    [player, videoId, setPendingSeek, downloadedClipsRef]
+    [player, videoId, setPendingSeek, downloadedClipsRef, playMode]
   );
 
   /**
@@ -212,10 +214,12 @@ export function useClipPlayer({
         clearTimeout(seekDebounceTimerRef.current);
       }
 
-      // Jika memutar file lokal fisik (file://), matikan debounce (seek instan 0ms)
-      // karena file disk lokal tidak terkena rate limit YouTube
+      // Debounce seek:
+      // 1. File lokal fisik (file://): Gunakan debounce 150ms agar hardware decoder HP tidak tersedak (choked)
+      //    oleh banjir micro-events saat user menggeser/menahan progress bar scrubber.
+      // 2. Stream online: Gunakan 350ms untuk menghemat kuota dan rate limit server YouTube.
       const isLocalMode = currentSourceUriRef.current.startsWith('file://');
-      const debounceMs = isLocalMode ? 0 : 500;
+      const debounceMs = isLocalMode ? 150 : 350;
 
       const executeSeek = () => {
         const finalTarget = pendingSeekTargetRef.current;
@@ -238,11 +242,7 @@ export function useClipPlayer({
         seekDebounceTimerRef.current = null;
       };
 
-      if (debounceMs === 0) {
-        executeSeek();
-      } else {
-        seekDebounceTimerRef.current = setTimeout(executeSeek, debounceMs);
-      }
+      seekDebounceTimerRef.current = setTimeout(executeSeek, debounceMs);
     },
     [player, setPendingSeek]
   );
@@ -316,11 +316,17 @@ export function useClipPlayer({
         // JANGAN snap pada seek biasa (crop/extend/skip/scrubber) agar posisi seek user tidak tertimpa ke awal klip!
         if (isSourceSwitchingRef.current) {
           isSourceSwitchingRef.current = false;
-          const isLocalMode = currentSourceUriRef.current.startsWith('file://');
+          const currentSource = currentSourceUriRef.current;
+          const isIndividualCutClip =
+            currentActive.status === 'done' &&
+            Boolean(downloadedClipsRef.current[currentActive.id]) &&
+            !currentSource.endsWith('/full.mp4') &&
+            !currentSource.endsWith('/full_video.mp4');
+
           const targetTime =
             pendingSeekTargetRef.current !== null
               ? pendingSeekTargetRef.current
-              : isLocalMode
+              : isIndividualCutClip
               ? 0
               : Math.max(0, currentActive.start);
 
@@ -498,27 +504,29 @@ export function useClipPlayer({
         return;
       }
 
-      // 2. Prioritas Kedua: Cek apakah file fisik full video lokal sudah ada di shared storage
-      try {
-        const fullVideoUri = await resolvePlayableFullVideoUri(videoId);
-        if (fullVideoUri) {
-          currentSourceUriRef.current = fullVideoUri;
-          setPendingSeek(firstClipStart);
-          isSourceSwitchingRef.current = true;
-          player.replace(fullVideoUri);
-          try {
-            player.currentTime = firstClipStart;
-            player.play();
-          } catch (e) {}
-          ToastManager.show({
-            type: 'success',
-            title: 'Memutar Full Video Lokal',
-            duration: 2500,
-          });
-          return;
+      // 2. Prioritas Kedua: Cek apakah file fisik full video lokal sudah ada di shared storage (HANYA jika playMode !== 'stream')
+      if (playMode !== 'stream') {
+        try {
+          const fullVideoUri = await resolvePlayableFullVideoUri(videoId);
+          if (fullVideoUri) {
+            currentSourceUriRef.current = fullVideoUri;
+            setPendingSeek(firstClipStart);
+            isSourceSwitchingRef.current = true;
+            player.replace(fullVideoUri);
+            try {
+              player.currentTime = firstClipStart;
+              player.play();
+            } catch (e) {}
+            ToastManager.show({
+              type: 'success',
+              title: 'Memutar Full Video Lokal',
+              duration: 2500,
+            });
+            return;
+          }
+        } catch (checkErr) {
+          console.warn('[Feed] Check full video error:', checkErr);
         }
-      } catch (checkErr) {
-        console.warn('[Feed] Check full video error:', checkErr);
       }
 
       // 3. Fallback: Ambil stream URL YouTube online jika belum ada file lokal
@@ -554,7 +562,7 @@ export function useClipPlayer({
         });
       }
     },
-    [videoId, player, setPendingSeek]
+    [videoId, player, setPendingSeek, playMode]
   );
 
   return {

@@ -10,6 +10,7 @@ import { pingServer } from '../services/api';
 interface ActiveWorkshop {
   videoId: string;
   count: number;
+  playMode?: 'local' | 'stream';
 }
 
 export default function HomeScreen() {
@@ -42,8 +43,8 @@ export default function HomeScreen() {
     return () => clearTimeout(timer);
   }, []);
 
-  const handleOpenWorkshop = (videoId: string, count: number) => {
-    setActiveWorkshop({ videoId, count });
+  const handleOpenWorkshop = (videoId: string, count: number, playMode?: 'local' | 'stream') => {
+    setActiveWorkshop({ videoId, count, playMode });
   };
 
   const handleBackToDashboard = () => {
@@ -58,6 +59,7 @@ export default function HomeScreen() {
           <FeedScreen
             videoId={activeWorkshop.videoId}
             initialCount={activeWorkshop.count}
+            playMode={activeWorkshop.playMode}
             onBack={handleBackToDashboard}
           />
         ) : (

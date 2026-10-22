@@ -19,6 +19,7 @@ import { useClipDownload } from '../hooks/useClipDownload';
 interface FeedScreenProps {
   videoId: string;
   initialCount?: number;
+  playMode?: 'local' | 'stream';
   onBack: () => void;
   onUpdateWorkshopDone?: (videoId: string, doneCount: number) => void;
 }
@@ -26,6 +27,7 @@ interface FeedScreenProps {
 export const FeedScreen: React.FC<FeedScreenProps> = ({
   videoId,
   initialCount = 50,
+  playMode = 'local',
   onBack,
   onUpdateWorkshopDone,
 }) => {
@@ -61,6 +63,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     clipsRef,
     activeClipIdRef,
     downloadedClipsRef,
+    playMode,
     onBack,
   });
 
@@ -202,10 +205,16 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
           const duration = currentActive.end - currentActive.start;
           if (duration <= 0 || trackWidthRef.current <= 0) return;
 
-          const isLocalMode = currentSourceUriRef.current.startsWith('file://');
+          const currentSource = currentSourceUriRef.current;
+          const isIndividualCutClip =
+            currentActive.status === 'done' &&
+            Boolean(downloadedClipsRef.current[currentActive.id]) &&
+            !currentSource.endsWith('/full.mp4') &&
+            !currentSource.endsWith('/full_video.mp4');
+
           const locationX = e.nativeEvent.locationX;
           const pct = Math.max(0, Math.min(100, (locationX / trackWidthRef.current) * 100));
-          const targetTime = isLocalMode
+          const targetTime = isIndividualCutClip
             ? (pct / 100) * duration
             : currentActive.start + (pct / 100) * duration;
 
