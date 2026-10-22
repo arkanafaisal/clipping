@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
-import { Play, Trash2, MessageCircle, Download, CheckCircle2 } from 'lucide-react-native';
+import { Play, Trash2, MessageCircle, Share2, CloudOff } from 'lucide-react-native';
 
 export interface WorkshopItem {
   videoId: string;
@@ -18,6 +18,7 @@ interface WorkshopCardProps {
   onPress: (videoId: string) => void;
   onDelete: (videoId: string) => void;
   onBulkWA?: (videoId: string) => void;
+  onExport?: (videoId: string) => void;
   onDownloadFullVideo?: (videoId: string) => void;
 }
 
@@ -29,11 +30,10 @@ export const WorkshopCard: React.FC<WorkshopCardProps> = ({
   onPress,
   onDelete,
   onBulkWA,
+  onExport,
   onDownloadFullVideo,
 }) => {
   const thumbnailUrl = `https://img.youtube.com/vi/${workshop.videoId}/mqdefault.jpg`;
-  const clipCount = workshop.count || 50;
-  const doneCount = workshop.doneCount || 0;
 
   return (
     <TouchableOpacity
@@ -57,14 +57,6 @@ export const WorkshopCard: React.FC<WorkshopCardProps> = ({
             <Play size={20} color="#ffffff" fill="#ffffff" />
           </View>
         </View>
-
-        {/* Top-Right Badge: Full Video Offline Status */}
-        {hasFullVideo && (
-          <View style={styles.offlineCornerBadge}>
-            <CheckCircle2 size={11} color="#34d399" />
-            <Text style={styles.offlineCornerText}>OFFLINE READY</Text>
-          </View>
-        )}
       </View>
 
       {/* 2. Card Content Body */}
@@ -74,66 +66,67 @@ export const WorkshopCard: React.FC<WorkshopCardProps> = ({
           {workshop.title || `Video ID: ${workshop.videoId}`}
         </Text>
 
-        {/* Bottom Row: Stats (KLIP & DONE) aligned with WhatsApp, Full Video Download, and Delete Buttons */}
+        {/* Bottom Row: Actions Group (Offline Video, Export JSON, WhatsApp & Delete) */}
         <View style={styles.cardFooter}>
-          {/* Left: Badges (KLIP & DONE) */}
-          <View style={styles.statsRow}>
-            <View style={styles.badge}>
-              <Text style={styles.badgeLabel}>KLIP</Text>
-              <Text style={styles.badgeValueEmerald}>{clipCount}</Text>
-            </View>
+          <Text style={styles.videoDateText}>
+            {workshop.lastUpdated ? new Date(workshop.lastUpdated).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : ''}
+          </Text>
 
-            <View style={styles.badge}>
-              <Text style={styles.badgeValueBlue}>{doneCount}</Text>
-              <Text style={styles.badgeLabel}>DONE</Text>
-            </View>
-          </View>
-
-          {/* Right: Actions Group (Full Video, WhatsApp & Delete) */}
           <View style={styles.actionsRow}>
-            {/* Tombol Unduh Full Video */}
+            {/* Tombol Unduh / Indikator Full Video Offline */}
             {isDownloadingFullVideo ? (
-              <View style={styles.downloadingBtn}>
-                <ActivityIndicator size="small" color="#38bdf8" />
-                <Text style={styles.downloadingText}>{downloadPercent}%</Text>
+              <View style={[styles.actionBtn, styles.downloadingBtn]}>
+                <ActivityIndicator size="small" color="#fbbf24" />
               </View>
             ) : hasFullVideo ? (
-              <View style={styles.fullVideoBadge}>
-                <CheckCircle2 size={13} color="#34d399" />
-                <Text style={styles.fullVideoBadgeText}>Full</Text>
+              <View style={[styles.actionBtn, styles.fullVideoReadyBtn]}>
+                <CloudOff size={16} color="#34d399" />
               </View>
             ) : (
               onDownloadFullVideo && (
                 <TouchableOpacity
-                  style={styles.downloadFullBtn}
+                  style={[styles.actionBtn, styles.offlineBtnInactive]}
                   onPress={() => onDownloadFullVideo(workshop.videoId)}
                   activeOpacity={0.7}
                   hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                 >
-                  <Download size={13} color="#38bdf8" />
-                  <Text style={styles.downloadFullText}>Full</Text>
+                  <CloudOff size={16} color="rgba(255, 255, 255, 0.45)" />
                 </TouchableOpacity>
               )
             )}
 
+            {/* Tombol Ekspor JSON */}
+            {onExport && (
+              <TouchableOpacity
+                style={[styles.actionBtn, styles.exportBtn]}
+                onPress={() => onExport(workshop.videoId)}
+                activeOpacity={0.7}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+              >
+                <Share2 size={15} color="#38bdf8" />
+              </TouchableOpacity>
+            )}
+
+            {/* Tombol Kirim ke WhatsApp */}
             {onBulkWA && (
               <TouchableOpacity
-                style={styles.waBtn}
+                style={[styles.actionBtn, styles.waBtn]}
                 onPress={() => onBulkWA(workshop.videoId)}
                 activeOpacity={0.7}
                 hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
               >
-                <MessageCircle size={13} color="#34d399" />
+                <MessageCircle size={15} color="#34d399" />
               </TouchableOpacity>
             )}
 
+            {/* Tombol Hapus Workshop */}
             <TouchableOpacity
-              style={styles.deleteBtn}
+              style={[styles.actionBtn, styles.deleteBtn]}
               onPress={() => onDelete(workshop.videoId)}
               activeOpacity={0.7}
               hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
             >
-              <Trash2 size={13} color="#f87171" />
+              <Trash2 size={15} color="#f87171" />
             </TouchableOpacity>
           </View>
         </View>
@@ -191,26 +184,6 @@ const styles = StyleSheet.create({
     shadowRadius: 15,
     elevation: 8,
   },
-  offlineCornerBadge: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
-    borderWidth: 1,
-    borderColor: 'rgba(52, 211, 153, 0.4)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  offlineCornerText: {
-    color: '#34d399',
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
   cardContent: {
     padding: 14,
   },
@@ -226,109 +199,46 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  statsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  badge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
-  },
-  badgeLabel: {
-    fontSize: 10,
+  videoDateText: {
+    color: 'rgba(255, 255, 255, 0.35)',
+    fontSize: 11,
     fontWeight: '700',
-    color: 'rgba(255, 255, 255, 0.4)',
-    letterSpacing: 0.5,
-  },
-  badgeValueEmerald: {
-    fontSize: 12,
-    fontWeight: '900',
-    color: '#34d399',
-  },
-  badgeValueBlue: {
-    fontSize: 12,
-    fontWeight: '900',
-    color: '#60a5fa',
   },
   actionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
   },
-  downloadFullBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    height: 28,
-    paddingHorizontal: 8,
-    borderRadius: 6,
-    backgroundColor: 'rgba(56, 189, 248, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(56, 189, 248, 0.3)',
-  },
-  downloadFullText: {
-    color: '#38bdf8',
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  downloadingBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    height: 28,
-    paddingHorizontal: 8,
-    borderRadius: 6,
-    backgroundColor: 'rgba(56, 189, 248, 0.16)',
-    borderWidth: 1,
-    borderColor: '#38bdf8',
-  },
-  downloadingText: {
-    color: '#38bdf8',
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  fullVideoBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    height: 28,
-    paddingHorizontal: 8,
-    borderRadius: 6,
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
-  },
-  fullVideoBadgeText: {
-    color: '#34d399',
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  waBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 6,
+  actionBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
     borderWidth: 1,
+  },
+  downloadingBtn: {
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    borderColor: 'rgba(245, 158, 11, 0.4)',
+  },
+  fullVideoReadyBtn: {
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderColor: 'rgba(16, 185, 129, 0.35)',
+  },
+  offlineBtnInactive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  exportBtn: {
+    backgroundColor: 'rgba(56, 189, 248, 0.1)',
+    borderColor: 'rgba(56, 189, 248, 0.25)',
+  },
+  waBtn: {
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
     borderColor: 'rgba(16, 185, 129, 0.25)',
   },
   deleteBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(239, 68, 68, 0.12)',
-    borderWidth: 1,
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
     borderColor: 'rgba(239, 68, 68, 0.25)',
   },
 });

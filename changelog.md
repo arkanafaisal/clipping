@@ -14,7 +14,38 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Add Custom Range, Configurable Heatmap Visible Count, Zero-Offset Extraction, and Balanced Top Bar Controls
+## [Unreleased] - Streamline Dashboard Creation, Remove Cluttered Badges, Add Offline Cloud Indicator, and Implement Full Workshop JSON Export/Import
+- **Konteks Struktural**:
+  1. Penyederhanaan Form Pembuatan Workshop di Dashboard:
+     - Menghapus input jumlah klip pada [WorkshopInputForm.tsx](file:///d:/projects/clipping/mobile/src/components/WorkshopInputForm.tsx) dan memfokuskan antarmuka pada input tautan YouTube serta tombol buat yang lebih bersih dan ringkas. Nilai awal difiksasi default pada 50 klip, yang selanjutnya dapat diatur secara fleksibel di dalam kamar workshop.
+  2. Pembersihan Badge dan Pengoptimalan Ruang Horizontal Kartu Workshop:
+     - Menghapus badge statistik `KLIP` dan `DONE` dari kartu workshop [WorkshopCard.tsx](file:///d:/projects/clipping/mobile/src/components/WorkshopCard.tsx) untuk melegakan tata letak horizontal kartu.
+     - Menghapus badge status pojok kanan atas thumbnail untuk mengeliminasi redundansi visual.
+  3. Indikator dan Tombol Unduh Offline Berbasis Cloud Icon:
+     - Mengubah tombol/badge "Full" menjadi tombol ikon awan silang ([CloudOff](file:///d:/projects/clipping/mobile/src/components/WorkshopCard.tsx)) yang ramping (32x32) dengan tiga status visual yang jelas:
+       - Belum Terunduh: Warna abu-abu (`rgba(255, 255, 255, 0.45)`), dapat ditekan untuk memulai pengunduhan video utuh.
+       - Sedang Mengunduh: Warna kuning hangat (`#fbbf24`) dengan indikator animasi tanpa persentase angka yang mengganggu.
+       - Selesai / Offline Ready: Warna hijau (`#34d399`), menandakan video utuh siap diputar secara offline.
+  4. Fitur Ekspor dan Impor Full JSON (100 Klip Heatmap + Klip Custom):
+     - Menambahkan komponen [ExportWorkshopModal.tsx](file:///d:/projects/clipping/mobile/src/components/ExportWorkshopModal.tsx) dengan tombol aksi pada setiap kartu workshop.
+     - Menyediakan opsi salin langsung ke clipboard menggunakan pustaka resmi `expo-clipboard` dan opsi kirim ke WhatsApp Bot (`6285742923730`).
+     - Menyinkronkan fungsi `handleImportJSON` pada [Dashboard.tsx](file:///d:/projects/clipping/mobile/src/components/Dashboard.tsx) agar dapat mem-parse struktur JSON ekspor secara simetris dan tanpa kehilangan data (lossless), merekonstruksi seluruh klip draf serta memperbarui `doneCount` secara akurat saat diimpor ke perangkat lain.
+- **Perubahan Kode Penting**:
+  - [mobile/src/components/WorkshopInputForm.tsx](file:///d:/projects/clipping/mobile/src/components/WorkshopInputForm.tsx):
+    - Menghapus state `countInput` dan input angka klip, menyatukan input tautan YouTube dan tombol BUAT ke dalam satu baris fleksibel.
+  - [mobile/src/components/WorkshopCard.tsx](file:///d:/projects/clipping/mobile/src/components/WorkshopCard.tsx):
+    - Menghapus `statsRow` (badge KLIP & DONE) dan `offlineCornerBadge` pada thumbnail.
+    - Mengganti tombol "Full" dengan tombol ikon `CloudOff` dengan status dinamis (abu-abu, kuning loading, hijau ready).
+    - Menambahkan tombol ekspor (`Share2`) pada baris aksi kartu.
+  - [mobile/src/components/ExportWorkshopModal.tsx](file:///d:/projects/clipping/mobile/src/components/ExportWorkshopModal.tsx):
+    - Membuat modal dialog ekspor dengan fitur salin JSON ke clipboard dan tautan langsung kirim ke WhatsApp.
+  - [mobile/src/components/Dashboard.tsx](file:///d:/projects/clipping/mobile/src/components/Dashboard.tsx):
+    - Mengintegrasikan state dan handler `handleExportWorkshop`.
+    - Memperbarui fungsi `handleImportJSON` untuk membaca struktur JSON ekspor secara komprehensif.
+  - [mobile/package.json](file:///d:/projects/clipping/mobile/package.json):
+    - Menambahkan dependensi `expo-clipboard`.
+
+## [9ee3b7f] - Add Custom Range, Configurable Heatmap Visible Count, Zero-Offset Extraction, and Balanced Top Bar Controls
 - **Konteks Struktural**:
   1. Fitur Penambahan Rentang Klip Custom (User-Defined Range):
      - Menambahkan komponen [CustomRangeModal.tsx](file:///d:/projects/clipping/mobile/src/components/feed/CustomRangeModal.tsx) yang memungkinkan pengguna membuat rentang klip kustom secara fleksibel saat menemukan momen spesifik di luar klip bawaan heatmap YouTube.

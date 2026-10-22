@@ -12,6 +12,7 @@ import { Cookie, Download } from 'lucide-react-native';
 import { WorkshopCard, WorkshopItem } from './WorkshopCard';
 import { WorkshopInputForm } from './WorkshopInputForm';
 import { ImportWorkshopModal } from './ImportWorkshopModal';
+import { ExportWorkshopModal } from './ExportWorkshopModal';
 import { CookiesModal } from './CookiesModal';
 import { PlayModeModal } from './PlayModeModal';
 import { StorageConfigSection } from './StorageConfigSection';
@@ -45,6 +46,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
   const [workshops, setWorkshops] = useState<WorkshopItem[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [importModalVisible, setImportModalVisible] = useState(false);
+  const [exportModalVisible, setExportModalVisible] = useState(false);
+  const [exportDataJson, setExportDataJson] = useState('');
+  const [exportWorkshopTitle, setExportWorkshopTitle] = useState('');
+  const [exportVideoId, setExportVideoId] = useState('');
   const [cookiesModalVisible, setCookiesModalVisible] = useState(false);
   const [playModeTarget, setPlayModeTarget] = useState<{ videoId: string; count: number } | null>(null);
   const [isExtracting, setIsExtracting] = useState(false);
@@ -368,22 +373,73 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
     }
   };
 
+  // Ekspor full data workshop (100 klip heatmap + klip custom) dalam format JSON
+  const handleExportWorkshop = async (videoId: string) => {
+    try {
+      const ws = workshops.find((w) => w.videoId === videoId);
+      const draftStr = await LocalStorage.getItem(`clips_draft_${videoId}`);
+      let draftClips = [];
+      if (draftStr) {
+        try {
+          draftClips = JSON.parse(draftStr);
+        } catch {}
+      }
+
+      const exportPayload = {
+        version: 1,
+        exportedAt: Date.now(),
+        workshop: ws || { videoId, count: 50, lastUpdated: Date.now() },
+        draft: draftClips,
+      };
+
+      setExportDataJson(JSON.stringify(exportPayload, null, 2));
+      setExportWorkshopTitle(ws?.title || `Workshop ${videoId}`);
+      setExportVideoId(videoId);
+      setExportModalVisible(true);
+    } catch (err: any) {
+      ToastManager.show({
+        type: 'error',
+        title: 'Gagal Menyiapkan Ekspor',
+        rawError: err?.message || String(err),
+        duration: 3000,
+      });
+    }
+  };
+
   const handleImportJSON = async (jsonText: string) => {
     try {
       const parsed = JSON.parse(jsonText);
       const wsData = parsed.workshop || parsed;
       if (!wsData.videoId) {
-        throw new Error('Data workshop harus memiliki videoId');
+        throw new Error('Data JSON workshop harus memiliki videoId.');
       }
 
+      const rawDraft = parsed.draft || parsed.clips;
+      let parsedClips: any[] = [];
+      if (rawDraft) {
+        parsedClips = typeof rawDraft === 'string' ? JSON.parse(rawDraft) : rawDraft;
+      }
+
+      // Hitung doneCount nyata dari daftar klip
+      const realDoneCount = Array.isArray(parsedClips)
+        ? parsedClips.filter((c: any) => c.status === 'done').length
+        : (wsData.doneCount || 0);
+
+      const cleanWs: WorkshopItem = {
+        videoId: wsData.videoId,
+        title: wsData.title || `Video (${wsData.videoId})`,
+        count: wsData.count || 50,
+        doneCount: realDoneCount,
+        lastUpdated: Date.now(),
+      };
+
       const filtered = workshops.filter((w) => w.videoId !== wsData.videoId);
-      const updatedList = [wsData, ...filtered];
+      const updatedList = [cleanWs, ...filtered];
       await saveWorkshops(updatedList);
 
-      // If json contains draft clips, save them too
-      if (parsed.draft) {
-        const draftContent = typeof parsed.draft === 'string' ? parsed.draft : JSON.stringify(parsed.draft);
-        await LocalStorage.setItem(`clips_draft_${wsData.videoId}`, draftContent);
+      // Simpan seluruh 100 klip + klip custom ke draf penyimpanan lokal
+      if (Array.isArray(parsedClips) && parsedClips.length > 0) {
+        await LocalStorage.setItem(`clips_draft_${wsData.videoId}`, JSON.stringify(parsedClips));
       }
 
       setImportModalVisible(false);
@@ -469,6 +525,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
             onPress={(vid) => handleCardPress(vid, ws.count || 50)}
             onDelete={handleDeleteWorkshop}
             onBulkWA={handleBulkWA}
+            onExport={handleExportWorkshop}
           />
         ))
       )}
@@ -478,6 +535,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
         visible={importModalVisible}
         onClose={() => setImportModalVisible(false)}
         onImport={handleImportJSON}
+      />
+
+      {/* 5b. Export Modal */}
+      <ExportWorkshopModal
+        visible={exportModalVisible}
+        workshopTitle={exportWorkshopTitle}
+        videoId={exportVideoId}
+        exportDataJson={exportDataJson}
+        onClose={() => setExportModalVisible(false)}
       />
 
       {/* 6. Cookies Modal for Rate Limits */}

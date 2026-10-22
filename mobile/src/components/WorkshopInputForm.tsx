@@ -14,21 +14,18 @@ export const WorkshopInputForm: React.FC<WorkshopInputFormProps> = ({
   loading = false,
 }) => {
   const [urlInput, setUrlInput] = useState('');
-  const [countInput, setCountInput] = useState('50');
 
   const handlePressCreate = () => {
     if (loading) return;
-    const finalCount = parseInt(countInput, 10) || 50;
-    onCreate(urlInput.trim(), finalCount);
+    onCreate(urlInput.trim(), 50);
   };
 
   return (
     <View style={styles.container}>
       {/* Form Card */}
       <View style={styles.formCard}>
-        {/* URL Input */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>LINK YOUTUBE</Text>
+        <Text style={styles.label}>LINK YOUTUBE</Text>
+        <View style={styles.inputRow}>
           <TextInput
             style={styles.textInput}
             value={urlInput}
@@ -39,21 +36,6 @@ export const WorkshopInputForm: React.FC<WorkshopInputFormProps> = ({
             autoCorrect={false}
             editable={!loading}
           />
-        </View>
-
-        {/* Row for Klip count & Submit button */}
-        <View style={styles.bottomRow}>
-          <View style={styles.countGroup}>
-            <Text style={styles.label}>KLIP</Text>
-            <TextInput
-              style={[styles.textInput, styles.countInput]}
-              value={countInput}
-              onChangeText={setCountInput}
-              keyboardType="numeric"
-              maxLength={3}
-              editable={!loading}
-            />
-          </View>
 
           <TouchableOpacity
             style={[styles.submitBtn, loading && styles.submitBtnDisabled]}
@@ -65,7 +47,7 @@ export const WorkshopInputForm: React.FC<WorkshopInputFormProps> = ({
               <ActivityIndicator size="small" color="#ffffff" />
             ) : (
               <>
-                <Plus size={18} color="#ffffff" strokeWidth={3} />
+                <Plus size={16} color="#ffffff" strokeWidth={3} />
                 <Text style={styles.submitBtnText}>BUAT</Text>
               </>
             )}
@@ -85,58 +67,48 @@ export const WorkshopInputForm: React.FC<WorkshopInputFormProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: 20,
+    marginBottom: 16,
   },
   formCard: {
     backgroundColor: 'rgba(23, 23, 23, 0.9)',
     borderRadius: 16,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
-    padding: 16,
-    gap: 12,
+    padding: 14,
+    gap: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.5,
     shadowRadius: 16,
     elevation: 8,
   },
-  inputGroup: {
-    width: '100%',
-  },
   label: {
     fontSize: 10,
     fontWeight: '800',
     color: 'rgba(255, 255, 255, 0.45)',
     letterSpacing: 0.8,
-    marginBottom: 6,
+  },
+  inputRow: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'center',
   },
   textInput: {
+    flex: 1,
+    height: 42,
     backgroundColor: 'rgba(0, 0, 0, 0.65)',
     borderRadius: 10,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.12)',
     paddingHorizontal: 14,
-    paddingVertical: 10,
     color: '#ffffff',
     fontSize: 13,
   },
-  bottomRow: {
-    flexDirection: 'row',
-    gap: 12,
-    alignItems: 'flex-end',
-  },
-  countGroup: {
-    width: 80,
-  },
-  countInput: {
-    textAlign: 'center',
-    fontWeight: '700',
-  },
   submitBtn: {
-    flex: 1,
+    height: 42,
     backgroundColor: '#dc2626',
     borderRadius: 10,
-    paddingVertical: 12,
+    paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
