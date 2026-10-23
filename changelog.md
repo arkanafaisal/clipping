@@ -14,7 +14,18 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Fix Scrubber Seeking Calculation on Local Full Video and Enable Touch Drag Scrubbing
+## [Unreleased] - Calibrate Dynamic Scaling Multiplier to 0.073 for Subtitles and Context Banner
+- **Konteks Struktural**:
+  1. Penyesuaian Presisi Rasio Skala Subtitle & Banner Konteks (0.070 -> 0.073):
+     - Kalibrasi visual lanjutan berdasarkan hasil pengujian ekspor video: rasio pengali `0.070` sebelumnya sudah mendekati sempurna, namun masih sedikit terlalu kecil (*kekecilan sedikit*).
+     - Meningkatkan konstanta pengali menjadi `0.073` pada seluruh jalur rendering subtitle (`build_ass_content`, `build_drawtext_pipeline`, dan fallback `build_multi_layer_pipeline`) agar ukuran teks subtitle hasil ekspor 100% presisi dengan preview React Native.
+  2. Sinkronisasi Skala Padding Vertikal Banner Konteks:
+     - Mengonfirmasi dan memastikan `paddingY` pada banner konteks (`ctx_pad = max(4, int(round(base_unit * (ctx_pad_dp / 14.0))))`) terskala serasi menggunakan konstanta acuan `base_unit = ref_dim * 0.073`, sehingga ketebalan vertikal banner konteks dan ukuran fontnya beradaptasi secara proporsional dengan kanvas ekspor FFmpeg.
+- **Perubahan Kode Penting**:
+  - `mobile/scripts/utils/subtitle_burner.py`:
+    - Mengganti konstanta rasio pengali acuan dari `0.070` menjadi `0.073` pada `build_ass_content` (`ass_base_fs`), `build_drawtext_pipeline` (`base_fs`), kalkulasi banner konteks (`base_unit`), dan drawtext fallback (`base_fs`).
+
+## [52c5cc2] - Fix Scrubber Seeking Calculation on Local Full Video and Enable Touch Drag Scrubbing
 - **Konteks Struktural**:
   1. Koreksi Perhitungan Target Waktu Seek pada Mode Full Video Lokal:
      - Mengatasi kendala di mana menahan (*hold*) atau mengetuk progress bar scrubber pada pemutaran video lokal gagal dan langsung otomatis mental/kembali ke detik 0 (awal rentang klip).

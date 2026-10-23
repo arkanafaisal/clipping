@@ -121,10 +121,10 @@ def build_ass_content(cues: list, style: dict = None, video_width: int = 1920, v
     if base_font_size <= 0:
         base_font_size = 14.0
 
-    # Rasio acuan dinamis 0.070 (min(vw, vh) * 0.070):
+    # Rasio acuan dinamis 0.073 (min(vw, vh) * 0.073):
     # Mengalibrasi ukuran visual agar 100% presisi dan selaras dengan preview React Native (14dp).
     ref_dim = min(vw, vh)
-    ass_base_fs = max(14, int(round(ref_dim * 0.070)))
+    ass_base_fs = max(14, int(round(ref_dim * 0.073)))
     ass_outline = max(1.5, round(ass_base_fs * 0.065, 1))
 
     ass_header = f"""[Script Info]
@@ -194,7 +194,7 @@ def build_drawtext_pipeline(cues: list, style: dict, output_base: str, video_wid
     vw = max(240, int(video_width)) if video_width else 1280
     vh = max(240, int(video_height)) if video_height else 720
     ref_dim = min(vw, vh)
-    base_fs = max(14, int(round(ref_dim * 0.070)))
+    base_fs = max(14, int(round(ref_dim * 0.073)))
     border_w = max(2, int(round(base_fs * 0.065)))
 
     filter_items = []
@@ -313,7 +313,7 @@ def build_multi_layer_pipeline(
     ctx_fs = 24
     if ctx_enabled and ctx_text:
         ref_dim = min(out_w, out_h)
-        base_unit = ref_dim * 0.070  # Rasio acuan dinamis setara 14dp di preview React Native
+        base_unit = ref_dim * 0.073  # Rasio acuan dinamis setara 14dp di preview React Native
         ctx_fs_dp = float(context_cfg.get("fontSize", 16))
         ctx_pad_dp = float(context_cfg.get("paddingY", 10))
 
@@ -452,7 +452,7 @@ def build_multi_layer_pipeline(
             filter_lines.append(f"{current_node}subtitles='{esc_ass}'[v_out]")
         else:
             ref_dim = min(out_w, out_h)
-            base_fs = max(14, int(round(ref_dim * 0.070)))
+            base_fs = max(14, int(round(ref_dim * 0.073)))
             border_w = max(2, int(round(base_fs * 0.065)))
             pos_x = float(style.get("positionX", 50))
             pos_y = float(style.get("positionY", 85))
