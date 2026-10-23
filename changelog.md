@@ -14,7 +14,25 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Implement Dual-Resolution Proxy Workflow for Full Video Download and Decoupled Lightweight Playback
+## [Unreleased] - Fix Editor Header Container Height to 88px Across Subtitle, Template, and Default Modes
+- **Konteks Struktural**:
+  1. Penstabilan Hierarki Layout & Pencegahan Canvas Jumping:
+     - Mengatasi kendala perubahan ukuran dinamis (*DOM height shifting*) pada header mode Editor klip yang telah selesai (done). Sebelumnya, Mode Subtitle membutuhkan ruang vertikal lebih tinggi (~88px) untuk mini timeline track dan action row, sedangkan Mode Template hanya membutuhkan 1 baris (~36px), dan Mode Default (None) runtuh menjadi 0px.
+     - Perubahan tinggi header yang dinamis ini menyebabkan area video player di bawahnya (`playerContainer` dengan `flex: 1` dan kanvas portrait 9:16 `height: 100%`) ikut memanjang/memendek dan melebar/menyempit secara mendadak setiap kali pengguna berpindah mode, memicu *re-measuring* pada Android `VideoView` / `SurfaceView`.
+  2. Pembungkusan Ruang Konten Editor dalam Container Tetap (88px):
+     - Membungkus seluruh area Row 3 kontrol editor di dalam `editorContentContainer` dengan tinggi tetap (`height: 88`), latar belakang seragam (`#121212`), dan `overflow: hidden`.
+     - Kondisi 1 (Mode Subtitle): Menampilkan mini timeline track (34px) dan action row (36px) secara pas dalam batas 88px.
+     - Kondisi 2 (Mode Template): Menata baris status rasio kanvas (baris atas) dan 3 tombol aksi kustomisasi (Facecam, Konteks, Gameplay) dengan label teks yang proporsional dalam batas 88px.
+     - Kondisi 3 (Mode None / Default): Menyajikan placeholder informatif non-intrusif yang mengisi ruang vertikal 88px yang sama persis sehingga ruang vertikal player stabil 100% tanpa lonjakan piksel.
+- **Perubahan Kode Penting**:
+  - [mobile/src/components/feed/FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx):
+    - Membungkus percabangan `currentMode` di dalam `<View style={styles.editorContentContainer}>`.
+    - Menambahkan `styles.editorContentContainer` (`height: 88`, `overflow: 'hidden'`).
+    - Menyesuaikan `styles.subtitleLayerSection` (`height: 88`, `justifyContent: 'space-between'`).
+    - Menambahkan `styles.templateLayerSection`, `styles.templateHeaderRow`, `styles.templateHintText`, `styles.templateButtonsRow`, `styles.templateActionBtn`, dan `styles.templateActionBtnText` agar mengisi 88px secara seimbang.
+    - Menambahkan `styles.editorEmptyPlaceholder` dan `styles.editorEmptyPlaceholderText` untuk menjaga stabilitas ruang vertikal saat editor ditutup.
+
+## [ccf0891] - Implement Dual-Resolution Proxy Workflow for Full Video Download and Decoupled Lightweight Playback
 - **Konteks Struktural**:
   1. Arsitektur Dual-Resolution Proxy Workflow:
      - Mengatasi kendala lag pemutaran video lokal di player UI (terutama pada mode portrait 9:16 dengan 2 player aktif: gameplay 4:3 + facecam 1:1) dengan memisahkan fungsi Playback UI dari Rendering Engine (Master 1080p).

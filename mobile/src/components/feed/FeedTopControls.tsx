@@ -743,222 +743,253 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
             </Pressable>
           </View>
 
-          {/* Row 3: Space Editor untuk Mode yang Aktif */}
-          {currentMode === 'subtitle' && (
-            <View style={styles.subtitleLayerSection}>
-              {/* 1. HORIZONTAL MINI TRACK (100% width, tap/drag to scrub pointer & select cue) */}
-              <View
-                style={styles.miniTrackWrapper}
-                onLayout={(e) => setTrackLayoutWidth(e.nativeEvent.layout.width)}
-                {...trackPanResponder.panHandlers}
-              >
-                <View style={styles.miniTrackBackground} pointerEvents="none">
-                  {/* Needle Playhead (Merah kontras seperti scrubber bawah) */}
-                  <View
-                    style={[
-                      styles.playheadNeedle,
-                      {
-                        left:
-                          clipDuration > 0
-                            ? Math.max(
-                                0,
-                                Math.min(
-                                  trackLayoutWidth - 2.5,
-                                  (currentClipTime / clipDuration) * trackLayoutWidth
+          {/* Row 3: Fixed Height Container untuk 3 Kondisi Editor (Subtitle, Template, & None) */}
+          <View style={styles.editorContentContainer}>
+            {currentMode === 'subtitle' ? (
+              <View style={styles.subtitleLayerSection}>
+                {/* 1. HORIZONTAL MINI TRACK (100% width, tap/drag to scrub pointer & select cue) */}
+                <View
+                  style={styles.miniTrackWrapper}
+                  onLayout={(e) => setTrackLayoutWidth(e.nativeEvent.layout.width)}
+                  {...trackPanResponder.panHandlers}
+                >
+                  <View style={styles.miniTrackBackground} pointerEvents="none">
+                    {/* Needle Playhead (Merah kontras seperti scrubber bawah) */}
+                    <View
+                      style={[
+                        styles.playheadNeedle,
+                        {
+                          left:
+                            clipDuration > 0
+                              ? Math.max(
+                                  0,
+                                  Math.min(
+                                    trackLayoutWidth - 2.5,
+                                    (currentClipTime / clipDuration) * trackLayoutWidth
+                                  )
                                 )
-                              )
-                            : 0,
-                      },
-                    ]}
-                  >
-                    <View style={styles.playheadCap} />
+                              : 0,
+                        },
+                      ]}
+                    >
+                      <View style={styles.playheadCap} />
+                    </View>
+
+                    {/* Subtitle Cue Pills (Visual timeline blocks) */}
+                    {subtitles.map((cue, index) => (
+                      <SubtitleCuePill
+                        key={cue.id}
+                        cue={cue}
+                        index={index}
+                        clipDuration={clipDuration}
+                        trackWidth={trackLayoutWidth}
+                        isSelected={selectedCueId === cue.id}
+                      />
+                    ))}
+
+                    {subtitles.length === 0 && (
+                      <View style={styles.emptyTrackHint}>
+                        <Text style={styles.emptyTrackText}>Belum ada subtitle track</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+
+                {/* 2. ACTION & EDITOR ROW */}
+                <View style={styles.cueActionsRow}>
+                  {/* SISI KIRI: Tombol Generate Subtitle, Tombol Tambah Manual & Tombol Posisi Global (X, Y) */}
+                  <View style={styles.leftCueButtonsGroup}>
+                    {/* Tombol Generate / Ambil Subtitle YouTube (Globe) */}
+                    <Pressable
+                      style={({ pressed }) => [styles.positionBtn, pressed && { opacity: 0.7 }]}
+                      onPress={() => setShowLangModal(true)}
+                      disabled={isFetchingSubtitles}
+                      hitSlop={6}
+                    >
+                      {isFetchingSubtitles ? (
+                        <ActivityIndicator size="small" color="#38bdf8" />
+                      ) : (
+                        <Globe size={15} color="#38bdf8" />
+                      )}
+                    </Pressable>
+
+                    {/* Tombol Tambah Manual (+) */}
+                    <Pressable
+                      style={({ pressed }) => [styles.addCueBtn, pressed && { opacity: 0.7 }]}
+                      onPress={() => onAddCue(currentClipTime)}
+                      hitSlop={6}
+                    >
+                      <Plus size={16} color="#38bdf8" />
+                    </Pressable>
+
+                    {/* Tombol Posisi Global (Move) */}
+                    <Pressable
+                      style={({ pressed }) => [styles.positionBtn, pressed && { opacity: 0.7 }]}
+                      onPress={openPositionModal}
+                      hitSlop={6}
+                    >
+                      <Move size={15} color="#38bdf8" />
+                    </Pressable>
                   </View>
 
-                  {/* Subtitle Cue Pills (Visual timeline blocks) */}
-                  {subtitles.map((cue, index) => (
-                    <SubtitleCuePill
-                      key={cue.id}
-                      cue={cue}
-                      index={index}
-                      clipDuration={clipDuration}
-                      trackWidth={trackLayoutWidth}
-                      isSelected={selectedCueId === cue.id}
-                    />
-                  ))}
+                  {/* SISI KANAN (Dekat jempol): Tombol Icon Edit Teks, Ukuran Font, Hapus */}
+                  {selectedCue ? (
+                    <View style={styles.cueEditorActionIcons}>
+                      {/* 1. Edit Teks (Buka Modal Multiline) */}
+                      <Pressable
+                        style={({ pressed }) => [styles.iconActionBtn, pressed && { opacity: 0.6 }]}
+                        onPress={() => {
+                          setTempEditText(selectedCue.text || '');
+                          setShowTextModal(true);
+                        }}
+                        hitSlop={6}
+                      >
+                        <Type size={16} color="#38bdf8" />
+                      </Pressable>
 
-                  {subtitles.length === 0 && (
-                    <View style={styles.emptyTrackHint}>
-                      <Text style={styles.emptyTrackText}>Belum ada subtitle track</Text>
+                      {/* 2. Ukuran Font (Buka Modal Font Size) */}
+                      <Pressable
+                        style={({ pressed }) => [styles.iconActionBtn, pressed && { opacity: 0.6 }]}
+                        onPress={() => {
+                          setTempEditSize(String(selectedCue.fontSize || 14));
+                          setShowFontModal(true);
+                        }}
+                        hitSlop={6}
+                      >
+                        <Text style={styles.fontSizeIconText}>Aa</Text>
+                      </Pressable>
+
+                      {/* 3. Rentang Waktu (Buka Modal Time Range 6-box: Menit, Detik, Milidetik) */}
+                      <Pressable
+                        style={({ pressed }) => [styles.iconActionBtn, pressed && { opacity: 0.6 }]}
+                        onPress={openTimeModal}
+                        hitSlop={6}
+                      >
+                        <Clock size={16} color="#38bdf8" />
+                      </Pressable>
+
+                      {/* 4. Hapus Cue (Langsung hapus tanpa modal konfirmasi) */}
+                      <Pressable
+                        style={({ pressed }) => [
+                          styles.iconActionBtn,
+                          styles.deleteActionBtn,
+                          pressed && { opacity: 0.6 },
+                        ]}
+                        onPress={() => onDeleteCue(selectedCue.id)}
+                        hitSlop={6}
+                      >
+                        <Trash2 size={16} color="#f87171" />
+                      </Pressable>
                     </View>
-                  )}
+                  ) : null}
                 </View>
               </View>
-
-              {/* 2. ACTION & EDITOR ROW */}
-              <View style={styles.cueActionsRow}>
-                {/* SISI KIRI: Tombol Generate Subtitle, Tombol Tambah Manual & Tombol Posisi Global (X, Y) */}
-                <View style={styles.leftCueButtonsGroup}>
-                  {/* Tombol Generate / Ambil Subtitle YouTube (Globe) */}
-                  <Pressable
-                    style={({ pressed }) => [styles.positionBtn, pressed && { opacity: 0.7 }]}
-                    onPress={() => setShowLangModal(true)}
-                    disabled={isFetchingSubtitles}
-                    hitSlop={6}
+            ) : currentMode === 'template' ? (
+              <View style={styles.templateLayerSection}>
+                {/* Baris 1: Status Canvas & Rasio */}
+                <View style={styles.templateHeaderRow}>
+                  <View
+                    style={[
+                      styles.ratioBadge,
+                      (templateConfig?.context.enabled || templateConfig?.facecam.enabled)
+                        ? styles.ratioBadgeActive
+                        : styles.ratioBadgeInactive,
+                    ]}
                   >
-                    {isFetchingSubtitles ? (
-                      <ActivityIndicator size="small" color="#38bdf8" />
-                    ) : (
-                      <Globe size={15} color="#38bdf8" />
-                    )}
-                  </Pressable>
-
-                  {/* Tombol Tambah Manual (+) */}
-                  <Pressable
-                    style={({ pressed }) => [styles.addCueBtn, pressed && { opacity: 0.7 }]}
-                    onPress={() => onAddCue(currentClipTime)}
-                    hitSlop={6}
-                  >
-                    <Plus size={16} color="#38bdf8" />
-                  </Pressable>
-
-                  {/* Tombol Posisi Global (Move) */}
-                  <Pressable
-                    style={({ pressed }) => [styles.positionBtn, pressed && { opacity: 0.7 }]}
-                    onPress={openPositionModal}
-                    hitSlop={6}
-                  >
-                    <Move size={15} color="#38bdf8" />
-                  </Pressable>
+                    <Text
+                      style={[
+                        styles.ratioBadgeText,
+                        (templateConfig?.context.enabled || templateConfig?.facecam.enabled)
+                          ? styles.ratioBadgeTextActive
+                          : styles.ratioBadgeTextInactive,
+                      ]}
+                    >
+                      {(templateConfig?.context.enabled || templateConfig?.facecam.enabled)
+                        ? '9:16 Portrait'
+                        : '16:9 Landscape'}
+                    </Text>
+                  </View>
+                  <Text style={styles.templateHintText}>
+                    {templateConfig?.facecam.enabled
+                      ? 'Facecam 4:3 Aktif'
+                      : templateConfig?.context.enabled
+                      ? 'Banner Konteks Aktif'
+                      : 'Gameplay Penuh 16:9'}
+                  </Text>
                 </View>
 
-                {/* SISI KANAN (Dekat jempol): Tombol Icon Edit Teks, Ukuran Font, Hapus */}
-            {selectedCue ? (
-              <View style={styles.cueEditorActionIcons}>
-                {/* 1. Edit Teks (Buka Modal Multiline) */}
-                <Pressable
-                  style={({ pressed }) => [styles.iconActionBtn, pressed && { opacity: 0.6 }]}
-                  onPress={() => {
-                    setTempEditText(selectedCue.text || '');
-                    setShowTextModal(true);
-                  }}
-                  hitSlop={6}
-                >
-                  <Type size={16} color="#38bdf8" />
-                </Pressable>
+                {/* Baris 2: Tombol-tombol Konfigurasi Template */}
+                <View style={styles.templateButtonsRow}>
+                  {/* 1. Tombol Elemen Facecam */}
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.templateActionBtn,
+                      templateConfig?.facecam.enabled && styles.templateBtnActive,
+                      pressed && { opacity: 0.6 },
+                    ]}
+                    onPress={openFacecamModal}
+                    hitSlop={6}
+                  >
+                    <Camera
+                      size={15}
+                      color={templateConfig?.facecam.enabled ? '#38bdf8' : 'rgba(255, 255, 255, 0.7)'}
+                    />
+                    <Text
+                      style={[
+                        styles.templateActionBtnText,
+                        templateConfig?.facecam.enabled && styles.templateActionBtnTextActive,
+                      ]}
+                    >
+                      Facecam
+                    </Text>
+                  </Pressable>
 
-                {/* 2. Ukuran Font (Buka Modal Font Size) */}
-                <Pressable
-                  style={({ pressed }) => [styles.iconActionBtn, pressed && { opacity: 0.6 }]}
-                  onPress={() => {
-                    setTempEditSize(String(selectedCue.fontSize || 14));
-                    setShowFontModal(true);
-                  }}
-                  hitSlop={6}
-                >
-                  <Text style={styles.fontSizeIconText}>Aa</Text>
-                </Pressable>
+                  {/* 2. Tombol Elemen Konteks (Teks Judul Banner) */}
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.templateActionBtn,
+                      templateConfig?.context.enabled && styles.templateBtnActive,
+                      pressed && { opacity: 0.6 },
+                    ]}
+                    onPress={openContextModal}
+                    hitSlop={6}
+                  >
+                    <Type
+                      size={15}
+                      color={templateConfig?.context.enabled ? '#38bdf8' : 'rgba(255, 255, 255, 0.7)'}
+                    />
+                    <Text
+                      style={[
+                        styles.templateActionBtnText,
+                        templateConfig?.context.enabled && styles.templateActionBtnTextActive,
+                      ]}
+                    >
+                      Konteks
+                    </Text>
+                  </Pressable>
 
-                {/* 3. Rentang Waktu (Buka Modal Time Range 6-box: Menit, Detik, Milidetik) */}
-                <Pressable
-                  style={({ pressed }) => [styles.iconActionBtn, pressed && { opacity: 0.6 }]}
-                  onPress={openTimeModal}
-                  hitSlop={6}
-                >
-                  <Clock size={16} color="#38bdf8" />
-                </Pressable>
-
-                {/* 4. Hapus Cue (Langsung hapus tanpa modal konfirmasi) */}
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.iconActionBtn,
-                    styles.deleteActionBtn,
-                    pressed && { opacity: 0.6 },
-                  ]}
-                  onPress={() => onDeleteCue(selectedCue.id)}
-                  hitSlop={6}
-                >
-                  <Trash2 size={16} color="#f87171" />
-                </Pressable>
+                  {/* 3. Tombol Edit Main Gameplay */}
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.templateActionBtn,
+                      pressed && { opacity: 0.6 },
+                    ]}
+                    onPress={openMainVideoModal}
+                    hitSlop={6}
+                  >
+                    <Gamepad2 size={15} color="#38bdf8" />
+                    <Text style={styles.templateActionBtnText}>Gameplay</Text>
+                  </Pressable>
+                </View>
               </View>
-            ) : null}
+            ) : (
+              <View style={styles.editorEmptyPlaceholder}>
+                <Text style={styles.editorEmptyPlaceholderText}>
+                  Pilih tab Subtitle atau Template untuk kustomisasi klip
+                </Text>
+              </View>
+            )}
           </View>
-        </View>
-      )}
-
-      {/* Space Editor untuk Mode Template */}
-      {currentMode === 'template' && (
-        <View style={styles.templateActionsRow}>
-          <View style={styles.templateLeftInfo}>
-            <View
-              style={[
-                styles.ratioBadge,
-                (templateConfig?.context.enabled || templateConfig?.facecam.enabled)
-                  ? styles.ratioBadgeActive
-                  : styles.ratioBadgeInactive,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.ratioBadgeText,
-                  (templateConfig?.context.enabled || templateConfig?.facecam.enabled)
-                    ? styles.ratioBadgeTextActive
-                    : styles.ratioBadgeTextInactive,
-                ]}
-              >
-                {(templateConfig?.context.enabled || templateConfig?.facecam.enabled)
-                  ? '9:16 Portrait'
-                  : '16:9 Landscape'}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.templateButtonsGroup}>
-            {/* 1. Tombol Elemen Facecam */}
-            <Pressable
-              style={({ pressed }) => [
-                styles.iconActionBtn,
-                templateConfig?.facecam.enabled && styles.templateBtnActive,
-                pressed && { opacity: 0.6 },
-              ]}
-              onPress={openFacecamModal}
-              hitSlop={6}
-            >
-              <Camera
-                size={16}
-                color={templateConfig?.facecam.enabled ? '#38bdf8' : 'rgba(255, 255, 255, 0.7)'}
-              />
-            </Pressable>
-
-            {/* 2. Tombol Elemen Konteks (Teks Judul Banner) */}
-            <Pressable
-              style={({ pressed }) => [
-                styles.iconActionBtn,
-                templateConfig?.context.enabled && styles.templateBtnActive,
-                pressed && { opacity: 0.6 },
-              ]}
-              onPress={openContextModal}
-              hitSlop={6}
-            >
-              <Type
-                size={16}
-                color={templateConfig?.context.enabled ? '#38bdf8' : 'rgba(255, 255, 255, 0.7)'}
-              />
-            </Pressable>
-
-            {/* 3. Tombol Edit Main Gameplay */}
-            <Pressable
-              style={({ pressed }) => [
-                styles.iconActionBtn,
-                pressed && { opacity: 0.6 },
-              ]}
-              onPress={openMainVideoModal}
-              hitSlop={6}
-            >
-              <Gamepad2 size={16} color="#38bdf8" />
-            </Pressable>
-          </View>
-        </View>
-      )}
     </>
   ) : null}
 
@@ -2050,6 +2081,71 @@ const styles = StyleSheet.create({
     color: '#38bdf8',
     fontWeight: '700',
   },
+  editorContentContainer: {
+    height: 88,
+    backgroundColor: '#121212',
+    overflow: 'hidden',
+    justifyContent: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  templateLayerSection: {
+    height: 88,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#121212',
+    justifyContent: 'space-between',
+  },
+  templateHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 2,
+  },
+  templateHintText: {
+    color: 'rgba(255, 255, 255, 0.45)',
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  templateButtonsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  templateActionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    height: 36,
+    borderRadius: 7,
+    backgroundColor: '#1c1c20',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  templateActionBtnText: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  templateActionBtnTextActive: {
+    color: '#38bdf8',
+    fontWeight: '700',
+  },
+  editorEmptyPlaceholder: {
+    height: 88,
+    backgroundColor: '#121212',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
+  editorEmptyPlaceholderText: {
+    color: 'rgba(255, 255, 255, 0.3)',
+    fontSize: 11,
+    fontStyle: 'italic',
+    textAlign: 'center',
+  },
   templateActionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2242,10 +2338,11 @@ const styles = StyleSheet.create({
     letterSpacing: 1.5,
   },
   subtitleLayerSection: {
+    height: 88,
     paddingVertical: 6,
     paddingHorizontal: 10,
     backgroundColor: '#121212',
-    gap: 6,
+    justifyContent: 'space-between',
   },
   miniTrackWrapper: {
     width: '100%',
