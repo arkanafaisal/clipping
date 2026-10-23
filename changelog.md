@@ -14,7 +14,21 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Calibrate Dynamic Scaling Multiplier to 0.073 for Subtitles and Context Banner
+## [Unreleased] - Bundle Python Scripts into Native Python-Runner for Standalone Production APK
+- **Konteks Struktural**:
+  1. Sinkronisasi Skrip Python ke Native Chaquopy Assets (`mobile/modules/python-runner/`):
+     - Memenuhi kebutuhan build production maupun development APK mandiri (*standalone*) sesuai permintaan pengguna (Rule 22): seluruh modul skrip dari direktori sumber pengembangan (`mobile/scripts/utils/`) disinkronkan ke bundle internal Chaquopy di `mobile/modules/python-runner/android/src/main/python/utils/`.
+     - Menyertakan skrip yang baru dikembangkan: `subtitle_burner.py` (pembakar subtitle FFmpeg dengan kalibrasi skala 0.073 dan multi-line justify center) dan `subtitle_fetcher.py` (ekstraktor transkrip subtitle YouTube).
+     - Memperbarui `clip_downloader.py` di bundle internal dengan logika penyamaran klien iOS/Android untuk download full video resolusi rendah.
+  2. Menjaga Fleksibilitas Hot-Reload Dev Mode:
+     - Arsitektur `runner.py` tetap memprioritaskan pemuatan dari shared storage (`/storage/emulated/0/clipping/scripts/`) jika folder tersebut ada di perangkat (via `setup_paths`).
+     - Dengan demikian, APK production dapat berjalan 100% mandiri tanpa dependensi shared storage, namun developer tetap dapat melakukan iterasi live-sync skrip Python secara instan tanpa perlu rebuild ulang APK saat mode dev.
+- **Perubahan Kode Penting**:
+  - `mobile/modules/python-runner/android/src/main/python/utils/`:
+    - Menambahkan `subtitle_burner.py` dan `subtitle_fetcher.py`.
+    - Menyinkronkan `clip_downloader.py` ke versi terbaru dari `mobile/scripts/utils/`.
+
+## [866b3e7] - Calibrate Dynamic Scaling Multiplier to 0.073 for Subtitles and Context Banner
 - **Konteks Struktural**:
   1. Penyesuaian Presisi Rasio Skala Subtitle & Banner Konteks (0.070 -> 0.073):
      - Kalibrasi visual lanjutan berdasarkan hasil pengujian ekspor video: rasio pengali `0.070` sebelumnya sudah mendekati sempurna, namun masih sedikit terlalu kecil (*kekecilan sedikit*).
