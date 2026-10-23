@@ -34,16 +34,19 @@ export const FeedPlaybackControls: React.FC<FeedPlaybackControlsProps> = ({
 }) => {
   return (
     <View style={styles.bottomPlayback}>
-      {/* Scrubber Progress Bar (Direct click to seek, zero animation, instant jump) */}
-      <Pressable
+      {/* Scrubber Progress Bar (Direct click, hold, and drag to seek) */}
+      <View
         style={styles.progressBarTrack}
-        hitSlop={{ top: 12, bottom: 12, left: 0, right: 0 }}
+        hitSlop={{ top: 14, bottom: 14, left: 0, right: 0 }}
         onLayout={onLayoutTrack}
-        onPressIn={onScrubberPress}
+        onStartShouldSetResponder={() => true}
+        onMoveShouldSetResponder={() => true}
+        onResponderGrant={onScrubberPress}
+        onResponderMove={onScrubberPress}
       >
         <View style={[styles.progressBarFill, { width: `${progressPercent}%` }]} />
         <View style={[styles.progressKnob, { left: `${progressPercent}%` }]} />
-      </Pressable>
+      </View>
 
       {/* Playback Buttons (-10s, -3s, Play/Pause, +5s, +15s) */}
       <View style={styles.playbackControlsRow}>

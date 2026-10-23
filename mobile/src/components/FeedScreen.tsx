@@ -101,9 +101,14 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
       if (!curClip) return;
       const duration = curClip.end - curClip.start;
       if (duration <= 0) return;
+      const currentSource = currentSourceUriRef.current;
+      const isIndividualCutClip =
+        currentSource.startsWith('file://') &&
+        !currentSource.endsWith('/full.mp4') &&
+        !currentSource.endsWith('/full_video.mp4') &&
+        !currentSource.endsWith('/full_proxy.mp4');
       const clampedRel = Math.max(0, Math.min(duration, relSec));
-      const isLocalMode = currentSourceUriRef.current.startsWith('file://');
-      const targetTime = isLocalMode ? clampedRel : curClip.start + clampedRel;
+      const targetTime = isIndividualCutClip ? clampedRel : curClip.start + clampedRel;
       const pct = (clampedRel / duration) * 100;
       setProgressPercent(pct);
       setCurrentClipTime(clampedRel);
@@ -512,10 +517,16 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
           const duration = currentActive.end - currentActive.start;
           if (duration <= 0 || trackWidthRef.current <= 0) return;
 
-          const isLocalMode = currentSourceUriRef.current.startsWith('file://');
+          const currentSource = currentSourceUriRef.current;
+          const isIndividualCutClip =
+            currentSource.startsWith('file://') &&
+            !currentSource.endsWith('/full.mp4') &&
+            !currentSource.endsWith('/full_video.mp4') &&
+            !currentSource.endsWith('/full_proxy.mp4');
+
           const locationX = e.nativeEvent.locationX;
           const pct = Math.max(0, Math.min(100, (locationX / trackWidthRef.current) * 100));
-          const targetTime = isLocalMode
+          const targetTime = isIndividualCutClip
             ? (pct / 100) * duration
             : currentActive.start + (pct / 100) * duration;
 

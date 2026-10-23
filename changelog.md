@@ -14,7 +14,22 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Comprehensive Full Workshop Export and Import with Done-Only Subtitles, Templates, and Global Configs
+## [Unreleased] - Fix Scrubber Seeking Calculation on Local Full Video and Enable Touch Drag Scrubbing
+- **Konteks Struktural**:
+  1. Koreksi Perhitungan Target Waktu Seek pada Mode Full Video Lokal:
+     - Mengatasi kendala di mana menahan (*hold*) atau mengetuk progress bar scrubber pada pemutaran video lokal gagal dan langsung otomatis mental/kembali ke detik 0 (awal rentang klip).
+     - Akar Masalah: Pada `FeedScreen.tsx`, pengecekan mode lokal sebelumnya hanya memeriksa `currentSourceUriRef.current.startsWith('file://')`. Ketika memutar file video utuh lokal (`full_proxy.mp4` atau `full.mp4`), kondisi ini bernilai benar sehingga target seek salah dihitung secara relatif dari detik 0 (`(pct / 100) * duration`), padahal klip berada di tengah-tengah video penuh (misal detik 600 s/d 630). Nilai seek yang jauh di bawah `start` memicu loop detector di `useClipPlayer.ts` untuk langsung mengembalikan pemutar ke `currentActive.start`.
+     - Solusi: Membedakan file klip hasil potong mandiri (`isIndividualCutClip`) dengan memeriksa akhiran file (`!endsWith('/full.mp4') && !endsWith('/full_video.mp4') && !endsWith('/full_proxy.mp4')`). Jika memutar full video lokal maupun stream online, target seek dihitung secara absolut (`curClip.start + (pct / 100) * duration`) sehingga seeking tetap berada di dalam rentang klip.
+  2. Dukungan Geser / Dragging Halus pada Scrubber Progress Bar:
+     - Mengganti pembungkus `Pressable` pada `FeedPlaybackControls.tsx` dengan responder `View` (`onStartShouldSetResponder`, `onMoveShouldSetResponder`, `onResponderGrant`, `onResponderMove`).
+     - Pengguna kini dapat mengetuk langsung sekali maupun menahan dan menggeser (*drag/scrub*) progress bar secara kontinu tanpa terlepas, dengan update posisi visual instan dan debouncing 150ms pada pemutar lokal.
+- **Perubahan Kode Penting**:
+  - `mobile/src/components/FeedScreen.tsx`:
+    - Mengoreksi `handleSeekRelative` dan `onScrubberPress` untuk menggunakan `isIndividualCutClip` alih-alih `isLocalMode` polos, mencegah salah hitung target waktu pada file full video lokal.
+  - `mobile/src/components/feed/FeedPlaybackControls.tsx`:
+    - Memperbarui `progressBarTrack` menggunakan responder gesture touch agar mendukung interaksi hold dan drag scrubbing.
+
+## [2c5171d] - Comprehensive Full Workshop Export and Import with Done-Only Subtitles, Templates, and Global Configs
 - **Konteks Struktural**:
   1. Penyatuan Ekspor & Impor Workshop Utuh (Device-Agnostic Migration):
      - Memperluas skema ekspor JSON pada `Dashboard.tsx` (`handleExportWorkshop` versi 2) agar tidak hanya membawa draf klip dasar, melainkan memaketkan seluruh status kamar/workshop secara utuh sehingga pengguna dapat memindahkan data ke perangkat baru tanpa kehilangan konfigurasi yang terisolasi di private internal storage.
