@@ -2,7 +2,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as MediaLibrary from 'expo-media-library';
 import { LocalStorage } from './storage';
 import { getCurrentStorageRoot, getStorageRootPath, getStorageStructure } from './storageConfig';
-import { STREAM_YTDL_OPTS, HEATMAP_YTDL_OPTS, PRIME_CLIP_DOWNLOAD_OPTS, SUBTITLE_YTDL_OPTS } from '../constants/ytdlp';
+import { STREAM_YTDL_OPTS, HEATMAP_YTDL_OPTS, PRIME_CLIP_DOWNLOAD_OPTS, SUBTITLE_YTDL_OPTS, PROXY_FULL_VIDEO_YTDL_OPTS } from '../constants/ytdlp';
 import { DEFAULT_GDRIVE_DOWNLOAD_CONFIG } from '../constants/gdrive';
 
 export interface ClipItem {
@@ -774,6 +774,16 @@ export function getFullVideoFilePath(videoId: string): { fileUri: string; native
 }
 
 /**
+ * Menghasilkan alokasi lokasi file proxy preview full video (480p) pada shared storage:
+ * /storage/emulated/0/clipping/output/<videoId>/full_proxy.mp4
+ */
+export function getFullVideoProxyFilePath(videoId: string): { fileUri: string; nativePath: string } {
+  const nativePath = `${SHARED_CLIPPING_OUTPUT_DIR}/${videoId}/full_proxy.mp4`;
+  const fileUri = `file://${nativePath}`;
+  return { fileUri, nativePath };
+}
+
+/**
  * Memeriksa apakah file video utuh (full video) sudah terunduh secara fisik di shared storage.
  */
 export async function checkFullVideoExists(videoId: string): Promise<boolean> {
@@ -796,8 +806,20 @@ export async function checkFullVideoExists(videoId: string): Promise<boolean> {
 
 /**
  * Menyelesaikan fileUri video utuh lokal jika ada di shared storage.
+ * Prioritas 1: Gunakan file proxy 480p (full_proxy.mp4) agar pemutaran UI super lancar 60 FPS dan 100% offline.
+ * Prioritas 2: Fallback ke file master 1080p (full.mp4 / full_video.mp4).
  */
 export async function resolvePlayableFullVideoUri(videoId: string): Promise<string | null> {
+  // Prioritas 1: Gunakan file proxy 480p yang sangat ringan untuk player UI
+  try {
+    const { fileUri: proxyUri } = getFullVideoProxyFilePath(videoId);
+    const proxyInfo = await FileSystem.getInfoAsync(proxyUri);
+    if (proxyInfo.exists && ((proxyInfo as any).size === undefined || (proxyInfo as any).size > 0)) {
+      return proxyUri;
+    }
+  } catch {}
+
+  // Prioritas 2: Fallback ke master full.mp4 jika proxy belum ada
   try {
     const { fileUri } = getFullVideoFilePath(videoId);
     const info = await FileSystem.getInfoAsync(fileUri);
@@ -1221,8 +1243,9 @@ export async function downloadClip(
 export async function downloadFullVideo(
   videoId: string,
   onProgress?: (info: { stage: string; code: string; percent: number }) => void
-): Promise<{ status: string; output_path: string; fileUri: string }> {
+): Promise<{ status: string; output_path: string; fileUri: string; proxy_output_path?: string; proxyFileUri?: string }> {
   const { fileUri, nativePath } = getFullVideoFilePath(videoId);
+  const { fileUri: proxyFileUri, nativePath: proxyNativePath } = getFullVideoProxyFilePath(videoId);
   const targetDirUri = `file://${SHARED_CLIPPING_OUTPUT_DIR}/${videoId}`;
 
   try {
@@ -1276,6 +1299,8 @@ export async function downloadFullVideo(
         cookie_path: cookiePath,
         ydl_opts: ydlOpts,
         progress_path: nativeProgressPath,
+        proxy_output_path: proxyNativePath,
+        proxy_ydl_opts: PROXY_FULL_VIDEO_YTDL_OPTS,
       });
     } else {
       const response = await fetch(`${DEV_API_BASE_URL}/api/download-full-video`, {
@@ -1287,6 +1312,8 @@ export async function downloadFullVideo(
           cookie_path: cookiePath,
           ydl_opts: ydlOpts,
           progress_path: nativeProgressPath,
+          proxy_output_path: proxyNativePath,
+          proxy_ydl_opts: PROXY_FULL_VIDEO_YTDL_OPTS,
         }),
         signal: controller.signal,
       });
@@ -1310,6 +1337,8 @@ export async function downloadFullVideo(
       status: 'success',
       output_path: nativePath,
       fileUri,
+      proxy_output_path: proxyNativePath,
+      proxyFileUri,
     };
   } catch (err: any) {
     clearTimeout(timeoutId);

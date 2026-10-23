@@ -201,104 +201,111 @@ export function useClipPlayer({
     async (clip: ClipItem, autoPlay: boolean = true) => {
       if (!player) return;
       cancelPendingSeekDebounce();
-      const isDownloaded = Boolean(downloadedClipsRef.current[clip.id]);
-      const isClipDoneLocal = clip.status === 'done' && isDownloaded;
 
-      if (isClipDoneLocal) {
-        setPendingSeek(0);
-        const fileUri = await resolvePlayableClipUri(videoId, clip.start, clip.end, clip.rank);
-        if (currentSourceUriRef.current !== fileUri) {
-          currentSourceUriRef.current = fileUri;
+      // 1. PRIORITAS UTAMA: Jika full video lokal (terutama full_proxy.mp4 480p) tersedia,
+      // SELALU gunakan full video proxy lokal untuk SEMUA mode player (clipping, mark as done, editor non-facecam, editor facecam)
+      // agar pemutaran 100% offline, 0ms seek, dan super lancar 60 FPS tanpa beban decoder!
+      const fullVideoUri = playMode === 'stream' ? null : await resolvePlayableFullVideoUri(videoId);
+      if (fullVideoUri) {
+        const targetTime = Math.max(0, clip.start);
+        setPendingSeek(targetTime);
+
+        if (currentSourceUriRef.current !== fullVideoUri) {
+          currentSourceUriRef.current = fullVideoUri;
           isSourceSwitchingRef.current = true;
           try {
-            player.replace(fileUri);
+            player.replace(fullVideoUri);
             if (isFacecamActiveRef.current && facecamPlayer) {
-              facecamPlayer.replace(fileUri);
+              facecamPlayer.replace(fullVideoUri);
               facecamPlayer.muted = true;
             }
           } catch (err) {
-            console.warn('[Feed] Replace local file error:', err);
+            console.warn('[Feed] Replace full video proxy error:', err);
           }
         } else {
           try {
-            player.currentTime = 0;
+            player.currentTime = targetTime;
             if (isFacecamActiveRef.current && facecamPlayer) {
-              facecamPlayer.currentTime = 0;
+              facecamPlayer.currentTime = targetTime;
               if (autoPlay && isContinueStateRef.current) facecamPlayer.play();
             }
             if (autoPlay && isContinueStateRef.current) {
               player.play();
             }
           } catch (err) {
-            console.warn('[Feed] Play local error:', err);
+            console.warn('[Feed] Play full video proxy error:', err);
           }
         }
-      } else {
-        // Prioritas Utama: Periksa apakah file full video lokal tersedia di shared storage (HANYA jika playMode !== 'stream')
-        const fullVideoUri = playMode === 'stream' ? null : await resolvePlayableFullVideoUri(videoId);
-        const targetTime = Math.max(0, clip.start);
-        setPendingSeek(targetTime);
+        return;
+      }
 
-        if (fullVideoUri) {
-          if (currentSourceUriRef.current !== fullVideoUri) {
-            currentSourceUriRef.current = fullVideoUri;
+      // 2. JIKA TIDAK ADA FULL VIDEO LOKAL:
+      // A. Jika mode facecam aktif (2 player berjalan):
+      // Wajib gunakan streamUrl (480p progressive YouTube) agar hardware decoder tidak terbebani 2x video 1080p!
+      // B. Jika facecam tidak aktif & klip individual lokal sudah di-download:
+      // Putar file klip lokal (00.12 - 01.35.mp4) mulai dari detik 0.
+      const isDownloaded = Boolean(downloadedClipsRef.current[clip.id]);
+      const isClipDoneLocal = clip.status === 'done' && isDownloaded && !isFacecamActiveRef.current;
+
+      if (isClipDoneLocal) {
+        setPendingSeek(0);
+        const fileUri = await resolvePlayableClipUri(videoId, clip.start, clip.end, clip.rank);
+        if (fileUri) {
+          if (currentSourceUriRef.current !== fileUri) {
+            currentSourceUriRef.current = fileUri;
             isSourceSwitchingRef.current = true;
             try {
-              player.replace(fullVideoUri);
-              if (isFacecamActiveRef.current && facecamPlayer) {
-                facecamPlayer.replace(fullVideoUri);
-                facecamPlayer.muted = true;
-              }
+              player.replace(fileUri);
             } catch (err) {
-              console.warn('[Feed] Replace full video error:', err);
+              console.warn('[Feed] Replace local file error:', err);
             }
           } else {
             try {
-              player.currentTime = targetTime;
-              if (isFacecamActiveRef.current && facecamPlayer) {
-                facecamPlayer.currentTime = targetTime;
-                if (autoPlay && isContinueStateRef.current) facecamPlayer.play();
-              }
+              player.currentTime = 0;
               if (autoPlay && isContinueStateRef.current) {
                 player.play();
               }
             } catch (err) {
-              console.warn('[Feed] Play full video error:', err);
+              console.warn('[Feed] Play local error:', err);
             }
           }
-        } else {
-          // Fallback: Mode stream online YouTube
-          const activeStream = streamUrlRef.current;
-          if (activeStream && currentSourceUriRef.current !== activeStream) {
-            currentSourceUriRef.current = activeStream;
-            isSourceSwitchingRef.current = true;
-            try {
-              player.replace(activeStream);
-              if (isFacecamActiveRef.current && facecamPlayer) {
-                facecamPlayer.replace(activeStream);
-                facecamPlayer.muted = true;
-              }
-            } catch (err) {
-              console.warn('[Feed] Replace stream error:', err);
-            }
-          } else {
-            try {
-              player.currentTime = targetTime;
-              if (isFacecamActiveRef.current && facecamPlayer) {
-                facecamPlayer.currentTime = targetTime;
-                if (autoPlay && isContinueStateRef.current) facecamPlayer.play();
-              }
-              if (autoPlay && isContinueStateRef.current) {
-                player.play();
-              }
-            } catch (err) {
-              console.warn('[Feed] Play stream error:', err);
-            }
+          return;
+        }
+      }
+
+      // 3. FALLBACK UNIVERSAL: Mode stream online YouTube (480p)
+      const activeStream = streamUrlRef.current;
+      const targetTime = Math.max(0, clip.start);
+      setPendingSeek(targetTime);
+
+      if (activeStream && currentSourceUriRef.current !== activeStream) {
+        currentSourceUriRef.current = activeStream;
+        isSourceSwitchingRef.current = true;
+        try {
+          player.replace(activeStream);
+          if (isFacecamActiveRef.current && facecamPlayer) {
+            facecamPlayer.replace(activeStream);
+            facecamPlayer.muted = true;
           }
+        } catch (err) {
+          console.warn('[Feed] Replace stream error:', err);
+        }
+      } else {
+        try {
+          player.currentTime = targetTime;
+          if (isFacecamActiveRef.current && facecamPlayer) {
+            facecamPlayer.currentTime = targetTime;
+            if (autoPlay && isContinueStateRef.current) facecamPlayer.play();
+          }
+          if (autoPlay && isContinueStateRef.current) {
+            player.play();
+          }
+        } catch (err) {
+          console.warn('[Feed] Play stream error:', err);
         }
       }
     },
-    [player, videoId, setPendingSeek, downloadedClipsRef, playMode]
+    [player, facecamPlayer, videoId, setPendingSeek, downloadedClipsRef, playMode]
   );
 
   /**
@@ -397,7 +404,8 @@ export function useClipPlayer({
         currentActive.status === 'done' &&
         Boolean(downloadedClipsRef.current[currentActive.id]) &&
         !currentSource.endsWith('/full.mp4') &&
-        !currentSource.endsWith('/full_video.mp4');
+        !currentSource.endsWith('/full_video.mp4') &&
+        !currentSource.endsWith('/full_proxy.mp4');
 
       const current = event.currentTime;
       const duration = currentActive.end - currentActive.start;
@@ -487,7 +495,8 @@ export function useClipPlayer({
             currentActive.status === 'done' &&
             Boolean(downloadedClipsRef.current[currentActive.id]) &&
             !currentSource.endsWith('/full.mp4') &&
-            !currentSource.endsWith('/full_video.mp4');
+            !currentSource.endsWith('/full_video.mp4') &&
+            !currentSource.endsWith('/full_proxy.mp4');
 
           const targetTime =
             pendingSeekTargetRef.current !== null
@@ -596,7 +605,8 @@ export function useClipPlayer({
         currentActive.status === 'done' &&
         Boolean(downloadedClipsRef.current[currentActive.id]) &&
         !currentSource.endsWith('/full.mp4') &&
-        !currentSource.endsWith('/full_video.mp4');
+        !currentSource.endsWith('/full_video.mp4') &&
+        !currentSource.endsWith('/full_proxy.mp4');
       const duration = currentActive.end - currentActive.start;
 
       if (isClipDoneLocal) {

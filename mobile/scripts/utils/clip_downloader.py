@@ -622,11 +622,15 @@ def download_full_video_direct(
     output_path: str,
     cookie_path: str = None,
     ydl_opts: dict = None,
-    progress_path: str = None
+    progress_path: str = None,
+    proxy_output_path: str = None,
+    proxy_ydl_opts: dict = None
 ) -> dict:
     """
     Mendownload satu video YouTube utuh secara mandiri menggunakan yt-dlp ke shared storage.
     Video di-download dalam format MP4 prime 1080p/720p H.264 + AAC dengan progress tracking realtime.
+    Jika proxy_output_path diberikan, otomatis mendownload video proxy 480p (client ios/android)
+    untuk pemutaran super ringan di player UI.
     """
     if not video_id:
         return {"status": "error", "code": "VIDEO_ID_REQUIRED", "error": "Parameter 'video_id' wajib diisi."}
@@ -735,8 +739,38 @@ def download_full_video_direct(
             code = "DOWNLOAD_FAILED"
         return {"status": "error", "code": code, "error": full_err_text}
 
+    # 3. Download Proxy Preview 480p (Penyamaran client iOS & Android) jika diminta
+    if proxy_output_path:
+        write_progress("STAGE_PROXY", "DOWNLOADING_PROXY_PREVIEW", 98)
+        p_opts = {
+            "format": "best[height<=480][ext=mp4]/best[ext=mp4]",
+            "outtmpl": proxy_output_path,
+            "quiet": True,
+            "no_warnings": True,
+            "nocheckcertificate": True,
+            "extractor_args": {
+                "youtube": {
+                    "player_client": ["ios", "android"],
+                },
+            },
+        }
+        if proxy_ydl_opts and isinstance(proxy_ydl_opts, dict):
+            p_opts.update(proxy_ydl_opts)
+            p_opts["outtmpl"] = proxy_output_path
+
+        youtube_url = f"https://www.youtube.com/watch?v={video_id}"
+        try:
+            with yt_dlp.YoutubeDL(p_opts) as ydl:
+                ydl.download([youtube_url])
+        except Exception as e_proxy:
+            print(f"[FullVideo] Proxy download warning (non-fatal): {str(e_proxy)}")
+
     write_progress("STAGE_COMPLETE", "COMPLETED", 100, force=True)
-    return {"status": "success", "output_path": output_path}
+    return {
+        "status": "success",
+        "output_path": output_path,
+        "proxy_output_path": proxy_output_path if (proxy_output_path and os.path.exists(proxy_output_path)) else None
+    }
 
 
 def download_youtube_clip_range(

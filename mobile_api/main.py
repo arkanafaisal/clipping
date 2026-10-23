@@ -158,13 +158,17 @@ def download_full_video(video_id=None):
         opts = body.get("ydl_opts")
         cookie_path = body.get("cookie_path")
         progress_path = body.get("progress_path")
+        proxy_output_path = body.get("proxy_output_path")
+        proxy_ydl_opts = body.get("proxy_ydl_opts")
 
         res = download_full_video_direct(
             video_id=vid,
             output_path=output_path,
             cookie_path=cookie_path,
             ydl_opts=opts,
-            progress_path=progress_path
+            progress_path=progress_path,
+            proxy_output_path=proxy_output_path,
+            proxy_ydl_opts=proxy_ydl_opts
         )
         if res.get("status") == "error":
             err_code = res.get("code") or "DOWNLOAD_FAILED"
@@ -177,7 +181,8 @@ def download_full_video(video_id=None):
 
         return jsonify({
             "status": "success",
-            "output_path": res.get("output_path")
+            "output_path": res.get("output_path"),
+            "proxy_output_path": res.get("proxy_output_path")
         }), 200
     except Exception as e:
         return jsonify({

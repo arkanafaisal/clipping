@@ -65,6 +65,23 @@ export const DOWNLOAD_YTDL_OPTS: YtdlOpts = {
 };
 
 /**
+ * Konfigurasi Download Proxy Full Video (Ringan untuk Player UI):
+ * - Resolusi: 480p MP4 H.264
+ * - Client: iOS & Android (Bypass BotGuard dan aman dari rate limit)
+ */
+export const PROXY_FULL_VIDEO_YTDL_OPTS: YtdlOpts = {
+  format: 'best[height<=480][ext=mp4]/best[ext=mp4]',
+  quiet: true,
+  no_warnings: true,
+  nocheckcertificate: true,
+  extractor_args: {
+    youtube: {
+      player_client: ['ios', 'android'],
+    },
+  },
+};
+
+/**
  * Konfigurasi Download Klip Fisik (Prime Quality + Stream Reconnect + Retries):
  * - Kualitas: Prime HD asli YouTube (bestvideo+bestaudio merged ke MP4 1080p 60fps)
  * - Ekstraksi: Multi-client standar yt-dlp (menghindari blokir format YouTube web)
