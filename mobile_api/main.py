@@ -11,6 +11,8 @@ from flask import Flask, jsonify, request
 from utils.stream_extractor import get_direct_stream_url
 from utils.heatmap import get_raw_heatmap
 from utils.clip_downloader import download_clip_direct, download_full_video_direct
+from utils.subtitle_burner import burn_subtitles_to_video
+from utils.subtitle_fetcher import extract_subtitles_data
 
 app = Flask(__name__)
 
@@ -311,6 +313,79 @@ def download_gdrive_file():
         }), 500
 
 
+@app.route("/api/subtitles", methods=["POST"])
+@app.route("/api/subtitles/<video_id>", methods=["POST"])
+def get_subtitles(video_id=None):
+    """
+    Endpoint Pass-Through murni untuk ekstraksi subtitle YouTube via yt-dlp.
+    Mendelegasikan ke utils.subtitle_fetcher.extract_subtitles_data.
+    """
+    try:
+        body = request.get_json(silent=True) or {}
+        vid = body.get("video_id") or video_id or request.args.get("video_id")
+        ydl_opts = body.get("ydl_opts")
+        cookie_path = body.get("cookie_path")
+        preferred_lang = body.get("preferred_lang", "id")
+
+        res = extract_subtitles_data(
+            video_id=vid,
+            ydl_opts=ydl_opts,
+            cookie_path=cookie_path,
+            preferred_lang=preferred_lang
+        )
+
+        status_code = 200 if res.get("status") == "success" else (
+            404 if res.get("code") == "SUBTITLE_NOT_FOUND" else (
+                429 if res.get("code") == "RATE_LIMIT_EXCEEDED" else 400
+            )
+        )
+        return jsonify(res), status_code
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "code": "SUBTITLE_ERROR",
+            "error": str(e)
+        }), 500
+
+
+
+@app.route("/api/burn-subtitles", methods=["POST"])
+def api_burn_subtitles():
+    """
+    Endpoint Pass-Through murni untuk menempelkan (hardcode burn-in) subtitle ke video klip.
+    Front-end mengirimkan konfigurasi: input_video_path, output_video_path, subtitle_data, template_data, ffmpeg_bin, progress_path, duration.
+    Server memproses pembuatan video baru secara mandiri tanpa mengubah video asli yang sudah ada.
+    """
+    try:
+        body = request.get_json(silent=True) or {}
+        input_video_path = body.get("input_video_path")
+        output_video_path = body.get("output_video_path")
+        subtitle_data = body.get("subtitle_data")
+        template_data = body.get("template_data")
+        ffmpeg_bin = body.get("ffmpeg_bin")
+        progress_path = body.get("progress_path")
+        duration = body.get("duration")
+
+        res = burn_subtitles_to_video(
+            input_video_path=input_video_path,
+            output_video_path=output_video_path,
+            subtitle_data=subtitle_data,
+            template_data=template_data,
+            ffmpeg_bin=ffmpeg_bin,
+            progress_path=progress_path,
+            duration=duration
+        )
+
+        status_code = 200 if res.get("status") == "success" else (
+            400 if res.get("code") in ["INPUT_VIDEO_NOT_FOUND", "OUTPUT_PATH_REQUIRED", "INVALID_PARAMS", "NO_SUBTITLES_TO_BURN", "NO_CONTENT_TO_BURN"] else 500
+        )
+        return jsonify(res), status_code
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "code": "FFMPEG_BURN_ERROR",
+            "error": str(e)
+        }), 500
 
 
 @app.route("/api/proxy_stream", methods=["GET"])

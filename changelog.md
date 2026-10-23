@@ -14,7 +14,36 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Support Zero-Heatmap Rooms with Pure In-Memory Visual Fallback and On-Demand Extraction
+## [Unreleased] - Restore Subtitle, Context Template, and Facecam Editor with Portrait Canvas & Export
+- **Konteks Struktural**:
+  1. Pemulihan Fitur Subtitle, Template Layout, dan Editor Video:
+     - Mengembalikan seluruh modul, hooks, dan antarmuka subtitle dan template yang sebelumnya dihapus pada commit `a61ae99`:
+       - [mobile/src/hooks/useClipSubtitle.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipSubtitle.ts): Hook manajemen subtitle (pengambilan dari YouTube, normalisasi single-line cue, penyesuaian posisi X/Y, penambahan/penghapusan/pergeseran cue, dan ekspor video burn-in).
+       - [mobile/src/hooks/useClipTemplate.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipTemplate.ts): Hook manajemen konfigurasi template (banner konteks, box facecam 4:3, zoom/crop koordinat X & Y, rasio 9:16 portrait canvas).
+       - [mobile/src/components/feed/SubtitleOverlay.tsx](file:///d:/projects/clipping/mobile/src/components/feed/SubtitleOverlay.tsx): Komponen rendering subtitle dinamis di atas canvas video dengan outline stroke, background pill transparan, dan font dinamis.
+       - [mobile/scripts/utils/subtitle_fetcher.py](file:///d:/projects/clipping/mobile/scripts/utils/subtitle_fetcher.py) & [mobile/scripts/utils/subtitle_burner.py](file:///d:/projects/clipping/mobile/scripts/utils/subtitle_burner.py): Skrip backend untuk ekstraksi subtitle YouTube via yt-dlp dan burn-in hardcode subtitle + template ke video via FFmpeg filter_complex.
+  2. Integrasi Editor Mode & Penghapusan Preview Facecam di Clipping Mode:
+     - Menghapus komponen preview facecam lama di mode clipping ([FacecamHighlightSection.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FacecamHighlightSection.tsx)) dari [FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx) sesuai instruksi pengguna, karena konfigurasi facecam telah sepenuhnya kembali ke mode Editor klip yang telah selesai (done).
+     - Mengintegrasikan antarmuka [FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx):
+       - Saat `activeClip.status !== 'done'`: Mempertahankan antarmuka modern clipping mode (tombol tambah rentang custom `+`, tombol pengatur jumlah klip heatmap `SlidersHorizontal`, input edit milidetik MM:SS, tombol Trash dan Done, serta baris Extend dan Crop).
+       - Saat `activeClip.status === 'done'`: Menampilkan tombol Ekspor klip (`Film`) di sisi kiri jika klip terunduh, serta baris pengalih mode Editor (Subtitle dan Template) yang lengkap dengan mini timeline track, tombol aksi, dan 8 modal pengaturan interaktif.
+  3. Pemulihan Multi-Viewport Portrait Canvas & Sinkronisasi Realtime:
+     - Pada [FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx), ketika mode portrait aktif (`templateConfig.context.enabled || templateConfig.facecam.enabled`):
+       - Merender container 9:16 portrait yang menampung:
+         1. Header Banner Konteks di bagian atas.
+         2. Viewport Facecam (4:3) dengan `facecamPlayer` independen (audio termute).
+         3. Viewport Gameplay Utama (4:3 jika facecam aktif, 16:9 jika hanya konteks banner).
+         4. `SubtitleOverlay` presisi di atas kanvas.
+     - Pada [useClipPlayer.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipPlayer.ts), menghubungkan kembali `subtitlesRef` dan `setActiveSubtitleText` pada event `timeUpdate` untuk sinkronisasi teks subtitle secara realtime dengan frame pemutar video.
+- **Perubahan Kode Penting**:
+  - [mobile/src/constants/ytdlp.ts](file:///d:/projects/clipping/mobile/src/constants/ytdlp.ts): Menambahkan kembali konfigurasi `SUBTITLE_YTDL_OPTS` untuk ekstraksi subtitle multi-bahasa YouTube tanpa unduh video.
+  - [mobile_api/main.py](file:///d:/projects/clipping/mobile_api/main.py): Mengembalikan route pass-through `POST /api/subtitles` dan `POST /api/burn-subtitles` beserta import utilitasnya.
+  - [mobile/src/services/api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts): Memulihkan seluruh interface dan fungsi pendukung subtitle & template (`SubtitleCue`, `SubtitleStyle`, `ClipSubtitleData`, `ClipTemplateConfig`, `VideoGlobalConfig`, `fetchSubtitlesForVideo`, `loadClipSubtitle`, `saveClipSubtitle`, `deleteClipSubtitle`, `loadClipTemplate`, `saveClipTemplate`, `loadVideoGlobalConfig`, `saveVideoGlobalConfig`, `burnClipSubtitles`, `getSubtitledClipFilename`, `getSubtitledClipOutputFilePath`).
+  - [mobile/src/hooks/useClipPlayer.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipPlayer.ts): Menghubungkan parameter `subtitlesRef` dan `setActiveSubtitleText` ke playback time listener.
+  - [mobile/src/components/feed/FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx): Menggabungkan antarmuka clipping mode dengan editor switcher, mini track timeline, dan modal pengaturan template/subtitle saat klip berstatus 'done'.
+  - [mobile/src/components/FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx): Mengintegrasikan hook `useClipSubtitle` dan `useClipTemplate`, merender layout kanvas 9:16 portrait, dan menghapus komponen preview facecam clipping.
+
+## [edcbfb7] - Support Zero-Heatmap Rooms with Pure In-Memory Visual Fallback and On-Demand Extraction
 - **Konteks Struktural**:
   1. Penanganan Room Video Tanpa Heatmap / Ekstraksi Heatmap Gagal:
      - Mengubah alur pembuatan room di [Dashboard.tsx](file:///d:/projects/clipping/mobile/src/components/Dashboard.tsx):

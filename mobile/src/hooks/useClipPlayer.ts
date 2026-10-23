@@ -7,6 +7,7 @@ import {
   getClipOutputFilePath,
   resolvePlayableClipUri,
   resolvePlayableFullVideoUri,
+  SubtitleCue,
 } from '../services/api';
 import { ToastManager } from '../components/Toast';
 
@@ -17,6 +18,8 @@ export interface UseClipPlayerParams {
   activeClip?: ClipItem;
   downloadedClipsRef: React.MutableRefObject<Record<string, boolean>>;
   playMode?: 'local' | 'stream';
+  subtitlesRef?: React.MutableRefObject<SubtitleCue[]>;
+  setActiveSubtitleText?: (text: string) => void;
   onBack: () => void;
 }
 
@@ -27,6 +30,8 @@ export function useClipPlayer({
   activeClip,
   downloadedClipsRef,
   playMode = 'local',
+  subtitlesRef,
+  setActiveSubtitleText,
   onBack,
 }: UseClipPlayerParams) {
   const getActiveClip = useCallback((): ClipItem => {
@@ -419,6 +424,20 @@ export function useClipPlayer({
           setProgressPercent(pct);
           const rel = Math.max(0, Math.min(duration, current - currentActive.start));
           setCurrentClipTime(rel);
+        }
+
+        // Sinkronisasi teks subtitle secara realtime dengan frame video
+        const currentRel = isClipDoneLocal
+          ? Math.max(0, Math.min(duration, current))
+          : Math.max(0, Math.min(duration, current - currentActive.start));
+
+        if (subtitlesRef?.current && subtitlesRef.current.length > 0 && setActiveSubtitleText) {
+          const matchCue = subtitlesRef.current.find(
+            (c) => currentRel >= c.start && currentRel <= c.end
+          );
+          setActiveSubtitleText(matchCue ? matchCue.text : '');
+        } else if (setActiveSubtitleText) {
+          setActiveSubtitleText('');
         }
       }
 

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   StyleSheet,
   Text,
@@ -8,21 +8,23 @@ import {
   Keyboard,
 } from 'react-native';
 import { VideoView } from 'expo-video';
-import { ClipItem } from '../services/api';
-import { LocalStorage } from '../services/storage';
-import { FeedTopControls } from './feed/FeedTopControls';
+import {
+  ClipItem,
+  SubtitleCue,
+} from '../services/api';
+import { ToastManager } from './Toast';
+import { CookiesModal } from './CookiesModal';
+import { FeedTopControls, EditorMode } from './feed/FeedTopControls';
 import { FeedPlaybackControls } from './feed/FeedPlaybackControls';
 import { FeedClipCarousel } from './feed/FeedClipCarousel';
 import { CustomRangeModal } from './feed/CustomRangeModal';
 import { VisibleCountModal } from './feed/VisibleCountModal';
-import {
-  FacecamHighlightSection,
-  FacecamConfig,
-  DEFAULT_FACECAM_CONFIG,
-} from './feed/FacecamHighlightSection';
+import { SubtitleOverlay } from './feed/SubtitleOverlay';
 import { useClipData } from '../hooks/useClipData';
 import { useClipPlayer } from '../hooks/useClipPlayer';
 import { useClipDownload } from '../hooks/useClipDownload';
+import { useClipSubtitle } from '../hooks/useClipSubtitle';
+import { useClipTemplate } from '../hooks/useClipTemplate';
 
 interface FeedScreenProps {
   videoId: string;
@@ -39,26 +41,32 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
   onBack,
   onUpdateWorkshopDone,
 }) => {
-  // Shared refs for data, player & download hooks
+  // Shared refs for data, player, download & subtitle hooks
   const clipsRef = useRef<ClipItem[]>([]);
   const activeClipIdRef = useRef<string | null>(null);
   const downloadedClipsRef = useRef<Record<string, boolean>>({});
+  const subtitlesRef = useRef<SubtitleCue[]>([]);
+  const setCookiesModalVisibleRef = useRef<(visible: boolean) => void>(() => {});
   const setDownloadedClipsRef = useRef<React.Dispatch<React.SetStateAction<Record<string, boolean>>>>(() => {});
+  const setActiveSubtitleTextRef = useRef<(text: string) => void>(() => {});
 
   // Modal dialog states
   const [isCustomModalVisible, setIsCustomModalVisible] = useState(false);
   const [isVisibleCountModalVisible, setIsVisibleCountModalVisible] = useState(false);
+  const [cookiesModalVisible, setCookiesModalVisible] = useState(false);
 
   const handleSetDownloadedClips = useCallback<React.Dispatch<React.SetStateAction<Record<string, boolean>>>>((val) => {
     setDownloadedClipsRef.current(val);
+  }, []);
+
+  const handleSetActiveSubtitleText = useCallback((text: string) => {
+    setActiveSubtitleTextRef.current(text);
   }, []);
 
   // Hook 2: useClipPlayer
   const {
     player,
     facecamPlayer,
-    setIsFacecamActive,
-    videoAspectRatio,
     streamUrl,
     isContinueState,
     progressPercent,
@@ -73,81 +81,43 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     togglePlayPause,
     skipSeconds,
     initializeStreamAndPlayback,
+    setIsFacecamActive,
   } = useClipPlayer({
     videoId,
     clipsRef,
     activeClipIdRef,
     downloadedClipsRef,
     playMode,
+    subtitlesRef,
+    setActiveSubtitleText: handleSetActiveSubtitleText,
     onBack,
   });
 
-  // Facecam Highlight State & Persistent Framing Settings
-  const [facecamConfig, setFacecamConfig] = useState<FacecamConfig>(DEFAULT_FACECAM_CONFIG);
-
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const saved = await LocalStorage.getItem(`clipping_facecam_${videoId}`);
-        if (saved && mounted) {
-          const parsed = JSON.parse(saved);
-          setFacecamConfig((prev) => ({ ...prev, ...parsed }));
-        }
-      } catch (e) {}
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, [videoId]);
-
-  const handleUpdateFacecamConfig = useCallback(
-    (updates: Partial<FacecamConfig>) => {
-      setFacecamConfig((prev) => {
-        const next = { ...prev, ...updates };
-        LocalStorage.setItem(`clipping_facecam_${videoId}`, JSON.stringify(next)).catch(() => {});
-        return next;
-      });
+  // Relative Seek helper (0 to clip duration) compatible with both local MP4 and online stream
+  const handleSeekRelative = useCallback(
+    (relSec: number, shouldPlay: boolean = true) => {
+      const currentActiveId = activeClipIdRef.current;
+      const curClip = clipsRef.current.find((c) => c.id === currentActiveId);
+      if (!curClip) return;
+      const duration = curClip.end - curClip.start;
+      if (duration <= 0) return;
+      const clampedRel = Math.max(0, Math.min(duration, relSec));
+      const isLocalMode = currentSourceUriRef.current.startsWith('file://');
+      const targetTime = isLocalMode ? clampedRel : curClip.start + clampedRel;
+      const pct = (clampedRel / duration) * 100;
+      setProgressPercent(pct);
+      setCurrentClipTime(clampedRel);
+      centralizedSeek(targetTime, shouldPlay);
     },
-    [videoId]
+    [centralizedSeek, setProgressPercent, setCurrentClipTime, currentSourceUriRef]
   );
-
-  useEffect(() => {
-    setIsFacecamActive(facecamConfig.enabled);
-  }, [facecamConfig.enabled, setIsFacecamActive]);
-
-  // Layout player container untuk anchoring video tepat di atas progress bar
-  const [playerLayout, setPlayerLayout] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
-
-  const videoContainerStyle = useMemo(() => {
-    const { width: cWidth, height: cHeight } = playerLayout;
-    const targetRatio = videoAspectRatio || 16 / 9;
-
-    if (cWidth <= 0 || cHeight <= 0) {
-      return { width: '100%' as const, aspectRatio: targetRatio };
-    }
-
-    const containerRatio = cWidth / cHeight;
-    if (containerRatio > targetRatio) {
-      // Container lebih lebar dari rasio video
-      return {
-        width: cHeight * targetRatio,
-        height: cHeight,
-      };
-    } else {
-      // Container lebih tinggi dari rasio video (kondisi portrait standar): lebar penuh, tinggi sesuai aspek rasio
-      return {
-        width: cWidth,
-        height: cWidth / targetRatio,
-      };
-    }
-  }, [playerLayout, videoAspectRatio]);
 
   // Hook 1: useClipData
   const {
     clips,
     setClips,
     activeClipId,
+    setActiveClipId,
     activeClip,
     loading,
     loadingMessage,
@@ -209,6 +179,156 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     setDownloadedClipsRef.current = setDownloadedClips;
   }, [setDownloadedClips]);
 
+  // Hook 4: useClipTemplate
+  const {
+    templateConfig,
+    isPortrait,
+    handleUpdateContext,
+    handleUpdateFacecam,
+    handleUpdateMainVideo,
+  } = useClipTemplate({
+    videoId,
+    activeClip,
+    isDownloaded: Boolean(activeClip && downloadedClips[activeClip.id]),
+  });
+
+  // Hook 5: useClipSubtitle
+  const {
+    subtitles,
+    setSubtitles,
+    activeSubtitleText,
+    setActiveSubtitleText,
+    isSubtitleVisible,
+    setIsSubtitleVisible,
+    selectedCueId,
+    setSelectedCueId,
+    isFetchingSubtitles,
+    isExportingSubtitle,
+    subtitlePosition,
+    handleUpdateSubtitlePosition,
+    handleAddCue,
+    handleUpdateCue,
+    handleShiftCueTime,
+    handleDeleteCue,
+    handleFetchSubtitles,
+    handleExportSubtitledVideo,
+  } = useClipSubtitle({
+    videoId,
+    activeClip,
+    subtitlesRef,
+    templateConfig,
+    onSeek: (timeSec) => handleSeekRelative(timeSec, true),
+    onRateLimit: () => setCookiesModalVisible(true),
+  });
+
+  const [activeEditorMode, setActiveEditorMode] = useState<EditorMode>(null);
+
+  const [facecamLayout, setFacecamLayout] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
+  const [mainVideoLayout, setMainVideoLayout] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
+
+  // Layout style murni 16:9 yang menjamin buffer native ExoPlayer mempertahankan 100% frame 16:9 penuh
+  const facecamVideoStyle = useMemo(() => {
+    const zoom = Math.max(1.0, templateConfig.facecam.zoom || 2.0);
+    const cropX = Math.max(0, Math.min(100, templateConfig.facecam.cropX ?? 50));
+    const cropY = Math.max(0, Math.min(100, templateConfig.facecam.cropY ?? 50));
+    const w = facecamLayout.width || 280;
+    const h = facecamLayout.height || (w * 0.75);
+
+    // Dimensi video 16:9 penuh agar native player tidak memotong gambar
+    const baseVideoWidth = h * (16 / 9);
+    const scaledWidth = baseVideoWidth * zoom;
+    const scaledHeight = h * zoom;
+
+    const maxShiftX = Math.max(0, (scaledWidth - w) / 2);
+    const maxShiftY = Math.max(0, (scaledHeight - h) / 2);
+
+    const left = (w - scaledWidth) / 2 + ((50 - cropX) / 50) * maxShiftX;
+    const top = (h - scaledHeight) / 2 + ((50 - cropY) / 50) * maxShiftY;
+
+    return {
+      position: 'absolute' as const,
+      width: scaledWidth,
+      height: scaledHeight,
+      left,
+      top,
+    };
+  }, [templateConfig.facecam, facecamLayout]);
+
+  const isFacecamActive = isPortrait && templateConfig.facecam.enabled;
+
+  useEffect(() => {
+    setIsFacecamActive(isFacecamActive);
+  }, [isFacecamActive, setIsFacecamActive]);
+
+  const mainVideoStyle = useMemo(() => {
+    // Jika tidak dalam mode portrait (misal un-done stream atau facecam nonaktif), tampilkan 100% video standar
+    if (!isPortrait) {
+      return styles.fillVideo;
+    }
+
+    const zoom = Math.max(1.0, templateConfig.mainVideo.zoom || 1.0);
+    const cropX = Math.max(0, Math.min(100, templateConfig.mainVideo.cropX ?? 50));
+    const cropY = Math.max(0, Math.min(100, templateConfig.mainVideo.cropY ?? 50));
+    const w = mainVideoLayout.width || 280;
+
+    if (isFacecamActive) {
+      // Saat facecam aktif: viewport gameplay berasio 4:3 (h = w * 0.75)
+      // Video sumber tetap murni 16:9 dengan baseVideoWidth = h * (16 / 9)
+      // Sisi kiri & kanan dipotong rapi via container overflow hidden tanpa mengubah aspek rasio asli video
+      const h = mainVideoLayout.height || (w * 0.75);
+      const baseVideoWidth = h * (16 / 9);
+      const scaledWidth = baseVideoWidth * zoom;
+      const scaledHeight = h * zoom;
+
+      const maxShiftX = Math.max(0, (scaledWidth - w) / 2);
+      const maxShiftY = Math.max(0, (scaledHeight - h) / 2);
+
+      const left = (w - scaledWidth) / 2 + ((50 - cropX) / 50) * maxShiftX;
+      const top = (h - scaledHeight) / 2 + ((50 - cropY) / 50) * maxShiftY;
+
+      return {
+        position: 'absolute' as const,
+        width: scaledWidth,
+        height: scaledHeight,
+        left,
+        top,
+      };
+    }
+
+    // Default 16:9 di dalam mode portrait dengan banner konteks saja
+    const h = mainVideoLayout.height || (w * (9 / 16));
+    const scaledWidth = w * zoom;
+    const scaledHeight = h * zoom;
+
+    const maxShiftX = Math.max(0, (scaledWidth - w) / 2);
+    const maxShiftY = Math.max(0, (scaledHeight - h) / 2);
+
+    const left = (w - scaledWidth) / 2 + ((50 - cropX) / 50) * maxShiftX;
+    const top = (h - scaledHeight) / 2 + ((50 - cropY) / 50) * maxShiftY;
+
+    return {
+      position: 'absolute' as const,
+      width: scaledWidth,
+      height: scaledHeight,
+      left,
+      top,
+    };
+  }, [isPortrait, isFacecamActive, templateConfig.mainVideo, mainVideoLayout]);
+
+  useEffect(() => {
+    setActiveEditorMode(null);
+  }, [activeClip?.id]);
+
+  useEffect(() => {
+    setCookiesModalVisibleRef.current = setCookiesModalVisible;
+  }, [setCookiesModalVisible]);
+
+  // Active Subtitle Cue determination based on playback time
+  const activeSubtitleCue = useMemo(() => {
+    if (subtitles.length === 0) return null;
+    return subtitles.find((c) => currentClipTime >= c.start && currentClipTime <= c.end) || null;
+  }, [subtitles, currentClipTime]);
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -231,22 +351,45 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
         />
       )}
 
-      {/* 1. TOP CONTROLS (Trimming, Done/Trash, Download, Custom & Visible Count) */}
+      {/* 1. TOP CONTROLS */}
       <FeedTopControls
         activeClip={activeClip}
         currentClipTime={currentClipTime}
         isDownloaded={Boolean(downloadedClips[activeClip.id])}
         isDownloading={Boolean(downloadingClips[activeClip.id])}
+        isExporting={isExportingSubtitle}
+        onExportClip={handleExportSubtitledVideo}
+        activeEditorMode={activeEditorMode}
+        onSelectEditorMode={setActiveEditorMode}
+        templateConfig={templateConfig}
+        onUpdateContext={handleUpdateContext}
+        onUpdateFacecam={handleUpdateFacecam}
+        onUpdateMainVideo={handleUpdateMainVideo}
         downloadProgressInfo={downloadProgress[activeClip.id]}
-        activeTimeEdit={activeTimeEdit}
-        tempTimeValue={tempTimeValue}
         visibleHeatmapCount={visibleHeatmapCount}
         onAddCustomPress={() => setIsCustomModalVisible(true)}
         onChangeVisibleCountPress={() => setIsVisibleCountModalVisible(true)}
+        hasSubtitles={subtitles.length > 0}
+        isSubtitleVisible={isSubtitleVisible}
+        subtitles={subtitles}
+        selectedCueId={selectedCueId}
+        isFetchingSubtitles={isFetchingSubtitles}
+        subtitlePosition={subtitlePosition}
+        onUpdateSubtitlePosition={handleUpdateSubtitlePosition}
+        activeTimeEdit={activeTimeEdit}
+        tempTimeValue={tempTimeValue}
         getDownloadProgressLabel={getDownloadProgressLabel}
         onToggleTrash={handleToggleTrash}
         onToggleDone={handleToggleDone}
         onDownloadClip={handleDownloadClip}
+        onToggleSubtitleVisibility={() => setIsSubtitleVisible((prev) => !prev)}
+        onSelectCue={setSelectedCueId}
+        onAddCue={handleAddCue}
+        onUpdateCue={handleUpdateCue}
+        onShiftCueTime={handleShiftCueTime}
+        onDeleteCue={handleDeleteCue}
+        onFetchSubtitles={handleFetchSubtitles}
+        onSeek={handleSeekRelative}
         onStartEditTime={(type) => {
           setActiveTimeEdit(type);
           const curMs = Math.floor((activeClip[type] % 1) * 100);
@@ -258,44 +401,108 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
         onUpdateEnd={handleUpdateEnd}
       />
 
-      {/* 2. VIDEO PLAYER AREA (expo-video, diturunkan mepet di atas seek bar) */}
-      <View
-        style={styles.playerContainer}
-        onLayout={(e) => {
-          const { width, height } = e.nativeEvent.layout;
-          if (width > 0 && height > 0) {
-            setPlayerLayout({ width, height });
-          }
-        }}
-      >
-        {/* Facecam Highlight Preview & Framing Controls (Mengisi space celah atas) */}
-        <FacecamHighlightSection
-          facecamPlayer={facecamPlayer}
-          config={facecamConfig}
-          onUpdateConfig={handleUpdateFacecamConfig}
-          hasPlayableSource={Boolean(currentSourceUriRef.current || streamUrl)}
-        />
+      {/* 2. VIDEO PLAYER AREA (expo-video) */}
+      <View style={styles.playerContainer}>
+        {/* UNIFIED CANVAS WRAPPER (9:16 Portrait saat Konteks/Facecam aktif, 16:9 Landscape saat nonaktif) */}
+        <View
+          style={[
+            styles.canvasWrapper,
+            isPortrait ? styles.canvasPortrait : styles.canvasLandscape,
+          ]}
+          collapsable={false}
+        >
+          {currentSourceUriRef.current || streamUrl || (activeClip.status === 'done' && downloadedClips[activeClip.id]) ? (
+            <>
+              {/* 1. Header Banner Konteks (Hanya saat mode portrait & diaktifkan) */}
+              {isPortrait && templateConfig.context.enabled && (
+                <View
+                  style={[
+                    styles.contextBannerBox,
+                    { paddingVertical: templateConfig.context.paddingY },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.contextBannerText,
+                      { fontSize: templateConfig.context.fontSize },
+                    ]}
+                    numberOfLines={2}
+                  >
+                    {templateConfig.context.text || 'JUDUL VIDEO'}
+                  </Text>
+                </View>
+              )}
 
-        {currentSourceUriRef.current || streamUrl || (activeClip.status === 'done' && downloadedClips[activeClip.id]) ? (
-          <View style={videoContainerStyle}>
-            <VideoView
-              style={styles.videoPlayer}
-              player={player}
-              contentFit="contain"
-              nativeControls={false}
-            />
-          </View>
-        ) : (
-          <View style={styles.streamPendingBox}>
-            <ActivityIndicator size="small" color="#ef4444" />
-            <Text style={styles.streamPendingText}>
-              Memuat direct stream dari internal server...
-            </Text>
-          </View>
-        )}
+              {/* 2. Viewport Facecam (Hanya saat mode portrait & diaktifkan) */}
+              {isPortrait && templateConfig.facecam.enabled && (
+                <View
+                  style={styles.facecamBox}
+                  collapsable={false}
+                  onLayout={(e) => {
+                    const { width, height } = e.nativeEvent.layout;
+                    if (width > 0 && height > 0) {
+                      setFacecamLayout({ width, height });
+                    }
+                  }}
+                >
+                  <VideoView
+                    style={facecamVideoStyle}
+                    player={facecamPlayer}
+                    contentFit="cover"
+                    nativeControls={false}
+                    surfaceType="textureView"
+                  />
+                </View>
+              )}
+
+              {/* 3. Viewport Main Video Gameplay (4:3 saat Facecam aktif, 16:9 saat Facecam nonaktif) */}
+              <View
+                style={[
+                  styles.mainVideoBox,
+                  !isPortrait
+                    ? styles.mainVideoBoxLandscape
+                    : isFacecamActive
+                    ? styles.mainVideoBox43
+                    : styles.mainVideoBox169,
+                ]}
+                collapsable={false}
+                onLayout={(e) => {
+                  const { width, height } = e.nativeEvent.layout;
+                  if (width > 0 && height > 0) {
+                    setMainVideoLayout({ width, height });
+                  }
+                }}
+              >
+                <VideoView
+                  style={mainVideoStyle}
+                  player={player}
+                  contentFit="cover"
+                  nativeControls={false}
+                  surfaceType="textureView"
+                />
+              </View>
+
+              {/* Subtitle Overlay: Selalu dirender relatif terhadap Canvas Wrapper luar */}
+              <SubtitleOverlay
+                isVisible={isSubtitleVisible}
+                subtitleText={activeSubtitleCue ? activeSubtitleCue.text : activeSubtitleText}
+                fontSize={activeSubtitleCue?.fontSize || 14}
+                positionX={subtitlePosition.x}
+                positionY={subtitlePosition.y}
+              />
+            </>
+          ) : (
+            <View style={styles.streamPendingBox}>
+              <ActivityIndicator size="small" color="#ef4444" />
+              <Text style={styles.streamPendingText}>
+                Memuat direct stream dari internal server...
+              </Text>
+            </View>
+          )}
+        </View>
       </View>
 
-      {/* 3. BOTTOM PLAYBACK CONTROLS (Scrubber, Play/Pause, Skip) */}
+      {/* 3. BOTTOM PLAYBACK CONTROLS (Fixed Height) */}
       <FeedPlaybackControls
         progressPercent={progressPercent}
         isContinueState={isContinueState}
@@ -305,16 +512,10 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
           const duration = currentActive.end - currentActive.start;
           if (duration <= 0 || trackWidthRef.current <= 0) return;
 
-          const currentSource = currentSourceUriRef.current;
-          const isIndividualCutClip =
-            currentActive.status === 'done' &&
-            Boolean(downloadedClipsRef.current[currentActive.id]) &&
-            !currentSource.endsWith('/full.mp4') &&
-            !currentSource.endsWith('/full_video.mp4');
-
+          const isLocalMode = currentSourceUriRef.current.startsWith('file://');
           const locationX = e.nativeEvent.locationX;
           const pct = Math.max(0, Math.min(100, (locationX / trackWidthRef.current) * 100));
-          const targetTime = isIndividualCutClip
+          const targetTime = isLocalMode
             ? (pct / 100) * duration
             : currentActive.start + (pct / 100) * duration;
 
@@ -336,20 +537,28 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
         onSelectClip={handleSelectClip}
       />
 
-      {/* Modal Dialog: Tambah Rentang Custom */}
+      {/* 5. Custom Range & Visible Count Modals */}
       <CustomRangeModal
         visible={isCustomModalVisible}
-        currentPlaybackTime={player?.currentTime || (activeClip ? activeClip.start + currentClipTime : 0)}
+        currentPlaybackTime={currentClipTime}
         onClose={() => setIsCustomModalVisible(false)}
         onAddCustomRange={handleAddCustomClip}
       />
 
-      {/* Modal Dialog: Ubah Jumlah Klip Heatmap yang Terlihat */}
       <VisibleCountModal
         visible={isVisibleCountModalVisible}
         currentCount={visibleHeatmapCount}
         onClose={() => setIsVisibleCountModalVisible(false)}
-        onApplyCount={setVisibleHeatmapCount}
+        onApplyCount={(count: number) => {
+          setVisibleHeatmapCount(count);
+          setIsVisibleCountModalVisible(false);
+        }}
+      />
+
+      {/* 6. Cookies Modal for Rate Limits */}
+      <CookiesModal
+        visible={cookiesModalVisible}
+        onClose={() => setCookiesModalVisible(false)}
       />
     </View>
   );
@@ -380,12 +589,75 @@ const styles = StyleSheet.create({
   },
   playerContainer: {
     flex: 1,
-    backgroundColor: '#000000',
-    justifyContent: 'space-between',
+    backgroundColor: '#0a0a0a',
+    justifyContent: 'center',
     alignItems: 'center',
     width: '100%',
   },
-  videoPlayer: {
+  canvasWrapper: {
+    backgroundColor: '#000000',
+    overflow: 'hidden',
+    position: 'relative',
+    alignSelf: 'center',
+    padding: 0,
+    margin: 0,
+  },
+  canvasPortrait: {
+    height: '100%',
+    maxHeight: '100%',
+    maxWidth: '100%',
+    aspectRatio: 9 / 16,
+    justifyContent: 'flex-start',
+  },
+  canvasLandscape: {
+    width: '100%',
+    maxHeight: '100%',
+    maxWidth: '100%',
+    aspectRatio: 16 / 9,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  contextBannerBox: {
+    width: '100%',
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+  contextBannerText: {
+    color: '#000000',
+    fontWeight: '800',
+    textAlign: 'center',
+    letterSpacing: 0.3,
+  },
+  facecamBox: {
+    width: '100%',
+    aspectRatio: 4 / 3,
+    backgroundColor: '#000000',
+    overflow: 'hidden',
+    position: 'relative',
+    zIndex: 10,
+  },
+  mainVideoBox: {
+    backgroundColor: '#000000',
+    overflow: 'hidden',
+    position: 'relative',
+    zIndex: 5,
+  },
+  mainVideoBoxLandscape: {
+    width: '100%',
+    height: '100%',
+  },
+  mainVideoBox43: {
+    width: '100%',
+    aspectRatio: 4 / 3,
+  },
+  mainVideoBox169: {
+    width: '100%',
+    aspectRatio: 16 / 9,
+  },
+  fillVideo: {
     width: '100%',
     height: '100%',
   },
