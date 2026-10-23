@@ -14,6 +14,40 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
+## [Unreleased] - Remove 500ms Offset on Local Video Cutting for Frame-Accurate Precision
+- **Konteks Struktural**:
+  1. Penghapusan Kompensasi Offset pada Pemotongan Video Lokal:
+     - Mengatasi kendala di mana hasil potong klip dari file full video lokal (`source_video_path`) mengalami kelebihan durasi tepat 0.5 detik (+500ms) di akhir.
+     - Penambahan `end_num += 0.5` sebelumnya diterapkan secara universal untuk mengompensasi *timeline drift* pada segmen HLS YouTube saat stream online.
+     - Pada mode lokal, preview pemutar dan proses pemotongan FFmpeg mengacu ke file MP4 fisik yang sama di penyimpanan lokal. FFmpeg menggunakan filter `trim` dan `atrim` dengan re-encode frame-accurate (`libx264`), sehingga pemotongan dari file lokal sudah 100% presisi per milidetik tanpa memerlukan offset tambahan.
+     - Kompensasi `+0.5s` kini dibatasi secara kondisional hanya untuk pemotongan via stream online (`not is_local_source`).
+- **Perubahan Kode Penting**:
+  - `mobile/scripts/utils/clip_downloader.py`:
+    - Mengubah penambahan `end_num += 0.5` agar hanya berjalan jika `not is_local_source`, sehingga pemotongan dari full video lokal murni menggunakan rentang `start` sampai `end`.
+
+## [Unreleased] - Create Heroku Scheduler Automated Video Uploader for YouTube and TikTok
+- **Konteks Struktural**:
+  1. Arsitektur Script CLI Statis Khusus Heroku Scheduler (`scheduler-uploader/`):
+     - Membangun modul mandiri tanpa web server (non-Express) yang dirancang untuk dieksekusi secara periodik oleh Heroku Scheduler.
+     - Mengotomatisasi konversi zona waktu UTC ke WIB (Asia/Jakarta, UTC+7) untuk mendeteksi folder target harian (`YYYY-MM-DD`) dan file video target sesuai jam eksekusi (`<JAM>_00.mp4`, e.g. `12_00.mp4`, `15_00.mp4`, `17_00.mp4`, `19_00.mp4`, `21_00.mp4`, `23_00.mp4`).
+  2. Alur Eksekusi Linear Asinkron 5 Tahap (A sampai E):
+     - **Tahap A**: Melakukan query Google Drive API v3 untuk menemukan folder tanggal di dalam `GDRIVE_ROOT_FOLDER_ID`. Jika tidak ada folder, keluar bersih dengan `process.exit(0)`.
+     - **Tahap B**: Mencari file video jam terkait di dalam folder tanggal. Jika tidak ditemukan, keluar bersih dengan `process.exit(0)`.
+     - **Tahap C**: Mengunduh video menggunakan `fs.createWriteStream` dan `stream/promises.pipeline` langsung ke disk lokal (`./temp_video.mp4`) tanpa buffering memori (RAM) untuk menjaga kestabilan dyno 512MB.
+     - **Tahap D**: Mengunggah file `./temp_video.mp4` secara simultan ke YouTube Data API v3 dan TikTok Content Posting API v2 menggunakan `Promise.all()`.
+     - **Tahap E**: Menghapus file lokal sementara dengan `fs.unlinkSync` dan mencetak "Upload Berhasil" (`process.exit(0)`). Setiap kegagalan ditangkap dalam blok catch global, membersihkan file sementara, dan mengakhiri proses dengan `process.exit(1)`.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/package.json`:
+    - Membuat konfigurasi package mandiri dengan dependensi `axios`, `dotenv`, dan `googleapis`.
+  - `scheduler-uploader/index.js`:
+    - Mengimplementasikan seluruh logika alur A-E, konversi waktu WIB berbasis `Intl.DateTimeFormat`, Google OAuth2/Service Account auth factory yang fleksibel, streaming download, dan fungsi upload paralel YouTube & TikTok dengan dokumentasi metadata yang mudah dikustomisasi.
+  - `scheduler-uploader/.env.example`:
+    - Menyediakan template variabel lingkungan untuk `GDRIVE_TOKEN`, `GDRIVE_ROOT_FOLDER_ID`, `YOUTUBE_API_TOKEN`, `TIKTOK_API_TOKEN`, dan opsi pengujian `TARGET_DATE`, `TARGET_HOUR`, serta `MOCK_UPLOAD`.
+  - `scheduler-uploader/.gitignore`:
+    - Mengabaikan `node_modules`, `.env`, `temp_video.mp4`, dan file log.
+  - `scheduler-uploader/README.md`:
+    - Mendokumentasikan tabel pemetaan jadwal UTC vs WIB untuk Heroku Scheduler, instruksi setup environment, kustomisasi metadata, dan panduan pengujian lokal.
+
 ## [Unreleased] - Bundle Python Scripts into Native Python-Runner for Standalone Production APK
 - **Konteks Struktural**:
   1. Sinkronisasi Skrip Python ke Native Chaquopy Assets (`mobile/modules/python-runner/`):
