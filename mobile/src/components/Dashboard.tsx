@@ -21,6 +21,7 @@ import {
   fetchStreamUrl,
   checkFullVideoExists,
   downloadFullVideo,
+  resolvePlayableFullVideoUri,
 } from '../services/api';
 
 const WORKSHOPS_STORAGE_KEY = 'workshops_list';
@@ -186,8 +187,28 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
         await LocalStorage.setItem(`clips_draft_${videoId}`, '[]');
       }
 
-      // 2. Ambil direct stream URL jika memilih mode stream online
-      if (playMode === 'stream') {
+      let activePlayMode = playMode;
+
+      // 2. Verifikasi ketersediaan & integritas video lokal jika mode local
+      if (activePlayMode === 'local') {
+        const localUri = await resolvePlayableFullVideoUri(videoId);
+        if (!localUri) {
+          // File lokal hilang atau korup: coba fallback otomatis ke stream
+          try {
+            await fetchStreamUrl(videoId);
+            activePlayMode = 'stream';
+            ToastManager.show({
+              type: 'info',
+              title: 'Video Lokal Korup / Hilang',
+              rawError: 'Beralih otomatis ke mode stream online.',
+              duration: 3500,
+            });
+          } catch (streamErr: any) {
+            throw new Error('Video lokal korup/tidak lengkap dan stream online gagal dimuat.');
+          }
+        }
+      } else {
+        // Mode stream online
         await fetchStreamUrl(videoId);
       }
 
@@ -201,7 +222,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
 
       // 4. Masuk ke FeedScreen setelah respons berhasil
       setPlayModeTarget(null);
-      onOpenWorkshop?.(videoId, count, playMode);
+      onOpenWorkshop?.(videoId, count, activePlayMode);
     } catch (err: any) {
       setPlayModeTarget(null);
       ToastManager.show({
@@ -217,7 +238,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
   const handleCardPress = async (videoId: string, count: number) => {
     const hasFull = Boolean(fullVideoStatus[videoId]?.exists) || (await checkFullVideoExists(videoId));
     if (hasFull) {
-      setPlayModeTarget({ videoId, count });
+      // Prioritaskan pemutaran offline lokal langsung tanpa modal, karena proxy 480p lokal ringan & setara stream
+      handleOpenExisting(videoId, count, 'local');
     } else {
       handleOpenExisting(videoId, count, 'stream');
     }

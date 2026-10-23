@@ -693,6 +693,7 @@ def download_full_video_direct(
             "ffmpeg_location": ffmpeg_bin,
             "quiet": True,
             "no_warnings": True,
+            "continuedl": True,
             "logger": yt_logger,
             "progress_hooks": [ytdl_hook],
             "nocheckcertificate": True,
@@ -717,12 +718,18 @@ def download_full_video_direct(
             captured_errors.append(f"[{'Cookies' if use_cookie else 'Anonim'}] {err_msg}")
             return False
 
-    # 1. Coba Anonim
-    success = run_full_download(use_cookie=False)
+    # 1. Cek apakah Master 1080p sudah terunduh dan valid (> 1KB)
+    master_already_exists = os.path.exists(output_path) and os.path.getsize(output_path) > 1024
+    if master_already_exists:
+        write_progress("STAGE_1_COPY", "MASTER_ALREADY_EXISTS", 50)
+        success = True
+    else:
+        # Coba Anonim
+        success = run_full_download(use_cookie=False)
 
-    # 2. Coba Cookies jika anonim gagal
-    if not success and cookies_available:
-        success = run_full_download(use_cookie=True)
+        # Coba Cookies jika anonim gagal
+        if not success and cookies_available:
+            success = run_full_download(use_cookie=True)
 
     if not success or not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
         full_err_text = "\n\n".join(captured_errors) if captured_errors else "Gagal mengunduh video utuh dari YouTube."
@@ -741,29 +748,35 @@ def download_full_video_direct(
 
     # 3. Download Proxy Preview 480p (Penyamaran client iOS & Android) jika diminta
     if proxy_output_path:
-        write_progress("STAGE_PROXY", "DOWNLOADING_PROXY_PREVIEW", 98)
-        p_opts = {
-            "format": "best[height<=480][ext=mp4]/best[ext=mp4]",
-            "outtmpl": proxy_output_path,
-            "quiet": True,
-            "no_warnings": True,
-            "nocheckcertificate": True,
-            "extractor_args": {
-                "youtube": {
-                    "player_client": ["ios", "android"],
+        proxy_already_exists = os.path.exists(proxy_output_path) and os.path.getsize(proxy_output_path) > 1024
+        if proxy_already_exists:
+            write_progress("STAGE_PROXY", "PROXY_ALREADY_EXISTS", 98)
+        else:
+            write_progress("STAGE_PROXY", "DOWNLOADING_PROXY_PREVIEW", 98)
+            p_opts = {
+                "format": "best[height<=480][ext=mp4]/best[ext=mp4]",
+                "outtmpl": proxy_output_path,
+                "continuedl": True,
+                "quiet": True,
+                "no_warnings": True,
+                "nocheckcertificate": True,
+                "extractor_args": {
+                    "youtube": {
+                        "player_client": ["ios", "android"],
+                    },
                 },
-            },
-        }
-        if proxy_ydl_opts and isinstance(proxy_ydl_opts, dict):
-            p_opts.update(proxy_ydl_opts)
-            p_opts["outtmpl"] = proxy_output_path
+            }
+            if proxy_ydl_opts and isinstance(proxy_ydl_opts, dict):
+                p_opts.update(proxy_ydl_opts)
+                p_opts["outtmpl"] = proxy_output_path
+                p_opts["continuedl"] = True
 
-        youtube_url = f"https://www.youtube.com/watch?v={video_id}"
-        try:
-            with yt_dlp.YoutubeDL(p_opts) as ydl:
-                ydl.download([youtube_url])
-        except Exception as e_proxy:
-            print(f"[FullVideo] Proxy download warning (non-fatal): {str(e_proxy)}")
+            youtube_url = f"https://www.youtube.com/watch?v={video_id}"
+            try:
+                with yt_dlp.YoutubeDL(p_opts) as ydl:
+                    ydl.download([youtube_url])
+            except Exception as e_proxy:
+                print(f"[FullVideo] Proxy download warning (non-fatal): {str(e_proxy)}")
 
     write_progress("STAGE_COMPLETE", "COMPLETED", 100, force=True)
     return {

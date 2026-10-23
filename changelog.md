@@ -14,7 +14,31 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Fix Editor Header Container Height to 88px Across Subtitle, Template, and Default Modes
+## [Unreleased] - Direct Workshop Launch, Dual-Resolution Full Video Verification, and Resumable Partial Download
+- **Konteks Struktural**:
+  1. Penyatuan Alur Card Press ke Offline-First Player (Tanpa Modal):
+     - Mengubah interaksi klik card workshop pada Dashboard agar langsung meluncurkan ruang editing (`handleOpenExisting(..., 'local')`) tanpa memunculkan `PlayModeModal` jika video utuh lokal terdeteksi. Karena player kini memutar file proxy 480p yang bobotnya setara dengan YouTube direct stream, modal pemilihan mode stream/lokal dihilangkan untuk menyederhanakan alur kerja pengguna.
+     - Menambahkan verifikasi integritas file lokal pada `handleOpenExisting`: jika file lokal rusak/korup (ukuran $\le 1024$ byte), sistem secara otomatis melakukan fallback transparan ke `stream` online tanpa crashing, atau memunculkan notifikasi Toast dan tetap di Dashboard jika stream juga gagal.
+  2. Verifikasi Keberadaan KEDUA Resolusi Video Penuh (Master & Proxy):
+     - Memperbarui `checkFullVideoExists` di `mobile/src/services/api.ts` agar wajib memverifikasi keberadaan dan validitas kedua file: master 1080p (`full.mp4` / `full_video.mp4` > 1024 byte) AND proxy 480p (`full_proxy.mp4` > 1024 byte).
+     - Indikator download pada card workshop kini akurat: berstatus belum download jika salah satu file tidak ada di penyimpanan bersama.
+  3. Mekanisme Unduhan Hemat Bandwidth & Lanjutan Otomatis (Skip Existing & Resume):
+     - Memperbarui `download_full_youtube_video` di `clip_downloader.py`:
+       - Cek keberadaan file master (`master_already_exists` > 1024 byte): jika sudah ada, proses lompat langsung (`STAGE_1_COPY / MASTER_ALREADY_EXISTS`) tanpa mengunduh ulang master.
+       - Cek keberadaan file proxy (`proxy_already_exists` > 1024 byte): jika sudah ada, proses lompat langsung (`STAGE_PROXY / PROXY_ALREADY_EXISTS`) tanpa mengunduh ulang proxy.
+       - Menambahkan konfigurasi `"continuedl": True` pada `run_opts` dan `p_opts` yt-dlp agar proses unduhan yang terputus di tengah jalan dapat dilanjutkan langsung dari byte terakhir file `.part` (HTTP 206 Partial Content) tanpa mengulang dari 0%.
+- **Perubahan Kode Penting**:
+  - `mobile/src/services/api.ts`:
+    - Memperbarui `checkFullVideoExists` untuk memeriksa integritas kedua file (`full.mp4` dan `full_proxy.mp4` > 1024 byte).
+    - Memperbarui `resolvePlayableFullVideoUri` untuk memvalidasi `size > 1024`.
+  - `mobile/src/components/Dashboard.tsx`:
+    - Memperbarui `handleCardPress` untuk memprioritaskan mode `local` jika `hasFull` true, atau `stream` jika false, tanpa menampilkan modal.
+    - Menambahkan logika fallback otomatis ke mode `stream` di `handleOpenExisting` apabila file video lokal terdeteksi korup.
+  - `mobile/scripts/utils/clip_downloader.py`:
+    - Menambahkan pengecekan `master_already_exists` dan `proxy_already_exists` guna menghindari unduhan ganda.
+    - Menambahkan parameter `"continuedl": True` pada opsi yt-dlp untuk mendukung kelanjutan unduhan parsial dari file `.part`.
+
+## [432fdec] - Fix Editor Header Container Height to 88px Across Subtitle, Template, and Default Modes
 - **Konteks Struktural**:
   1. Penstabilan Hierarki Layout & Pencegahan Canvas Jumping:
      - Mengatasi kendala perubahan ukuran dinamis (*DOM height shifting*) pada header mode Editor klip yang telah selesai (done). Sebelumnya, Mode Subtitle membutuhkan ruang vertikal lebih tinggi (~88px) untuk mini timeline track dan action row, sedangkan Mode Template hanya membutuhkan 1 baris (~36px), dan Mode Default (None) runtuh menjadi 0px.

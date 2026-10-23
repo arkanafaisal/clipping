@@ -784,23 +784,39 @@ export function getFullVideoProxyFilePath(videoId: string): { fileUri: string; n
 }
 
 /**
- * Memeriksa apakah file video utuh (full video) sudah terunduh secara fisik di shared storage.
+ * Memeriksa apakah file video utuh (full video) sudah terunduh lengkap & valid di shared storage.
+ * Wajib memverifikasi keberadaan KEDUA file:
+ * 1. File Master 1080p: full.mp4 (atau full_video.mp4) > 1024 bytes
+ * 2. File Proxy 480p: full_proxy.mp4 > 1024 bytes
+ * Jika salah satunya tidak ada atau korup (0 byte), mengembalikan false.
  */
 export async function checkFullVideoExists(videoId: string): Promise<boolean> {
   try {
-    const { fileUri } = getFullVideoFilePath(videoId);
-    const info = await FileSystem.getInfoAsync(fileUri);
-    if (info.exists && ((info as any).size === undefined || (info as any).size > 0)) {
+    const { fileUri: masterUri } = getFullVideoFilePath(videoId);
+    const { fileUri: proxyUri } = getFullVideoProxyFilePath(videoId);
+
+    // 1. Cek Master 1080p
+    let masterOk = false;
+    const masterInfo = await FileSystem.getInfoAsync(masterUri);
+    if (masterInfo.exists && ((masterInfo as any).size === undefined || (masterInfo as any).size > 1024)) {
+      masterOk = true;
+    } else {
+      const altPath = `file://${SHARED_CLIPPING_OUTPUT_DIR}/${videoId}/full_video.mp4`;
+      const altInfo = await FileSystem.getInfoAsync(altPath);
+      if (altInfo.exists && ((altInfo as any).size === undefined || (altInfo as any).size > 1024)) {
+        masterOk = true;
+      }
+    }
+
+    if (!masterOk) return false;
+
+    // 2. Cek Proxy 480p
+    const proxyInfo = await FileSystem.getInfoAsync(proxyUri);
+    if (proxyInfo.exists && ((proxyInfo as any).size === undefined || (proxyInfo as any).size > 1024)) {
       return true;
     }
   } catch {}
-  try {
-    const altPath = `file://${SHARED_CLIPPING_OUTPUT_DIR}/${videoId}/full_video.mp4`;
-    const altInfo = await FileSystem.getInfoAsync(altPath);
-    if (altInfo.exists && ((altInfo as any).size === undefined || (altInfo as any).size > 0)) {
-      return true;
-    }
-  } catch {}
+
   return false;
 }
 
@@ -814,7 +830,7 @@ export async function resolvePlayableFullVideoUri(videoId: string): Promise<stri
   try {
     const { fileUri: proxyUri } = getFullVideoProxyFilePath(videoId);
     const proxyInfo = await FileSystem.getInfoAsync(proxyUri);
-    if (proxyInfo.exists && ((proxyInfo as any).size === undefined || (proxyInfo as any).size > 0)) {
+    if (proxyInfo.exists && ((proxyInfo as any).size === undefined || (proxyInfo as any).size > 1024)) {
       return proxyUri;
     }
   } catch {}
@@ -823,14 +839,14 @@ export async function resolvePlayableFullVideoUri(videoId: string): Promise<stri
   try {
     const { fileUri } = getFullVideoFilePath(videoId);
     const info = await FileSystem.getInfoAsync(fileUri);
-    if (info.exists && ((info as any).size === undefined || (info as any).size > 0)) {
+    if (info.exists && ((info as any).size === undefined || (info as any).size > 1024)) {
       return fileUri;
     }
   } catch {}
   try {
     const altPath = `file://${SHARED_CLIPPING_OUTPUT_DIR}/${videoId}/full_video.mp4`;
     const altInfo = await FileSystem.getInfoAsync(altPath);
-    if (altInfo.exists && ((altInfo as any).size === undefined || (altInfo as any).size > 0)) {
+    if (altInfo.exists && ((altInfo as any).size === undefined || (altInfo as any).size > 1024)) {
       return altPath;
     }
   } catch {}
