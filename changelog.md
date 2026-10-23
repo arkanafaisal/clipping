@@ -14,7 +14,29 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Calibrate Subtitle Scaling to 0.070, Enforce Multiline Justify Center, and Remove Auto-Wrap in Preview
+## [Unreleased] - Comprehensive Full Workshop Export and Import with Done-Only Subtitles, Templates, and Global Configs
+- **Konteks Struktural**:
+  1. Penyatuan Ekspor & Impor Workshop Utuh (Device-Agnostic Migration):
+     - Memperluas skema ekspor JSON pada `Dashboard.tsx` (`handleExportWorkshop` versi 2) agar tidak hanya membawa draf klip dasar, melainkan memaketkan seluruh status kamar/workshop secara utuh sehingga pengguna dapat memindahkan data ke perangkat baru tanpa kehilangan konfigurasi yang terisolasi di private internal storage.
+     - Menyaring data subtitle dan template: hanya klip yang berstatus `done` (*mark as done*) yang diekspor subtitlenya (`subtitles`) dan templatenya (`templates`). Subtitle atau template milik klip non-done (pending/dismissed) secara otomatis diabaikan untuk menjaga payload tetap bersih dan efisien.
+  2. Paket Konfigurasi Kamar Lengkap:
+     - Mengikutsertakan konfigurasi global video/kamar (`globalConfig` dari `video_config.json`): geometri zoom/crop facecam, zoom/crop gameplay, posisi acuan subtitle kamar, dan gaya konteks banner.
+     - Mengikutsertakan preferensi jumlah klip tampil (`clipping_visible_count_${videoId}`) dan status cache heatmap lengkap (`clipping_full_fetched_${videoId}`) agar perangkat baru tidak melakukan fetch ulang ke server YouTube yang berisiko terkena limit.
+  3. Pemulihan Otomatis (*Reverse Writing*) ke File System & LocalStorage Saat Impor:
+     - Memperbarui `handleImportJSON` agar mengenali skema versi 2 maupun backward-compatible dengan format lama.
+     - Otomatis menulis ulang file-file subtitle (`saveClipSubtitle`) dan template (`saveClipTemplate`) ke dalam private storage (`INTERNAL_CLIPPING_OUTPUT_DIR`) di perangkat baru, menulis `saveVideoGlobalConfig`, serta menyinkronkan `clips_draft_${videoId}` dan `workshops_list`.
+  4. Penyempurnaan UX Berbagi Data (Modal Ekspor):
+     - Menambahkan tombol native `Share` ("Bagikan / Salin Data JSON") pada `ExportWorkshopModal.tsx` untuk memudahkan pengguna menyalin payload atau mengirimnya via Google Drive, Bluetooth, email, dsb.
+     - Menambahkan proteksi limit URL WhatsApp: jika payload JSON melebihi 1500 karakter, tombol WhatsApp secara otomatis mengarahkan ke native Share sheet agar tidak terpotong oleh batasan panjang URI browser.
+- **Perubahan Kode Penting**:
+  - `mobile/src/components/Dashboard.tsx`:
+    - Mengimpor `loadClipSubtitle`, `saveClipSubtitle`, `loadClipTemplate`, `saveClipTemplate`, `loadVideoGlobalConfig`, dan `saveVideoGlobalConfig`.
+    - Memperbarui `handleExportWorkshop` untuk memaketkan data versi 2 (done-only subtitles, templates, globalConfig, visibleCount, fullFetched).
+    - Memperbarui `handleImportJSON` untuk me-restore seluruh subtitle, template, dan konfigurasi global secara rekursif ke storage internal perangkat.
+  - `mobile/src/components/ExportWorkshopModal.tsx`:
+    - Menambahkan tombol `Share.share` native dan menangani payload panjang untuk pengiriman WhatsApp.
+
+## [c3957b3] - Calibrate Subtitle Scaling to 0.070, Enforce Multiline Justify Center, and Remove Auto-Wrap in Preview
 - **Konteks Struktural**:
   1. Kalibrasi Ulang Skala Font & Outline Subtitle (Penurunan Skala ~15%):
      - Menurunkan konstanta pengali dimensi acuan `ref_dim` ($\min(W, H)$) dari `0.0833` menjadi `0.070` pada modul ekspor video (`subtitle_burner.py`), baik untuk naskah ASS libass maupun pipeline drawtext dan context banner.

@@ -8,6 +8,7 @@ import {
   ScrollView,
   Platform,
   Linking,
+  Share,
 } from 'react-native';
 import { Share2, MessageCircle, X } from 'lucide-react-native';
 import { ToastManager } from './Toast';
@@ -29,9 +30,34 @@ export const ExportWorkshopModal: React.FC<ExportWorkshopModalProps> = ({
   exportDataJson,
   onClose,
 }) => {
+  const handleShare = async () => {
+    try {
+      await Share.share({
+        message: exportDataJson,
+        title: `Export Workshop - ${workshopTitle || videoId}`,
+      });
+    } catch (err: any) {
+      ToastManager.show({
+        type: 'error',
+        title: 'Gagal Membuka Menu Berbagi',
+        rawError: err?.message || String(err),
+        duration: 3000,
+      });
+    }
+  };
+
   const handleSendToWA = async () => {
     try {
       const commandText = `!import_json ${exportDataJson}`;
+      // Jika ukuran payload panjang (> 1500 karakter), gunakan native share agar tidak terpotong URL browser
+      if (commandText.length > 1500) {
+        await Share.share({
+          message: commandText,
+          title: `Export Workshop ${workshopTitle || videoId}`,
+        });
+        return;
+      }
+
       const encoded = encodeURIComponent(commandText);
       const waUrl = `https://wa.me/${BOT_NUMBER}?text=${encoded}`;
 
@@ -71,7 +97,7 @@ export const ExportWorkshopModal: React.FC<ExportWorkshopModalProps> = ({
           <View style={styles.headerRow}>
             <View style={styles.titleRow}>
               <Share2 size={20} color="#38bdf8" />
-              <Text style={styles.title}>Ekspor Data Workshop</Text>
+              <Text style={styles.title}>Ekspor Data Workshop Utuh</Text>
             </View>
             <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <X size={18} color="rgba(255, 255, 255, 0.6)" />
@@ -83,10 +109,10 @@ export const ExportWorkshopModal: React.FC<ExportWorkshopModalProps> = ({
           </Text>
 
           <Text style={styles.description}>
-            Kirim seluruh 100 klip heatmap beserta klip custom dalam format JSON ke WhatsApp untuk dibagikan atau dicadangkan.
+            Cadangkan data utuh workshop: klip heatmap & custom, konfigurasi global (facecam & posisi), serta subtitle & template klip yang telah selesai (mark as done).
           </Text>
 
-          {/* Preview Box (Dapat diseleksi dan disalin manual tanpa modul native) */}
+          {/* Preview Box (Dapat diseleksi dan disalin manual) */}
           <View style={styles.previewContainer}>
             <ScrollView style={styles.previewScroll} showsVerticalScrollIndicator={false}>
               <Text style={styles.previewText} selectable={true}>
@@ -95,8 +121,17 @@ export const ExportWorkshopModal: React.FC<ExportWorkshopModalProps> = ({
             </ScrollView>
           </View>
 
-          {/* Action Button: Kirim ke WhatsApp */}
+          {/* Action Buttons: Bagikan/Salin & Kirim ke WhatsApp */}
           <View style={styles.actionsContainer}>
+            <TouchableOpacity
+              style={[styles.actionBtn, styles.shareBtn]}
+              onPress={handleShare}
+              activeOpacity={0.8}
+            >
+              <Share2 size={18} color="#38bdf8" />
+              <Text style={styles.shareBtnText}>Bagikan / Salin Data JSON</Text>
+            </TouchableOpacity>
+
             <TouchableOpacity
               style={[styles.actionBtn, styles.waBtn]}
               onPress={handleSendToWA}
@@ -192,6 +227,15 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingVertical: 12,
     borderWidth: 1,
+  },
+  shareBtn: {
+    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+    borderColor: 'rgba(56, 189, 248, 0.3)',
+  },
+  shareBtnText: {
+    color: '#38bdf8',
+    fontSize: 13,
+    fontWeight: '700',
   },
   waBtn: {
     backgroundColor: 'rgba(16, 185, 129, 0.12)',

@@ -22,6 +22,16 @@ import {
   checkFullVideoExists,
   downloadFullVideo,
   resolvePlayableFullVideoUri,
+  loadClipSubtitle,
+  saveClipSubtitle,
+  loadClipTemplate,
+  saveClipTemplate,
+  loadVideoGlobalConfig,
+  saveVideoGlobalConfig,
+  ClipItem,
+  ClipSubtitleData,
+  ClipTemplateConfig,
+  VideoGlobalConfig,
 } from '../services/api';
 
 const WORKSHOPS_STORAGE_KEY = 'workshops_list';
@@ -364,23 +374,65 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
     }
   };
 
-  // Ekspor full data workshop (100 klip heatmap + klip custom) dalam format JSON
+  // Ekspor full data workshop utuh: 100 klip heatmap + klip custom, konfigurasi global (facecam & posisi),
+  // serta seluruh subtitle & template klip yang telah selesai (mark as done).
   const handleExportWorkshop = async (videoId: string) => {
     try {
       const ws = workshops.find((w) => w.videoId === videoId);
       const draftStr = await LocalStorage.getItem(`clips_draft_${videoId}`);
-      let draftClips = [];
+      let draftClips: ClipItem[] = [];
       if (draftStr) {
         try {
           draftClips = JSON.parse(draftStr);
         } catch {}
       }
 
+      // 1. Ambil subtitle & template HANYA untuk klip yang statusnya mark as done
+      const doneClips = draftClips.filter((c: any) => c.status === 'done');
+      const subtitles: ClipSubtitleData[] = [];
+      const templates: Array<{ start: number; end: number; config: ClipTemplateConfig }> = [];
+
+      for (const clip of doneClips) {
+        // Ambil subtitle jika ada
+        try {
+          const subData = await loadClipSubtitle(videoId, clip.start, clip.end);
+          if (subData && subData.cues && Array.isArray(subData.cues) && subData.cues.length > 0) {
+            subtitles.push(subData);
+          }
+        } catch {}
+
+        // Ambil template per-klip jika ada
+        try {
+          const tmplData = await loadClipTemplate(videoId, clip.start, clip.end);
+          if (tmplData) {
+            templates.push({
+              start: clip.start,
+              end: clip.end,
+              config: tmplData,
+            });
+          }
+        } catch {}
+      }
+
+      // 2. Ambil global config kamar (facecam zoom/crop, gameplay zoom/crop, posisi subtitle kamar, context style)
+      const globalConfig = await loadVideoGlobalConfig(videoId);
+
+      // 3. Ambil visible count & status full-fetched
+      const visibleCountStr = await LocalStorage.getItem(`clipping_visible_count_${videoId}`);
+      const visibleCount = visibleCountStr ? parseInt(visibleCountStr, 10) : undefined;
+      const fullFetchedStr = await LocalStorage.getItem(`clipping_full_fetched_${videoId}`);
+      const fullFetched = fullFetchedStr === 'true';
+
       const exportPayload = {
-        version: 1,
+        version: 2,
         exportedAt: Date.now(),
         workshop: ws || { videoId, count: 50, lastUpdated: Date.now() },
         draft: draftClips,
+        globalConfig: globalConfig || null,
+        visibleCount: visibleCount || null,
+        fullFetched: fullFetched || false,
+        subtitles: subtitles.length > 0 ? subtitles : undefined,
+        templates: templates.length > 0 ? templates : undefined,
       };
 
       setExportDataJson(JSON.stringify(exportPayload, null, 2));
@@ -404,6 +456,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
       if (!wsData.videoId) {
         throw new Error('Data JSON workshop harus memiliki videoId.');
       }
+      const videoId = wsData.videoId;
 
       const rawDraft = parsed.draft || parsed.clips;
       let parsedClips: any[] = [];
@@ -428,16 +481,62 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
       const updatedList = [cleanWs, ...filtered];
       await saveWorkshops(updatedList);
 
-      // Simpan seluruh 100 klip + klip custom ke draf penyimpanan lokal
+      // 1. Simpan seluruh klip heatmap + custom ke draf penyimpanan lokal
       if (Array.isArray(parsedClips) && parsedClips.length > 0) {
-        await LocalStorage.setItem(`clips_draft_${wsData.videoId}`, JSON.stringify(parsedClips));
+        await LocalStorage.setItem(`clips_draft_${videoId}`, JSON.stringify(parsedClips));
+      }
+
+      // 2. Pulihkan global config kamar jika ada (facecam, mainVideo, subtitlePosition, contextStyle)
+      if (parsed.globalConfig && typeof parsed.globalConfig === 'object') {
+        await saveVideoGlobalConfig(videoId, parsed.globalConfig);
+      }
+
+      // 3. Pulihkan visibleCount & fullFetched jika ada
+      if (parsed.visibleCount !== undefined && parsed.visibleCount !== null) {
+        await LocalStorage.setItem(`clipping_visible_count_${videoId}`, String(parsed.visibleCount));
+      }
+      if (parsed.fullFetched) {
+        await LocalStorage.setItem(`clipping_full_fetched_${videoId}`, 'true');
+      }
+
+      // 4. Pulihkan subtitle klip (tulis ulang file JSON ke private storage)
+      let restoredSubCount = 0;
+      if (Array.isArray(parsed.subtitles) && parsed.subtitles.length > 0) {
+        for (const sub of parsed.subtitles) {
+          if (sub && sub.cues && Array.isArray(sub.cues)) {
+            await saveClipSubtitle({
+              ...sub,
+              videoId, // Pastikan videoId konsisten dengan workshop tujuan
+            });
+            restoredSubCount++;
+          }
+        }
+      }
+
+      // 5. Pulihkan template per-klip jika ada (tulis ulang file JSON ke private storage)
+      let restoredTmplCount = 0;
+      if (Array.isArray(parsed.templates) && parsed.templates.length > 0) {
+        for (const tmpl of parsed.templates) {
+          if (tmpl && tmpl.start !== undefined && tmpl.end !== undefined && tmpl.config) {
+            await saveClipTemplate(videoId, tmpl.start, tmpl.end, tmpl.config);
+            restoredTmplCount++;
+          }
+        }
       }
 
       setImportModalVisible(false);
+      const details = [
+        `${parsedClips.length} klip`,
+        restoredSubCount > 0 ? `${restoredSubCount} subtitle` : null,
+        restoredTmplCount > 0 ? `${restoredTmplCount} template` : null,
+        parsed.globalConfig ? 'config global' : null,
+      ].filter(Boolean).join(', ');
+
       ToastManager.show({
         type: 'success',
         title: 'Impor Workshop Berhasil',
-        duration: 2500,
+        rawError: `Data dipulihkan: ${details}.`,
+        duration: 3500,
       });
       loadSavedWorkshops();
     } catch (err: any) {
