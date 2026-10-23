@@ -61,6 +61,11 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
   const translateX = ((positionX - 50) / 100) * containerWidth;
   const translateY = ((positionY - 50) / 100) * containerHeight;
 
+  // Pisahkan baris hanya jika ada explicit newline (\n).
+  // Teks yang panjang tidak di-auto-break/wrap (overflow dibiarkan melebar tanpa wrap),
+  // identik 100% dengan mekanisme FFmpeg.
+  const lines = subtitleText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+
   return (
     <View
       style={styles.subtitleOverlayContainer}
@@ -80,43 +85,50 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
         style={[
           styles.textContainer,
           {
-            maxWidth: containerWidth * 0.92,
             transform: [{ translateX }, { translateY }],
           },
         ]}
       >
-        {/* Layer Border / Stroke Hitam Pekat (8 arah) */}
-        {STROKE_OFFSETS.map((offset, index) => (
-          <Text
-            key={index}
-            style={[
-              styles.subtitleText,
-              styles.strokeText,
-              {
-                fontSize: scaledFontSize,
-                lineHeight,
-                transform: [{ translateX: offset.x * strokeScale }, { translateY: offset.y * strokeScale }],
-              },
-            ]}
-            aria-hidden
-          >
-            {subtitleText}
-          </Text>
-        ))}
+        {lines.map((lineText, lineIdx) => (
+          <View key={lineIdx} style={styles.lineWrapper}>
+            {/* Layer Border / Stroke Hitam Pekat (8 arah) */}
+            {STROKE_OFFSETS.map((offset, index) => (
+              <Text
+                key={index}
+                numberOfLines={1}
+                ellipsizeMode="clip"
+                style={[
+                  styles.subtitleText,
+                  styles.strokeText,
+                  {
+                    fontSize: scaledFontSize,
+                    lineHeight,
+                    transform: [{ translateX: offset.x * strokeScale }, { translateY: offset.y * strokeScale }],
+                  },
+                ]}
+                aria-hidden
+              >
+                {lineText}
+              </Text>
+            ))}
 
-        {/* Layer Teks Utama Putih Bersih */}
-        <Text
-          style={[
-            styles.subtitleText,
-            styles.foregroundText,
-            {
-              fontSize: scaledFontSize,
-              lineHeight,
-            },
-          ]}
-        >
-          {subtitleText}
-        </Text>
+            {/* Layer Teks Utama Putih Bersih */}
+            <Text
+              numberOfLines={1}
+              ellipsizeMode="clip"
+              style={[
+                styles.subtitleText,
+                styles.foregroundText,
+                {
+                  fontSize: scaledFontSize,
+                  lineHeight,
+                },
+              ]}
+            >
+              {lineText}
+            </Text>
+          </View>
+        ))}
       </View>
     </View>
   );
@@ -140,11 +152,18 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     overflow: 'visible',
   },
+  lineWrapper: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'visible',
+  },
   subtitleText: {
     textAlign: 'center',
     fontWeight: '800',
     letterSpacing: 0.2,
     includeFontPadding: false,
+    flexWrap: 'nowrap',
   },
   strokeText: {
     position: 'absolute',

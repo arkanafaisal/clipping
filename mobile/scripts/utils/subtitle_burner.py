@@ -121,17 +121,16 @@ def build_ass_content(cues: list, style: dict = None, video_width: int = 1920, v
     if base_font_size <= 0:
         base_font_size = 14.0
 
-    # Rasio acuan dinamis 0.0833 (min(vw, vh) * 0.0833):
-    # Mengompensasi Em-box padding FreeType & 8-stroke di React Native sehingga teks membentang ~70% kanvas.
-    # Pada kanvas 1080p -> 90px, 720p -> 60px, 1:1 1080p -> 90px.
+    # Rasio acuan dinamis 0.070 (min(vw, vh) * 0.070):
+    # Mengalibrasi ukuran visual agar 100% presisi dan selaras dengan preview React Native (14dp).
     ref_dim = min(vw, vh)
-    ass_base_fs = max(14, int(round(ref_dim * 0.0833)))
-    ass_outline = max(2.0, round(ass_base_fs * 0.075, 1))
+    ass_base_fs = max(14, int(round(ref_dim * 0.070)))
+    ass_outline = max(1.5, round(ass_base_fs * 0.065, 1))
 
     ass_header = f"""[Script Info]
 Title: Clipped Video Subtitles
 ScriptType: v4.00+
-WrapStyle: 0
+WrapStyle: 2
 ScaledBorderAndShadow: yes
 YCbCr Matrix: TV.709
 PlayResX: {play_res_x}
@@ -139,7 +138,7 @@ PlayResY: {play_res_y}
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Arial,{ass_base_fs},&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,{ass_outline},0,5,20,20,20,1
+Style: Default,Arial,{ass_base_fs},&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,{ass_outline},0,5,10,10,10,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -177,14 +176,11 @@ def build_drawtext_pipeline(cues: list, style: dict, output_base: str, video_wid
     """
     Membangun filterchain drawtext menggunakan opsi 'textfile' per cue.
     Solusi native FFmpeg saat libass / filter 'subtitles' tidak dikompilasi di binary perangkat.
-    - Opsi textfile membaca UTF-8 tanpa kendala escaping karakter khusus/multiline.
-    - enable='between(t, start, end)' hanya merender teks pada jendela waktu masing-masing.
-    - Koordinat dinamis berbasis persen: x=(w-text_w)*x_pct/100, y=(h-text_h)*y_pct/100.
-    - Skala font integer absolut berbasis dimensi acuan min(w, h):
-      fontsize = round(min(w, h) * 0.0833 * (cue_fs / 14)).
-      Rasio dinamis 0.0833 mengompensasi FreeType Em-box dan 8-arah stroke preview React Native,
-      menghasilkan ukuran visual 100% identik di semua resolusi dan rasio (16:9, 9:16, 1:1).
-    - Border hitam pekat (borderw proporsional ~8% fontsize) untuk keterbacaan tinggi.
+    - Opsi textfile membaca UTF-8 tanpa kendala escaping karakter khusus.
+    - Mendukung multiline (break line \n) dengan memecah setiap baris menjadi filter drawtext mandiri,
+      sehingga SETIAP baris 100% terposisikan JUSTIFY CENTER (x=(w-text_w)/2) tanpa terikat panjang baris lain.
+    - Tidak ada auto-break line: teks panjang dibiarkan melebar tanpa wrap, identik dengan preview front.
+    - Skala font kalibrasi 0.070 dan borderw 0.065 proporsional presisi dengan preview React Native.
     """
     temp_files = []
     font_path = resolve_system_font()
@@ -198,8 +194,8 @@ def build_drawtext_pipeline(cues: list, style: dict, output_base: str, video_wid
     vw = max(240, int(video_width)) if video_width else 1280
     vh = max(240, int(video_height)) if video_height else 720
     ref_dim = min(vw, vh)
-    base_fs = max(14, int(round(ref_dim * 0.0833)))
-    border_w = max(2, int(round(base_fs * 0.08)))
+    base_fs = max(14, int(round(ref_dim * 0.070)))
+    border_w = max(2, int(round(base_fs * 0.065)))
 
     filter_items = []
     for idx, cue in enumerate(cues):
@@ -210,27 +206,46 @@ def build_drawtext_pipeline(cues: list, style: dict, output_base: str, video_wid
         s = max(0.0, float(cue.get("start", 0)))
         e = max(s + 0.1, float(cue.get("end", 0)))
 
-        cue_file = f"{output_base}.cue_{idx}.txt"
-        with open(cue_file, "w", encoding="utf-8") as f:
-            f.write(raw_text)
-        temp_files.append(cue_file)
-
-        esc_cue_file = escape_ffmpeg_filter_path(cue_file)
-
         cue_fs = float(cue.get("fontSize", 14))
         fs_scale = cue_fs / 14.0 if cue_fs > 0 else 1.0
         final_fs = max(10, int(round(base_fs * fs_scale)))
+        line_h = int(round(final_fs * 1.35))
 
-        item = (
-            f"drawtext=textfile='{esc_cue_file}'"
-            f"{font_opt}"
-            f":fontsize={final_fs}"
-            f":fontcolor=white"
-            f":borderw={border_w}:bordercolor=black"
-            f":x={x_expr}:y={y_expr}"
-            f":enable='between(t,{s:.3f},{e:.3f})'"
-        )
-        filter_items.append(item)
+        # Pecah baris jika ada newline (\n / \r\n) agar setiap baris memiliki drawtext independen
+        # yang 100% justify center (x=(w-text_w)/2) tanpa start-alignment
+        text_lines = [line.strip() for line in raw_text.replace("\r\n", "\n").replace("\r", "\n").split("\n")]
+        text_lines = [l for l in text_lines if l]
+        if not text_lines:
+            continue
+
+        total_lines = len(text_lines)
+        for line_idx, line_content in enumerate(text_lines):
+            cue_file = f"{output_base}.cue_{idx}_{line_idx}.txt"
+            with open(cue_file, "w", encoding="utf-8") as f:
+                f.write(line_content)
+            temp_files.append(cue_file)
+
+            esc_cue_file = escape_ffmpeg_filter_path(cue_file)
+
+            # Hitung offset vertikal per baris relatif terhadap titik pusat (justify center vertikal & horizontal)
+            line_y_offset = int(round((line_idx - (total_lines - 1) / 2.0) * line_h))
+            if line_y_offset > 0:
+                y_pos_expr = f"{y_expr}+{line_y_offset}"
+            elif line_y_offset < 0:
+                y_pos_expr = f"{y_expr}{line_y_offset}"
+            else:
+                y_pos_expr = y_expr
+
+            item = (
+                f"drawtext=textfile='{esc_cue_file}'"
+                f"{font_opt}"
+                f":fontsize={final_fs}"
+                f":fontcolor=white"
+                f":borderw={border_w}:bordercolor=black"
+                f":x={x_expr}:y={y_pos_expr}"
+                f":enable='between(t,{s:.3f},{e:.3f})'"
+            )
+            filter_items.append(item)
 
     script_path = f"{output_base}.fffilter"
     with open(script_path, "w", encoding="utf-8") as f:
@@ -298,7 +313,7 @@ def build_multi_layer_pipeline(
     ctx_fs = 24
     if ctx_enabled and ctx_text:
         ref_dim = min(out_w, out_h)
-        base_unit = ref_dim * 0.0833  # Rasio acuan dinamis setara 14dp di preview React Native
+        base_unit = ref_dim * 0.070  # Rasio acuan dinamis setara 14dp di preview React Native
         ctx_fs_dp = float(context_cfg.get("fontSize", 16))
         ctx_pad_dp = float(context_cfg.get("paddingY", 10))
 
@@ -437,8 +452,8 @@ def build_multi_layer_pipeline(
             filter_lines.append(f"{current_node}subtitles='{esc_ass}'[v_out]")
         else:
             ref_dim = min(out_w, out_h)
-            base_fs = max(14, int(round(ref_dim * 0.0833)))
-            border_w = max(2, int(round(base_fs * 0.08)))
+            base_fs = max(14, int(round(ref_dim * 0.070)))
+            border_w = max(2, int(round(base_fs * 0.065)))
             pos_x = float(style.get("positionX", 50))
             pos_y = float(style.get("positionY", 85))
             x_expr = "(w-text_w)/2" if abs(pos_x - 50) < 0.1 else f"(w-text_w)*{pos_x/100.0:.3f}"
@@ -452,26 +467,43 @@ def build_multi_layer_pipeline(
                 s = max(0.0, float(cue.get("start", 0)))
                 e = max(s + 0.1, float(cue.get("end", 0)))
 
-                cue_file = f"{output_base}.cue_{idx}.txt"
-                with open(cue_file, "w", encoding="utf-8") as f:
-                    f.write(raw_text)
-                temp_files.append(cue_file)
-                esc_cue_file = escape_ffmpeg_filter_path(cue_file)
-
                 cue_fs = float(cue.get("fontSize", 14))
                 fs_scale = cue_fs / 14.0 if cue_fs > 0 else 1.0
                 final_fs = max(10, int(round(base_fs * fs_scale)))
+                line_h = int(round(final_fs * 1.35))
 
-                item = (
-                    f"drawtext=textfile='{esc_cue_file}'"
-                    f"{font_opt}"
-                    f":fontsize={final_fs}"
-                    f":fontcolor=white"
-                    f":borderw={border_w}:bordercolor=black"
-                    f":x={x_expr}:y={y_expr}"
-                    f":enable='between(t,{s:.3f},{e:.3f})'"
-                )
-                drawtext_items.append(item)
+                # Pecah baris jika ada newline (\n / \r\n) agar setiap baris 100% justify center
+                text_lines = [line.strip() for line in raw_text.replace("\r\n", "\n").replace("\r", "\n").split("\n")]
+                text_lines = [l for l in text_lines if l]
+                if not text_lines:
+                    continue
+
+                total_lines = len(text_lines)
+                for line_idx, line_content in enumerate(text_lines):
+                    cue_file = f"{output_base}.cue_{idx}_{line_idx}.txt"
+                    with open(cue_file, "w", encoding="utf-8") as f:
+                        f.write(line_content)
+                    temp_files.append(cue_file)
+                    esc_cue_file = escape_ffmpeg_filter_path(cue_file)
+
+                    line_y_offset = int(round((line_idx - (total_lines - 1) / 2.0) * line_h))
+                    if line_y_offset > 0:
+                        y_pos_expr = f"{y_expr}+{line_y_offset}"
+                    elif line_y_offset < 0:
+                        y_pos_expr = f"{y_expr}{line_y_offset}"
+                    else:
+                        y_pos_expr = y_expr
+
+                    item = (
+                        f"drawtext=textfile='{esc_cue_file}'"
+                        f"{font_opt}"
+                        f":fontsize={final_fs}"
+                        f":fontcolor=white"
+                        f":borderw={border_w}:bordercolor=black"
+                        f":x={x_expr}:y={y_pos_expr}"
+                        f":enable='between(t,{s:.3f},{e:.3f})'"
+                    )
+                    drawtext_items.append(item)
 
             if drawtext_items:
                 filter_lines.append(f"{current_node}{','.join(drawtext_items)}[v_out]")

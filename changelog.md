@@ -14,7 +14,29 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Direct Workshop Launch, Dual-Resolution Full Video Verification, and Resumable Partial Download
+## [Unreleased] - Calibrate Subtitle Scaling to 0.070, Enforce Multiline Justify Center, and Remove Auto-Wrap in Preview
+- **Konteks Struktural**:
+  1. Kalibrasi Ulang Skala Font & Outline Subtitle (Penurunan Skala ~15%):
+     - Menurunkan konstanta pengali dimensi acuan `ref_dim` ($\min(W, H)$) dari `0.0833` menjadi `0.070` pada modul ekspor video (`subtitle_burner.py`), baik untuk naskah ASS libass maupun pipeline drawtext dan context banner.
+     - Menurunkan proporsi ketebalan outline/border subtitle dari `0.075 - 0.08` menjadi `0.065`, serta mengurangi margin padding ASS dari `20px` ke `10px` agar ukuran teks hasil ekspor tepat selaras (tidak sedikit kebesaran) dengan preview UI 14dp di perangkat mobile.
+  2. Implementasi Multiline Justify Center pada Pipeline Ekspor FFmpeg:
+     - Mengatasi kendala teks subtitle multiline (akibat penekanan tombol Enter `\n`) yang sebelumnya berformat rata kiri (*justify start*) pada filter drawtext FFmpeg.
+     - Memecah setiap cue dengan teks multiline menjadi filter drawtext mandiri per baris dengan ekspresi `x=(w-text_w)/2` untuk masing-masing baris secara independen. Setiap baris kini memiliki titik tengah horisontal sendiri (*justify center*) dan ditumpuk secara vertikal dengan jarak antar-baris proporsional (`line_h = round(final_fs * 1.35)`).
+     - Mengubah konfigurasi `WrapStyle: 2` pada naskah ASS libass agar tidak melakukan auto-wrap kata dan hanya memecah baris pada tag eksplisit `\N`.
+  3. Penyelarasan Preview Frontend (Penghapusan Auto Break Line):
+     - Menghapus pembatasan `maxWidth: containerWidth * 0.92` pada `SubtitleOverlay.tsx` agar preview frontend tidak memaksakan auto word wrap saat teks melebihi lebar layar.
+     - Merender setiap baris teks dari pemisahan `\n` menggunakan `<Text numberOfLines={1} ellipsizeMode="clip">`, sehingga teks panjang dibiarkan meluber/terpotong tanpa auto-wrap, konsisten 100% dengan mekanisme rendering FFmpeg.
+- **Perubahan Kode Penting**:
+  - `mobile/scripts/utils/subtitle_burner.py`:
+    - Mengalibrasi `ass_base_fs` dan `base_fs` dari `ref_dim * 0.0833` menjadi `ref_dim * 0.070`.
+    - Mengalibrasi `ass_outline` dan `border_w` menjadi `base_fs * 0.065`.
+    - Mengatur `WrapStyle: 2` dan padding margin `10` pada header ASS.
+    - Memperbarui `build_drawtext_pipeline` dan `build_multi_layer_pipeline` untuk memproses setiap baris teks `\n` sebagai item drawtext terpisah dengan `x=(w-text_w)/2` dan offset vertikal `line_y_offset`.
+  - `mobile/src/components/feed/SubtitleOverlay.tsx`:
+    - Memisahkan `subtitleText` berdasarkan `\n` dan merender tiap baris dengan `numberOfLines={1}` serta `ellipsizeMode="clip"`.
+    - Menghapus `maxWidth: containerWidth * 0.92` dan menambahkan `lineWrapper` dengan `flexWrap: 'nowrap'` agar preview tidak auto-break.
+
+## [9fcab51] - Direct Workshop Launch, Dual-Resolution Full Video Verification, and Resumable Partial Download
 - **Konteks Struktural**:
   1. Penyatuan Alur Card Press ke Offline-First Player (Tanpa Modal):
      - Mengubah interaksi klik card workshop pada Dashboard agar langsung meluncurkan ruang editing (`handleOpenExisting(..., 'local')`) tanpa memunculkan `PlayModeModal` jika video utuh lokal terdeteksi. Karena player kini memutar file proxy 480p yang bobotnya setara dengan YouTube direct stream, modal pemilihan mode stream/lokal dihilangkan untuk menyederhanakan alur kerja pengguna.
