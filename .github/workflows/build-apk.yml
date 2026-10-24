@@ -1,0 +1,73 @@
+name: Build Android APK (EAS Local)
+
+on:
+  workflow_dispatch: # Memungkinkan trigger manual via tombol "Run workflow" di tab Actions GitHub
+  push:
+    branches:
+      - main
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/build-apk.yml'
+
+jobs:
+  build:
+    name: Build Android Production APK
+    runs-on: ubuntu-22.04
+
+    defaults:
+      run:
+        working-directory: mobile
+
+    steps:
+      - name: 1. Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 2. Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: 3. Setup Python 3.10 (Chaquopy Host Requirement)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: 4. Setup Java JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: 5. Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: 6. Setup Expo & EAS CLI
+        uses: expo/expo-github-action@v8
+        with:
+          expo-version: latest
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: 7. Install Dependencies
+        run: npm ci
+
+      - name: 8. Run EAS Local Build (Android Production APK)
+        run: |
+          eas build \
+            --platform android \
+            --profile production \
+            --local \
+            --non-interactive \
+            --output ./clipping-release.apk
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          EAS_NO_VCS: '1'
+
+      - name: 9. Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: clipping-release-apk
+          path: mobile/clipping-release.apk
+          retention-days: 14

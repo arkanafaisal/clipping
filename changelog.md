@@ -14,6 +14,21 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
+## [Unreleased] - Add GitHub Actions EAS Local Build Workflow for Android Production APK
+- **Konteks Struktural**:
+  1. Otomasi Build Cloud Mandiri via GitHub Actions (`.github/workflows/build-apk.yml`):
+     - Membangun pipeline CI/CD cloud gratis (2.000 menit/bulan) di runner Ubuntu 22.04 menggunakan `eas build --local`.
+     - Mengatasi kendala batas kuota bulanan build cloud Free Plan Expo (15/15 Android) tanpa perlu membayar langganan EAS atau membuat akun ganda.
+     - Build lokal pada hardware runner GitHub tidak mengurangi kuota 15 build Android bulanan akun Expo.
+  2. Integrasi Akun EAS, Keystore Resmi, dan Versioning:
+     - Menggunakan autentikasi `EXPO_TOKEN` akun resmi (`arkanafaisal`) sehingga otomatis mengunduh Keystore produksi asli dari EAS Credentials (tanda tangan APK 100% identik dengan build sebelumnya).
+     - Menjaga sinkronisasi nomor versi (`appVersionSource: "remote"`) terhadap remote Project ID Expo.
+     - Menyediakan environment lengkap: Node 20, Python 3.10 (prasyarat Chaquopy build-time), Java JDK 17, dan Android SDK.
+     - Mengunggah output `clipping-release.apk` langsung ke GitHub Actions Artifacts (retensi 14 hari) untuk diunduh langsung ke HP.
+- **Perubahan Kode Penting**:
+  - `.github/workflows/build-apk.yml`:
+    - Membuat workflow `workflow_dispatch` (manual) dan `push` (pada folder `mobile/**`) yang menjalankan step checkout, setup toolchain (Node 20, Python 3.10, JDK 17, Android SDK), autentikasi EAS CLI via `EXPO_TOKEN`, eksekusi `eas build -p android --profile production --local`, dan upload artefak APK.
+
 ## [Unreleased] - Add Unified Google OAuth Generator and Multi-Token Fallback for Scheduler Uploader
 - **Konteks Struktural**:
   1. Modul Generator Kredensial OAuth2 Mandiri (`scheduler-uploader/auth.js`):
