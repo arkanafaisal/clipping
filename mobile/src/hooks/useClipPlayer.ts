@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { BackHandler, Animated } from 'react-native';
+import { BackHandler, Animated, Dimensions } from 'react-native';
 import { useVideoPlayer } from 'expo-video';
 import {
   ClipItem,
@@ -64,7 +64,7 @@ export function useClipPlayer({
   const debouncedSeekTargetRef = useRef<number | null>(null);
   const debouncedShouldPlayRef = useRef<boolean>(true);
   const isDebouncingSeekRef = useRef<boolean>(false);
-  const trackWidthRef = useRef<number>(1);
+  const trackWidthRef = useRef<number>(Dimensions.get('window').width);
   const currentSourceUriRef = useRef<string>('');
   const isContinueStateRef = useRef<boolean>(isContinueState);
   const streamUrlRef = useRef<string | null>(streamUrl);
@@ -393,6 +393,7 @@ export function useClipPlayer({
       debouncedSeekTargetRef.current = targetTime;
       debouncedShouldPlayRef.current = shouldPlay;
       isDebouncingSeekRef.current = true;
+      setPendingSeek(targetTime); // Kunci target seek seketika agar event timeUpdate lama diabaikan
 
       // Update seek state immediately
       const currentActive = getActiveClip();
@@ -415,28 +416,15 @@ export function useClipPlayer({
       }
       syncSubtitleCueAtTime(clampedRel, true);
 
-      // Auto-pause video seketika jika sedang berputar agar frame lama freeze (tanpa mengubah state tombol isContinueState)
-      if (player && player.playing) {
-        try {
-          player.pause();
-        } catch (e) {}
-      }
-      if (isFacecamActiveRef.current && facecamPlayer && facecamPlayer.playing) {
-        try {
-          facecamPlayer.pause();
-        } catch (e) {}
-      }
-
       if (seekDebounceTimerRef.current) {
         clearTimeout(seekDebounceTimerRef.current);
       }
 
       // Debounce seek:
-      // 1. File lokal fisik (file://): Gunakan debounce 150ms agar hardware decoder HP tidak tersedak (choked)
-      //    oleh banjir micro-events saat user menggeser/menahan progress bar scrubber.
-      // 2. Stream online: Gunakan 350ms untuk menghemat kuota dan rate limit server YouTube.
+      // 1. File lokal fisik (file://): 80ms responsif seketika tanpa choking hardware decoder
+      // 2. Stream online: 250ms untuk menghemat kuota dan rate limit server YouTube.
       const isLocalMode = currentSourceUriRef.current.startsWith('file://');
-      const debounceMs = isLocalMode ? 150 : 350;
+      const debounceMs = isLocalMode ? 80 : 250;
 
       const executeSeek = () => {
         isDebouncingSeekRef.current = false;
@@ -451,11 +439,11 @@ export function useClipPlayer({
             player.currentTime = seekTime;
             if (isFacecamActiveRef.current && facecamPlayer) {
               facecamPlayer.currentTime = seekTime;
-              if (playAfterSeek && isContinueStateRef.current) {
+              if (playAfterSeek && isContinueStateRef.current && !facecamPlayer.playing) {
                 facecamPlayer.play();
               }
             }
-            if (playAfterSeek && isContinueStateRef.current) {
+            if (playAfterSeek && isContinueStateRef.current && !player.playing) {
               player.play();
             }
           } catch (e: any) {
@@ -466,10 +454,9 @@ export function useClipPlayer({
               duration: 3500,
             });
           }
-        } else if (player && playAfterSeek && isContinueStateRef.current) {
-          // Fallback penyelamat: pastikan playback tetap berjalan jika continue aktif
+        } else if (player && playAfterSeek && isContinueStateRef.current && !player.playing) {
           try {
-            if (!player.playing) player.play();
+            player.play();
             if (isFacecamActiveRef.current && facecamPlayer && !facecamPlayer.playing) facecamPlayer.play();
           } catch (e) {}
         }
@@ -497,9 +484,14 @@ export function useClipPlayer({
     const playingSub = player.addListener('playingChange', (payload: any) => {
       const isPlaying = payload?.isPlaying ?? player.playing;
       if (isPlaying) {
-        // Video mulai berputar di native: lepas kunci seek target
-        pendingSeekTargetRef.current = null;
+        // Video mulai berputar di native: jangan hapus pendingSeekTargetRef di sini;
+        // biarkan timeUpdate yang melepaskan kunci setelah player benar-benar tiba di target seek
       } else {
+        // JANGAN menimpa UI jika sedang dalam proses debounce atau pending seek target!
+        if (isDebouncingSeekRef.current || pendingSeekTargetRef.current !== null) {
+          return;
+        }
+
         // Video dijeda (Pause): Sinkronisasi posisi pause & seleksi kotak cue subtitle ke UI
         const curActive = getActiveClip();
         const curSource = currentSourceUriRef.current;
@@ -560,7 +552,7 @@ export function useClipPlayer({
         }
       }
 
-      // 3. Loop current segment & boundary enforcement
+      // 3. Loop current segment saat mencapai batas akhir durasi
       if (isClipDoneLocal) {
         if (current >= duration) {
           setPendingSeek(0);
@@ -579,7 +571,7 @@ export function useClipPlayer({
           return;
         }
       } else {
-        if (current >= currentActive.end || current < currentActive.start - 0.5) {
+        if (current >= currentActive.end) {
           setPendingSeek(currentActive.start);
           player.currentTime = currentActive.start;
           progressAnim.setValue(0);

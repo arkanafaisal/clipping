@@ -48,6 +48,7 @@ export const FeedPlaybackControls: React.FC<FeedPlaybackControlsProps> = React.m
         onResponderMove={onScrubberPress}
       >
         <Animated.View
+          pointerEvents="none"
           style={[
             styles.progressBarFill,
             {
@@ -61,6 +62,7 @@ export const FeedPlaybackControls: React.FC<FeedPlaybackControlsProps> = React.m
           ]}
         />
         <Animated.View
+          pointerEvents="none"
           style={[
             styles.progressKnob,
             {

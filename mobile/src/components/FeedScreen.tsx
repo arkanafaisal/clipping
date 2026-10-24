@@ -600,13 +600,12 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
             !currentSource.endsWith('/full_video.mp4') &&
             !currentSource.endsWith('/full_proxy.mp4');
 
-          const locationX = e.nativeEvent.locationX;
+          const locationX = Math.max(0, Math.min(trackWidthRef.current, e.nativeEvent.locationX));
           const pct = Math.max(0, Math.min(100, (locationX / trackWidthRef.current) * 100));
           const targetTime = isIndividualCutClip
             ? (pct / 100) * duration
             : currentActive.start + (pct / 100) * duration;
 
-          progressAnim.stopAnimation();
           progressAnim.setValue(pct);
           setProgressPercent(pct);
           setCurrentClipTime((pct / 100) * duration);

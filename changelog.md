@@ -14,7 +14,32 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Eliminate Subtitle Stroke and Shadow Overhead for Zero-Lag Preview
+## [Unreleased] - Fix Seek Jump-Back Glitch and Scrubber Touch Hit Target
+- **Konteks Struktural**:
+  1. Eliminasi Efek Jump-Back saat Seek Berjalan (`useClipPlayer.ts`):
+     - Menghapus pemanggilan `player.pause()` yang tidak perlu di dalam `centralizedSeek`. ExoPlayer dapat berpindah posisi (`player.currentTime = seekTime`) secara mulus tanpa harus menjeda playback secara paksa.
+     - Mengunci target seek seketika (`setPendingSeek(targetTime)`) sejak pemanggilan pertama di `centralizedSeek` (bukan menunggu timer debounce 150ms), sehingga frame lama dari native decoder diabaikan secara konsisten.
+     - Menambahkan proteksi pada listener `playingChange`: jika sistem sedang dalam masa debounce seek atau pending seek (`isDebouncingSeekRef.current || pendingSeekTargetRef.current !== null`), event jeda dilarang menimpa state UI dengan posisi video lama (`player.currentTime`).
+     - Mencegah pelepasan dini `pendingSeekTargetRef.current = null` saat `playingChange` menerima status `isPlaying = true`. Pelepasan kunci kini hanya dilakukan secara sah oleh `timeUpdate` setelah decoder native benar-benar tiba di rentang toleransi target seek (< 0.3s).
+  2. Perbaikan Akurasi Sentuhan Scrubber Bar (`FeedPlaybackControls.tsx`, `FeedScreen.tsx`, `useClipPlayer.ts`):
+     - Menambahkan `pointerEvents="none"` pada elemen anak scrubber progress bar (`progressBarFill` dan `progressKnob`). Sebelumnya, sentuhan jari user mengenai knob (lebar 12px) atau filled bar, menghasilkan nilai koordinat lokal `locationX` yang sangat kecil (0-12px) alih-alih koordinat trackbar penuh (0-360px), yang menyebabkan 95% sentuhan salah terhitung sebagai persentase ~0% (detik 0).
+     - Menginialisasi `trackWidthRef` menggunakan `Dimensions.get('window').width` (alih-alih nilai default 1) agar perhitungan rasio scrubber selalu valid sebelum event layout pertama.
+     - Mengapit `e.nativeEvent.locationX` dengan batas `Math.max(0, Math.min(trackWidthRef.current, ...))` untuk mencegah kalkulasi negatif saat sentuhan digeser keluar dari batas fisik track.
+  3. Eliminasi Reset Segmen Palsu ke Detik 0 (`useClipPlayer.ts`):
+     - Menghapus klausul `|| current < currentActive.start - 0.5` pada evaluasi loop boundary di `timeUpdate`. Sebelumnya, ketika player sedang mencari frame (seek) atau mengalami micro-buffering, nilai `current` yang sesaat mendekati 0 keliru dideteksi sebagai pelanggaran batas start, memicu reset paksa ke awal klip. Loop kini murni hanya terpicu saat durasi akhir klip tercapai (`current >= currentActive.end`).
+- **Perubahan Kode Penting**:
+  - `mobile/src/hooks/useClipPlayer.ts`:
+    - Mengimpor `Dimensions` dan menginisialisasi `trackWidthRef` dengan lebar layar riil.
+    - Menghapus jeda paksa `player.pause()` pada `centralizedSeek` dan memanggil `setPendingSeek(targetTime)` seketika.
+    - Menambahkan pengaman `isDebouncingSeekRef.current || pendingSeekTargetRef.current !== null` pada listener `playingChange` saat pause.
+    - Menghapus pelepasan prematur `pendingSeekTargetRef.current = null` pada `playingChange` saat playing.
+    - Menghapus syarat `current < currentActive.start - 0.5` pada evaluasi loop segment di `timeUpdate`.
+  - `mobile/src/components/feed/FeedPlaybackControls.tsx`:
+    - Menambahkan `pointerEvents="none"` pada `progressBarFill` dan `progressKnob`.
+  - `mobile/src/components/FeedScreen.tsx`:
+    - Membatasi `locationX` agar selalu berada dalam rentang `0` hingga `trackWidthRef.current`.
+
+## [0c69e8e] - Eliminate Subtitle Stroke and Shadow Overhead for Zero-Lag Preview
 - **Konteks Struktural**:
   1. Penghapusan 8-Layer Stroke Duplikat dan Shadow (`SubtitleOverlay.tsx`):
      - Menghapus seluruh konstanta `STROKE_OFFSETS`, kalkulasi `strokeScale`, fungsi pemecah regex emoji `renderStrokeContent`, serta style `strokeText`.
