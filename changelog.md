@@ -14,7 +14,19 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Upgrade Node.js to 22 in GitHub Actions Workflow
+## [Unreleased] - Update App Logo and Icon Assets (Neon Laser Film Slice)
+- **Konteks Struktural**:
+  1. Identitas Visual Logo Aplikasi Clipping (`mobile/assets/images/`):
+     - Memperbarui seluruh aset logo dan ikon aplikasi dengan konsep "Video yang Dipotong / Di-klip" (Opsi A: Neon Laser Film Slice).
+     - Menggantikan aset ikon default dengan grafis vektor rol film terpotong berkas cahaya laser neon bersinar dalam palet warna *dark obsidian* (#0A0A0A) dan gradasi ungu-sian.
+     - Menyediakan resolusi optimal untuk seluruh platform: `icon.png` (1024x1024), `android-icon-foreground.png` (1024x1024 adaptive icon), `splash-icon.png` (512x512 splash screen), dan `favicon.png` (48x48 web favicon).
+- **Perubahan Kode Penting**:
+  - `mobile/assets/images/icon.png`: Memperbarui file ikon utama aplikasi ke resolusi 1024x1024.
+  - `mobile/assets/images/android-icon-foreground.png`: Memperbarui foreground adaptive icon Android.
+  - `mobile/assets/images/splash-icon.png`: Memperbarui ikon layar splash.
+  - `mobile/assets/images/favicon.png`: Memperbarui favicon web.
+
+## [0c3de71] - Upgrade Node.js to 22 in GitHub Actions Workflow
 - **Konteks Struktural**:
   1. Kompatibilitas Engine EAS CLI v25+:
      - Memperbarui versi runtime Node.js dari 20 ke 22 (`setup-node@v4` dengan `node-version: 22`).
