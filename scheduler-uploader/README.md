@@ -13,11 +13,11 @@ Script CLI Node.js statis murni (bukan web server) yang didesain khusus untuk di
 
 2. **Eksekusi Linear & Asinkron (Tahap A s/d E)**:
    - **Tahap A & B (Pemilihan Konten)**:
-     - *Mode Random (Default)*: Memilih folder game/stream acak di dalam `GDRIVE_UNUSED_FOLDER_ID`, lalu memilih file klip `.mp4` acak yang belum berlabel `[USED]`.
+     - *Mode Random (Default)*: Memilih folder game/stream acak di dalam `GDRIVE_UNUSED_FOLDER_ID`, lalu memilih file klip `.mp4` acak yang ada di dalamnya.
      - *Mode Schedule*: Mencari folder tanggal dan file jam (`<JAM>_00.mp4`).
    - **Tahap C (Download Streaming)**: Mengunduh video menggunakan `fs.createWriteStream` dan `stream/promises.pipeline` langsung ke disk lokal (`./temp_video.mp4`). **Nol buffer RAM** sehingga tidak melebihi kuota memori Heroku dyno (512MB).
    - **Tahap D (Upload Paralel)**: Mengunggah `./temp_video.mp4` secara bersamaan menggunakan `Promise.all()` ke YouTube Data API v3 dan TikTok Content Posting API v2.
-   - **Tahap E (Move & Rename Instan di GDrive + Clean Up Lokal)**: Memindahkan file video dari folder game ke `GDRIVE_USED_FOLDER_ID` secara instan via update pointer Google Drive (`addParents`/`removeParents` - tanpa re-upload binary) serta me-rename menjadi `[USED_YYYY-MM-DD_HHh]_nama.mp4`. File sementara lokal dihapus dan script keluar dengan `process.exit(0)`.
+   - **Tahap E (Move Instan ke Folder Used di GDrive + Clean Up Lokal)**: Memindahkan file video dari folder game ke `GDRIVE_USED_FOLDER_ID` secara instan via update pointer Google Drive (`addParents`/`removeParents` - tanpa re-upload binary). File otomatis hilang dari folder game/unused dan tersimpan rapi dengan nama aslinya di folder used. File sementara lokal dihapus dan script keluar dengan `process.exit(0)`.
    - **Error Handling**: Menangkap semua jenis kegagalan, memastikan file sementara selalu dihapus agar disk Heroku tidak penuh, dan keluar dengan `process.exit(1)`.
 
 3. **Fleksibilitas Kredensial**:

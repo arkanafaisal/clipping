@@ -485,7 +485,7 @@ async function runSchedulerUploader() {
       // Jika tidak ada subfolder, cari video langsung di dalam folder unused
       console.log('Tidak ada subfolder game. Mencari video klip langsung di folder unused...');
       const rootFilesRes = await drive.files.list({
-        q: `'${unusedFolderId}' in parents and (mimeType contains 'video/' or name contains '.mp4') and not name contains '[USED]' and trashed = false`,
+        q: `'${unusedFolderId}' in parents and (mimeType contains 'video/' or name contains '.mp4') and trashed = false`,
         fields: 'files(id, name, size, mimeType)',
         spaces: 'drive',
         supportsAllDrives: true,
@@ -494,7 +494,7 @@ async function runSchedulerUploader() {
 
       const directFiles = rootFilesRes.data.files || [];
       if (directFiles.length === 0) {
-        console.log('Tidak ada file video baru di Google Drive. Semua klip sudah terpakai.');
+        console.log('Tidak ada file video di folder unused. Semua klip sudah dipindahkan ke folder used.');
         process.exit(0);
       }
       selectedFolder = { id: unusedFolderId, name: 'Root' };
@@ -506,7 +506,7 @@ async function runSchedulerUploader() {
       for (const folder of shuffledFolders) {
         console.log(`Memeriksa folder game/stream: "${folder.name}"...`);
         const filesRes = await drive.files.list({
-          q: `'${folder.id}' in parents and (mimeType contains 'video/' or name contains '.mp4') and not name contains '[USED]' and trashed = false`,
+          q: `'${folder.id}' in parents and (mimeType contains 'video/' or name contains '.mp4') and trashed = false`,
           fields: 'files(id, name, size, mimeType)',
           spaces: 'drive',
           supportsAllDrives: true,
@@ -525,7 +525,7 @@ async function runSchedulerUploader() {
       }
 
       if (!videoFile) {
-        console.log('\nSeluruh folder game sudah kosong / semua klip sudah berlabel [USED]. Selesai.');
+        console.log('\nSeluruh folder game sudah kosong (semua klip sudah dipindahkan ke folder Used). Selesai.');
         process.exit(0);
       }
     }
@@ -604,8 +604,8 @@ async function runSchedulerUploader() {
   // --------------------------------------------------------------------------
   console.log(`\n[TAHAP D] Memulai pengunggahan paralel (Promise.all) ke YouTube dan TikTok...`);
 
-  // Susun nama klip bersih (hanya nama file terpilih tanpa ekstensi .mp4 dan label [USED])
-  const cleanClipName = videoFile.name.replace(/\.mp4$/i, '').replace(/^\[USED[^\]]*\]_?/i, '').trim();
+  // Susun nama klip bersih (nama file asli tanpa ekstensi .mp4)
+  const cleanClipName = videoFile.name.replace(/\.mp4$/i, '').trim();
 
   // Tag 1: Nama folder game/stream terpilih (misal: #MobileLegends)
   const folderTag =
@@ -651,13 +651,10 @@ async function runSchedulerUploader() {
   console.log(` - TikTok Publish ID : ${tiktokResult?.publish_id || 'OK'}`);
 
   // --------------------------------------------------------------------------
-  // TAHAP E (Instant Move / Rename di Google Drive & Clean Up Lokal):
+  // TAHAP E (Instant Move ke Google Drive Folder Used & Clean Up Lokal):
   // Pindahkan file video ke GDRIVE_USED_FOLDER_ID (pointer update instan tanpa re-upload!)
-  // dan rename menjadi [USED_YYYY-MM-DD_HHh]_nama.mp4
+  // File otomatis hilang dari folder game asal dan tersimpan utuh di folder used.
   // --------------------------------------------------------------------------
-  const cleanOriginalName = videoFile.name.replace(/^\[USED[^\]]*\]_?/i, '');
-  const newGdriveFileName = `[USED_${targetDate}_${targetHour}h]_${cleanOriginalName}`;
-
   try {
     if (usedFolderId && selectedFolder && selectedFolder.id !== usedFolderId) {
       console.log(`\n[TAHAP E] Memindahkan file di Google Drive ke folder Used (${usedFolderId})...`);
@@ -667,28 +664,17 @@ async function runSchedulerUploader() {
         fileId: videoFile.id,
         addParents: usedFolderId,
         removeParents: selectedFolder.id,
-        requestBody: {
-          name: newGdriveFileName,
-        },
         fields: 'id, name, parents',
         supportsAllDrives: true,
       });
 
-      console.log(`[TAHAP E] Berhasil dipindahkan ke folder Used & di-rename menjadi "${newGdriveFileName}".`);
+      console.log(`[TAHAP E] Berhasil dipindahkan ke folder Used ("${videoFile.name}").`);
+      console.log(`[TAHAP E] File otomatis hilang dari folder asal "${selectedFolder.name}".`);
     } else {
-      console.log(`\n[TAHAP E] Me-rename file di tempat menjadi "${newGdriveFileName}" agar tidak terpilih lagi...`);
-      await drive.files.update({
-        fileId: videoFile.id,
-        requestBody: {
-          name: newGdriveFileName,
-        },
-        fields: 'id, name',
-        supportsAllDrives: true,
-      });
-      console.log(`[TAHAP E] Berhasil di-rename di tempat.`);
+      console.log(`\n[TAHAP E] ID folder Used tidak ditentukan; file tetap berada di folder asal.`);
     }
   } catch (gdriveUpdateErr) {
-    console.warn(`[TAHAP E PERINGATAN] Gagal memindahkan/me-rename file di Google Drive: ${gdriveUpdateErr.message}`);
+    console.warn(`[TAHAP E PERINGATAN] Gagal memindahkan file di Google Drive: ${gdriveUpdateErr.message}`);
     console.warn('Proses upload ke YouTube dan TikTok tetap dinyatakan berhasil.');
   }
 

@@ -14,7 +14,17 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Add Interactive Setup Wizard and Configurable Constant Hashtags
+## [Unreleased] - Simplify File Move Operation Without [USED] Label Prefix
+- **Konteks Struktural**:
+  1. Pembersihan Logika Pemindahan File Murni (Pure Move Operation):
+     - Mengeliminasi prefix nama `[USED]` dan filter `not name contains '[USED]'` karena sistem pemindahan file secara fisik melepaskan relasi parent dari folder unused (`removeParents: selectedFolder.id`).
+     - File yang telah berhasil dipindahkan otomatis lenyap dari folder unused/game, sehingga tidak mungkin terpilih ulang dan tidak perlu dikotori oleh label redundan.
+     - Di folder used, file tersimpan bersih dengan nama aslinya tanpa modifikasi karakter.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/index.js`: Menghapus filter `[USED]` pada query `drive.files.list`, menghapus penamaan ulang prefix pada operasi `drive.files.update`, dan menyederhanakan `cleanClipName`.
+  - `scheduler-uploader/README.md`: Memperbarui dokumentasi tahap pemilihan dan pemindahan konten agar selaras dengan arsitektur pure move.
+
+## [3c87315] - Add Interactive Setup Wizard and Configurable Constant Hashtags
 - **Konteks Struktural**:
   1. Wizard Penyiapan Interaktif (`scheduler-uploader/setup.js` / `npm run setup`):
      - Membangun antarmuka CLI interaktif ramah pengguna (menggunakan native `readline`) untuk membimbing penyiapan dari tahap awal hingga pengujian.
