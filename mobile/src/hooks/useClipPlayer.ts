@@ -89,8 +89,8 @@ export function useClipPlayer({
     p.loop = false;
     p.timeUpdateEventInterval = 0.25;
     p.bufferOptions = {
-      preferredForwardBufferDuration: 1.0,
-      minBufferForPlayback: 0.05,
+      preferredForwardBufferDuration: 4.0,
+      minBufferForPlayback: 2.0,
     };
   });
 
@@ -99,8 +99,8 @@ export function useClipPlayer({
     p.loop = false;
     p.muted = true;
     p.bufferOptions = {
-      preferredForwardBufferDuration: 1.0,
-      minBufferForPlayback: 0.05,
+      preferredForwardBufferDuration: 4.0,
+      minBufferForPlayback: 2.0,
     };
   });
 
@@ -263,7 +263,7 @@ export function useClipPlayer({
     (fromRelTime?: number, forceReset: boolean = false) => {
       // Jika jam linier sudah aktif berputar dan bukan instruksi reset eksplisit,
       // jangan reset jam kembali ke detik awal! Biarkan jam terus berjalan mulus tanpa lompat mundur.
-      if (isPlaybackActiveRef.current && !forceReset && typeof fromRelTime !== 'number') {
+      if (isPlaybackActiveRef.current && !forceReset) {
         return;
       }
 
@@ -393,7 +393,6 @@ export function useClipPlayer({
             }
             if (autoPlay && isContinueStateRef.current) {
               player.play();
-              startLinearClock(0, true);
             }
           } catch (err) {
             console.warn('[Feed] Play full video proxy error:', err);
@@ -427,7 +426,6 @@ export function useClipPlayer({
               player.currentTime = 0;
               if (autoPlay && isContinueStateRef.current) {
                 player.play();
-                startLinearClock(0, true);
               }
             } catch (err) {
               console.warn('[Feed] Play local error:', err);
@@ -463,7 +461,6 @@ export function useClipPlayer({
           }
           if (autoPlay && isContinueStateRef.current) {
             player.play();
-            startLinearClock(0, true);
           }
         } catch (err) {
           console.warn('[Feed] Play stream error:', err);
@@ -478,7 +475,6 @@ export function useClipPlayer({
       downloadedClipsRef,
       playMode,
       stopLinearClock,
-      startLinearClock,
       syncSubtitleCueAtTime,
     ]
   );
@@ -510,8 +506,10 @@ export function useClipPlayer({
       const clampedRel = Math.max(0, Math.min(duration, targetRel));
 
       playStartClipTimeRef.current = clampedRel;
-      if (isPlaybackActiveRef.current) {
-        playStartWallTimeRef.current = Date.now();
+      stopLinearClock();
+      setCurrentClipTime(clampedRel);
+      if (duration > 0) {
+        setProgressPercent(Math.max(0, Math.min(100, (clampedRel / duration) * 100)));
       }
       syncSubtitleCueAtTime(clampedRel);
 
@@ -557,7 +555,6 @@ export function useClipPlayer({
             }
             if (playAfterSeek && isContinueStateRef.current) {
               player.play();
-              startLinearClock(clampedRel, true);
             }
           } catch (e: any) {
             ToastManager.show({
@@ -572,7 +569,6 @@ export function useClipPlayer({
           try {
             if (!player.playing) player.play();
             if (isFacecamActiveRef.current && facecamPlayer && !facecamPlayer.playing) facecamPlayer.play();
-            startLinearClock(clampedRel, true);
           } catch (e) {}
         }
         seekDebounceTimerRef.current = null;
@@ -587,7 +583,7 @@ export function useClipPlayer({
       getActiveClip,
       downloadedClipsRef,
       syncSubtitleCueAtTime,
-      startLinearClock,
+      stopLinearClock,
     ]
   );
 
@@ -600,7 +596,7 @@ export function useClipPlayer({
       const isPlaying = payload?.isPlaying ?? player.playing;
       if (isPlaying) {
         // HANYA jalankan jika linear clock BELUM aktif!
-        // Jika sudah aktif (misal sudah dijalankan oleh togglePlayPause atau seek), JANGAN restart agar tidak lompat mundur!
+        // Start jam linier tepat di detik saat video player mulai berputar di native ExoPlayer
         if (!isPlaybackActiveRef.current) {
           const curActive = getActiveClip();
           const curSource = currentSourceUriRef.current;
@@ -610,10 +606,20 @@ export function useClipPlayer({
             !curSource.endsWith('/full.mp4') &&
             !curSource.endsWith('/full_video.mp4') &&
             !curSource.endsWith('/full_proxy.mp4');
+
+          const rawCurrent = player.currentTime;
+          const currentPos =
+            typeof rawCurrent === 'number' && !isNaN(rawCurrent)
+              ? rawCurrent
+              : isIndividualCutClip
+              ? 0
+              : curActive.start;
+
           const rel = isIndividualCutClip
-            ? player.currentTime
-            : player.currentTime - curActive.start;
-          startLinearClock(rel);
+            ? Math.max(0, currentPos)
+            : Math.max(0, currentPos - curActive.start);
+
+          startLinearClock(rel, true);
         }
       } else {
         stopLinearClock();
@@ -656,13 +662,19 @@ export function useClipPlayer({
         : Math.max(0, Math.min(duration, current - currentActive.start));
 
       if (!isPlaybackActiveRef.current) {
-        // Mode Pause/Diam: Kalibrasi instan 100% mengikuti player native
-        playStartClipTimeRef.current = nativeRel;
-        setCurrentClipTime(nativeRel);
-        if (duration > 0) {
-          setProgressPercent(Math.max(0, Math.min(100, (nativeRel / duration) * 100)));
+        // Fallback pengaman: jika player sudah berstatus playing di native tapi linear clock belum start,
+        // segera start linear clock sekarang juga!
+        if (player.playing && pendingSeekTargetRef.current === null) {
+          startLinearClock(nativeRel, true);
+        } else {
+          // Mode Pause/Diam: Kalibrasi instan 100% mengikuti player native
+          playStartClipTimeRef.current = nativeRel;
+          setCurrentClipTime(nativeRel);
+          if (duration > 0) {
+            setProgressPercent(Math.max(0, Math.min(100, (nativeRel / duration) * 100)));
+          }
+          syncSubtitleCueAtTime(nativeRel);
         }
-        syncSubtitleCueAtTime(nativeRel);
       } else {
         // Mode Play: Untuk file lokal, biarkan progress bar berjalan 100% mulus sebagai animasi linier 0-X tanpa kalkulasi mundur/reset!
         // Hanya kalibrasi jika mode stream online YouTube mengalami lag/stall jaringan ekstrem (> 1.5 detik)
@@ -755,7 +767,6 @@ export function useClipPlayer({
             if (!player.playing) {
               try { player.play(); } catch (e) {}
             }
-            startLinearClock(0, true);
           }
         }
         return;
@@ -837,18 +848,6 @@ export function useClipPlayer({
     } else {
       // Pindah dari pause ke continue: force play jika video sedang berhenti
       setIsContinueState(true);
-      const curActive = getActiveClip();
-      const curSource = currentSourceUriRef.current;
-      const isIndividualCutClip =
-        curActive.status === 'done' &&
-        Boolean(downloadedClipsRef.current[curActive.id]) &&
-        !curSource.endsWith('/full.mp4') &&
-        !curSource.endsWith('/full_video.mp4') &&
-        !curSource.endsWith('/full_proxy.mp4');
-      const rel = isIndividualCutClip
-        ? (typeof player?.currentTime === 'number' && !isNaN(player.currentTime) ? player.currentTime : playStartClipTimeRef.current)
-        : (typeof player?.currentTime === 'number' && !isNaN(player.currentTime) ? Math.max(0, player.currentTime - curActive.start) : playStartClipTimeRef.current);
-      startLinearClock(rel, true);
       try {
         if (!player.playing) player.play();
         if (isFacecamActiveRef.current && facecamPlayer && !facecamPlayer.playing) {
@@ -860,9 +859,6 @@ export function useClipPlayer({
     player,
     facecamPlayer,
     stopLinearClock,
-    startLinearClock,
-    getActiveClip,
-    downloadedClipsRef,
   ]);
 
   const skipSeconds = useCallback(

@@ -14,7 +14,28 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Support Gameplay Toggle (Facecam Only & Gameplay Only) in Template Editor and Export
+## [Unreleased] - Decouple Linear Clock Start from Button Press to Native Playing Event & Restore Safe Buffer Options
+- **Konteks Struktural**:
+  1. Restorasi Pengaman Buffer ExoPlayer (`useClipPlayer.ts`):
+     - Mengembalikan nilai `bufferOptions` (`minBufferForPlayback: 2.0` detik dan `preferredForwardBufferDuration: 4.0` detik) pada kedua instance player (`player` dan `facecamPlayer`) agar video memiliki buffer yang memadai dan terhindar dari potensi lag/stutter pada perangkat Android.
+  2. Dekopling Total Start Jam Linier dari Tombol UI ke Event Native Player (`useClipPlayer.ts`):
+     - Mengeliminasi panggilan prematur `startLinearClock(...)` dari event tekan tombol (`togglePlayPause`), pemindahan sumber video (`syncPlayerSourceForClip`), eksekusi seek (`executeSeek`), dan event kesiapan buffer (`statusChange: readyToPlay`).
+     - Mengalihkan pemicu start jam linier 100% ke listener event `playingChange` saat ExoPlayer beralih ke `isPlaying === true` (yaitu frame video native telah benar-benar mulai didecode dan dirender di layar).
+     - Menghapus keterlambatan awal (progress bar diam saat video sudah jalan) maupun lompat mundur (progress bar sempat berjalan mendahului lalu terpental kembali ke 0 saat native player baru mulai memutar).
+  3. Pengaman Fallback di `timeUpdate` & Freeze UI saat Debounce Seek (`useClipPlayer.ts`):
+     - Pada `timeUpdate`, jika native player berstatus `player.playing === true` namun jam linier belum aktif, jam linier segera distart otomatis di posisi `nativeRel` aktual.
+     - Pada `centralizedSeek`, `stopLinearClock()` segera dipanggil untuk membekukan jam linier saat scrubbing, dan UI progress bar/subtitle langsung mencerminkan posisi target seek tanpa mendahului native player.
+- **Perubahan Kode Penting**:
+  - `mobile/src/hooks/useClipPlayer.ts`:
+    - Mengembalikan `minBufferForPlayback: 2.0` dan `preferredForwardBufferDuration: 4.0` pada `player` dan `facecamPlayer`.
+    - Di `startLinearClock`: Mengabaikan restart jika `isPlaybackActiveRef.current && !forceReset` agar iterasi reguler tidak mereset titik awal jam yang sedang berjalan.
+    - Menghapus pemanggilan `startLinearClock(0, true)` di `syncPlayerSourceForClip` dan `statusChange`.
+    - Menghapus pemanggilan `startLinearClock(clampedRel, true)` di `executeSeek`.
+    - Menghapus pemanggilan `startLinearClock(rel, true)` di `togglePlayPause` dan merampingkan array dependencies-nya.
+    - Di listener `playingChange`: Ketika `isPlaying === true` dan `!isPlaybackActiveRef.current`, menghitung posisi relatif `rel` dari `player.currentTime` aktual dan memanggil `startLinearClock(rel, true)`.
+    - Di listener `timeUpdate`: Menambahkan fallback otomatis untuk menstart jam linier jika `player.playing` aktif tetapi jam belum berputar.
+
+## [528ae47] - Support Gameplay Toggle (Facecam Only & Gameplay Only) in Template Editor and Export
 - **Konteks Struktural**:
   1. Toggle On/Off Elemen Main Video Gameplay (`FeedTopControls.tsx`, `api.ts`, `useClipTemplate.ts`):
      - Menambahkan properti `enabled?: boolean` (default `true`) pada elemen `mainVideo` di antarmuka `ClipTemplateConfig`.
