@@ -14,7 +14,17 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Add GitHub Actions EAS Local Build Workflow for Android Production APK
+## [Unreleased] - Fix Android SDK Step in GitHub Actions Workflow
+- **Konteks Struktural**:
+  1. Penyesuaian Setup Toolchain Android pada GitHub Runner:
+     - Menghapus dependensi pihak ketiga `android-actions/setup-android@v3` yang gagal mengeksekusi `sdkmanager tools` karena paket legacy `tools` telah didepresiasi dan dihapus oleh repositori Google Android SDK.
+     - Memanfaatkan Android SDK, build-tools, dan platform-tools resmi yang sudah terinstal secara bawaan pada runner virtual environment Ubuntu 22.04 GitHub Actions (`/usr/local/lib/android/sdk`).
+     - Mengotomatisasi penerimaan lisensi SDK via `yes | sdkmanager --licenses` agar proses build berjalan non-interaktif tanpa hambatan.
+- **Perubahan Kode Penting**:
+  - `.github/workflows/build-apk.yml`:
+    - Mengganti step `uses: android-actions/setup-android@v3` dengan command shell `yes | sdkmanager --licenses || true`.
+
+## [c836f34] - Add GitHub Actions EAS Local Build Workflow for Android Production APK
 - **Konteks Struktural**:
   1. Otomasi Build Cloud Mandiri via GitHub Actions (`.github/workflows/build-apk.yml`):
      - Membangun pipeline CI/CD cloud gratis (2.000 menit/bulan) di runner Ubuntu 22.04 menggunakan `eas build --local`.

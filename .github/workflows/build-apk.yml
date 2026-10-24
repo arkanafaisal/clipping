@@ -40,8 +40,9 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: 5. Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - name: 5. Accept Android SDK Licenses
+        run: |
+          yes | sdkmanager --licenses || true
 
       - name: 6. Setup Expo & EAS CLI
         uses: expo/expo-github-action@v8
