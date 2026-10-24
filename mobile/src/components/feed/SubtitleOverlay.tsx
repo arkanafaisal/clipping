@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { StyleSheet, View, Text, useWindowDimensions } from 'react-native';
 
 export interface SubtitleOverlayProps {
@@ -9,6 +9,14 @@ export interface SubtitleOverlayProps {
   positionY?: number; // Skala 0 - 100 terhadap tinggi video player (default 85 = lower third)
   subtitleListenerRef?: React.MutableRefObject<((text: string, fontSize?: number) => void) | null>;
 }
+
+// 4 arah offset (atas, bawah, kiri, kanan) solid tanpa shadow dan tanpa blur
+const STROKE_OFFSETS = [
+  { x: 0, y: -1.5 },
+  { x: 0, y: 1.5 },
+  { x: -1.5, y: 0 },
+  { x: 1.5, y: 0 },
+];
 
 export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = React.memo(({
   isVisible,
@@ -71,6 +79,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = React.memo(({
   const scaleFactor = baseViewportRef > 0 ? currentRefDim / baseViewportRef : 1;
   const scaledFontSize = Math.max(8, Math.round(currentFontSize * scaleFactor));
   const lineHeight = Math.round(scaledFontSize * 1.35);
+  const strokeScale = Math.max(0.8, scaleFactor);
 
   // Offset relatif terhadap titik pusat (50%, 50%) video player
   // Contoh default (X=50, Y=85):
@@ -82,6 +91,26 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = React.memo(({
   // Pertahankan layer Text yang sudah mounted di memory tanpa unmount/re-mount:
   // Saat jeda bicara (hasText = false), container ber-opacity 0 dan teks terakhir tetap disimpan
   const displayText = hasText ? currentText : lastNonEmptyTextRef.current;
+
+  // Menghilangkan duplikasi bayangan hitam pada emoji di 4 layer stroke:
+  // Karakter emoji disembunyikan (opacity: 0) pada layer stroke agar tidak memunculkan kotak hitam,
+  // namun tetap mempertahankan metrik lebar/tinggi karakter (zero layout shift).
+  const strokeContent = useMemo(() => {
+    if (!displayText || !/\p{Extended_Pictographic}|\p{Emoji_Presentation}/u.test(displayText)) {
+      return displayText;
+    }
+    const parts = displayText.split(/(\p{Extended_Pictographic}+|\p{Emoji_Presentation}+)/gu);
+    return parts.map((part, pIdx) => {
+      if (/\p{Extended_Pictographic}|\p{Emoji_Presentation}/u.test(part)) {
+        return (
+          <Text key={pIdx} style={{ opacity: 0 }}>
+            {part}
+          </Text>
+        );
+      }
+      return part;
+    });
+  }, [displayText]);
 
   return (
     <View
@@ -109,6 +138,29 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = React.memo(({
           },
         ]}
       >
+        {/* Layer Border / Stroke Hitam Pekat (4 arah) tanpa shadow atau blur */}
+        {STROKE_OFFSETS.map((offset, index) => (
+          <Text
+            key={index}
+            style={[
+              styles.subtitleText,
+              styles.strokeText,
+              {
+                fontSize: scaledFontSize,
+                lineHeight,
+                transform: [
+                  { translateX: offset.x * strokeScale },
+                  { translateY: offset.y * strokeScale },
+                ],
+              },
+            ]}
+            aria-hidden
+          >
+            {strokeContent}
+          </Text>
+        ))}
+
+        {/* Layer Teks Utama Putih Bersih */}
         <Text
           style={[
             styles.subtitleText,
@@ -149,6 +201,13 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0.2,
     includeFontPadding: false,
+  },
+  strokeText: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    color: '#000000',
   },
   foregroundText: {
     color: '#ffffff',

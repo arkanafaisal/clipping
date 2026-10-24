@@ -14,7 +14,20 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Fix Seek Jump-Back Glitch and Scrubber Touch Hit Target
+## [Unreleased] - Implement 4-Way Subtitle Stroke Without Shadow or Blur
+- **Konteks Struktural**:
+  1. Rekonstruksi Border Subtitle 4 Arah Tanpa Shadow dan Blur (`SubtitleOverlay.tsx`):
+     - Mengimplementasikan 4 layer stroke hitam pekat arah mata angin (atas, bawah, kiri, kanan dengan offset ±1.5px) di belakang layer teks utama putih.
+     - Menghilangkan 100% properti `textShadowColor`, `textShadowOffset`, dan `textShadowRadius` baik pada layer stroke maupun foreground. Render teks kini murni menggunakan hardware texture cache GPU tanpa memicu kalkulasi software Gaussian blur filter di Android Skia yang sebelumnya menjadi penyebab utama micro-freeze saat hide/unhide subtitle.
+     - Menghapus pemecahan baris manual (`lines.map` dan `lineWrapper`). Seluruh teks multiline dengan `\n` ditangani langsung oleh 1 komponen `<Text>` dengan `textAlign: 'center'`, sehingga jumlah total native TextView untuk seluruh subtitle (bahkan untuk teks 3 baris) berkurang drastis dari sebelumnya 27 TextView menjadi hanya 5 TextView (4 stroke + 1 foreground).
+     - Menggunakan `useMemo` untuk pemrosesan regex emoji pada konten stroke (`strokeContent`), memastikan partisi karakter hanya dihitung sekali saat teks cue berubah dan tidak membebani render cycle.
+- **Perubahan Kode Penting**:
+  - `mobile/src/components/feed/SubtitleOverlay.tsx`:
+    - Menambahkan konstanta `STROKE_OFFSETS` (4 arah: `{ x: 0, y: -1.5 }`, `{ x: 0, y: 1.5 }`, `{ x: -1.5, y: 0 }`, `{ x: 1.5, y: 0 }`).
+    - Menghitung `strokeScale` berbasis rasio viewport aktif dan memetakan 4 layer stroke `<Text>` di belakang teks utama.
+    - Menambahkan `strokeText` dengan `position: 'absolute'` dan warna hitam pekat tanpa properti shadow/blur.
+
+## [a044e68] - Fix Seek Jump-Back Glitch and Scrubber Touch Hit Target
 - **Konteks Struktural**:
   1. Eliminasi Efek Jump-Back saat Seek Berjalan (`useClipPlayer.ts`):
      - Menghapus pemanggilan `player.pause()` yang tidak perlu di dalam `centralizedSeek`. ExoPlayer dapat berpindah posisi (`player.currentTime = seekTime`) secara mulus tanpa harus menjeda playback secara paksa.
