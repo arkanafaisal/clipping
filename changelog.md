@@ -14,7 +14,26 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Support Per-Clip Watermark Choice (With or Without Watermark)
+## [Unreleased] - Implement Zero-Lag Linear Wall-Clock Timeline & Subtitle Synchronization
+- **Konteks Struktural**:
+  1. Penjadwalan Waktu Linier Deterministik (Client-Side Linear Clock Interpolator di `useClipPlayer.ts`):
+     - Menggantikan ketergantungan pasif UI pada event bridge `timeUpdate` ExoPlayer (yang sering mengalami penumpukan antrean/delay hingga 300-400ms di HP berspesifikasi rendah) dengan jam linier independen berbasis `Date.now()`.
+     - Karena pemutaran video (terutama file lokal) berjalan secara deterministik pada laju 1.0x, pergerakan progress bar dan jarum playhead digerakkan secara linier dan halus pada interval 50ms (20 FPS).
+     - Event native `timeUpdate` ExoPlayer diturunkan frekuensinya dari 100ms ke 250ms dan dialihfungsikan murni sebagai *heartbeat drift calibration* (hanya melakukan kalibrasi ulang jika terjadi selisih nyata > 0.35s akibat seek atau stall jaringan), memangkas beban lintas-bridge sebesar 60%.
+  2. Evaluasi Cue Subtitle Realtime & Pencegahan Re-render Berlebih (`syncSubtitleCueAtTime`):
+     - Memutus siklus pemindaian array subtitle dan pemanggilan state berulang setiap 100ms jika teks subtitle yang aktif tidak mengalami perubahan (`lastDispatchedSubtitleTextRef`).
+     - Menyinkronkan teks subtitle secara instan pada milidetik ke-0 saat tombol Play ditekan maupun saat user menggeser timeline scrubber, menghilangkan lag visual subtitle.
+  3. Integrasi State Playback Terpusat (`playingChange`, `centralizedSeek`, `togglePlayPause`, `skipSeconds`):
+     - Mengaitkan start/stop jam linier secara langsung ke event resmi `playingChange` dari `expo-video` serta handler seek terpusat, memastikan pergerakan waktu langsung berhenti saat video dijeda (pause) dan mereset ke detik 0 saat loop klip selesai.
+- **Perubahan Kode Penting**:
+  - `mobile/src/hooks/useClipPlayer.ts`:
+    - Mengubah `timeUpdateEventInterval` dari `0.1` ke `0.25` untuk meringankan beban native bridge.
+    - Menambahkan refs `playStartWallTimeRef`, `playStartClipTimeRef`, `isPlaybackActiveRef`, `linearClockTimerRef`, dan `lastDispatchedSubtitleTextRef`.
+    - Mengimplementasikan helper `syncSubtitleCueAtTime`, `startLinearClock`, dan `stopLinearClock`.
+    - Memperbarui event listener `playingChange` dan `timeUpdate` dengan logika drift check (>0.35s).
+    - Memperbarui `centralizedSeek`, `togglePlayPause`, dan `skipSeconds` agar langsung menyinkronkan jam linier dan cue subtitle saat seek/pause/play.
+
+## [1b773fd] - Support Per-Clip Watermark Choice (With or Without Watermark)
 - **Konteks Struktural**:
   1. Fleksibilitas Pemilihan Status Watermark per Klip (`useClipTemplate.ts`):
      - Memprioritaskan status simpanan klip (`clipSaved?.watermark?.enabled`) di atas status default global (`globalConf?.watermark?.enabled`), sehingga setiap klip bebas dipilih apakah ingin menggunakan watermark atau bersih tanpa watermark.

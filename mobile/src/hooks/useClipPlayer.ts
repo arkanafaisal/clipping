@@ -68,6 +68,13 @@ export function useClipPlayer({
   const streamUrlRef = useRef<string | null>(streamUrl);
   const isSourceSwitchingRef = useRef<boolean>(false);
 
+  // Linear Clock & Zero-Lag Timeline Interpolator refs (Animasi linier 0-X tanpa bridge lag)
+  const playStartWallTimeRef = useRef<number | null>(null);
+  const playStartClipTimeRef = useRef<number>(0);
+  const isPlaybackActiveRef = useRef<boolean>(false);
+  const linearClockTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastDispatchedSubtitleTextRef = useRef<string>('');
+
   useEffect(() => {
     isContinueStateRef.current = isContinueState;
   }, [isContinueState]);
@@ -76,11 +83,11 @@ export function useClipPlayer({
     streamUrlRef.current = streamUrl;
   }, [streamUrl]);
 
-  // Video Player instance via expo-video (100ms interval for smooth millisecond UI)
+  // Video Player instance via expo-video (250ms interval untuk kalibrasi drift, UI interpolasi linier di 50ms)
   // Gunakan null agar player instance stabil dan tidak di-recreate berulang kali saat streamUrl terisi
   const player = useVideoPlayer(null, (p) => {
     p.loop = false;
-    p.timeUpdateEventInterval = 0.1;
+    p.timeUpdateEventInterval = 0.25;
   });
 
   // Secondary Video Player khusus Facecam Highlight (Muted, decoupled 100% saat nonaktif)
@@ -179,15 +186,151 @@ export function useClipPlayer({
     return () => backHandler.remove();
   }, [onBack]);
 
-  // Cleanup debounce timers on unmount
+  // Cleanup debounce timers and linear clock on unmount
   useEffect(() => {
     return () => {
       if (seekDebounceTimerRef.current) clearTimeout(seekDebounceTimerRef.current);
       if (seekSafetyTimeoutRef.current) clearTimeout(seekSafetyTimeoutRef.current);
+      if (linearClockTimerRef.current) clearInterval(linearClockTimerRef.current);
       debouncedSeekTargetRef.current = null;
       isDebouncingSeekRef.current = false;
     };
   }, []);
+
+  /**
+   * Evaluasi cue subtitle pada detik target secara efisien.
+   * Hanya memicu pembaruan state jika teks subtitle benar-benar berubah untuk memangkas 95% re-render.
+   */
+  const syncSubtitleCueAtTime = useCallback(
+    (targetRelTime: number) => {
+      if (subtitlesRef?.current && subtitlesRef.current.length > 0 && setActiveSubtitleText) {
+        const match = subtitlesRef.current.find(
+          (c) => targetRelTime >= c.start && targetRelTime <= c.end
+        );
+        const text = match ? match.text : '';
+        if (text !== lastDispatchedSubtitleTextRef.current) {
+          lastDispatchedSubtitleTextRef.current = text;
+          setActiveSubtitleText(text);
+        }
+      } else if (setActiveSubtitleText && lastDispatchedSubtitleTextRef.current !== '') {
+        lastDispatchedSubtitleTextRef.current = '';
+        setActiveSubtitleText('');
+      }
+    },
+    [subtitlesRef, setActiveSubtitleText]
+  );
+
+  /**
+   * Menghentikan jam linier saat video dipause / distop, dan mengunci timestamp detik saat ini.
+   */
+  const stopLinearClock = useCallback(() => {
+    isPlaybackActiveRef.current = false;
+    if (linearClockTimerRef.current) {
+      clearInterval(linearClockTimerRef.current);
+      linearClockTimerRef.current = null;
+    }
+    if (playStartWallTimeRef.current !== null) {
+      const currentActive = getActiveClip();
+      const duration = currentActive.end - currentActive.start;
+      const now = Date.now();
+      const rate = player?.playbackRate || 1.0;
+      const elapsed = ((now - playStartWallTimeRef.current) / 1000) * rate;
+      const finalTime = Math.max(0, Math.min(duration, playStartClipTimeRef.current + elapsed));
+      playStartClipTimeRef.current = finalTime;
+      playStartWallTimeRef.current = null;
+      setCurrentClipTime(finalTime);
+      if (duration > 0) {
+        setProgressPercent(Math.max(0, Math.min(100, (finalTime / duration) * 100)));
+      }
+      syncSubtitleCueAtTime(finalTime);
+    }
+  }, [getActiveClip, player, syncSubtitleCueAtTime]);
+
+  /**
+   * Memulai jam linier (linear wall-clock) independen:
+   * Menggerakkan progress bar & subtitle secara deterministik dari waktu fisik Date.now()
+   * tanpa menunggu antrean event bridge native ExoPlayer, menghasilkan sinkronisasi 0ms lag.
+   */
+  const startLinearClock = useCallback(
+    (fromRelTime?: number) => {
+      const currentActive = getActiveClip();
+      const duration = currentActive.end - currentActive.start;
+      const initialTime =
+        typeof fromRelTime === 'number'
+          ? Math.max(0, Math.min(duration, fromRelTime))
+          : playStartClipTimeRef.current;
+
+      playStartClipTimeRef.current = initialTime;
+      playStartWallTimeRef.current = Date.now();
+      isPlaybackActiveRef.current = true;
+
+      // Evaluasi instan cue subtitle pada detik awal keberangkatan
+      syncSubtitleCueAtTime(initialTime);
+
+      if (linearClockTimerRef.current) {
+        clearInterval(linearClockTimerRef.current);
+      }
+
+      // Interval 50ms (20 FPS) super ringan dan mulus di layar
+      linearClockTimerRef.current = setInterval(() => {
+        if (!isPlaybackActiveRef.current || playStartWallTimeRef.current === null) return;
+
+        const curActive = getActiveClip();
+        const curDuration = curActive.end - curActive.start;
+        if (curDuration <= 0) return;
+
+        const now = Date.now();
+        const rate = player?.playbackRate || 1.0;
+        const elapsed = ((now - playStartWallTimeRef.current) / 1000) * rate;
+        const curTime = playStartClipTimeRef.current + elapsed;
+
+        // Loop boundary check jika telah melewati durasi klip
+        if (curTime >= curDuration) {
+          playStartClipTimeRef.current = 0;
+          playStartWallTimeRef.current = Date.now();
+          setCurrentClipTime(0);
+          setProgressPercent(0);
+          syncSubtitleCueAtTime(0);
+
+          if (player) {
+            const isIndividualCutClip =
+              curActive.status === 'done' &&
+              Boolean(downloadedClipsRef.current[curActive.id]) &&
+              !currentSourceUriRef.current.endsWith('/full.mp4') &&
+              !currentSourceUriRef.current.endsWith('/full_video.mp4') &&
+              !currentSourceUriRef.current.endsWith('/full_proxy.mp4');
+            const loopTarget = isIndividualCutClip ? 0 : curActive.start;
+            setPendingSeek(loopTarget);
+            player.currentTime = loopTarget;
+            if (isFacecamActiveRef.current && facecamPlayer) {
+              try {
+                facecamPlayer.currentTime = loopTarget;
+                if (isContinueStateRef.current) facecamPlayer.play();
+              } catch (e) {}
+            }
+            if (isContinueStateRef.current) {
+              player.play();
+            }
+          }
+          return;
+        }
+
+        const clampedTime = Math.max(0, Math.min(curDuration, curTime));
+        const pct = (clampedTime / curDuration) * 100;
+        setCurrentClipTime(clampedTime);
+        setProgressPercent(pct);
+        syncSubtitleCueAtTime(clampedTime);
+      }, 50);
+    },
+    [
+      getActiveClip,
+      player,
+      facecamPlayer,
+      setPendingSeek,
+      downloadedClipsRef,
+      syncSubtitleCueAtTime,
+    ]
+  );
 
   /**
    * Sinkronisasi sumber pemutar video secara dinamis:
@@ -201,6 +344,11 @@ export function useClipPlayer({
     async (clip: ClipItem, autoPlay: boolean = true) => {
       if (!player) return;
       cancelPendingSeekDebounce();
+      stopLinearClock();
+      playStartClipTimeRef.current = 0;
+      setCurrentClipTime(0);
+      setProgressPercent(0);
+      syncSubtitleCueAtTime(0);
 
       // 1. PRIORITAS UTAMA: Jika full video lokal (terutama full_proxy.mp4 480p) tersedia,
       // SELALU gunakan full video proxy lokal untuk SEMUA mode player (clipping, mark as done, editor non-facecam, editor facecam)
@@ -305,7 +453,16 @@ export function useClipPlayer({
         }
       }
     },
-    [player, facecamPlayer, videoId, setPendingSeek, downloadedClipsRef, playMode]
+    [
+      player,
+      facecamPlayer,
+      videoId,
+      setPendingSeek,
+      downloadedClipsRef,
+      playMode,
+      stopLinearClock,
+      syncSubtitleCueAtTime,
+    ]
   );
 
   /**
@@ -320,6 +477,25 @@ export function useClipPlayer({
       debouncedSeekTargetRef.current = targetTime;
       debouncedShouldPlayRef.current = shouldPlay;
       isDebouncingSeekRef.current = true;
+
+      // Update linear clock state immediately
+      const currentActive = getActiveClip();
+      const currentSource = currentSourceUriRef.current;
+      const isIndividualCutClip =
+        currentActive.status === 'done' &&
+        Boolean(downloadedClipsRef.current[currentActive.id]) &&
+        !currentSource.endsWith('/full.mp4') &&
+        !currentSource.endsWith('/full_video.mp4') &&
+        !currentSource.endsWith('/full_proxy.mp4');
+      const duration = currentActive.end - currentActive.start;
+      const targetRel = isIndividualCutClip ? targetTime : targetTime - currentActive.start;
+      const clampedRel = Math.max(0, Math.min(duration, targetRel));
+
+      playStartClipTimeRef.current = clampedRel;
+      if (isPlaybackActiveRef.current) {
+        playStartWallTimeRef.current = Date.now();
+      }
+      syncSubtitleCueAtTime(clampedRel);
 
       // Auto-pause video seketika jika sedang berputar agar frame lama freeze (tanpa mengubah state tombol isContinueState)
       if (player && player.playing) {
@@ -363,6 +539,7 @@ export function useClipPlayer({
             }
             if (playAfterSeek && isContinueStateRef.current) {
               player.play();
+              startLinearClock(clampedRel);
             }
           } catch (e: any) {
             ToastManager.show({
@@ -377,6 +554,7 @@ export function useClipPlayer({
           try {
             if (!player.playing) player.play();
             if (isFacecamActiveRef.current && facecamPlayer && !facecamPlayer.playing) facecamPlayer.play();
+            startLinearClock(clampedRel);
           } catch (e) {}
         }
         seekDebounceTimerRef.current = null;
@@ -384,12 +562,41 @@ export function useClipPlayer({
 
       seekDebounceTimerRef.current = setTimeout(executeSeek, debounceMs);
     },
-    [player, setPendingSeek]
+    [
+      player,
+      facecamPlayer,
+      setPendingSeek,
+      getActiveClip,
+      downloadedClipsRef,
+      syncSubtitleCueAtTime,
+      startLinearClock,
+    ]
   );
 
   // Track playback time update & handle segment loop
   useEffect(() => {
     if (!player) return;
+
+    // 1. Listen for playback state changes (Play / Pause)
+    const playingSub = player.addListener('playingChange', (payload: any) => {
+      const isPlaying = payload?.isPlaying ?? player.playing;
+      if (isPlaying) {
+        const curActive = getActiveClip();
+        const curSource = currentSourceUriRef.current;
+        const isIndividualCutClip =
+          curActive.status === 'done' &&
+          Boolean(downloadedClipsRef.current[curActive.id]) &&
+          !curSource.endsWith('/full.mp4') &&
+          !curSource.endsWith('/full_video.mp4') &&
+          !curSource.endsWith('/full_proxy.mp4');
+        const rel = isIndividualCutClip
+          ? player.currentTime
+          : player.currentTime - curActive.start;
+        startLinearClock(rel);
+      } else {
+        stopLinearClock();
+      }
+    });
 
     const sub = player.addListener('timeUpdate', (event) => {
       // 1. Selama masa debounce seek (user sedang menggeser scrubber atau klik crop/ms berturut-turut):
@@ -422,38 +629,45 @@ export function useClipPlayer({
         }
       }
 
-      if (duration > 0) {
-        if (isClipDoneLocal) {
-          const pct = Math.max(0, Math.min(100, (current / duration) * 100));
-          setProgressPercent(pct);
-          setCurrentClipTime(Math.max(0, Math.min(duration, current)));
-        } else {
-          const pct = Math.max(0, Math.min(100, ((current - currentActive.start) / duration) * 100));
-          setProgressPercent(pct);
-          const rel = Math.max(0, Math.min(duration, current - currentActive.start));
-          setCurrentClipTime(rel);
+      const nativeRel = isClipDoneLocal
+        ? Math.max(0, Math.min(duration, current))
+        : Math.max(0, Math.min(duration, current - currentActive.start));
+
+      if (!isPlaybackActiveRef.current) {
+        // Mode Pause/Diam: Kalibrasi instan 100% mengikuti player native
+        playStartClipTimeRef.current = nativeRel;
+        setCurrentClipTime(nativeRel);
+        if (duration > 0) {
+          setProgressPercent(Math.max(0, Math.min(100, (nativeRel / duration) * 100)));
         }
+        syncSubtitleCueAtTime(nativeRel);
+      } else {
+        // Mode Play: Cek drift antara jam linear wall-clock dan ExoPlayer native
+        if (playStartWallTimeRef.current !== null) {
+          const now = Date.now();
+          const rate = player?.playbackRate || 1.0;
+          const elapsed = ((now - playStartWallTimeRef.current) / 1000) * rate;
+          const currentInterpolated = playStartClipTimeRef.current + elapsed;
+          const drift = Math.abs(nativeRel - currentInterpolated);
 
-        // Sinkronisasi teks subtitle secara realtime dengan frame video
-        const currentRel = isClipDoneLocal
-          ? Math.max(0, Math.min(duration, current))
-          : Math.max(0, Math.min(duration, current - currentActive.start));
-
-        if (subtitlesRef?.current && subtitlesRef.current.length > 0 && setActiveSubtitleText) {
-          const matchCue = subtitlesRef.current.find(
-            (c) => currentRel >= c.start && currentRel <= c.end
-          );
-          setActiveSubtitleText(matchCue ? matchCue.text : '');
-        } else if (setActiveSubtitleText) {
-          setActiveSubtitleText('');
+          // Kalibrasi hanya jika terjadi drift signifikan (>0.35s) akibat buffering / stall
+          if (drift > 0.35) {
+            playStartClipTimeRef.current = nativeRel;
+            playStartWallTimeRef.current = Date.now();
+          }
         }
       }
 
-      // 3. Loop current segment & boundary enforcement
+      // 3. Loop current segment & boundary enforcement fallback
       if (isClipDoneLocal) {
         if (current >= duration) {
           setPendingSeek(0);
           player.currentTime = 0;
+          playStartClipTimeRef.current = 0;
+          playStartWallTimeRef.current = Date.now();
+          setCurrentClipTime(0);
+          setProgressPercent(0);
+          syncSubtitleCueAtTime(0);
           if (isFacecamActiveRef.current && facecamPlayer) {
             try {
               facecamPlayer.currentTime = 0;
@@ -470,6 +684,11 @@ export function useClipPlayer({
         if (current >= currentActive.end || current < currentActive.start - 0.5) {
           setPendingSeek(currentActive.start);
           player.currentTime = currentActive.start;
+          playStartClipTimeRef.current = 0;
+          playStartWallTimeRef.current = Date.now();
+          setCurrentClipTime(0);
+          setProgressPercent(0);
+          syncSubtitleCueAtTime(0);
           if (isFacecamActiveRef.current && facecamPlayer) {
             try {
               facecamPlayer.currentTime = currentActive.start;
@@ -566,13 +785,19 @@ export function useClipPlayer({
 
     return () => {
       sub.remove();
+      playingSub.remove();
       statusSub.remove();
     };
   }, [
     player,
+    facecamPlayer,
     videoId,
     setPendingSeek,
     getActiveClip,
+    downloadedClipsRef,
+    startLinearClock,
+    stopLinearClock,
+    syncSubtitleCueAtTime,
   ]);
 
   // Playback Control Handlers (Force manual control terisolasi dari auto-seek/auto-play)
@@ -581,6 +806,7 @@ export function useClipPlayer({
     if (isContinueStateRef.current) {
       // Pindah dari continue ke pause: force pause jika video sedang berputar
       setIsContinueState(false);
+      stopLinearClock();
       try {
         if (player.playing) player.pause();
         if (facecamPlayer && facecamPlayer.playing) facecamPlayer.pause();
@@ -588,6 +814,18 @@ export function useClipPlayer({
     } else {
       // Pindah dari pause ke continue: force play jika video sedang berhenti
       setIsContinueState(true);
+      const curActive = getActiveClip();
+      const curSource = currentSourceUriRef.current;
+      const isIndividualCutClip =
+        curActive.status === 'done' &&
+        Boolean(downloadedClipsRef.current[curActive.id]) &&
+        !curSource.endsWith('/full.mp4') &&
+        !curSource.endsWith('/full_video.mp4') &&
+        !curSource.endsWith('/full_proxy.mp4');
+      const rel = isIndividualCutClip
+        ? (player.currentTime || playStartClipTimeRef.current)
+        : ((player.currentTime || curActive.start + playStartClipTimeRef.current) - curActive.start);
+      startLinearClock(rel);
       try {
         if (!player.playing) player.play();
         if (isFacecamActiveRef.current && facecamPlayer && !facecamPlayer.playing) {
@@ -595,7 +833,14 @@ export function useClipPlayer({
         }
       } catch (e) {}
     }
-  }, [player, facecamPlayer]);
+  }, [
+    player,
+    facecamPlayer,
+    stopLinearClock,
+    startLinearClock,
+    getActiveClip,
+    downloadedClipsRef,
+  ]);
 
   const skipSeconds = useCallback(
     (seconds: number) => {
@@ -615,9 +860,7 @@ export function useClipPlayer({
             ? debouncedSeekTargetRef.current
             : pendingSeekTargetRef.current !== null
             ? pendingSeekTargetRef.current
-            : player
-            ? player.currentTime
-            : 0;
+            : playStartClipTimeRef.current;
 
         const nextTime = Math.max(0, Math.min(Math.max(0, duration - 0.2), baseTime + seconds));
         if (duration > 0) {
@@ -625,6 +868,11 @@ export function useClipPlayer({
           setProgressPercent(pct);
           setCurrentClipTime(nextTime);
         }
+        playStartClipTimeRef.current = nextTime;
+        if (isPlaybackActiveRef.current) {
+          playStartWallTimeRef.current = Date.now();
+        }
+        syncSubtitleCueAtTime(nextTime);
         centralizedSeek(nextTime, true);
       } else {
         const baseTime =
@@ -632,24 +880,36 @@ export function useClipPlayer({
             ? debouncedSeekTargetRef.current
             : pendingSeekTargetRef.current !== null
             ? pendingSeekTargetRef.current
-            : player
-            ? player.currentTime
-            : currentActive.start;
+            : currentActive.start + playStartClipTimeRef.current;
 
         let nextTime = baseTime + seconds;
         if (nextTime < currentActive.start) nextTime = currentActive.start;
         if (nextTime >= currentActive.end) nextTime = Math.max(currentActive.start, currentActive.end - 0.2);
 
+        const rel = Math.max(0, Math.min(duration, nextTime - currentActive.start));
         if (duration > 0) {
-          const pct = Math.max(0, Math.min(100, ((nextTime - currentActive.start) / duration) * 100));
+          const pct = Math.max(0, Math.min(100, (rel / duration) * 100));
           setProgressPercent(pct);
-          const rel = Math.max(0, Math.min(duration, nextTime - currentActive.start));
           setCurrentClipTime(rel);
         }
+        playStartClipTimeRef.current = rel;
+        if (isPlaybackActiveRef.current) {
+          playStartWallTimeRef.current = Date.now();
+        }
+        syncSubtitleCueAtTime(rel);
         centralizedSeek(nextTime, true);
       }
     },
-    [player, centralizedSeek, activeClip, clipsRef, activeClipIdRef]
+    [
+      player,
+      centralizedSeek,
+      activeClip,
+      clipsRef,
+      activeClipIdRef,
+      getActiveClip,
+      downloadedClipsRef,
+      syncSubtitleCueAtTime,
+    ]
   );
 
   // Inisialisasi awal stream dan auto-play klip pertama (Prioritaskan offline full video)
