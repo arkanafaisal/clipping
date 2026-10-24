@@ -14,7 +14,21 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Support Subtitle Emoji Font Fallback, Fix Preview Emoji Ghosting, and Buffer Stream Start Offset
+## [Unreleased] - Implement Dynamic Stream Offset with 0.25s Floor and 1.0s Cap
+- **Konteks Struktural**:
+  1. Kompensasi Offset Dinamis pada Pemotongan Stream Online (`clip_downloader.py`):
+     - Menggantikan nilai offset statis 0.5s (+-500ms) pada mode stream online menjadi kompensasi dinamis: `stream_offset = min(1.0, max(0.25, chunk_n * 0.0005))`.
+     - **Batas Bawah 0.25s (250ms)**: Menjamin toleransi aman untuk variasi penempatan Keyframe (GOP jitter) hingga 8 frame pada video 30/60fps serta kuantisasi batas paket audio AAC (21.3ms), memastikan suku kata awal (seperti desah huruf "H") tidak pernah terpotong ke dalam pada menit-menit awal video.
+     - **Skala Dinamis ($N/2 \times 0.001$s atau $\text{chunk\_n} \times 0.0005$s)**: Mengantisipasi akumulasi penyimpangan pembulatan tag manifest `#EXTINF` secara proporsional seiring bertambahnya urutan segmen HLS pada video panjang, dengan memperhitungkan efek saling meniadakan (*random walk error cancellation*).
+     - **Batas Atas 1.0s (1000ms)**: Mengunci batas maksimum agar klip pada video panjang (2–3 jam) tidak pernah mengalami kelebihan durasi secara berlebihan.
+  2. Kepastian 0.0s Offset pada Mode Lokal (`is_local_source`):
+     - Memastikan bahwa mode pemotongan dari full video lokal offline tetap 100% murni tanpa offset (0.0s), karena pemutar preview dan proses re-encode FFmpeg mengacu ke file fisik yang sama dengan akurasi frame sempurna.
+- **Perubahan Kode Penting**:
+  - `mobile/scripts/utils/clip_downloader.py`:
+    - Mengganti formula statis `0.5s` dengan kalkulasi dinamis `chunk_n = max(1.0, start_num / 5.0)` dan `stream_offset = min(1.0, max(0.25, chunk_n * 0.0005))`.
+    - Menerapkan `start_num = max(0.0, start_num - stream_offset)` dan `end_num += stream_offset` secara eksklusif untuk mode stream online.
+
+## [daeddba] - Support Subtitle Emoji Font Fallback, Fix Preview Emoji Ghosting, and Buffer Stream Start Offset
 - **Konteks Struktural**:
   1. Penyesuaian Offset Titik Start pada Pemotongan Stream Online (`clip_downloader.py`):
      - Menjawab kendala potensi meleset ke dalam (*inward drift*) pada titik awal saat memotong langsung dari stream YouTube.

@@ -85,13 +85,18 @@ def download_clip_direct(
 
     is_local_source = bool(source_video_path and os.path.exists(source_video_path) and os.path.getsize(source_video_path) > 0)
 
-    # Kompensasi timeline drift HLS vs preview stream (hanya berlaku pada mode stream online):
-    # Mendorong kedua ujung keluar (+-500ms): start dimajukan 0.5s dan end dimundurkan 0.5s
-    # agar klip selalu aman 'keluar' (lebih panjang) dan tidak pernah memotong kata di awal maupun akhir.
-    # Mode lokal dari full video offline sudah 100% frame-accurate tanpa drift sehingga murni tanpa offset.
+    # Kompensasi timeline drift HLS vs preview stream (HANYA berlaku pada mode stream online):
+    # Mode lokal dari full video offline sudah 100% frame-accurate tanpa drift sehingga 100% murni tanpa offset (0.0s).
+    # Untuk mode stream online:
+    # 1. Base offset minimal 0.25s (250ms) menjamin batas aman kuantisasi 8 frame video dan paket audio AAC.
+    # 2. Dynamic scaling (N/2 * 0.001s atau chunk_n * 0.0005s) mengantisipasi akumulasi drift pembulatan m3u8
+    #    dengan memperhitungkan efek saling meniadakan (random walk error cancellation ~50%).
+    # 3. Batas atas (cap) 1.0s memastikan klip pada video panjang (2-3 jam) tidak pernah kepanjangan berlebihan.
     if not is_local_source:
-        start_num = max(0.0, start_num - 0.5)
-        end_num += 0.5
+        chunk_n = max(1.0, start_num / 5.0)
+        stream_offset = min(1.0, max(0.25, chunk_n * 0.0005))
+        start_num = max(0.0, start_num - stream_offset)
+        end_num += stream_offset
 
     # Mekanisme Realtime Progress Throttling (250ms)
     last_write_time = 0.0
