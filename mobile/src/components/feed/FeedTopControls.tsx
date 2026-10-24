@@ -1717,51 +1717,35 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = React.memo(({
               />
             </View>
 
-            {/* Perataan Teks (Start vs Center) */}
-            <View style={styles.posSectionContainer}>
-              <Text style={styles.timeSectionLabel}>PERATAAN TEKS</Text>
-              <View style={styles.posPresetGroup}>
+            {/* Perataan Teks (1 Row: Label di kiri, Icon buttons compact di kanan) */}
+            <View style={styles.alignRowContainer}>
+              <Text style={styles.alignRowLabel}>Perataan Teks</Text>
+              <View style={styles.alignBtnGroup}>
                 <Pressable
                   style={[
-                    styles.posPresetBtn,
-                    tempContextAlign === 'start' && styles.posPresetBtnActive,
-                    { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+                    styles.compactAlignBtn,
+                    tempContextAlign === 'start' && styles.compactAlignBtnActive,
                   ]}
                   onPress={() => setTempContextAlign('start')}
+                  hitSlop={6}
                 >
                   <AlignLeft
-                    size={14}
+                    size={18}
                     color={tempContextAlign === 'start' ? '#38bdf8' : '#94a3b8'}
                   />
-                  <Text
-                    style={[
-                      styles.posPresetText,
-                      tempContextAlign === 'start' && styles.posPresetTextActive,
-                    ]}
-                  >
-                    Rata Kiri (Start)
-                  </Text>
                 </Pressable>
                 <Pressable
                   style={[
-                    styles.posPresetBtn,
-                    tempContextAlign === 'center' && styles.posPresetBtnActive,
-                    { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+                    styles.compactAlignBtn,
+                    tempContextAlign === 'center' && styles.compactAlignBtnActive,
                   ]}
                   onPress={() => setTempContextAlign('center')}
+                  hitSlop={6}
                 >
                   <AlignCenter
-                    size={14}
+                    size={18}
                     color={tempContextAlign === 'center' ? '#38bdf8' : '#94a3b8'}
                   />
-                  <Text
-                    style={[
-                      styles.posPresetText,
-                      tempContextAlign === 'center' && styles.posPresetTextActive,
-                    ]}
-                  >
-                    Rata Tengah (Center)
-                  </Text>
                 </Pressable>
               </View>
             </View>
@@ -2107,53 +2091,29 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = React.memo(({
               </Pressable>
             </View>
 
-            {/* Pilihan: Tanpa Watermark vs Dengan Watermark */}
-            <View style={styles.posSectionContainer}>
-              <Text style={styles.timeSectionLabel}>PILIHAN PENGGUNAAN WATERMARK</Text>
-              <View style={styles.posPresetGroup}>
-                <Pressable
+            {/* Toggle Aktif (1 Line seragam dengan template config lainnya) */}
+            <Pressable
+              style={[
+                styles.templateToggleRow,
+                tempWatermarkEnabled && styles.templateToggleRowActive,
+              ]}
+              onPress={() => setTempWatermarkEnabled((p) => !p)}
+            >
+              <Text style={styles.templateToggleLabel}>Tampilkan Watermark</Text>
+              <View
+                style={[
+                  styles.templateToggleSwitch,
+                  tempWatermarkEnabled && styles.templateToggleSwitchActive,
+                ]}
+              >
+                <View
                   style={[
-                    styles.posPresetBtn,
-                    !tempWatermarkEnabled && styles.posPresetBtnActive,
-                    { flex: 1, paddingVertical: 10 },
+                    styles.templateToggleKnob,
+                    tempWatermarkEnabled && styles.templateToggleKnobActive,
                   ]}
-                  onPress={() => setTempWatermarkEnabled(false)}
-                >
-                  <Text
-                    style={[
-                      styles.posPresetText,
-                      !tempWatermarkEnabled && styles.posPresetTextActive,
-                      { fontWeight: '700' },
-                    ]}
-                  >
-                    Tanpa Watermark
-                  </Text>
-                </Pressable>
-                <Pressable
-                  style={[
-                    styles.posPresetBtn,
-                    tempWatermarkEnabled && styles.posPresetBtnActive,
-                    { flex: 1, paddingVertical: 10 },
-                  ]}
-                  onPress={() => setTempWatermarkEnabled(true)}
-                >
-                  <Text
-                    style={[
-                      styles.posPresetText,
-                      tempWatermarkEnabled && styles.posPresetTextActive,
-                      { fontWeight: '700' },
-                    ]}
-                  >
-                    Dengan Watermark
-                  </Text>
-                </Pressable>
+                />
               </View>
-              <Text style={[styles.cropCoordinatesHint, { marginTop: 6 }]}>
-                {tempWatermarkEnabled
-                  ? 'Klip ini AKAN memakai watermark (tampil di preview & ekspor).'
-                  : 'Klip ini TANPA watermark (bersih tanpa teks watermark).'}
-              </Text>
-            </View>
+            </Pressable>
 
             {/* Input Teks Watermark */}
             <View style={styles.posSectionContainer}>
@@ -2169,69 +2129,30 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = React.memo(({
               />
             </View>
 
-            {/* Input Ukuran Font Size */}
+            {/* Input Ukuran Font Size (Numeric) */}
             <View style={styles.posSectionContainer}>
               <Text style={styles.timeSectionLabel}>UKURAN WATERMARK (DP)</Text>
-              <View style={styles.posPresetGroup}>
-                {['12', '14', '16', '18', '20'].map((val) => (
-                  <Pressable
-                    key={val}
-                    style={[
-                      styles.posPresetBtn,
-                      tempWatermarkSize === val && styles.posPresetBtnActive,
-                    ]}
-                    onPress={() => setTempWatermarkSize(val)}
-                  >
-                    <Text
-                      style={[
-                        styles.posPresetText,
-                        tempWatermarkSize === val && styles.posPresetTextActive,
-                      ]}
-                    >
-                      {val}
-                    </Text>
-                  </Pressable>
-                ))}
+              <View style={styles.cropCoordinatesRow}>
+                <View style={styles.cropCoordinateBox}>
+                  <Text style={styles.coordinatePrefixLabel}>Size</Text>
+                  <TextInput
+                    style={styles.coordinateInput}
+                    value={tempWatermarkSize}
+                    onChangeText={setTempWatermarkSize}
+                    keyboardType="numeric"
+                    placeholder="14"
+                    placeholderTextColor="rgba(255, 255, 255, 0.3)"
+                    selectTextOnFocus
+                  />
+                  <Text style={styles.coordinateSuffixUnit}>dp</Text>
+                </View>
               </View>
             </View>
 
-            {/* Input Posisi X, Y (Terhadap Container Luar) */}
+            {/* Input Posisi X, Y (Hanya Angka tanpa Input Cepat) */}
             <View style={styles.posSectionContainer}>
-              <Text style={styles.timeSectionLabel}>POSISI (X, Y) RELATIF CONTAINER LUAR</Text>
-              
-              {/* Presets Posisi Cepat */}
-              <View style={styles.posPresetGroup}>
-                {[
-                  { label: 'Kiri Atas', x: '15', y: '10' },
-                  { label: 'Kanan Atas', x: '85', y: '10' },
-                  { label: 'Kiri Bawah', x: '15', y: '90' },
-                  { label: 'Kanan Bawah', x: '85', y: '90' },
-                ].map((preset) => (
-                  <Pressable
-                    key={preset.label}
-                    style={[
-                      styles.posPresetBtn,
-                      tempWatermarkX === preset.x && tempWatermarkY === preset.y && styles.posPresetBtnActive,
-                    ]}
-                    onPress={() => {
-                      setTempWatermarkX(preset.x);
-                      setTempWatermarkY(preset.y);
-                    }}
-                  >
-                    <Text
-                      style={[
-                        styles.posPresetText,
-                        tempWatermarkX === preset.x && tempWatermarkY === preset.y && styles.posPresetTextActive,
-                        { fontSize: 10 },
-                      ]}
-                    >
-                      {preset.label}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-
-              <View style={[styles.cropCoordinatesRow, { marginTop: 8 }]}>
+              <Text style={styles.timeSectionLabel}>POSISI (X, Y)</Text>
+              <View style={styles.cropCoordinatesRow}>
                 <View style={styles.cropCoordinateBox}>
                   <Text style={styles.coordinatePrefixLabel}>X</Text>
                   <TextInput
@@ -3217,5 +3138,40 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.4)',
     fontSize: 11,
     marginTop: 4,
+  },
+  alignRowContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  alignRowLabel: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  alignBtnGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  compactAlignBtn: {
+    width: 44,
+    height: 32,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  compactAlignBtnActive: {
+    backgroundColor: 'rgba(56, 189, 248, 0.2)',
+    borderColor: '#38bdf8',
   },
 });

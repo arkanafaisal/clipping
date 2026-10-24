@@ -14,7 +14,24 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Unify Subtitle Needle and Live Time Display with Single progressAnim Value
+## [Unreleased] - Revise Context Alignment and Watermark Modal Configuration UI
+- **Konteks Struktural**:
+  1. Perataan Teks Banner Konteks 1-Row Compact (`FeedTopControls.tsx`):
+     - Mengubah baris perataan teks modal konfigurasi banner konteks menjadi 1 baris terpadu (`alignRowContainer`) yang menampung label "Perataan Teks" di sisi kiri dan tombol ikon perataan di sisi kanan.
+     - Memangkas dimensi lebar dan tinggi tombol perataan (`compactAlignBtn`: 44x32px) agar proporsional dengan ukuran ikon (`AlignLeft` dan `AlignCenter`), menghilangkan tombol membentang penuh yang memakan ruang modal.
+  2. Standardisasi Modal Pengaturan Watermark (`FeedTopControls.tsx`):
+     - Menyeragamkan switch toggle aktif watermark dengan template toggle config lainnya menggunakan `templateToggleRow` (1 baris bersama label "Tampilkan Watermark").
+     - Mengganti tombol preset ukuran font watermark dengan kotak input numerik (`cropCoordinateBox`) berlabel prefix "Size" dan suffix satuan "dp".
+     - Menyederhanakan konfigurasi posisi X dan Y watermark menjadi murni input angka numerik (`cropCoordinatesRow` X dan Y), mengeliminasi tombol preset posisi cepat (helper) agar modal lebih ringkas, fokus, dan konsisten.
+- **Perubahan Kode Penting**:
+  - `mobile/src/components/feed/FeedTopControls.tsx`:
+    - Mengganti blok preset alignment banner konteks dengan `alignRowContainer` 1 baris bersama tombol `compactAlignBtn`.
+    - Mengganti selektor toggle watermark dengan `templateToggleRow`.
+    - Mengubah input ukuran watermark menjadi `TextInput` numeric dengan `keyboardType="numeric"`.
+    - Menghapus grup preset posisi cepat pada watermark dan mempertahankan input koordinat angka X dan Y.
+    - Menambahkan styles `alignRowContainer`, `alignRowLabel`, `alignBtnGroup`, `compactAlignBtn`, dan `compactAlignBtnActive`.
+
+## [b10f018] - Unify Subtitle Needle and Live Time Display with Single progressAnim Value
 - **Konteks Struktural**:
   1. Penyatuan Tiga Indikator Waktu (`FeedTopControls.tsx`, `FeedScreen.tsx`):
      - Menyatukan angka waktu atas, progress bar merah bawah, dan jarum needle playhead subtitle mini-track ke satu sumber nilai yang sama (`progressAnim: Animated.Value`).
