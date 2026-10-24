@@ -12,11 +12,12 @@ Script CLI Node.js statis murni (bukan web server) yang didesain khusus untuk di
    - Menghitung jam target dua digit: `<JAM>_00.mp4` (contoh: `12_00.mp4`, `15_00.mp4`, `17_00.mp4`).
 
 2. **Eksekusi Linear & Asinkron (Tahap A s/d E)**:
-   - **Tahap A (Cari Folder)**: Mencari folder dengan nama tanggal hari ini di dalam `GDRIVE_ROOT_FOLDER_ID`. Jika tidak ada folder, keluar bersih dengan `process.exit(0)`.
-   - **Tahap B (Cari File)**: Masuk ke folder tanggal dan mencari file video target (misal `12_00.mp4`). Jika belum ada video di jam tersebut, keluar bersih dengan `process.exit(0)`.
+   - **Tahap A & B (Pemilihan Konten)**:
+     - *Mode Random (Default)*: Memilih folder game/stream acak di dalam `GDRIVE_UNUSED_FOLDER_ID`, lalu memilih file klip `.mp4` acak yang belum berlabel `[USED]`.
+     - *Mode Schedule*: Mencari folder tanggal dan file jam (`<JAM>_00.mp4`).
    - **Tahap C (Download Streaming)**: Mengunduh video menggunakan `fs.createWriteStream` dan `stream/promises.pipeline` langsung ke disk lokal (`./temp_video.mp4`). **Nol buffer RAM** sehingga tidak melebihi kuota memori Heroku dyno (512MB).
    - **Tahap D (Upload Paralel)**: Mengunggah `./temp_video.mp4` secara bersamaan menggunakan `Promise.all()` ke YouTube Data API v3 dan TikTok Content Posting API v2.
-   - **Tahap E (Clean Up & Exit)**: Menghapus file lokal `./temp_video.mp4` dari disk (`fs.unlinkSync`), mencetak pesan sukses, dan keluar dengan `process.exit(0)`.
+   - **Tahap E (Move & Rename Instan di GDrive + Clean Up Lokal)**: Memindahkan file video dari folder game ke `GDRIVE_USED_FOLDER_ID` secara instan via update pointer Google Drive (`addParents`/`removeParents` - tanpa re-upload binary) serta me-rename menjadi `[USED_YYYY-MM-DD_HHh]_nama.mp4`. File sementara lokal dihapus dan script keluar dengan `process.exit(0)`.
    - **Error Handling**: Menangkap semua jenis kegagalan, memastikan file sementara selalu dihapus agar disk Heroku tidak penuh, dan keluar dengan `process.exit(1)`.
 
 3. **Fleksibilitas Kredensial**:
@@ -31,7 +32,11 @@ Buat file `.env` di dalam folder ini (atau atur via Heroku Config Vars):
 ```env
 # Google Drive & YouTube (Unified Token)
 GDRIVE_TOKEN={"client_id":"...","client_secret":"...","refresh_token":"..."}
-GDRIVE_ROOT_FOLDER_ID=1abcXYZ_ID_FOLDER_ROOT_GDRIVE
+
+# Folder Google Drive
+GDRIVE_UNUSED_FOLDER_ID=1abcXYZ_ID_FOLDER_UNUSED
+GDRIVE_USED_FOLDER_ID=1xyzABC_ID_FOLDER_USED
+QUEUE_MODE=random
 
 # (Opsional) YouTube Data API (Diisi jika channel YouTube memakai akun Google yang berbeda)
 # Jika akun sama dengan Google Drive, biarkan KOSONG (otomatis memakai GDRIVE_TOKEN)
@@ -39,8 +44,10 @@ YOUTUBE_API_TOKEN=
 YOUTUBE_PRIVACY_STATUS=public
 
 # TikTok Content Posting API
+TIKTOK_CLIENT_KEY=sbawnfyt3z5l93b3c5
+TIKTOK_CLIENT_SECRET=UP8UWQ9VRKZQVtco2tM2cczfUBDe5u40
 TIKTOK_API_TOKEN=act.your_tiktok_access_token_here
-TIKTOK_PRIVACY_LEVEL=PUBLIC_TO_EVERYONE
+TIKTOK_PRIVACY_LEVEL=SELF_ONLY
 ```
 
 ---

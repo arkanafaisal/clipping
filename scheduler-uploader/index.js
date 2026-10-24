@@ -357,9 +357,9 @@ async function runSchedulerUploader() {
   console.log('================================================================');
 
   // Validasi variabel lingkungan yang wajib ada
-  const rootFolderId = process.env.GDRIVE_ROOT_FOLDER_ID;
-  if (!rootFolderId) {
-    console.error('[KONFIGURASI ERROR] GDRIVE_ROOT_FOLDER_ID belum diatur pada environment variables!');
+  const unusedFolderId = process.env.GDRIVE_UNUSED_FOLDER_ID || process.env.GDRIVE_ROOT_FOLDER_ID;
+  if (!unusedFolderId) {
+    console.error('[KONFIGURASI ERROR] GDRIVE_UNUSED_FOLDER_ID belum diatur pada environment variables!');
     process.exit(1);
   }
 
@@ -383,73 +383,151 @@ async function runSchedulerUploader() {
 
   // Inisialisasi Google Drive Client
   const driveAuth = getGoogleAuth(gdriveToken, [
-    'https://www.googleapis.com/auth/drive.readonly',
     'https://www.googleapis.com/auth/drive',
     'https://www.googleapis.com/auth/drive.file',
+    'https://www.googleapis.com/auth/drive.readonly',
   ]);
   const drive = google.drive({ version: 'v3', auth: driveAuth });
 
-  // --------------------------------------------------------------------------
-  // TAHAP A (Cari Folder):
-  // Akses Google Drive, cari folder dengan nama sesuai tanggal hari ini
-  // di dalam GDRIVE_ROOT_FOLDER_ID. Jika tidak ada, console.log & exit(0).
-  // --------------------------------------------------------------------------
-  console.log(`\n[TAHAP A] Mencari folder "${targetFolderName}" di dalam root folder (${rootFolderId})...`);
-  const folderQuery = `name = '${targetFolderName}' and '${rootFolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
+  // Mode Antrean: 'random' (pilih acak game & klip, lalu pindah ke used) atau 'schedule' (folder tanggal & jam)
+  const queueMode = process.env.QUEUE_MODE || 'random';
+  const usedFolderId = process.env.GDRIVE_USED_FOLDER_ID;
 
-  const folderRes = await drive.files.list({
-    q: folderQuery,
-    fields: 'files(id, name)',
-    spaces: 'drive',
-    supportsAllDrives: true,
-    includeItemsFromAllDrives: true,
-  });
+  let selectedFolder = null;
+  let videoFile = null;
 
-  const matchingFolders = folderRes.data.files || [];
-  if (matchingFolders.length === 0) {
-    console.log(`[TAHAP A] Folder tanggal "${targetFolderName}" tidak ditemukan di Google Drive.`);
-    console.log('Tidak ada folder video untuk tanggal hari ini. Proses selesai.');
-    process.exit(0);
+  // Helper shuffle array secara acak
+  function shuffleArray(arr) {
+    const list = [...arr];
+    for (let i = list.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [list[i], list[j]] = [list[j], list[i]];
+    }
+    return list;
   }
 
-  const dateFolder = matchingFolders[0];
-  console.log(`[TAHAP A] Folder tanggal ditemukan: "${dateFolder.name}" (ID: ${dateFolder.id})`);
+  if (queueMode === 'random') {
+    // --------------------------------------------------------------------------
+    // MODE RANDOM:
+    // 1. Ambil seluruh folder game/stream di dalam root folder (abaikan folder used)
+    // 2. Acak urutan folder game
+    // 3. Di dalam folder game terpilih, ambil file video acak yang belum [USED]
+    // --------------------------------------------------------------------------
+    console.log(`\n[MODE ANTRIAN: RANDOM / CONTENT POOL]`);
+    console.log(`Mencari folder game/stream di dalam folder Unused (${unusedFolderId})...`);
 
-  // --------------------------------------------------------------------------
-  // TAHAP B (Cari File):
-  // Masuk ke folder tanggal tersebut, cari file video dengan nama sesuai
-  // jam trigger saat ini (misal: "12_00.mp4"). Jika tidak ada, log & exit(0).
-  // --------------------------------------------------------------------------
-  console.log(`\n[TAHAP B] Mencari file video "${targetFileName}" di dalam folder "${dateFolder.name}"...`);
-  const fileQuery = `name = '${targetFileName}' and '${dateFolder.id}' in parents and trashed = false`;
+    const folderRes = await drive.files.list({
+      q: `'${unusedFolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+      fields: 'files(id, name)',
+      spaces: 'drive',
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
+    });
 
-  const fileRes = await drive.files.list({
-    q: fileQuery,
-    fields: 'files(id, name, size, mimeType)',
-    spaces: 'drive',
-    supportsAllDrives: true,
-    includeItemsFromAllDrives: true,
-  });
+    // Saring folder: abaikan folder 'used', 'archive', 'trash', dan ID usedFolderId
+    const candidateFolders = (folderRes.data.files || []).filter((f) => {
+      if (usedFolderId && f.id === usedFolderId) return false;
+      const lower = f.name.toLowerCase();
+      return !['used', 'archive', 'trash', 'bin'].includes(lower);
+    });
 
-  const matchingFiles = fileRes.data.files || [];
-  if (matchingFiles.length === 0) {
-    console.log(`[TAHAP B] File video "${targetFileName}" tidak ditemukan di folder "${dateFolder.name}".`);
-    console.log(`Tidak ada antrean video untuk jam ${targetHour}:00 WIB. Proses selesai.`);
-    process.exit(0);
+    if (candidateFolders.length === 0) {
+      // Jika tidak ada subfolder, cari video langsung di dalam folder unused
+      console.log('Tidak ada subfolder game. Mencari video klip langsung di folder unused...');
+      const rootFilesRes = await drive.files.list({
+        q: `'${unusedFolderId}' in parents and (mimeType contains 'video/' or name contains '.mp4') and not name contains '[USED]' and trashed = false`,
+        fields: 'files(id, name, size, mimeType)',
+        spaces: 'drive',
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true,
+      });
+
+      const directFiles = rootFilesRes.data.files || [];
+      if (directFiles.length === 0) {
+        console.log('Tidak ada file video baru di Google Drive. Semua klip sudah terpakai.');
+        process.exit(0);
+      }
+      selectedFolder = { id: unusedFolderId, name: 'Root' };
+      videoFile = shuffleArray(directFiles)[0];
+    } else {
+      // Acak folder game
+      const shuffledFolders = shuffleArray(candidateFolders);
+
+      for (const folder of shuffledFolders) {
+        console.log(`Memeriksa folder game/stream: "${folder.name}"...`);
+        const filesRes = await drive.files.list({
+          q: `'${folder.id}' in parents and (mimeType contains 'video/' or name contains '.mp4') and not name contains '[USED]' and trashed = false`,
+          fields: 'files(id, name, size, mimeType)',
+          spaces: 'drive',
+          supportsAllDrives: true,
+          includeItemsFromAllDrives: true,
+        });
+
+        const availableClips = filesRes.data.files || [];
+        if (availableClips.length > 0) {
+          selectedFolder = folder;
+          videoFile = shuffleArray(availableClips)[0];
+          console.log(`\n🎲 [TERPILIH SECARA ACAK]`);
+          console.log(` - Kategori / Game : "${selectedFolder.name}"`);
+          console.log(` - File Video Klip : "${videoFile.name}" (dari ${availableClips.length} klip tersedia)`);
+          break;
+        }
+      }
+
+      if (!videoFile) {
+        console.log('\nSeluruh folder game sudah kosong / semua klip sudah berlabel [USED]. Selesai.');
+        process.exit(0);
+      }
+    }
+  } else {
+    // --------------------------------------------------------------------------
+    // MODE SCHEDULE LAMA (Pencocokan Nama Folder Tanggal & Nama File Jam):
+    // --------------------------------------------------------------------------
+    console.log(`\n[MODE ANTRIAN: STRICT SCHEDULE]`);
+    console.log(`Mencari folder "${targetFolderName}" di folder unused (${unusedFolderId})...`);
+
+    const folderRes = await drive.files.list({
+      q: `name = '${targetFolderName}' and '${unusedFolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+      fields: 'files(id, name)',
+      spaces: 'drive',
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
+    });
+
+    const matchingFolders = folderRes.data.files || [];
+    if (matchingFolders.length === 0) {
+      console.log(`Folder tanggal "${targetFolderName}" tidak ditemukan. Tidak ada jadwal hari ini.`);
+      process.exit(0);
+    }
+
+    selectedFolder = matchingFolders[0];
+    console.log(`Folder ditemukan: "${selectedFolder.name}" (ID: ${selectedFolder.id})`);
+
+    const fileRes = await drive.files.list({
+      q: `name = '${targetFileName}' and '${selectedFolder.id}' in parents and trashed = false`,
+      fields: 'files(id, name, size, mimeType)',
+      spaces: 'drive',
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
+    });
+
+    const matchingFiles = fileRes.data.files || [];
+    if (matchingFiles.length === 0) {
+      console.log(`File video "${targetFileName}" tidak ditemukan di folder "${selectedFolder.name}".`);
+      process.exit(0);
+    }
+
+    videoFile = matchingFiles[0];
   }
 
-  const videoFile = matchingFiles[0];
   const sizeMb = videoFile.size ? (parseInt(videoFile.size, 10) / (1024 * 1024)).toFixed(2) : 'unknown';
-  console.log(`[TAHAP B] File video ditemukan: "${videoFile.name}" (ID: ${videoFile.id}, Ukuran: ${sizeMb} MB)`);
+  console.log(`\n[DETAIL KLIP] Nama: "${videoFile.name}" (ID: ${videoFile.id}, Ukuran: ${sizeMb} MB)`);
 
   // --------------------------------------------------------------------------
   // TAHAP C (Download):
-  // Download file video secara streaming (fs.createWriteStream) dan simpan
-  // sementara di local folder Heroku (./temp_video.mp4). Tidak menggunakan RAM buffer.
+  // Download file video secara streaming (fs.createWriteStream) langsung ke disk lokal.
   // --------------------------------------------------------------------------
-  console.log(`\n[TAHAP C] Memulai streaming download file "${videoFile.name}" ke "${TEMP_VIDEO_FILE}"...`);
-
-  // Bersihkan sisa file lama jika sebelumnya ada
+  console.log(`\n[TAHAP C] Mengunduh video secara streaming ke "${TEMP_VIDEO_FILE}"...`);
   if (fs.existsSync(TEMP_VIDEO_FILE)) {
     fs.unlinkSync(TEMP_VIDEO_FILE);
   }
@@ -472,18 +550,21 @@ async function runSchedulerUploader() {
 
   // --------------------------------------------------------------------------
   // TAHAP D (Upload Paralel):
-  // Mengunggah ./temp_video.mp4 secara bersamaan ke YouTube dan TikTok
-  // menggunakan Promise.all().
+  // Mengunggah ./temp_video.mp4 secara bersamaan ke YouTube dan TikTok via Promise.all().
   // --------------------------------------------------------------------------
   console.log(`\n[TAHAP D] Memulai pengunggahan paralel (Promise.all) ke YouTube dan TikTok...`);
+
+  // Susun judul & tag yang relevan dengan nama game dan nama klip
+  const gameTag = selectedFolder && selectedFolder.name !== 'Root' ? `#${selectedFolder.name.replace(/\s+/g, '')}` : '';
+  const cleanClipName = videoFile.name.replace(/\.mp4$/i, '').replace(/^\[USED[^\]]*\]_?/i, '').trim();
 
   const sharedMetadata = {
     date: targetDate,
     hour: targetHour,
     fileName: videoFile.name,
-    title: `Video Jadwal ${targetDate} ${targetHour}:00 WIB`,
-    description: `Otomatis diunggah oleh Heroku Scheduler Uploader pada ${targetDate} jam ${targetHour}:00 WIB.\n#shorts #trending #viral #fyp`,
-    tags: ['shorts', 'trending', 'viral', 'clipping', 'fyp'],
+    title: `${cleanClipName} ${gameTag}`.trim() || `Video Klip ${targetDate} ${targetHour}:00 WIB`,
+    description: `Otomatis diunggah oleh Heroku Scheduler Uploader pada ${targetDate} jam ${targetHour}:00 WIB.\n#shorts #trending #viral ${gameTag} #fyp`,
+    tags: ['shorts', 'trending', 'viral', 'clipping', selectedFolder?.name].filter(Boolean),
   };
 
   const [youtubeResult, tiktokResult] = await Promise.all([
@@ -496,17 +577,55 @@ async function runSchedulerUploader() {
   console.log(` - TikTok Publish ID : ${tiktokResult?.publish_id || 'OK'}`);
 
   // --------------------------------------------------------------------------
-  // TAHAP E (Clean Up & Exit):
-  // Hapus file ./temp_video.mp4 dari local disk.
-  // Cetak "Upload Berhasil" dan akhiri dengan process.exit(0).
+  // TAHAP E (Instant Move / Rename di Google Drive & Clean Up Lokal):
+  // Pindahkan file video ke GDRIVE_USED_FOLDER_ID (pointer update instan tanpa re-upload!)
+  // dan rename menjadi [USED_YYYY-MM-DD_HHh]_nama.mp4
   // --------------------------------------------------------------------------
-  console.log(`\n[TAHAP E] Membersihkan file sementara "${TEMP_VIDEO_FILE}" dari disk...`);
-  if (fs.existsSync(TEMP_VIDEO_FILE)) {
-    fs.unlinkSync(TEMP_VIDEO_FILE);
-    console.log(`[TAHAP E] File sementara berhasil dihapus dari disk.`);
+  const cleanOriginalName = videoFile.name.replace(/^\[USED[^\]]*\]_?/i, '');
+  const newGdriveFileName = `[USED_${targetDate}_${targetHour}h]_${cleanOriginalName}`;
+
+  try {
+    if (usedFolderId && selectedFolder && selectedFolder.id !== usedFolderId) {
+      console.log(`\n[TAHAP E] Memindahkan file di Google Drive ke folder Used (${usedFolderId})...`);
+      console.log(`(Perpindahan instan via metadata pointer update: NOL kuota upload!)`);
+
+      await drive.files.update({
+        fileId: videoFile.id,
+        addParents: usedFolderId,
+        removeParents: selectedFolder.id,
+        requestBody: {
+          name: newGdriveFileName,
+        },
+        fields: 'id, name, parents',
+        supportsAllDrives: true,
+      });
+
+      console.log(`[TAHAP E] Berhasil dipindahkan ke folder Used & di-rename menjadi "${newGdriveFileName}".`);
+    } else {
+      console.log(`\n[TAHAP E] Me-rename file di tempat menjadi "${newGdriveFileName}" agar tidak terpilih lagi...`);
+      await drive.files.update({
+        fileId: videoFile.id,
+        requestBody: {
+          name: newGdriveFileName,
+        },
+        fields: 'id, name',
+        supportsAllDrives: true,
+      });
+      console.log(`[TAHAP E] Berhasil di-rename di tempat.`);
+    }
+  } catch (gdriveUpdateErr) {
+    console.warn(`[TAHAP E PERINGATAN] Gagal memindahkan/me-rename file di Google Drive: ${gdriveUpdateErr.message}`);
+    console.warn('Proses upload ke YouTube dan TikTok tetap dinyatakan berhasil.');
   }
 
-  console.log('Upload Berhasil');
+  // Bersihkan file sementara di disk lokal
+  console.log(`\n[CLEANUP] Membersihkan file sementara "${TEMP_VIDEO_FILE}" dari disk...`);
+  if (fs.existsSync(TEMP_VIDEO_FILE)) {
+    fs.unlinkSync(TEMP_VIDEO_FILE);
+    console.log(`[CLEANUP] File sementara berhasil dihapus.`);
+  }
+
+  console.log('\nUpload Berhasil');
   process.exit(0);
 }
 

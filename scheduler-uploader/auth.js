@@ -21,9 +21,9 @@ const { URL } = require('url');
 const { exec } = require('child_process');
 const { google } = require('googleapis');
 
-// Scopes terpadu: Google Drive (baca) dan YouTube (upload)
+// Scopes terpadu: Google Drive (baca, pindah, rename) dan YouTube (upload)
 const SCOPES = [
-  'https://www.googleapis.com/auth/drive.readonly',
+  'https://www.googleapis.com/auth/drive',
   'https://www.googleapis.com/auth/youtube.upload',
   'https://www.googleapis.com/auth/youtube',
 ];

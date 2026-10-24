@@ -14,6 +14,20 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
+## [Unreleased] - Add Randomized Content Pool and Instant GDrive File Move Workflow
+- **Konteks Struktural**:
+  1. Arsitektur Antrean Fleksibel (Randomized Content Pool):
+     - Mengembangkan mode antrean baru (`QUEUE_MODE=random`) di mana script secara acak memilih folder game/stream di dalam root Google Drive, lalu memilih secara acak klip video `.mp4` yang belum berlabel `[USED]`.
+     - Mengeliminasi keterikatan kreator terhadap format penamaan kaku tanggal/jam (`YYYY-MM-DD/HH_00.mp4`), sehingga memungkinkan batch processing dan variasi konten yang dinamis.
+  2. Pemindahan dan Pengarsipan File Google Drive Instan (Nol Kuota Re-Upload):
+     - Menggunakan operasi metadata `drive.files.update` (`addParents` dan `removeParents`) untuk memindahkan video terpilih ke folder `GDRIVE_USED_FOLDER_ID` dalam ~150ms tanpa mengunggah ulang binary video.
+     - Mengotomatisasi penamaan ulang file menjadi `[USED_YYYY-MM-DD_HHh]_nama.mp4` sebagai jejak riwayat tayang.
+     - Menyediakan fallback cerdas: jika ID folder used tidak ditentukan atau izin move terbatas, file tetap di-rename di tempat agar tidak terpilih ulang.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/index.js`: Mengimplementasikan shuffle array, pemilihan acak folder/klip, metadata dinamis berbasis nama game & klip, serta instant move/rename di Google Drive.
+  - `scheduler-uploader/auth.js`: Memperbarui cakupan Google OAuth menjadi `https://www.googleapis.com/auth/drive` penuh untuk mengizinkan operasi pemindahan dan penamaan ulang file.
+  - `scheduler-uploader/.env.example` & `scheduler-uploader/README.md`: Menstandarkan konfigurasi folder Google Drive ke `GDRIVE_UNUSED_FOLDER_ID` (folder konten mentah) dan `GDRIVE_USED_FOLDER_ID` (folder arsip tayang).
+
 ## [Unreleased] - Add TikTok OAuth Token Generator and Automation Workflow
 - **Konteks Struktural**:
   1. Modul Otorisasi TikTok OAuth 2.0 Mandiri (`scheduler-uploader/auth_tiktok.js`):
