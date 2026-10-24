@@ -426,15 +426,22 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
                 <View
                   style={[
                     styles.contextBannerBox,
-                    { paddingVertical: templateConfig.context.paddingY },
+                    {
+                      paddingVertical: templateConfig.context.paddingY,
+                      alignItems: templateConfig.context.align === 'center' ? 'center' : 'flex-start',
+                      paddingHorizontal: templateConfig.context.align === 'center' ? 8 : 12,
+                    },
                   ]}
                 >
                   <Text
                     style={[
                       styles.contextBannerText,
-                      { fontSize: templateConfig.context.fontSize },
+                      {
+                        fontSize: templateConfig.context.fontSize,
+                        textAlign: templateConfig.context.align === 'center' ? 'center' : 'left',
+                      },
                     ]}
-                    numberOfLines={2}
+                    numberOfLines={3}
                   >
                     {templateConfig.context.text || 'JUDUL VIDEO'}
                   </Text>

@@ -1917,6 +1917,7 @@ export interface ClipTemplateConfig {
     text: string;
     fontSize: number;
     paddingY: number;
+    align?: 'start' | 'center';
   };
   facecam: {
     enabled: boolean;
@@ -1944,6 +1945,7 @@ export const DEFAULT_TEMPLATE_CONFIG: ClipTemplateConfig = {
     text: 'JUDUL VIDEO CLIP',
     fontSize: 16,
     paddingY: 10,
+    align: 'start',
   },
   facecam: {
     enabled: false,
@@ -2066,6 +2068,7 @@ export interface VideoGlobalConfig {
   contextStyle?: {
     fontSize: number;
     paddingY: number;
+    align?: 'start' | 'center';
   };
   watermark?: {
     enabled: boolean;
@@ -2141,7 +2144,7 @@ export async function saveVideoGlobalConfig(
         }
       : current.mainVideo,
     contextStyle: updates.contextStyle
-      ? { ...(current.contextStyle || { fontSize: 16, paddingY: 10 }), ...updates.contextStyle }
+      ? { ...(current.contextStyle || { fontSize: 16, paddingY: 10, align: 'start' }), ...updates.contextStyle }
       : current.contextStyle,
     watermark: updates.watermark
       ? {

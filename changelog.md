@@ -14,7 +14,38 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Fix Player Playback Start Delay and Eliminate Progress Bar Jump Back
+## [Unreleased] - Support Dynamic Numeric Size & Padding, Multiline Textarea, and Alignment Toggle for Context Banner
+- **Konteks Struktural**:
+  1. Input Angka Dinamis Bebas untuk Ukuran Font & Padding (`FeedTopControls.tsx`):
+     - Mengganti tombol preset terbatas (`14, 16, 18, 20` untuk font dan `6, 10, 14, 18` untuk padding) dengan input angka bebas (`TextInput` bertipe `numeric`) berdampingan dalam baris `Size (dp)` dan `Pad (px)`.
+     - Mempertahankan kalibrasi proporsional terhadap resolusi ekspor (`base_unit * (fontSize / 14.0)` di Python/FFmpeg dan direktif dp responsif di React Native) sehingga pengguna bebas mengisi nilai apa pun (sangat kecil, sedang, hingga sangat besar).
+  2. Input Multiline Textarea dengan Batasan Maksimal 3 Baris (`FeedTopControls.tsx`, `FeedScreen.tsx`, `subtitle_burner.py`):
+     - Mengubah input teks banner menjadi multiline `TextInput` (textarea) yang mendukung tombol Enter (`\n`) hingga batas 3 baris.
+     - Di preview React Native (`FeedScreen.tsx`), teks banner mendukung hingga 3 baris (`numberOfLines={3}`).
+     - Di engine ekspor (`subtitle_burner.py`), tinggi banner dihitung dinamis sesuai jumlah baris (`num_lines * (ctx_fs * 1.35) + 2 * ctx_pad`).
+  3. Toggle Perataan Teks (Start vs Center) (`api.ts`, `useClipTemplate.ts`, `FeedTopControls.tsx`, `FeedScreen.tsx`, `subtitle_burner.py`):
+     - Menambahkan opsi konfigurasi `align: 'start' | 'center'` pada `ClipTemplateConfig['context']` dan `VideoGlobalConfig['contextStyle']` dengan default `'start'` (rata kiri).
+     - Menambahkan tombol segmented toggle perataan teks di modal Konteks (`Rata Kiri (Start)` dan `Rata Tengah (Center)`).
+     - Menyelaraskan rendering preview di `FeedScreen.tsx` (`alignItems`, `paddingHorizontal`, `textAlign`).
+     - Di FFmpeg filtergraph (`subtitle_burner.py`), perataan teks dirender per baris agar setiap baris terpusat secara individual saat mode `center`, atau sejajar di batas kiri (`pad_x`) saat mode `start`.
+- **Perubahan Kode Penting**:
+  - `mobile/src/services/api.ts`:
+    - Menambahkan `align?: 'start' | 'center'` ke `ClipTemplateConfig['context']` dan `VideoGlobalConfig['contextStyle']`.
+    - Menetapkan default `align: 'start'` pada `DEFAULT_TEMPLATE_CONFIG.context` dan `saveVideoGlobalConfig`.
+  - `mobile/src/hooks/useClipTemplate.ts`:
+    - Mengintegrasikan pembacaan dan penyimpanan `align` pada `mergedContext` dan `handleUpdateContext`.
+  - `mobile/src/components/FeedScreen.tsx`:
+    - Memperbarui gaya `contextBannerBox` dan `contextBannerText` dengan `alignItems`, `paddingHorizontal`, `textAlign`, serta `numberOfLines={3}`.
+  - `mobile/src/components/feed/FeedTopControls.tsx`:
+    - Mengimpor ikon `AlignLeft` dan `AlignCenter`.
+    - Menambahkan state `tempContextAlign` dan inisialisasi di `openContextModal`.
+    - Merancang ulang Modal 6 dengan textarea multiline maks 3 baris, tombol perataan teks start/center, input angka bebas untuk Size dan Pad, serta validasi simpan.
+  - `mobile/scripts/utils/subtitle_burner.py`:
+    - Menyesuaikan parsing `ctx_text` menjadi baris-baris (maks 3 baris).
+    - Menghitung tinggi banner dinamis berdasarkan jumlah baris dan padding.
+    - Menghasilkan filter `drawtext` per baris dengan posisi X dan Y yang selaras dengan mode `start` (`pad_x`) atau `center` (`(w-text_w)/2`).
+
+## [cc6d10b] - Fix Player Playback Start Delay and Eliminate Progress Bar Jump Back
 - **Konteks Struktural**:
   1. Pengurangan Buffer Awal ExoPlayer (`player.bufferOptions` di `useClipPlayer.ts`):
      - Memangkas parameter `bufferOptions.minBufferForPlayback` dari nilai bawaan Android yang berlebihan (2.0 detik) menjadi `0.05` detik (50ms), serta `preferredForwardBufferDuration: 1.0` detik.

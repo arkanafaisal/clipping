@@ -55,7 +55,7 @@ export function useClipTemplate({ videoId, activeClip, isDownloaded }: UseClipTe
           // 3. Elemen Konteks:
           // enabled: WAJIB per-klip (default false jika belum dinyalakan)
           // text: per-klip
-          // fontSize & paddingY: Mewarisi global video config jika tersedia
+          // fontSize, paddingY & align: Mewarisi global video config jika tersedia
           const mergedContext = {
             ...DEFAULT_TEMPLATE_CONFIG.context,
             fontSize:
@@ -66,6 +66,10 @@ export function useClipTemplate({ videoId, activeClip, isDownloaded }: UseClipTe
               globalConf?.contextStyle?.paddingY ??
               clipSaved?.context?.paddingY ??
               DEFAULT_TEMPLATE_CONFIG.context.paddingY,
+            align:
+              globalConf?.contextStyle?.align ??
+              clipSaved?.context?.align ??
+              DEFAULT_TEMPLATE_CONFIG.context.align,
             enabled: clipSaved?.context?.enabled ?? false,
             text: clipSaved?.context?.text ?? '',
           };
@@ -109,6 +113,7 @@ export function useClipTemplate({ videoId, activeClip, isDownloaded }: UseClipTe
               contextStyle: {
                 fontSize: mergedContext.fontSize,
                 paddingY: mergedContext.paddingY,
+                align: mergedContext.align,
               },
               watermark: mergedWatermark,
             }).catch(() => {});
@@ -150,12 +155,17 @@ export function useClipTemplate({ videoId, activeClip, isDownloaded }: UseClipTe
         };
         persistTemplate(next);
 
-        // Jika mengubah fontSize atau paddingY, sinkronkan ke Global Video Config
-        if (clip && clip.videoId && (updates.fontSize !== undefined || updates.paddingY !== undefined)) {
+        // Jika mengubah fontSize, paddingY, atau align, sinkronkan ke Global Video Config
+        if (
+          clip &&
+          clip.videoId &&
+          (updates.fontSize !== undefined || updates.paddingY !== undefined || updates.align !== undefined)
+        ) {
           saveVideoGlobalConfig(clip.videoId, {
             contextStyle: {
               fontSize: next.context.fontSize,
               paddingY: next.context.paddingY,
+              align: next.context.align,
             },
           }).catch(() => {});
         }

@@ -311,6 +311,11 @@ def build_multi_layer_pipeline(
     banner_h = 0
     ctx_text = str(context_cfg.get("text", "")).strip() if ctx_enabled else ""
     ctx_fs = 24
+    ctx_align = str(context_cfg.get("align", "start")).lower().strip()
+    if ctx_align not in ("center", "start"):
+        ctx_align = "start"
+
+    ctx_drawtext_filters = []
     if ctx_enabled and ctx_text:
         ref_dim = min(out_w, out_h)
         base_unit = ref_dim * 0.073  # Rasio acuan dinamis setara 14dp di preview React Native
@@ -318,21 +323,49 @@ def build_multi_layer_pipeline(
         ctx_pad_dp = float(context_cfg.get("paddingY", 10))
 
         # Skala font konteks proporsional dengan kalibrasi visual subtitle (14dp -> base_unit):
-        ctx_fs = max(14, int(round(base_unit * (ctx_fs_dp / 14.0))))
+        ctx_fs = max(8, int(round(base_unit * (ctx_fs_dp / 14.0))))
 
         # Skala padding Y proporsional dengan rasio dimensi acuan yang sama:
-        ctx_pad = max(4, int(round(base_unit * (ctx_pad_dp / 14.0))))
+        ctx_pad = max(0, int(round(base_unit * (ctx_pad_dp / 14.0))))
 
-        # Tinggi banner: ruang teks vertikal (lineHeight ~1.35 * ctx_fs) + 2 * padding
-        banner_h = int(round(ctx_fs * 1.35 + 2 * ctx_pad))
+        # Padding horizontal saat rata kiri (start): selaras dengan 12dp preview
+        pad_x = max(10, int(round(base_unit * (12.0 / 14.0))))
+
+        # Pisahkan baris teks (maksimal 3 baris sesuai spesifikasi)
+        raw_lines = [l.strip() for l in ctx_text.splitlines() if l.strip()]
+        ctx_lines = raw_lines[:3] if raw_lines else [ctx_text]
+        num_lines = max(1, len(ctx_lines))
+
+        # Tinggi banner: ruang teks vertikal (lineHeight ~1.35 * ctx_fs per baris) + 2 * padding
+        line_height = int(round(ctx_fs * 1.35))
+        banner_h = int(round(num_lines * line_height + 2 * ctx_pad))
         if banner_h % 2 != 0:
             banner_h += 1
 
-        ctx_file = f"{output_base}.context.txt"
-        with open(ctx_file, "w", encoding="utf-8") as f:
-            f.write(ctx_text)
-        temp_files.append(ctx_file)
-        esc_ctx_file = escape_ffmpeg_filter_path(ctx_file)
+        if num_lines == 1:
+            ctx_file = f"{output_base}.context.txt"
+            with open(ctx_file, "w", encoding="utf-8") as f:
+                f.write(ctx_lines[0])
+            temp_files.append(ctx_file)
+            esc_ctx_file = escape_ffmpeg_filter_path(ctx_file)
+            x_expr = "(w-text_w)/2" if ctx_align == "center" else f"{pad_x}"
+            ctx_drawtext_filters.append(
+                f"drawtext=textfile='{esc_ctx_file}'{font_opt}:fontsize={ctx_fs}:fontcolor=black:x={x_expr}:y=({banner_h}-text_h)/2"
+            )
+        else:
+            total_text_h = num_lines * line_height
+            start_y = max(0, int(round((banner_h - total_text_h) / 2)))
+            for i, line in enumerate(ctx_lines):
+                line_file = f"{output_base}.context_{i}.txt"
+                with open(line_file, "w", encoding="utf-8") as f:
+                    f.write(line)
+                temp_files.append(line_file)
+                esc_line_file = escape_ffmpeg_filter_path(line_file)
+                x_expr = "(w-text_w)/2" if ctx_align == "center" else f"{pad_x}"
+                y_pos = start_y + i * line_height
+                ctx_drawtext_filters.append(
+                    f"drawtext=textfile='{esc_line_file}'{font_opt}:fontsize={ctx_fs}:fontcolor=black:x={x_expr}:y={y_pos}"
+                )
 
     # 2. Hitung Geometri Facecam (Viewport 4:3)
     if fc_enabled:
@@ -430,11 +463,10 @@ def build_multi_layer_pipeline(
     current_node = "[canvas_comp]"
 
     # 5. Pasang Banner Konteks jika aktif
-    if ctx_enabled and ctx_text:
+    if ctx_enabled and ctx_text and ctx_drawtext_filters:
         banner_filters = [
-            f"drawbox=x=0:y=0:w={out_w}:h={banner_h}:color=white:t={banner_h}",
-            f"drawtext=textfile='{esc_ctx_file}'{font_opt}:fontsize={ctx_fs}:fontcolor=black:x=(w-text_w)/2:y=({banner_h}-text_h)/2"
-        ]
+            f"drawbox=x=0:y=0:w={out_w}:h={banner_h}:color=white:t={banner_h}"
+        ] + ctx_drawtext_filters
         filter_lines.append(f"{current_node}{','.join(banner_filters)}[canvas_banner];")
         current_node = "[canvas_banner]"
 

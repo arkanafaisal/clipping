@@ -27,6 +27,8 @@ import {
   Gamepad2,
   SlidersHorizontal,
   Stamp,
+  AlignLeft,
+  AlignCenter,
 } from 'lucide-react-native';
 import { ClipItem, SubtitleCue, ClipTemplateConfig } from '../../services/api';
 import { formatTimeWithMs, formatDisplayTime } from './timeUtils';
@@ -203,6 +205,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
   const [tempContextText, setTempContextText] = useState<string>('');
   const [tempContextFontSize, setTempContextFontSize] = useState<string>('16');
   const [tempContextPaddingY, setTempContextPaddingY] = useState<string>('10');
+  const [tempContextAlign, setTempContextAlign] = useState<'start' | 'center'>('start');
 
   // Temp states untuk modal Elemen Watermark
   const [tempWatermarkEnabled, setTempWatermarkEnabled] = useState<boolean>(false);
@@ -228,6 +231,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
       setTempContextText(templateConfig.context.text);
       setTempContextFontSize(String(templateConfig.context.fontSize));
       setTempContextPaddingY(String(templateConfig.context.paddingY));
+      setTempContextAlign(templateConfig.context.align || 'start');
     }
     setShowContextModal(true);
   };
@@ -1609,68 +1613,113 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
               </View>
             </Pressable>
 
-            {/* Input Teks */}
+            {/* Input Teks Banner (Multiline Textarea, maks 3 baris) */}
             <View style={styles.posSectionContainer}>
-              <Text style={styles.timeSectionLabel}>TEKS BANNER</Text>
+              <Text style={styles.timeSectionLabel}>TEKS BANNER (MAKS 3 BARIS)</Text>
               <TextInput
-                style={styles.modalSingleInput}
+                style={[
+                  styles.multilineTextInput,
+                  { minHeight: 72, maxHeight: 96, textAlignVertical: 'top' },
+                ]}
                 value={tempContextText}
-                onChangeText={setTempContextText}
-                placeholder="JUDUL VIDEO"
+                onChangeText={(text) => {
+                  const lines = text.split('\n');
+                  if (lines.length > 3) {
+                    setTempContextText(lines.slice(0, 3).join('\n'));
+                  } else {
+                    setTempContextText(text);
+                  }
+                }}
+                placeholder="JUDUL VIDEO&#10;(Enter untuk baris baru)"
                 placeholderTextColor="rgba(255, 255, 255, 0.4)"
+                multiline
+                numberOfLines={3}
               />
             </View>
 
-            {/* Ukuran Font */}
+            {/* Perataan Teks (Start vs Center) */}
             <View style={styles.posSectionContainer}>
-              <Text style={styles.timeSectionLabel}>UKURAN FONT (PX)</Text>
+              <Text style={styles.timeSectionLabel}>PERATAAN TEKS</Text>
               <View style={styles.posPresetGroup}>
-                {['14', '16', '18', '20'].map((val) => (
-                  <Pressable
-                    key={val}
+                <Pressable
+                  style={[
+                    styles.posPresetBtn,
+                    tempContextAlign === 'start' && styles.posPresetBtnActive,
+                    { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+                  ]}
+                  onPress={() => setTempContextAlign('start')}
+                >
+                  <AlignLeft
+                    size={14}
+                    color={tempContextAlign === 'start' ? '#38bdf8' : '#94a3b8'}
+                  />
+                  <Text
                     style={[
-                      styles.posPresetBtn,
-                      tempContextFontSize === val && styles.posPresetBtnActive,
+                      styles.posPresetText,
+                      tempContextAlign === 'start' && styles.posPresetTextActive,
                     ]}
-                    onPress={() => setTempContextFontSize(val)}
                   >
-                    <Text
-                      style={[
-                        styles.posPresetText,
-                        tempContextFontSize === val && styles.posPresetTextActive,
-                      ]}
-                    >
-                      {val}
-                    </Text>
-                  </Pressable>
-                ))}
+                    Rata Kiri (Start)
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={[
+                    styles.posPresetBtn,
+                    tempContextAlign === 'center' && styles.posPresetBtnActive,
+                    { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+                  ]}
+                  onPress={() => setTempContextAlign('center')}
+                >
+                  <AlignCenter
+                    size={14}
+                    color={tempContextAlign === 'center' ? '#38bdf8' : '#94a3b8'}
+                  />
+                  <Text
+                    style={[
+                      styles.posPresetText,
+                      tempContextAlign === 'center' && styles.posPresetTextActive,
+                    ]}
+                  >
+                    Rata Tengah (Center)
+                  </Text>
+                </Pressable>
               </View>
             </View>
 
-            {/* Padding Vertikal */}
+            {/* Ukuran Font & Padding Vertikal (Input Angka Dinamis) */}
             <View style={styles.posSectionContainer}>
-              <Text style={styles.timeSectionLabel}>PADDING VERTIKAL (PX)</Text>
-              <View style={styles.posPresetGroup}>
-                {['6', '10', '14', '18'].map((val) => (
-                  <Pressable
-                    key={val}
-                    style={[
-                      styles.posPresetBtn,
-                      tempContextPaddingY === val && styles.posPresetBtnActive,
-                    ]}
-                    onPress={() => setTempContextPaddingY(val)}
-                  >
-                    <Text
-                      style={[
-                        styles.posPresetText,
-                        tempContextPaddingY === val && styles.posPresetTextActive,
-                      ]}
-                    >
-                      {val}
-                    </Text>
-                  </Pressable>
-                ))}
+              <Text style={styles.timeSectionLabel}>UKURAN & PADDING (ANGKA BEBAS)</Text>
+              <View style={styles.cropCoordinatesRow}>
+                <View style={styles.cropCoordinateBox}>
+                  <Text style={styles.coordinatePrefixLabel}>Size</Text>
+                  <TextInput
+                    style={styles.coordinateInput}
+                    value={tempContextFontSize}
+                    onChangeText={setTempContextFontSize}
+                    keyboardType="numeric"
+                    placeholder="16"
+                    placeholderTextColor="rgba(255, 255, 255, 0.3)"
+                    selectTextOnFocus
+                  />
+                  <Text style={styles.coordinateSuffixUnit}>dp</Text>
+                </View>
+                <View style={styles.cropCoordinateBox}>
+                  <Text style={styles.coordinatePrefixLabel}>Pad</Text>
+                  <TextInput
+                    style={styles.coordinateInput}
+                    value={tempContextPaddingY}
+                    onChangeText={setTempContextPaddingY}
+                    keyboardType="numeric"
+                    placeholder="10"
+                    placeholderTextColor="rgba(255, 255, 255, 0.3)"
+                    selectTextOnFocus
+                  />
+                  <Text style={styles.coordinateSuffixUnit}>px</Text>
+                </View>
               </View>
+              <Text style={styles.cropCoordinatesHint}>
+                Bebas diisi angka berapa pun. Otomatis dikalibrasi saat ekspor.
+              </Text>
             </View>
 
             {/* Footer Buttons */}
@@ -1687,8 +1736,9 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                   onUpdateContext?.({
                     enabled: tempContextEnabled,
                     text: tempContextText.trim() || 'JUDUL VIDEO',
-                    fontSize: Math.max(10, Math.min(32, parseInt(tempContextFontSize, 10) || 16)),
-                    paddingY: Math.max(2, Math.min(30, parseInt(tempContextPaddingY, 10) || 10)),
+                    fontSize: Math.max(6, Math.min(60, parseInt(tempContextFontSize, 10) || 16)),
+                    paddingY: Math.max(0, Math.min(60, parseInt(tempContextPaddingY, 10) || 10)),
+                    align: tempContextAlign,
                   });
                   setShowContextModal(false);
                 }}
