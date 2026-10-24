@@ -14,6 +14,21 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
+## [Unreleased] - Add Unified Google OAuth Generator and Multi-Token Fallback for Scheduler Uploader
+- **Konteks Struktural**:
+  1. Modul Generator Kredensial OAuth2 Mandiri (`scheduler-uploader/auth.js`):
+     - Menyediakan skrip lokal satu kali jalan (`npm run auth`) untuk mengotorisasi izin Google Drive (`drive.readonly`) dan YouTube Data API (`youtube.upload`) secara terpadu (*unified*).
+     - Menghasilkan token OAuth2 dengan `refresh_token` berstatus "Production" (unlimited) yang tidak kedaluwarsa dalam 7 hari tanpa perlu verifikasi resmi Google untuk otomasi pribadi.
+     - Menyimpan output ke `scheduler-uploader/token.json` yang dapat langsung disalin ke Config Var Heroku `GDRIVE_TOKEN`.
+  2. Fleksibilitas Resolusi Token pada `index.js`:
+     - Mengizinkan satu token terpadu (`GDRIVE_TOKEN`) digunakan sekaligus untuk mengunduh video dari Google Drive dan mengunggah ke YouTube tanpa perlu konfigurasi duplikat.
+     - Menyediakan fallback alias untuk berbagai format variabel (`YOUTUBE_API_TOKEN`, `YOUTUBE_TOKEN`, `GOOGLE_OAUTH_TOKEN`, atau deteksi file `token.json` lokal).
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/auth.js`: Menambahkan script server lokal port 8080 untuk menangkap authorization code OAuth2 Google dan menghasilkan token terpadu.
+  - `scheduler-uploader/package.json`: Menambahkan script command `"auth": "node auth.js"`.
+  - `scheduler-uploader/index.js`: Memperluas fallback resolusi variabel token Google Drive dan YouTube.
+  - `scheduler-uploader/README.md`: Menambahkan panduan langkah demi langkah mendapatkan token OAuth unlimited untuk Heroku.
+
 ## [Unreleased] - Sync Python Scripts to Native Module for Production APK Bundle
 - **Konteks Struktural**:
   1. Sinkronisasi Python Engine ke Native Bundle Module (`python-runner`):

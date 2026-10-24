@@ -29,12 +29,13 @@ Script CLI Node.js statis murni (bukan web server) yang didesain khusus untuk di
 Buat file `.env` di dalam folder ini (atau atur via Heroku Config Vars):
 
 ```env
-# Google Drive
+# Google Drive & YouTube (Unified Token)
 GDRIVE_TOKEN={"client_id":"...","client_secret":"...","refresh_token":"..."}
 GDRIVE_ROOT_FOLDER_ID=1abcXYZ_ID_FOLDER_ROOT_GDRIVE
 
-# YouTube Data API
-YOUTUBE_API_TOKEN={"client_id":"...","client_secret":"...","refresh_token":"..."}
+# (Opsional) YouTube Data API (Diisi jika channel YouTube memakai akun Google yang berbeda)
+# Jika akun sama dengan Google Drive, biarkan KOSONG (otomatis memakai GDRIVE_TOKEN)
+YOUTUBE_API_TOKEN=
 YOUTUBE_PRIVACY_STATUS=public
 
 # TikTok Content Posting API
@@ -42,8 +43,32 @@ TIKTOK_API_TOKEN=act.your_tiktok_access_token_here
 TIKTOK_PRIVACY_LEVEL=PUBLIC_TO_EVERYONE
 ```
 
-> **Tips Kredensial Google**:
-> Jika Anda menggunakan akun Google yang sama untuk Google Drive dan YouTube, Anda cukup menyalin seluruh isi file `token.json` ke dalam `GDRIVE_TOKEN`. Jika `YOUTUBE_API_TOKEN` dikosongkan, script otomatis memakai `GDRIVE_TOKEN`.
+---
+
+## 🔑 Cara Mendapatkan Token Google OAuth Unlimited (Drive + YouTube)
+
+Agar token Google OAuth tidak kedaluwarsa setelah 7 hari dan memiliki izin **Google Drive + YouTube Sekaligus**:
+
+1. **Ubah Status App ke Production**:
+   - Buka [Google Cloud Console](https://console.cloud.google.com/) -> **APIs & Services** -> **OAuth consent screen**.
+   - Klik **Publish App** agar status berubah dari *Testing* menjadi *In Production*.
+   - Tidak perlu mengajukan verifikasi resmi jika aplikasi hanya digunakan oleh akun pribadi Anda.
+
+2. **Jalankan Generator Token di Komputer Lokal**:
+   - Pastikan file `credentials.json` (OAuth Desktop App) sudah ada di folder ini atau root project.
+   - Jalankan perintah:
+     ```bash
+     cd scheduler-uploader
+     npm run auth
+     ```
+   - Browser akan terbuka otomatis. Jika muncul layar *"Google hasn't verified this app"*, klik **Advanced** -> **Go to [Nama App] (unsafe)**.
+   - Izinkan akses Drive dan YouTube.
+
+3. **Pasang ke Heroku**:
+   - Script akan otomatis membuat file `token.json` yang berisi `refresh_token` unlimited.
+   - Salin seluruh teks JSON di dalam `token.json` lalu tempelkan ke Config Var Heroku **`GDRIVE_TOKEN`**.
+   - Anda **tidak perlu** membuat 2 token terpisah jika akun Google Drive dan YouTube Anda sama!
+
 
 ---
 

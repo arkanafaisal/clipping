@@ -4,7 +4,8 @@
   "description": "Script CLI statis Node.js untuk Heroku Scheduler: otomatis unduh video terjadwal dari Google Drive dan unggah paralel ke YouTube dan TikTok.",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "auth": "node auth.js"
   },
   "keywords": [
     "heroku",

@@ -194,9 +194,17 @@ async function uploadToYouTube(filePath, metadata) {
     return { id: 'MOCK_YOUTUBE_VIDEO_ID' };
   }
 
-  const youtubeToken = process.env.YOUTUBE_API_TOKEN || process.env.GDRIVE_TOKEN;
+  const youtubeToken =
+    process.env.YOUTUBE_API_TOKEN ||
+    process.env.YOUTUBE_TOKEN ||
+    process.env.YOUTUBE_OAUTH_TOKEN ||
+    process.env.GOOGLE_OAUTH_TOKEN ||
+    process.env.GDRIVE_TOKEN ||
+    (fs.existsSync(path.resolve(__dirname, 'token.json')) ? path.resolve(__dirname, 'token.json') : null) ||
+    (fs.existsSync(path.resolve(__dirname, '../token.json')) ? path.resolve(__dirname, '../token.json') : null);
+
   if (!youtubeToken) {
-    throw new Error('Kredensial YOUTUBE_API_TOKEN (atau GDRIVE_TOKEN) tidak ditemukan di konfigurasi!');
+    throw new Error('Kredensial YOUTUBE_API_TOKEN (atau GDRIVE_TOKEN / token.json) tidak ditemukan di konfigurasi!');
   }
 
   const auth = getGoogleAuth(youtubeToken, [
@@ -355,9 +363,15 @@ async function runSchedulerUploader() {
     process.exit(1);
   }
 
-  const gdriveToken = process.env.GDRIVE_TOKEN;
+  const gdriveToken =
+    process.env.GDRIVE_TOKEN ||
+    process.env.GDRIVE_OAUTH_TOKEN ||
+    process.env.GOOGLE_OAUTH_TOKEN ||
+    (fs.existsSync(path.resolve(__dirname, 'token.json')) ? path.resolve(__dirname, 'token.json') : null) ||
+    (fs.existsSync(path.resolve(__dirname, '../token.json')) ? path.resolve(__dirname, '../token.json') : null);
+
   if (!gdriveToken) {
-    console.error('[KONFIGURASI ERROR] GDRIVE_TOKEN belum diatur pada environment variables!');
+    console.error('[KONFIGURASI ERROR] GDRIVE_TOKEN (atau token.json) belum diatur pada environment variables!');
     process.exit(1);
   }
 
