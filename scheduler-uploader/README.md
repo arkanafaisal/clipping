@@ -1,0 +1,112 @@
+# Scheduler Uploader (Heroku Scheduler CLI)
+
+Script CLI Node.js statis murni (bukan web server) yang didesain khusus untuk dijalankan secara berkala menggunakan **Heroku Scheduler**. Script ini mengotomatisasi pengambilan video terjadwal dari Google Drive berdasarkan jam tayang WIB, lalu mengunggahnya secara bersamaan (*parallel streaming*) ke **YouTube** dan **TikTok**.
+
+---
+
+## 🚀 Fitur Utama
+
+1. **Konversi Zona Waktu Otomatis (WIB / UTC+7)**:
+   - Heroku berjalan di zona waktu UTC. Script otomatis mengonversi jam server ke WIB (Asia/Jakarta).
+   - Menghitung tanggal target: `YYYY-MM-DD` (contoh: `2026-10-23`).
+   - Menghitung jam target dua digit: `<JAM>_00.mp4` (contoh: `12_00.mp4`, `15_00.mp4`, `17_00.mp4`).
+
+2. **Eksekusi Linear & Asinkron (Tahap A s/d E)**:
+   - **Tahap A (Cari Folder)**: Mencari folder dengan nama tanggal hari ini di dalam `GDRIVE_ROOT_FOLDER_ID`. Jika tidak ada folder, keluar bersih dengan `process.exit(0)`.
+   - **Tahap B (Cari File)**: Masuk ke folder tanggal dan mencari file video target (misal `12_00.mp4`). Jika belum ada video di jam tersebut, keluar bersih dengan `process.exit(0)`.
+   - **Tahap C (Download Streaming)**: Mengunduh video menggunakan `fs.createWriteStream` dan `stream/promises.pipeline` langsung ke disk lokal (`./temp_video.mp4`). **Nol buffer RAM** sehingga tidak melebihi kuota memori Heroku dyno (512MB).
+   - **Tahap D (Upload Paralel)**: Mengunggah `./temp_video.mp4` secara bersamaan menggunakan `Promise.all()` ke YouTube Data API v3 dan TikTok Content Posting API v2.
+   - **Tahap E (Clean Up & Exit)**: Menghapus file lokal `./temp_video.mp4` dari disk (`fs.unlinkSync`), mencetak pesan sukses, dan keluar dengan `process.exit(0)`.
+   - **Error Handling**: Menangkap semua jenis kegagalan, memastikan file sementara selalu dihapus agar disk Heroku tidak penuh, dan keluar dengan `process.exit(1)`.
+
+3. **Fleksibilitas Kredensial**:
+   - Mendukung format JSON OAuth2 (seperti `token.json`), file path, atau string token API.
+
+---
+
+## 📋 Variabel Lingkungan (Environment Variables)
+
+Buat file `.env` di dalam folder ini (atau atur via Heroku Config Vars):
+
+```env
+# Google Drive
+GDRIVE_TOKEN={"client_id":"...","client_secret":"...","refresh_token":"..."}
+GDRIVE_ROOT_FOLDER_ID=1abcXYZ_ID_FOLDER_ROOT_GDRIVE
+
+# YouTube Data API
+YOUTUBE_API_TOKEN={"client_id":"...","client_secret":"...","refresh_token":"..."}
+YOUTUBE_PRIVACY_STATUS=public
+
+# TikTok Content Posting API
+TIKTOK_API_TOKEN=act.your_tiktok_access_token_here
+TIKTOK_PRIVACY_LEVEL=PUBLIC_TO_EVERYONE
+```
+
+> **Tips Kredensial Google**:
+> Jika Anda menggunakan akun Google yang sama untuk Google Drive dan YouTube, Anda cukup menyalin seluruh isi file `token.json` ke dalam `GDRIVE_TOKEN`. Jika `YOUTUBE_API_TOKEN` dikosongkan, script otomatis memakai `GDRIVE_TOKEN`.
+
+---
+
+## ⏰ Konfigurasi Heroku Scheduler (WIB vs UTC)
+
+Heroku Scheduler menggunakan waktu **UTC**. Jika Anda ingin video diunggah pada jam-jam WIB berikut, jadwalkan job pada jam UTC yang setara:
+
+| Jadwal Target (WIB - UTC+7) | Jadwal di Heroku Scheduler (UTC) | Target File GDrive |
+| :-------------------------- | :------------------------------- | :----------------- |
+| **12:00 WIB**               | **05:00 UTC**                    | `12_00.mp4`        |
+| **15:00 WIB**               | **08:00 UTC**                    | `15_00.mp4`        |
+| **17:00 WIB**               | **10:00 UTC**                    | `17_00.mp4`        |
+| **19:00 WIB**               | **12:00 UTC**                    | `19_00.mp4`        |
+| **21:00 WIB**               | **14:00 UTC**                    | `21_00.mp4`        |
+| **23:00 WIB**               | **16:00 UTC**                    | `23_00.mp4`        |
+
+### Perintah Job di Heroku Scheduler:
+- Jika seluruh repositori di-deploy ke Heroku:
+  ```bash
+  node scheduler-uploader/index.js
+  ```
+- Jika folder `scheduler-uploader` di-deploy sebagai root aplikasi:
+  ```bash
+  node index.js
+  ```
+
+---
+
+## 🛠️ Pengujian Lokal (Manual Test & Mock)
+
+1. **Instal dependensi**:
+   ```bash
+   cd scheduler-uploader
+   npm install
+   ```
+
+2. **Uji coba dengan jam saat ini**:
+   ```bash
+   node index.js
+   ```
+
+3. **Uji coba jadwal jam / tanggal tertentu (Override)**:
+   ```bash
+   node index.js --date=2026-10-23 --hour=12
+   ```
+
+4. **Uji coba simulasi tanpa mengonsumsi kuota API (Mock Upload)**:
+   ```bash
+   MOCK_UPLOAD=true node index.js --hour=15
+   ```
+
+---
+
+## ✍️ Kustomisasi Metadata Video
+
+Buka file [index.js](file:///d:/projects/clipping/scheduler-uploader/index.js) untuk mengubah:
+- **YouTube Metadata** (pada fungsi `uploadToYouTube`):
+  - `title`: Judul video YouTube / Shorts
+  - `description`: Deskripsi lengkap dan hashtag
+  - `tags`: Array kata kunci
+  - `categoryId`: Default `22` (People & Blogs) atau `24` (Entertainment)
+  - `privacyStatus`: `public`, `unlisted`, atau `private`
+- **TikTok Metadata** (pada fungsi `uploadToTikTok`):
+  - `title`: Caption postingan TikTok
+  - `privacy_level`: `PUBLIC_TO_EVERYONE`, `MUTUAL_FOLLOW_FRIENDS`, dll.
+  - `disable_comment`, `disable_duet`, `disable_stitch`: Izin interaksi
