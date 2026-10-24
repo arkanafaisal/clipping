@@ -14,7 +14,32 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Unify 5-Way Playback Synchronization and Decouple Playback from React Re-renders
+## [Unreleased] - Eliminate Cue Boundary Freeze and Staticize Subtitle Cue Pills
+- **Konteks Struktural**:
+  1. Staticisasi Murni Kotak Subtitle Cue (`FeedTopControls.tsx`):
+     - Menghapus prop `isSelected` dan segala efek perubahan border serta warna pada komponen `SubtitleCuePill`. Kotak cue kini berstatus murni statis (`React.memo`) dengan warna selang-seling genap/ganjil tanpa kalkulasi border (`borderWidth: 0`), mengeliminasi 100% beban rasterisasi border dan restrukturisasi style native Android.
+     - Penandaan kotak cue aktif dialihkan secara visual sepenuhnya kepada jarum needle merah yang meluncur mulus di atas kotak-kotak cue, sehingga `SubtitleCuePill` tidak pernah mengalami re-render atau layout pass selama video diputar.
+  2. Pemasangan Permanen Tombol Aksi Cue Editor (`FeedTopControls.tsx`):
+     - Memasang kontainer 4 tombol aksi cue editor (`styles.cueEditorActionIcons`: Edit Teks, Ukuran Font, Rentang Waktu, Hapus) secara permanen di dalam hierarki native view tree.
+     - Mengontrol visibilitas tombol menggunakan `opacity: selectedCue ? 1 : 0` dan `pointerEvents={selectedCue ? 'auto' : 'none'}` alih-alih unmount/mount kondisional `{selectedCue ? <View> : null}`, melenyapkan reflow layout engine `requestLayout()` dan pembongkaran native view saat needle keluar-masuk jeda bicara antarkotak cue.
+  3. Dekopling Seleksi Cue dari Playback Kontinu (`useClipPlayer.ts`, `FeedScreen.tsx`):
+     - Menambahkan parameter `syncCueSelection` pada `syncSubtitleCueAtTime` di `useClipPlayer.ts`. Saat video aktif berputar, `syncCueSelection` bernilai `false` sehingga teks subtitle overlay video tetap diperbarui secara instan (0ms latency), namun state `selectedCueId` tidak memicu re-render berantai pada `FeedScreen`.
+     - Saat video dipause (`stopLinearClock`), diseek/discrubbing (`centralizedSeek`), atau berganti klip, `syncCueSelection` bernilai `true` sehingga kotak cue di bawah playhead langsung terpilih dan tombol aksi cue editor siap digunakan untuk penyuntingan.
+  4. Memoisasi Callback Top Controls (`FeedScreen.tsx`):
+     - Memoisasi `handleOpenCustomModal`, `handleOpenVisibleCountModal`, `handleToggleSubtitleVisibility`, `handleStartEditTime`, dan `handleBlurTimeEdit` menggunakan `useCallback` untuk mencegah instansiasi fungsi baru yang membatalkan `React.memo` pada `FeedTopControls`.
+- **Perubahan Kode Penting**:
+  - `mobile/src/components/feed/FeedTopControls.tsx`:
+    - Menghapus prop `isSelected` dari `SubtitleCuePillProps` dan implementasi `SubtitleCuePill`.
+    - Menghapus `borderWidth`, `borderColor`, `cuePillEvenSelected`, dan `cuePillOddSelected` pada style `cuePill`.
+    - Mengubah kontainer `cueEditorActionIcons` menjadi View permanen dengan kontrol `opacity` dan `pointerEvents`.
+  - `mobile/src/hooks/useClipPlayer.ts`:
+    - Mengubah signature `syncSubtitleCueAtTime` menjadi `(targetRelTime: number, syncCueSelection: boolean = false)`.
+    - Membatasi eksekusi `setActiveCueId` hanya saat `syncCueSelection` bernilai `true`.
+    - Mengirim `syncCueSelection = true` pada `stopLinearClock`, `centralizedSeek`, `syncPlayerSourceForClip`, dan `skipSeconds`.
+  - `mobile/src/components/FeedScreen.tsx`:
+    - Memoisasi seluruh callback inline yang dioper ke `FeedTopControls`.
+
+## [5af3269] - Unify 5-Way Playback Synchronization and Decouple Playback from React Re-renders
 - **Konteks Struktural**:
   1. Integrasi 5 Elemen Waktu Selaras (`useClipPlayer.ts`, `FeedScreen.tsx`, `FeedTopControls.tsx`):
      - Menyatukan 5 elemen antarmuka playback ke sistem waktu yang terkoordinasi secara presisi:

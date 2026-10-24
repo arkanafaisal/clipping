@@ -39,11 +39,10 @@ interface SubtitleCuePillProps {
   index: number;
   clipDuration: number;
   trackWidth: number;
-  isSelected: boolean;
 }
 
 const SubtitleCuePill: React.FC<SubtitleCuePillProps> = React.memo(
-  ({ cue, index, clipDuration, trackWidth, isSelected }) => {
+  ({ cue, index, clipDuration, trackWidth }) => {
     const startPct = clipDuration > 0 ? Math.max(0, Math.min(1, cue.start / clipDuration)) : 0;
     const endPct = clipDuration > 0 ? Math.max(0, Math.min(1, cue.end / clipDuration)) : 1;
     const leftPos = startPct * trackWidth;
@@ -61,7 +60,6 @@ const SubtitleCuePill: React.FC<SubtitleCuePillProps> = React.memo(
             left: leftPos,
             width: pillWidth,
           },
-          isSelected && (isEven ? styles.cuePillEvenSelected : styles.cuePillOddSelected),
         ]}
       />
     );
@@ -850,7 +848,6 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = React.memo(({
                         index={index}
                         clipDuration={clipDuration}
                         trackWidth={trackLayoutWidth}
-                        isSelected={selectedCueId === cue.id}
                       />
                     ))}
 
@@ -900,55 +897,75 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = React.memo(({
                   </View>
 
                   {/* SISI KANAN (Dekat jempol): Tombol Icon Edit Teks, Ukuran Font, Hapus */}
-                  {selectedCue ? (
-                    <View style={styles.cueEditorActionIcons}>
-                      {/* 1. Edit Teks (Buka Modal Multiline) */}
-                      <Pressable
-                        style={({ pressed }) => [styles.iconActionBtn, pressed && { opacity: 0.6 }]}
-                        onPress={() => {
+                  <View
+                    style={[
+                      styles.cueEditorActionIcons,
+                      { opacity: selectedCue ? 1 : 0 },
+                    ]}
+                    pointerEvents={selectedCue ? 'auto' : 'none'}
+                  >
+                    {/* 1. Edit Teks (Buka Modal Multiline) */}
+                    <Pressable
+                      style={({ pressed }) => [styles.iconActionBtn, pressed && { opacity: 0.6 }]}
+                      onPress={() => {
+                        if (selectedCue) {
                           setTempEditText(selectedCue.text || '');
                           setShowTextModal(true);
-                        }}
-                        hitSlop={6}
-                      >
-                        <Type size={16} color="#38bdf8" />
-                      </Pressable>
+                        }
+                      }}
+                      hitSlop={6}
+                      disabled={!selectedCue}
+                    >
+                      <Type size={16} color="#38bdf8" />
+                    </Pressable>
 
-                      {/* 2. Ukuran Font (Buka Modal Font Size) */}
-                      <Pressable
-                        style={({ pressed }) => [styles.iconActionBtn, pressed && { opacity: 0.6 }]}
-                        onPress={() => {
+                    {/* 2. Ukuran Font (Buka Modal Font Size) */}
+                    <Pressable
+                      style={({ pressed }) => [styles.iconActionBtn, pressed && { opacity: 0.6 }]}
+                      onPress={() => {
+                        if (selectedCue) {
                           setTempEditSize(String(selectedCue.fontSize || 14));
                           setShowFontModal(true);
-                        }}
-                        hitSlop={6}
-                      >
-                        <Text style={styles.fontSizeIconText}>Aa</Text>
-                      </Pressable>
+                        }
+                      }}
+                      hitSlop={6}
+                      disabled={!selectedCue}
+                    >
+                      <Text style={styles.fontSizeIconText}>Aa</Text>
+                    </Pressable>
 
-                      {/* 3. Rentang Waktu (Buka Modal Time Range 6-box: Menit, Detik, Milidetik) */}
-                      <Pressable
-                        style={({ pressed }) => [styles.iconActionBtn, pressed && { opacity: 0.6 }]}
-                        onPress={openTimeModal}
-                        hitSlop={6}
-                      >
-                        <Clock size={16} color="#38bdf8" />
-                      </Pressable>
+                    {/* 3. Rentang Waktu (Buka Modal Time Range 6-box: Menit, Detik, Milidetik) */}
+                    <Pressable
+                      style={({ pressed }) => [styles.iconActionBtn, pressed && { opacity: 0.6 }]}
+                      onPress={() => {
+                        if (selectedCue) {
+                          openTimeModal();
+                        }
+                      }}
+                      hitSlop={6}
+                      disabled={!selectedCue}
+                    >
+                      <Clock size={16} color="#38bdf8" />
+                    </Pressable>
 
-                      {/* 4. Hapus Cue (Langsung hapus tanpa modal konfirmasi) */}
-                      <Pressable
-                        style={({ pressed }) => [
-                          styles.iconActionBtn,
-                          styles.deleteActionBtn,
-                          pressed && { opacity: 0.6 },
-                        ]}
-                        onPress={() => onDeleteCue(selectedCue.id)}
-                        hitSlop={6}
-                      >
-                        <Trash2 size={16} color="#f87171" />
-                      </Pressable>
-                    </View>
-                  ) : null}
+                    {/* 4. Hapus Cue (Langsung hapus tanpa modal konfirmasi) */}
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.iconActionBtn,
+                        styles.deleteActionBtn,
+                        pressed && { opacity: 0.6 },
+                      ]}
+                      onPress={() => {
+                        if (selectedCue) {
+                          onDeleteCue(selectedCue.id);
+                        }
+                      }}
+                      hitSlop={6}
+                      disabled={!selectedCue}
+                    >
+                      <Trash2 size={16} color="#f87171" />
+                    </Pressable>
+                  </View>
                 </View>
               </View>
             ) : currentMode === 'template' ? (
@@ -2603,27 +2620,12 @@ const styles = StyleSheet.create({
     bottom: 3,
     borderRadius: 3,
     overflow: 'hidden',
-    borderWidth: 1,
   },
   cuePillEven: {
     backgroundColor: 'rgba(14, 165, 233, 0.75)',
-    borderColor: 'rgba(56, 189, 248, 0.9)',
   },
   cuePillOdd: {
     backgroundColor: 'rgba(245, 158, 11, 0.75)',
-    borderColor: 'rgba(251, 191, 36, 0.9)',
-  },
-  cuePillEvenSelected: {
-    backgroundColor: '#38bdf8',
-    borderColor: '#ffffff',
-    borderWidth: 2,
-    zIndex: 10,
-  },
-  cuePillOddSelected: {
-    backgroundColor: '#fbbf24',
-    borderColor: '#ffffff',
-    borderWidth: 2,
-    zIndex: 10,
   },
   emptyTrackHint: {
     ...StyleSheet.absoluteFill,

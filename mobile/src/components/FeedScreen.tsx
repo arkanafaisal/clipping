@@ -347,6 +347,32 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     };
   }, [isPortrait, isFacecamActive, templateConfig.mainVideo, mainVideoLayout]);
 
+  const handleOpenCustomModal = useCallback(() => {
+    setIsCustomModalVisible(true);
+  }, []);
+
+  const handleOpenVisibleCountModal = useCallback(() => {
+    setIsVisibleCountModalVisible(true);
+  }, []);
+
+  const handleToggleSubtitleVisibility = useCallback(() => {
+    setIsSubtitleVisible((prev) => !prev);
+  }, [setIsSubtitleVisible]);
+
+  const handleStartEditTime = useCallback(
+    (type: 'start' | 'end') => {
+      setActiveTimeEdit(type);
+      const curClip = clipsRef.current.find((c) => c.id === activeClipIdRef.current) || activeClip;
+      const curMs = Math.floor((curClip[type] % 1) * 100);
+      setTempTimeValue(curMs.toString().padStart(2, '0'));
+    },
+    [activeClip, clipsRef, activeClipIdRef, setActiveTimeEdit, setTempTimeValue]
+  );
+
+  const handleBlurTimeEdit = useCallback(() => {
+    setActiveTimeEdit(null);
+  }, [setActiveTimeEdit]);
+
   useEffect(() => {
     setActiveEditorMode(null);
   }, [activeClip?.id]);
@@ -395,8 +421,8 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
         onUpdateWatermark={handleUpdateWatermark}
         downloadProgressInfo={downloadProgress[activeClip.id]}
         visibleHeatmapCount={visibleHeatmapCount}
-        onAddCustomPress={() => setIsCustomModalVisible(true)}
-        onChangeVisibleCountPress={() => setIsVisibleCountModalVisible(true)}
+        onAddCustomPress={handleOpenCustomModal}
+        onChangeVisibleCountPress={handleOpenVisibleCountModal}
         hasSubtitles={subtitles.length > 0}
         isSubtitleVisible={isSubtitleVisible}
         subtitles={subtitles}
@@ -410,7 +436,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
         onToggleTrash={handleToggleTrash}
         onToggleDone={handleToggleDone}
         onDownloadClip={handleDownloadClip}
-        onToggleSubtitleVisibility={() => setIsSubtitleVisible((prev) => !prev)}
+        onToggleSubtitleVisibility={handleToggleSubtitleVisibility}
         onSelectCue={setSelectedCueId}
         onAddCue={handleAddCue}
         onUpdateCue={handleUpdateCue}
@@ -418,13 +444,9 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
         onDeleteCue={handleDeleteCue}
         onFetchSubtitles={handleFetchSubtitles}
         onSeek={handleSeekRelative}
-        onStartEditTime={(type) => {
-          setActiveTimeEdit(type);
-          const curMs = Math.floor((activeClip[type] % 1) * 100);
-          setTempTimeValue(curMs.toString().padStart(2, '0'));
-        }}
+        onStartEditTime={handleStartEditTime}
         onMsTimeChange={handleMsTimeChange}
-        onBlurTimeEdit={() => setActiveTimeEdit(null)}
+        onBlurTimeEdit={handleBlurTimeEdit}
         onUpdateStart={handleUpdateStart}
         onUpdateEnd={handleUpdateEnd}
       />

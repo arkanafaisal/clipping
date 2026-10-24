@@ -213,10 +213,12 @@ export function useClipPlayer({
 
   /**
    * Evaluasi cue subtitle pada detik target secara efisien.
-   * Hanya memicu pembaruan state jika teks subtitle benar-benar berubah untuk memangkas 95% re-render.
+   * - setActiveSubtitleText diperbarui secara real-time saat teks berubah untuk video overlay.
+   * - setActiveCueId HANYA diperbarui saat syncCueSelection=true (misal: pause, seek, scrub)
+   *   sehingga 0 re-render React pada FeedScreen saat pemutaran kontinu, mengeliminasi 100% boundary freeze.
    */
   const syncSubtitleCueAtTime = useCallback(
-    (targetRelTime: number) => {
+    (targetRelTime: number, syncCueSelection: boolean = false) => {
       if (subtitlesRef?.current && subtitlesRef.current.length > 0) {
         const match = subtitlesRef.current.find(
           (c) => targetRelTime >= c.start && targetRelTime <= c.end
@@ -230,7 +232,7 @@ export function useClipPlayer({
           setActiveSubtitleText(text, fontSize);
         }
 
-        if (setActiveCueId && cueId !== lastDispatchedCueIdRef.current) {
+        if (syncCueSelection && setActiveCueId && cueId !== lastDispatchedCueIdRef.current) {
           lastDispatchedCueIdRef.current = cueId;
           setActiveCueId(cueId);
         }
@@ -239,7 +241,7 @@ export function useClipPlayer({
           lastDispatchedSubtitleTextRef.current = '';
           setActiveSubtitleText('', 14);
         }
-        if (setActiveCueId && lastDispatchedCueIdRef.current !== null) {
+        if (syncCueSelection && setActiveCueId && lastDispatchedCueIdRef.current !== null) {
           lastDispatchedCueIdRef.current = null;
           setActiveCueId(null);
         }
@@ -277,7 +279,7 @@ export function useClipPlayer({
         setProgressPercent(finalPct);
         progressAnim.setValue(finalPct);
       }
-      syncSubtitleCueAtTime(finalTime);
+      syncSubtitleCueAtTime(finalTime, true);
     }
   }, [getActiveClip, player, syncSubtitleCueAtTime, progressAnim]);
 
@@ -329,7 +331,7 @@ export function useClipPlayer({
       if (duration > 0) {
         setProgressPercent(initialPct);
       }
-      syncSubtitleCueAtTime(initialTime);
+      syncSubtitleCueAtTime(initialTime, false);
 
       if (linearClockTimerRef.current) {
         clearInterval(linearClockTimerRef.current);
@@ -356,7 +358,7 @@ export function useClipPlayer({
           setProgressPercent(0);
           lastDispatchedSubtitleTextRef.current = '';
           lastDispatchedCueIdRef.current = null;
-          syncSubtitleCueAtTime(0);
+          syncSubtitleCueAtTime(0, false);
 
           progressAnim.stopAnimation();
           progressAnim.setValue(0);
@@ -393,7 +395,7 @@ export function useClipPlayer({
 
         const clampedTime = Math.max(0, Math.min(curDuration, curTime));
         // Evaluasi subtitle teks dan seleksi kotak cue secara presisi di 50ms tanpa memicu re-render layar induk!
-        syncSubtitleCueAtTime(clampedTime);
+        syncSubtitleCueAtTime(clampedTime, false);
       }, 50);
     },
     [
@@ -425,7 +427,7 @@ export function useClipPlayer({
       playStartClipTimeRef.current = 0;
       setCurrentClipTime(0);
       setProgressPercent(0);
-      syncSubtitleCueAtTime(0);
+      syncSubtitleCueAtTime(0, true);
 
       // 1. PRIORITAS UTAMA: Jika full video lokal (terutama full_proxy.mp4 480p) tersedia,
       // SELALU gunakan full video proxy lokal untuk SEMUA mode player (clipping, mark as done, editor non-facecam, editor facecam)
@@ -581,7 +583,7 @@ export function useClipPlayer({
         progressAnim.stopAnimation();
         progressAnim.setValue(pct);
       }
-      syncSubtitleCueAtTime(clampedRel);
+      syncSubtitleCueAtTime(clampedRel, true);
 
       // Auto-pause video seketika jika sedang berputar agar frame lama freeze (tanpa mengubah state tombol isContinueState)
       if (player && player.playing) {
@@ -764,7 +766,7 @@ export function useClipPlayer({
             progressAnim.stopAnimation();
             progressAnim.setValue(p);
           }
-          syncSubtitleCueAtTime(nativeRel);
+          syncSubtitleCueAtTime(nativeRel, true);
         }
       } else {
         // Mode Play: Untuk file lokal, biarkan progress bar berjalan 100% mulus sebagai animasi linier 0-X tanpa kalkulasi mundur/reset!
@@ -802,7 +804,7 @@ export function useClipPlayer({
           playStartWallTimeRef.current = Date.now();
           setCurrentClipTime(0);
           setProgressPercent(0);
-          syncSubtitleCueAtTime(0);
+          syncSubtitleCueAtTime(0, false);
           if (isFacecamActiveRef.current && facecamPlayer) {
             try {
               facecamPlayer.currentTime = 0;
@@ -823,7 +825,7 @@ export function useClipPlayer({
           playStartWallTimeRef.current = Date.now();
           setCurrentClipTime(0);
           setProgressPercent(0);
-          syncSubtitleCueAtTime(0);
+          syncSubtitleCueAtTime(0, false);
           if (isFacecamActiveRef.current && facecamPlayer) {
             try {
               facecamPlayer.currentTime = currentActive.start;
@@ -996,7 +998,7 @@ export function useClipPlayer({
         if (isPlaybackActiveRef.current) {
           playStartWallTimeRef.current = Date.now();
         }
-        syncSubtitleCueAtTime(nextTime);
+        syncSubtitleCueAtTime(nextTime, true);
         centralizedSeek(nextTime, true);
       } else {
         const baseTime =
@@ -1020,7 +1022,7 @@ export function useClipPlayer({
         if (isPlaybackActiveRef.current) {
           playStartWallTimeRef.current = Date.now();
         }
-        syncSubtitleCueAtTime(rel);
+        syncSubtitleCueAtTime(rel, true);
         centralizedSeek(nextTime, true);
       }
     },
