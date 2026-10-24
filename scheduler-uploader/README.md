@@ -25,6 +25,38 @@ Script CLI Node.js statis murni (bukan web server) yang didesain khusus untuk di
 
 ---
 
+## ⚡ Panduan Setup Interaktif (Sangat Direkomendasikan)
+
+Jika Anda ingin dibimbing langkah demi langkah (instalasi modul, link Google Drive, hashtag, hingga cek akun), cukup jalankan:
+
+```bash
+cd scheduler-uploader
+npm run setup
+```
+> **Fitur Wizard:**
+> - Mendukung input link Google Drive lengkap (URL browser) atau Raw ID secara otomatis.
+> - Mengonfigurasi file `hashtags.txt` secara interaktif.
+> - Memeriksa status token TikTok dan Google Drive / YouTube secara instan.
+> - Menyediakan opsi uji coba langsung (Simulasi Mock atau Live).
+
+---
+
+## 🏷️ Format Caption & Hashtag (`hashtags.txt`)
+
+Setiap video yang terupload otomatis memiliki format caption:
+```text
+<Nama File Terpilih> #<NamaFolderGame> <Hashtag Konstan>
+```
+Contoh:
+- Nama file: `Momen Savage Alucard.mp4`
+- Folder game: `Mobile Legends`
+- `hashtags.txt`: `#shorts #fyp #viral #trending`
+- **Hasil Caption VT**: `Momen Savage Alucard #MobileLegends #shorts #fyp #viral #trending`
+
+> File `hashtags.txt` menggunakan format teks biasa yang sangat awam. Anda bebas mengosongkannya (hanya tag folder game yang dipakai) atau mengisinya maksimal 4 hashtag.
+
+---
+
 ## 📋 Variabel Lingkungan (Environment Variables)
 
 Buat file `.env` di dalam folder ini (atau atur via Heroku Config Vars):

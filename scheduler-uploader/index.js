@@ -87,6 +87,52 @@ function getWIBTarget() {
 }
 
 /**
+ * Membaca tag konstan global dari hashtags.txt (atau hashtags.json / .env).
+ * Format ramah pengguna awam: cukup tuliskan tag dipisah spasi, koma, atau baris baru.
+ * Otomatis dibatasi maksimal 4 tag konstan. Boleh kosong (mengembalikan []).
+ */
+function loadConstantHashtags() {
+  const txtPath = path.resolve(__dirname, 'hashtags.txt');
+  const jsonPath = path.resolve(__dirname, 'hashtags.json');
+  let rawTags = [];
+
+  if (fs.existsSync(txtPath)) {
+    const content = fs.readFileSync(txtPath, 'utf8');
+    const lines = content.split(/\r?\n/);
+    for (const line of lines) {
+      const trimmed = line.trim();
+      // Lewati baris kosong atau komentar yang diawali // atau /*
+      if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('/*')) continue;
+      // Jika baris berisi instruksi komentar teks panjang yang diawali '# ' (misal '# Tuliskan...')
+      if (trimmed.startsWith('# ') || trimmed.startsWith('#!')) continue;
+
+      const words = trimmed.split(/[\s,]+/);
+      for (const word of words) {
+        const clean = word.replace(/^#+/, '').trim();
+        if (clean && clean.length > 0 && !clean.startsWith('//')) {
+          rawTags.push(clean);
+        }
+      }
+    }
+  } else if (fs.existsSync(jsonPath)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+      if (Array.isArray(data)) rawTags = data;
+      else if (Array.isArray(data.hashtags)) rawTags = data.hashtags;
+      else if (Array.isArray(data.tags)) rawTags = data.tags;
+    } catch (e) {}
+  } else if (process.env.GLOBAL_HASHTAGS) {
+    rawTags = process.env.GLOBAL_HASHTAGS.split(/[\s,]+/).map((t) => t.replace(/^#+/, '').trim()).filter(Boolean);
+  }
+
+  // Format ke '#tag' dan ambil maksimal 4 tag pertama
+  return rawTags
+    .filter(Boolean)
+    .map((t) => `#${t}`)
+    .slice(0, 4);
+}
+
+/**
  * Factory kredensial Google API yang fleksibel:
  * Mendukung input JSON string kredensial (seperti isi token.json), path file .json,
  * kredensial service account, atau OAuth refresh token mentah.
@@ -286,7 +332,11 @@ async function uploadToTikTok(filePath, metadata) {
    * Silakan sesuaikan caption, visibilitas privasi, dan preferensi interaksi:
    * ---------------------------------------------------------------------------
    */
-  const postTitle = metadata.title || `Video Jadwal ${metadata.date} ${metadata.hour}:00 WIB #fyp #viral #trending`;
+  const postTitle =
+    metadata.caption ||
+    metadata.tiktokCaption ||
+    metadata.title ||
+    `Video Jadwal ${metadata.date} ${metadata.hour}:00 WIB`;
   const privacyLevel = process.env.TIKTOK_PRIVACY_LEVEL || 'PUBLIC_TO_EVERYONE';
   // Opsi privasi TikTok:
   // - 'PUBLIC_TO_EVERYONE'     (Publik untuk semua orang)
@@ -554,17 +604,41 @@ async function runSchedulerUploader() {
   // --------------------------------------------------------------------------
   console.log(`\n[TAHAP D] Memulai pengunggahan paralel (Promise.all) ke YouTube dan TikTok...`);
 
-  // Susun judul & tag yang relevan dengan nama game dan nama klip
-  const gameTag = selectedFolder && selectedFolder.name !== 'Root' ? `#${selectedFolder.name.replace(/\s+/g, '')}` : '';
+  // Susun nama klip bersih (hanya nama file terpilih tanpa ekstensi .mp4 dan label [USED])
   const cleanClipName = videoFile.name.replace(/\.mp4$/i, '').replace(/^\[USED[^\]]*\]_?/i, '').trim();
+
+  // Tag 1: Nama folder game/stream terpilih (misal: #MobileLegends)
+  const folderTag =
+    selectedFolder && selectedFolder.name && selectedFolder.name !== 'Root'
+      ? `#${selectedFolder.name.replace(/[^a-zA-Z0-9_]/g, '')}`
+      : '';
+
+  // Tag konstan: Maksimal 4 tag dari hashtags.txt (boleh kosong atau < 4)
+  const constantTags = loadConstantHashtags();
+
+  // Gabungkan tag folder terpilih + tag konstan (total 1 + maksimal 4)
+  const allHashtags = [folderTag, ...constantTags].filter(Boolean);
+
+  // Caption VT TikTok: <nama_file_terpilih> #<namafolderterpilih> <tag_konstan>
+  const vtCaption = `${cleanClipName} ${allHashtags.join(' ')}`.trim();
+
+  console.log(`\n[METADATA KONTEN]`);
+  console.log(` - Judul File      : "${cleanClipName}"`);
+  console.log(` - Tag Folder      : "${folderTag || '(tanpa tag)'}"`);
+  console.log(` - Tag Konstan     : ${constantTags.length > 0 ? constantTags.join(' ') : '(kosong / tidak ada)'}`);
+  console.log(` - Caption VT/Post : "${vtCaption}"`);
 
   const sharedMetadata = {
     date: targetDate,
     hour: targetHour,
     fileName: videoFile.name,
-    title: `${cleanClipName} ${gameTag}`.trim() || `Video Klip ${targetDate} ${targetHour}:00 WIB`,
-    description: `Otomatis diunggah oleh Heroku Scheduler Uploader pada ${targetDate} jam ${targetHour}:00 WIB.\n#shorts #trending #viral ${gameTag} #fyp`,
-    tags: ['shorts', 'trending', 'viral', 'clipping', selectedFolder?.name].filter(Boolean),
+    clipName: cleanClipName,
+    folderName: selectedFolder?.name || '',
+    title: cleanClipName,
+    caption: vtCaption,
+    tiktokCaption: vtCaption,
+    description: `${cleanClipName}\n\n${allHashtags.join(' ')}`.trim(),
+    tags: allHashtags.map((t) => t.replace(/^#/, '')),
   };
 
   const [youtubeResult, tiktokResult] = await Promise.all([

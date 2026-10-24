@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
+    "setup": "node setup.js",
     "auth": "node auth.js",
     "auth:tiktok": "node auth_tiktok.js"
   },

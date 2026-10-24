@@ -1,0 +1,4 @@
+# Tuliskan hingga maksimal 4 hashtag konstan di sini (pisahkan dengan spasi, koma, atau baris baru).
+# Boleh dikosongkan (jika kosong, hanya tag nama folder game yang otomatis disertakan).
+# Contoh:
+#shorts #fyp #viral #trending

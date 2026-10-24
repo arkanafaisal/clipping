@@ -14,7 +14,23 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Add Randomized Content Pool and Instant GDrive File Move Workflow
+## [Unreleased] - Add Interactive Setup Wizard and Configurable Constant Hashtags
+- **Konteks Struktural**:
+  1. Wizard Penyiapan Interaktif (`scheduler-uploader/setup.js` / `npm run setup`):
+     - Membangun antarmuka CLI interaktif ramah pengguna (menggunakan native `readline`) untuk membimbing penyiapan dari tahap awal hingga pengujian.
+     - Tahap demi tahap diverifikasi dengan konfirmasi pengguna: instalasi modul dependensi, ekstraksi cerdas link URL / raw ID Google Drive untuk folder Unused dan Used, konfigurasi hashtag konstan, dan pemeriksaan status token TikTok/Google.
+     - Menyediakan opsi eksekusi instan untuk pengujian simulasi aman (MOCK UPLOAD) maupun Live Run langsung dari wizard.
+  2. Standarisasi Format Caption & Hashtags Ramah Pengguna (`scheduler-uploader/hashtags.txt`):
+     - Mengubah formulasi caption VT TikTok menjadi: `<NamaFileTerpilih> #<NamaFolderGame> <HashtagKonstan>`.
+     - Mengakomodasi file konfigurasi teks biasa `hashtags.txt` yang membatasi maksimal 4 hashtag konstan tambahan (boleh di bawah 4 atau kosong sehingga hanya tag folder game yang disertakan).
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/setup.js`: Membuat skrip wizard interaktif zero-dependency yang memandu konfigurasi dan parsing URL/ID Google Drive.
+  - `scheduler-uploader/hashtags.txt`: Menyediakan file konfigurasi hashtag ramah pengguna awam.
+  - `scheduler-uploader/index.js`: Menambahkan fungsi `loadConstantHashtags()`, merombak konstruksi metadata caption VT dan YouTube.
+  - `scheduler-uploader/package.json`: Mendaftarkan script command `"setup": "node setup.js"`.
+  - `scheduler-uploader/README.md`: Mendokumentasikan panduan interaktif dan sintaks caption/hashtag.
+
+## [6a9dcbf] - Add Randomized Content Pool and Instant GDrive File Move Workflow
 - **Konteks Struktural**:
   1. Arsitektur Antrean Fleksibel (Randomized Content Pool):
      - Mengembangkan mode antrean baru (`QUEUE_MODE=random`) di mana script secara acak memilih folder game/stream di dalam root Google Drive, lalu memilih secara acak klip video `.mp4` yang belum berlabel `[USED]`.
