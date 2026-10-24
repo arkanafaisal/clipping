@@ -73,6 +73,7 @@ export function useClipPlayer({
   const playStartClipTimeRef = useRef<number>(0);
   const isPlaybackActiveRef = useRef<boolean>(false);
   const linearClockTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stopGraceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastDispatchedSubtitleTextRef = useRef<string>('');
 
   useEffect(() => {
@@ -200,6 +201,7 @@ export function useClipPlayer({
       if (seekDebounceTimerRef.current) clearTimeout(seekDebounceTimerRef.current);
       if (seekSafetyTimeoutRef.current) clearTimeout(seekSafetyTimeoutRef.current);
       if (linearClockTimerRef.current) clearInterval(linearClockTimerRef.current);
+      if (stopGraceTimerRef.current) clearTimeout(stopGraceTimerRef.current);
       debouncedSeekTargetRef.current = null;
       isDebouncingSeekRef.current = false;
     };
@@ -232,6 +234,10 @@ export function useClipPlayer({
    * Menghentikan jam linier saat video dipause / distop, dan mengunci timestamp detik saat ini.
    */
   const stopLinearClock = useCallback(() => {
+    if (stopGraceTimerRef.current) {
+      clearTimeout(stopGraceTimerRef.current);
+      stopGraceTimerRef.current = null;
+    }
     isPlaybackActiveRef.current = false;
     if (linearClockTimerRef.current) {
       clearInterval(linearClockTimerRef.current);
@@ -267,6 +273,11 @@ export function useClipPlayer({
         return;
       }
 
+      if (stopGraceTimerRef.current) {
+        clearTimeout(stopGraceTimerRef.current);
+        stopGraceTimerRef.current = null;
+      }
+
       const currentActive = getActiveClip();
       const duration = currentActive.end - currentActive.start;
       const initialTime =
@@ -278,7 +289,11 @@ export function useClipPlayer({
       playStartWallTimeRef.current = Date.now();
       isPlaybackActiveRef.current = true;
 
-      // Evaluasi instan cue subtitle pada detik awal keberangkatan
+      // Cara 2 Catch-Up Instan: perbarui posisi UI seketika tanpa menunggu interval 50ms pertama
+      setCurrentClipTime(initialTime);
+      if (duration > 0) {
+        setProgressPercent(Math.max(0, Math.min(100, (initialTime / duration) * 100)));
+      }
       syncSubtitleCueAtTime(initialTime);
 
       if (linearClockTimerRef.current) {
@@ -506,6 +521,10 @@ export function useClipPlayer({
       const clampedRel = Math.max(0, Math.min(duration, targetRel));
 
       playStartClipTimeRef.current = clampedRel;
+      if (stopGraceTimerRef.current) {
+        clearTimeout(stopGraceTimerRef.current);
+        stopGraceTimerRef.current = null;
+      }
       stopLinearClock();
       setCurrentClipTime(clampedRel);
       if (duration > 0) {
@@ -595,6 +614,15 @@ export function useClipPlayer({
     const playingSub = player.addListener('playingChange', (payload: any) => {
       const isPlaying = payload?.isPlaying ?? player.playing;
       if (isPlaying) {
+        // Batalkan pending grace timer stop jika video melanjutkan pemutaran (micro-buffering recovery)
+        if (stopGraceTimerRef.current) {
+          clearTimeout(stopGraceTimerRef.current);
+          stopGraceTimerRef.current = null;
+        }
+
+        // Buka kembali lock seek target jika video sudah mulai berputar di native
+        pendingSeekTargetRef.current = null;
+
         // HANYA jalankan jika linear clock BELUM aktif!
         // Start jam linier tepat di detik saat video player mulai berputar di native ExoPlayer
         if (!isPlaybackActiveRef.current) {
@@ -622,7 +650,16 @@ export function useClipPlayer({
           startLinearClock(rel, true);
         }
       } else {
-        stopLinearClock();
+        // Redam micro-buffering (Cara 1): Berikan grace period 150ms sebelum mematikan jam linier.
+        // Jika ExoPlayer hanya buffering sesaat (misal < 100ms) lalu lanjut playing,
+        // jam linier tidak akan terbunuh/stuck di awal.
+        if (stopGraceTimerRef.current) {
+          clearTimeout(stopGraceTimerRef.current);
+        }
+        stopGraceTimerRef.current = setTimeout(() => {
+          stopLinearClock();
+          stopGraceTimerRef.current = null;
+        }, 150);
       }
     });
 
@@ -840,6 +877,10 @@ export function useClipPlayer({
     if (isContinueStateRef.current) {
       // Pindah dari continue ke pause: force pause jika video sedang berputar
       setIsContinueState(false);
+      if (stopGraceTimerRef.current) {
+        clearTimeout(stopGraceTimerRef.current);
+        stopGraceTimerRef.current = null;
+      }
       stopLinearClock();
       try {
         if (player.playing) player.pause();

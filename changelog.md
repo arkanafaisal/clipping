@@ -14,7 +14,24 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Decouple Linear Clock Start from Button Press to Native Playing Event & Restore Safe Buffer Options
+## [Unreleased] - Buffer Against Micro-Buffering Drops & Enable Instant Catch-Up on Playback Start
+- **Konteks Struktural**:
+  1. Redam Gangguan Micro-Buffering dengan Grace Period 150ms (`useClipPlayer.ts`):
+     - Menambahkan `stopGraceTimerRef` yang menahan penghentian jam linier selama 150ms ketika event `isPlaying === false` diterima dari ExoPlayer.
+     - Jika jeda tersebut hanya berupa micro-buffering/stutter awal pemutaran (< 150ms), saat status kembali menjadi `isPlaying === true`, timer pembatalan segera dibersihkan sehingga jam linier tidak terbunuh dan progress bar tidak membeku (stuck) di awal.
+     - Jeda manual dari pengguna (`togglePlayPause`) dan operasi seek (`centralizedSeek`) tetap mengeksekusi `stopLinearClock()` secara instan (0ms) tanpa grace period.
+  2. Kalibrasi Catch-Up Instan Saat Mulai Berjalan (`useClipPlayer.ts`):
+     - Pada `startLinearClock`, langsung memperbarui `currentClipTime` dan `progressPercent` secara seketika pada detik awal tanpa menunggu siklus interval 50ms pertama selesai.
+     - Menghapus sisa lock `pendingSeekTargetRef` segera setelah `isPlaying === true` terkonfirmasi aktif, sehingga sinkronisasi `timeUpdate` tidak terblokir.
+- **Perubahan Kode Penting**:
+  - `mobile/src/hooks/useClipPlayer.ts`:
+    - Menambahkan `stopGraceTimerRef` dan pembersihan di fungsi unmount cleanup.
+    - Di `stopLinearClock`: Membersihkan `stopGraceTimerRef` jika aktif sebelum menghentikan jam linier.
+    - Di `startLinearClock`: Menambahkan eksekusi instan `setCurrentClipTime(initialTime)` dan `setProgressPercent(...)`.
+    - Di listener `playingChange`: Membatalkan `stopGraceTimerRef` dan membersihkan `pendingSeekTargetRef` saat `isPlaying === true`; menerapkan penundaan 150ms dengan `setTimeout` sebelum memanggil `stopLinearClock()` saat `isPlaying === false`.
+    - Di `togglePlayPause` dan `centralizedSeek`: Memastikan `stopGraceTimerRef` segera dibatalkan agar aksi pengguna tetap responsif 0ms.
+
+## [7329cb0] - Decouple Linear Clock Start from Button Press to Native Playing Event & Restore Safe Buffer Options
 - **Konteks Struktural**:
   1. Restorasi Pengaman Buffer ExoPlayer (`useClipPlayer.ts`):
      - Mengembalikan nilai `bufferOptions` (`minBufferForPlayback: 2.0` detik dan `preferredForwardBufferDuration: 4.0` detik) pada kedua instance player (`player` dan `facecamPlayer`) agar video memiliki buffer yang memadai dan terhindar dari potensi lag/stutter pada perangkat Android.
