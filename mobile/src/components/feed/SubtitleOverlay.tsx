@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, View, Text, useWindowDimensions } from 'react-native';
 
 export interface SubtitleOverlayProps {
   isVisible: boolean;
-  subtitleText: string;
+  subtitleText?: string;
   fontSize?: number;
   positionX?: number; // Skala 0 - 100 terhadap lebar video player (default 50 = horizontal center)
   positionY?: number; // Skala 0 - 100 terhadap tinggi video player (default 85 = lower third)
+  subtitleListenerRef?: React.MutableRefObject<((text: string, fontSize?: number) => void) | null>;
 }
 
 // 8 arah offset untuk membentuk outline/border solid di sekeliling teks tanpa celah
@@ -23,12 +24,38 @@ const STROKE_OFFSETS = [
 
 export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = React.memo(({
   isVisible,
-  subtitleText,
-  fontSize = 14,
+  subtitleText: initialSubtitleText = '',
+  fontSize: initialFontSize = 14,
   positionX = 50,
   positionY = 85,
+  subtitleListenerRef,
 }) => {
   const { width: windowWidth } = useWindowDimensions();
+
+  // Isolasi state teks dan font size lokal:
+  // SubtitleOverlay memperbarui dirinya sendiri tanpa memicu re-render pada FeedScreen / VideoView
+  const [currentText, setCurrentText] = useState<string>(initialSubtitleText);
+  const [currentFontSize, setCurrentFontSize] = useState<number>(initialFontSize);
+  const lastNonEmptyTextRef = useRef<string>(' ');
+
+  useEffect(() => {
+    if (subtitleListenerRef) {
+      subtitleListenerRef.current = (text: string, size: number = 14) => {
+        setCurrentText(text);
+        setCurrentFontSize(size);
+      };
+      return () => {
+        subtitleListenerRef.current = null;
+      };
+    }
+  }, [subtitleListenerRef]);
+
+  useEffect(() => {
+    if (!subtitleListenerRef) {
+      setCurrentText(initialSubtitleText);
+      setCurrentFontSize(initialFontSize);
+    }
+  }, [initialSubtitleText, initialFontSize, subtitleListenerRef]);
 
   // Inisialisasi dimensi container langsung berbasis lebar layar & rasio 16:9 fixed
   // Menghilangkan jeda asinkron onLayout teks yang menyebabkan flicker/lompat posisi
@@ -39,7 +66,10 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = React.memo(({
 
   if (!isVisible) return null;
 
-  const hasText = Boolean(subtitleText && subtitleText.trim().length > 0);
+  const hasText = Boolean(currentText && currentText.trim().length > 0);
+  if (hasText) {
+    lastNonEmptyTextRef.current = currentText;
+  }
   const containerWidth = containerSize.width || windowWidth;
   const containerHeight = containerSize.height || (windowWidth * 9) / 16;
 
@@ -51,7 +81,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = React.memo(({
   const currentRefDim = Math.min(containerWidth, containerHeight);
   const baseViewportRef = (windowWidth * 9) / 16;
   const scaleFactor = baseViewportRef > 0 ? currentRefDim / baseViewportRef : 1;
-  const scaledFontSize = Math.max(8, Math.round(fontSize * scaleFactor));
+  const scaledFontSize = Math.max(8, Math.round(currentFontSize * scaleFactor));
   const lineHeight = Math.round(scaledFontSize * 1.35);
   const strokeScale = Math.max(0.8, scaleFactor);
 
@@ -62,10 +92,10 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = React.memo(({
   const translateX = ((positionX - 50) / 100) * containerWidth;
   const translateY = ((positionY - 50) / 100) * containerHeight;
 
-  // Pisahkan baris hanya jika ada teks dan explicit newline (\n).
-  const lines = hasText
-    ? subtitleText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
-    : [];
+  // Pertahankan layer Text yang sudah mounted di memory tanpa unmount/re-mount:
+  // Saat jeda bicara (hasText = false), container ber-opacity 0 dan teks terakhir tetap disimpan
+  const displayText = hasText ? currentText : lastNonEmptyTextRef.current;
+  const lines = displayText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
 
   // Menghilangkan duplikasi bayangan dobel pada emoji di 8 layer stroke belakang:
   // Karakter emoji disembunyikan (opacity: 0) pada layer stroke agar tidak memunculkan bayangan warna-warni,

@@ -92,7 +92,7 @@ export function useClipPlayer({
   // - bufferOptions: minBufferForPlayback: 0.05s memangkas delay inisialisasi decoder ExoPlayer dari default 2 detik menjadi 50ms!
   const player = useVideoPlayer(null, (p) => {
     p.loop = false;
-    p.timeUpdateEventInterval = 0.25;
+    p.timeUpdateEventInterval = 0.1;
     p.bufferOptions = {
       preferredForwardBufferDuration: 4.0,
       minBufferForPlayback: 2.0,
@@ -769,16 +769,18 @@ export function useClipPlayer({
           syncSubtitleCueAtTime(nativeRel, true);
         }
       } else {
-        // Mode Play: Untuk file lokal, biarkan progress bar berjalan 100% mulus sebagai animasi linier 0-X tanpa kalkulasi mundur/reset!
-        // Hanya kalibrasi jika mode stream online YouTube mengalami lag/stall jaringan ekstrem (> 1.5 detik)
-        if (playMode === 'stream' && playStartWallTimeRef.current !== null) {
+        // Mode Play: Sinkronisasi cerdas mid-flight (Phase-Locked Anchor Sync)
+        // Membandingkan posisi fisik hardware ExoPlayer dengan posisi animasi internal
+        if (playStartWallTimeRef.current !== null && duration > 0) {
           const now = Date.now();
           const rate = player?.playbackRate || 1.0;
           const elapsed = ((now - playStartWallTimeRef.current) / 1000) * rate;
           const currentInterpolated = playStartClipTimeRef.current + elapsed;
           const drift = Math.abs(nativeRel - currentInterpolated);
 
-          if (drift > 1.5) {
+          // Jika selisih waktu video vs animasi >= 80ms (0.08 detik),
+          // kalibrasi ulang trajectory animasi dan jam internal agar selalu terkunci rapat dengan audio/video asli!
+          if (drift >= 0.08) {
             playStartClipTimeRef.current = nativeRel;
             playStartWallTimeRef.current = Date.now();
             const p = Math.max(0, Math.min(100, (nativeRel / duration) * 100));
@@ -791,6 +793,7 @@ export function useClipPlayer({
               easing: Easing.linear,
               useNativeDriver: false,
             }).start();
+            syncSubtitleCueAtTime(nativeRel, false);
           }
         }
       }

@@ -334,132 +334,18 @@ export function useClipData({
   // - UI langsung ter-update secara instan 0ms tanpa animasi/delay
   // - Menggunakan clipsRef.current secara sinkron sehingga tidak terkena stale closure saat multi-klik cepat
   // - Seek video terpusat dieksekusi 1x setelah user berhenti menekan tombol (debounce 500ms trailing)
-  const handleUpdateStart = (delta: number) => {
-    const currentActiveId = activeClipIdRef.current || activeClipId;
+  const handleUpdateStart = useCallback(
+    (delta: number) => {
+      const currentActiveId = activeClipIdRef.current || activeClipId;
 
-    // Jika belum ada klip asli di workspace (sedang berinteraksi dengan visual fallback), konversi jadi klip custom
-    if (clipsRef.current.length === 0 || currentActiveId === FALLBACK_VIRTUAL_CLIP_ID) {
-      const targetStart = Math.max(0, Math.min(0 + delta, 15 - 1));
-      const newClip: ClipItem = {
-        id: `custom_${Date.now()}`,
-        rank: 'custom',
-        videoId,
-        start: targetStart,
-        end: 15,
-        status: 'none',
-        isCustom: true,
-      };
-      const updated = [newClip];
-      clipsRef.current = updated;
-      setClips(updated);
-      activeClipIdRef.current = newClip.id;
-      setActiveClipId(newClip.id);
-      LocalStorage.setItem(DRAFT_KEY, JSON.stringify(updated));
-      setProgressPercent(0);
-      setCurrentClipTime(0);
-      onSeek(targetStart, true);
-      return;
-    }
-
-    let targetStart = 0;
-    const updated = clipsRef.current.map((c) => {
-      if (c.id === currentActiveId) {
-        targetStart = Math.max(0, Math.min(c.start + delta, c.end - 1));
-        return { ...c, start: targetStart };
-      }
-      return c;
-    });
-    clipsRef.current = updated;
-    setClips(updated);
-
-    // Optimistic progress bar: langsung snap ke posisi awal klip (0%) seketika
-    setProgressPercent(0);
-    setCurrentClipTime(0);
-    onSeek(targetStart, true);
-  };
-
-  const handleUpdateEnd = (delta: number) => {
-    const currentActiveId = activeClipIdRef.current || activeClipId;
-
-    // Jika belum ada klip asli di workspace, konversi visual fallback jadi klip custom
-    if (clipsRef.current.length === 0 || currentActiveId === FALLBACK_VIRTUAL_CLIP_ID) {
-      const newEnd = Math.max(0 + 1, 15 + delta);
-      const targetSeek = Math.max(0, newEnd - 3);
-      const newClip: ClipItem = {
-        id: `custom_${Date.now()}`,
-        rank: 'custom',
-        videoId,
-        start: 0,
-        end: newEnd,
-        status: 'none',
-        isCustom: true,
-      };
-      const updated = [newClip];
-      clipsRef.current = updated;
-      setClips(updated);
-      activeClipIdRef.current = newClip.id;
-      setActiveClipId(newClip.id);
-      LocalStorage.setItem(DRAFT_KEY, JSON.stringify(updated));
-      if (newEnd > 0) {
-        const pct = Math.max(0, Math.min(100, (targetSeek / newEnd) * 100));
-        setProgressPercent(pct);
-        setCurrentClipTime(targetSeek);
-      }
-      onSeek(targetSeek, true);
-      return;
-    }
-
-    let targetSeek = 0;
-    let newEnd = 0;
-    const updated = clipsRef.current.map((c) => {
-      if (c.id === currentActiveId) {
-        newEnd = Math.max(c.start + 1, c.end + delta);
-        targetSeek = Math.max(c.start, newEnd - 3);
-        return { ...c, end: newEnd };
-      }
-      return c;
-    });
-    clipsRef.current = updated;
-    setClips(updated);
-
-    // Optimistic progress bar: langsung snap ke posisi preview akhir seketika tanpa delay
-    const active = updated.find((c) => c.id === currentActiveId);
-    if (active && active.end > active.start) {
-      const pct = Math.max(0, Math.min(100, ((targetSeek - active.start) / (active.end - active.start)) * 100));
-      setProgressPercent(pct);
-      const rel = Math.max(0, Math.min(active.end - active.start, targetSeek - active.start));
-      setCurrentClipTime(rel);
-    }
-
-    onSeek(targetSeek, true);
-  };
-
-  // Handler Edit Presisi Milidetik (Start / End)
-  // - Nilai input 1 digit otomatis dievaluasi sebagai ratusan (misal '6' -> '60' centiseconds = 600ms)
-  // - Nilai input 2 digit (misal '65' centiseconds = 650ms, digit ke-3 otomatis 0)
-  // - Seek otomatis mengikuti centralizedSeek yang sudah ter-debounce (500ms trailing)
-  const handleMsTimeChange = (type: 'start' | 'end', valStr: string) => {
-    const cleaned = valStr.replace(/[^0-9]/g, '').slice(0, 2);
-    setTempTimeValue(cleaned);
-
-    if (cleaned === '') return;
-
-    const msStr = cleaned.padEnd(2, '0').slice(0, 2);
-    const msValue = parseInt(msStr, 10);
-    if (isNaN(msValue)) return;
-
-    const currentActiveId = activeClipIdRef.current || activeClipId;
-
-    // Jika visual fallback diedit milidetiknya, konversi jadi klip custom
-    if (clipsRef.current.length === 0 || currentActiveId === FALLBACK_VIRTUAL_CLIP_ID) {
-      const safeMs = Math.max(0, Math.min(99, msValue));
-      if (type === 'start') {
-        const validStart = Math.max(0, Math.min(safeMs / 100, 15 - 0.1));
+      // Jika belum ada klip asli di workspace (sedang berinteraksi dengan visual fallback), konversi jadi klip custom
+      if (clipsRef.current.length === 0 || currentActiveId === FALLBACK_VIRTUAL_CLIP_ID) {
+        const targetStart = Math.max(0, Math.min(0 + delta, 15 - 1));
         const newClip: ClipItem = {
           id: `custom_${Date.now()}`,
           rank: 'custom',
           videoId,
-          start: validStart,
+          start: targetStart,
           end: 15,
           status: 'none',
           isCustom: true,
@@ -472,16 +358,43 @@ export function useClipData({
         LocalStorage.setItem(DRAFT_KEY, JSON.stringify(updated));
         setProgressPercent(0);
         setCurrentClipTime(0);
-        onSeek(validStart, true);
-      } else {
-        const validEnd = Math.max(0.1, 15 + safeMs / 100);
-        const targetSeek = Math.max(0, validEnd - 3);
+        onSeek(targetStart, true);
+        return;
+      }
+
+      let targetStart = 0;
+      const updated = clipsRef.current.map((c) => {
+        if (c.id === currentActiveId) {
+          targetStart = Math.max(0, Math.min(c.start + delta, c.end - 1));
+          return { ...c, start: targetStart };
+        }
+        return c;
+      });
+      clipsRef.current = updated;
+      setClips(updated);
+
+      // Optimistic progress bar: langsung snap ke posisi awal klip (0%) seketika
+      setProgressPercent(0);
+      setCurrentClipTime(0);
+      onSeek(targetStart, true);
+    },
+    [activeClipId, videoId, onSeek, setProgressPercent, setCurrentClipTime, setClips, setActiveClipId, clipsRef, activeClipIdRef]
+  );
+
+  const handleUpdateEnd = useCallback(
+    (delta: number) => {
+      const currentActiveId = activeClipIdRef.current || activeClipId;
+
+      // Jika belum ada klip asli di workspace, konversi visual fallback jadi klip custom
+      if (clipsRef.current.length === 0 || currentActiveId === FALLBACK_VIRTUAL_CLIP_ID) {
+        const newEnd = Math.max(0 + 1, 15 + delta);
+        const targetSeek = Math.max(0, newEnd - 3);
         const newClip: ClipItem = {
           id: `custom_${Date.now()}`,
           rank: 'custom',
           videoId,
           start: 0,
-          end: validEnd,
+          end: newEnd,
           status: 'none',
           isCustom: true,
         };
@@ -491,46 +404,29 @@ export function useClipData({
         activeClipIdRef.current = newClip.id;
         setActiveClipId(newClip.id);
         LocalStorage.setItem(DRAFT_KEY, JSON.stringify(updated));
-        if (validEnd > 0) {
-          const pct = Math.max(0, Math.min(100, (targetSeek / validEnd) * 100));
+        if (newEnd > 0) {
+          const pct = Math.max(0, Math.min(100, (targetSeek / newEnd) * 100));
           setProgressPercent(pct);
           setCurrentClipTime(targetSeek);
         }
         onSeek(targetSeek, true);
+        return;
       }
-      return;
-    }
 
-    const currentClip = clipsRef.current.find((c) => c.id === currentActiveId);
-    if (!currentClip) return;
-
-    const baseSeconds = Math.floor(type === 'start' ? currentClip.start : currentClip.end);
-    const safeMs = Math.max(0, Math.min(99, msValue));
-    const newFinalValue = baseSeconds + safeMs / 100;
-
-    let targetSeek = 0;
-    const updated = clipsRef.current.map((c) => {
-      if (c.id === currentActiveId) {
-        if (type === 'start') {
-          const validStart = Math.max(0, Math.min(newFinalValue, c.end - 0.1));
-          targetSeek = validStart;
-          return { ...c, start: validStart };
-        } else {
-          const validEnd = Math.max(c.start + 0.1, newFinalValue);
-          targetSeek = Math.max(c.start, validEnd - 3);
-          return { ...c, end: validEnd };
+      let targetSeek = 0;
+      let newEnd = 0;
+      const updated = clipsRef.current.map((c) => {
+        if (c.id === currentActiveId) {
+          newEnd = Math.max(c.start + 1, c.end + delta);
+          targetSeek = Math.max(c.start, newEnd - 3);
+          return { ...c, end: newEnd };
         }
-      }
-      return c;
-    });
+        return c;
+      });
+      clipsRef.current = updated;
+      setClips(updated);
 
-    clipsRef.current = updated;
-    setClips(updated);
-
-    if (type === 'start') {
-      setProgressPercent(0);
-      setCurrentClipTime(0);
-    } else {
+      // Optimistic progress bar: langsung snap ke posisi preview akhir seketika tanpa delay
       const active = updated.find((c) => c.id === currentActiveId);
       if (active && active.end > active.start) {
         const pct = Math.max(0, Math.min(100, ((targetSeek - active.start) / (active.end - active.start)) * 100));
@@ -538,10 +434,123 @@ export function useClipData({
         const rel = Math.max(0, Math.min(active.end - active.start, targetSeek - active.start));
         setCurrentClipTime(rel);
       }
-    }
 
-    onSeek(targetSeek, true);
-  };
+      onSeek(targetSeek, true);
+    },
+    [activeClipId, videoId, onSeek, setProgressPercent, setCurrentClipTime, setClips, setActiveClipId, clipsRef, activeClipIdRef]
+  );
+
+  // Handler Edit Presisi Milidetik (Start / End)
+  // - Nilai input 1 digit otomatis dievaluasi sebagai ratusan (misal '6' -> '60' centiseconds = 600ms)
+  // - Nilai input 2 digit (misal '65' centiseconds = 650ms, digit ke-3 otomatis 0)
+  // - Seek otomatis mengikuti centralizedSeek yang sudah ter-debounce (500ms trailing)
+  const handleMsTimeChange = useCallback(
+    (type: 'start' | 'end', valStr: string) => {
+      const cleaned = valStr.replace(/[^0-9]/g, '').slice(0, 2);
+      setTempTimeValue(cleaned);
+
+      if (cleaned === '') return;
+
+      const msStr = cleaned.padEnd(2, '0').slice(0, 2);
+      const msValue = parseInt(msStr, 10);
+      if (isNaN(msValue)) return;
+
+      const currentActiveId = activeClipIdRef.current || activeClipId;
+
+      // Jika visual fallback diedit milidetiknya, konversi jadi klip custom
+      if (clipsRef.current.length === 0 || currentActiveId === FALLBACK_VIRTUAL_CLIP_ID) {
+        const safeMs = Math.max(0, Math.min(99, msValue));
+        if (type === 'start') {
+          const validStart = Math.max(0, Math.min(safeMs / 100, 15 - 0.1));
+          const newClip: ClipItem = {
+            id: `custom_${Date.now()}`,
+            rank: 'custom',
+            videoId,
+            start: validStart,
+            end: 15,
+            status: 'none',
+            isCustom: true,
+          };
+          const updated = [newClip];
+          clipsRef.current = updated;
+          setClips(updated);
+          activeClipIdRef.current = newClip.id;
+          setActiveClipId(newClip.id);
+          LocalStorage.setItem(DRAFT_KEY, JSON.stringify(updated));
+          setProgressPercent(0);
+          setCurrentClipTime(0);
+          onSeek(validStart, true);
+        } else {
+          const validEnd = Math.max(0.1, 15 + safeMs / 100);
+          const targetSeek = Math.max(0, validEnd - 3);
+          const newClip: ClipItem = {
+            id: `custom_${Date.now()}`,
+            rank: 'custom',
+            videoId,
+            start: 0,
+            end: validEnd,
+            status: 'none',
+            isCustom: true,
+          };
+          const updated = [newClip];
+          clipsRef.current = updated;
+          setClips(updated);
+          activeClipIdRef.current = newClip.id;
+          setActiveClipId(newClip.id);
+          LocalStorage.setItem(DRAFT_KEY, JSON.stringify(updated));
+          if (validEnd > 0) {
+            const pct = Math.max(0, Math.min(100, (targetSeek / validEnd) * 100));
+            setProgressPercent(pct);
+            setCurrentClipTime(targetSeek);
+          }
+          onSeek(targetSeek, true);
+        }
+        return;
+      }
+
+      const currentClip = clipsRef.current.find((c) => c.id === currentActiveId);
+      if (!currentClip) return;
+
+      const baseSeconds = Math.floor(type === 'start' ? currentClip.start : currentClip.end);
+      const safeMs = Math.max(0, Math.min(99, msValue));
+      const newFinalValue = baseSeconds + safeMs / 100;
+
+      let targetSeek = 0;
+      const updated = clipsRef.current.map((c) => {
+        if (c.id === currentActiveId) {
+          if (type === 'start') {
+            const validStart = Math.max(0, Math.min(newFinalValue, c.end - 0.1));
+            targetSeek = validStart;
+            return { ...c, start: validStart };
+          } else {
+            const validEnd = Math.max(c.start + 0.1, newFinalValue);
+            targetSeek = Math.max(c.start, validEnd - 3);
+            return { ...c, end: validEnd };
+          }
+        }
+        return c;
+      });
+
+      clipsRef.current = updated;
+      setClips(updated);
+
+      if (type === 'start') {
+        setProgressPercent(0);
+        setCurrentClipTime(0);
+      } else {
+        const active = updated.find((c) => c.id === currentActiveId);
+        if (active && active.end > active.start) {
+          const pct = Math.max(0, Math.min(100, ((targetSeek - active.start) / (active.end - active.start)) * 100));
+          setProgressPercent(pct);
+          const rel = Math.max(0, Math.min(active.end - active.start, targetSeek - active.start));
+          setCurrentClipTime(rel);
+        }
+      }
+
+      onSeek(targetSeek, true);
+    },
+    [activeClipId, videoId, onSeek, setProgressPercent, setCurrentClipTime, setClips, setActiveClipId, setTempTimeValue, clipsRef, activeClipIdRef]
+  );
 
   // Switch klip langsung instan (tanpa debounce) khusus carousel klip
   const handleSelectClip = useCallback(
@@ -581,7 +590,7 @@ export function useClipData({
   );
 
   // Toggle clip Done status (hijau)
-  const handleToggleDone = async () => {
+  const handleToggleDone = useCallback(async () => {
     const currentActiveId = activeClipIdRef.current || activeClipId;
 
     // Jika visual fallback ditandai done, konversi menjadi klip custom selesai
@@ -650,10 +659,10 @@ export function useClipData({
         });
       }
     }
-  };
+  }, [activeClipId, videoId, onUpdateWorkshopDone, setClips, setActiveClipId, syncPlayerSourceForClip, currentSourceUriRef, downloadedClipsRef, setDownloadedClips, clipsRef, activeClipIdRef]);
 
   // Toggle clip Trash/Skip status (merah)
-  const handleToggleTrash = () => {
+  const handleToggleTrash = useCallback(() => {
     const currentActiveId = activeClipIdRef.current || activeClipId;
 
     if (clipsRef.current.length === 0 || currentActiveId === FALLBACK_VIRTUAL_CLIP_ID) {
@@ -697,7 +706,7 @@ export function useClipData({
     });
     clipsRef.current = updated;
     setClips(updated);
-  };
+  }, [activeClipId, handleSelectClip, setClips, clipsRef, activeClipIdRef]);
 
   // Tambah Rentang Klip Custom dari pengguna
   const handleAddCustomClip = (start: number, end: number) => {

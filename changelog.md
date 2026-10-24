@@ -14,7 +14,33 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Eliminate Cue Boundary Freeze and Staticize Subtitle Cue Pills
+## [Unreleased] - Isolate Subtitle Overlay and Implement Continuous Mid-Flight Playback Calibration
+- **Konteks Struktural**:
+  1. Isolasi Total Subtitle Overlay (`SubtitleOverlay.tsx`, `FeedScreen.tsx`):
+     - Memindahkan pengelolaan teks dan ukuran font subtitle (`activeSubtitleText`, `activeSubtitleFontSize`) dari state induk `FeedScreen` langsung ke dalam `SubtitleOverlay` melalui `subtitleListenerRef`.
+     - Saat teks subtitle masuk atau keluar di setiap kalimat, HANYA `SubtitleOverlay` yang memperbarui tampilannya secara lokal. `FeedScreen`, `FeedTopControls`, dan native `VideoView` kini mengalami **0 re-render**, melenyapkan jeda/freeze pada pergantian subtitle.
+  2. Persistensi View 9 Layer Teks Stroke (`SubtitleOverlay.tsx`):
+     - Mempertahankan ke-9 elemen native `Text` (8 stroke layer + 1 foreground) tetap terpasang di memori native saat jeda bicara (`hasText = false`) menggunakan kontrol `opacity: 0` alih-alih menghancurkan/membuat ulang (`unmount/mount`) array baris teks, menghilangkan beban alokasi memori teks dan reflow grafis Android.
+  3. Memoisasi Callback Sisa Data Klip (`useClipData.ts`):
+     - Membungkus seluruh fungsi manipulasi klip (`handleUpdateStart`, `handleUpdateEnd`, `handleMsTimeChange`, `handleToggleDone`, `handleToggleTrash`) dengan `useCallback` agar referensi fungsinya stabil dan `FeedTopControls` terlindungi dari re-render eksternal.
+  4. Sinkronisasi Cerdas Mid-Flight Berkelanjutan (`useClipPlayer.ts`):
+     - Mempercepat interval event native `timeUpdateEventInterval` ExoPlayer dari 0.25s (250ms) menjadi 0.1s (100ms).
+     - Menghapus pembatasan mode (kini berlaku untuk file lokal offline maupun stream online) dan menerapkan threshold cerdas: jika selisih waktu video fisik vs animasi internal $\ge$ 80ms (0.08 detik), sistem mengalibrasi ulang titik jangkar dan trajectory animasi secara langsung tanpa menyentuh React State. Jarum needle, progress bar, dan angka waktu selalu terkunci presisi 1:1 dengan audio/video asli tanpa meleset.
+- **Perubahan Kode Penting**:
+  - `mobile/src/components/feed/SubtitleOverlay.tsx`:
+    - Menambahkan prop `subtitleListenerRef`.
+    - Mengelola `currentText` dan `currentFontSize` secara internal.
+    - Menyimpan teks terakhir pada `lastNonEmptyTextRef` agar 9 layer teks tetap terpasang di memori native dengan `opacity: 0`.
+  - `mobile/src/components/FeedScreen.tsx`:
+    - Menghubungkan `setActiveSubtitleTextRef` langsung ke `subtitleListenerRef` tanpa mengubah state `FeedScreen`.
+    - Meneruskan `subtitleListenerRef` ke `SubtitleOverlay`.
+  - `mobile/src/hooks/useClipData.ts`:
+    - Membungkus `handleUpdateStart`, `handleUpdateEnd`, `handleMsTimeChange`, `handleToggleDone`, dan `handleToggleTrash` dengan `useCallback`.
+  - `mobile/src/hooks/useClipPlayer.ts`:
+    - Mengubah `timeUpdateEventInterval` menjadi 0.1s.
+    - Menambahkan kalibrasi anchor mid-flight saat drift $\ge$ 0.08s pada mode playback aktif.
+
+## [a29c020] - Eliminate Cue Boundary Freeze and Staticize Subtitle Cue Pills
 - **Konteks Struktural**:
   1. Staticisasi Murni Kotak Subtitle Cue (`FeedTopControls.tsx`):
      - Menghapus prop `isSelected` dan segala efek perubahan border serta warna pada komponen `SubtitleCuePill`. Kotak cue kini berstatus murni statis (`React.memo`) dengan warna selang-seling genap/ganjil tanpa kalkulasi border (`borderWidth: 0`), mengeliminasi 100% beban rasterisasi border dan restrukturisasi style native Android.

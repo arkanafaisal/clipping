@@ -52,7 +52,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
   const setActiveSubtitleTextRef = useRef<(text: string, fontSize?: number) => void>(() => {});
   const setActiveCueIdRef = useRef<(cueId: string | null) => void>(() => {});
   const activeEditorModeRef = useRef<EditorMode>(null);
-  const [activeSubtitleFontSize, setActiveSubtitleFontSize] = useState<number>(14);
+  const subtitleListenerRef = useRef<((text: string, fontSize?: number) => void) | null>(null);
 
   // Modal dialog states
   const [isCustomModalVisible, setIsCustomModalVisible] = useState(false);
@@ -243,11 +243,12 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
 
   useEffect(() => {
     setActiveSubtitleTextRef.current = (text: string, fontSize: number = 14) => {
-      setActiveSubtitleText(text);
-      setActiveSubtitleFontSize(fontSize);
+      if (subtitleListenerRef.current) {
+        subtitleListenerRef.current(text, fontSize);
+      }
     };
     setActiveCueIdRef.current = setSelectedCueId;
-  }, [setActiveSubtitleText, setSelectedCueId]);
+  }, [setSelectedCueId]);
 
   const [activeEditorMode, setActiveEditorMode] = useState<EditorMode>(null);
 
@@ -555,10 +556,9 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
               {/* Subtitle Overlay: Selalu dirender relatif terhadap Canvas Wrapper luar */}
               <SubtitleOverlay
                 isVisible={isSubtitleVisible}
-                subtitleText={activeSubtitleText}
-                fontSize={activeSubtitleFontSize}
                 positionX={subtitlePosition.x}
                 positionY={subtitlePosition.y}
+                subtitleListenerRef={subtitleListenerRef}
               />
 
               {/* Watermark Overlay: Selalu dirender relatif terhadap Canvas Wrapper luar */}
