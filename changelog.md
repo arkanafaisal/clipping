@@ -14,7 +14,38 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Implement Dynamic Stream Offset with 0.25s Floor and 1.0s Cap
+## [Unreleased] - Support Global Watermark Template with Custom Position, Size, and Text
+- **Konteks Struktural**:
+  1. Penambahan Template Watermark Global (`api.ts`, `useClipTemplate.ts`):
+     - Menambahkan konfigurasi elemen `watermark` pada `ClipTemplateConfig` dan `VideoGlobalConfig` dengan parameter `enabled`, `text`, `size`, `x`, dan `y`.
+     - Konfigurasi watermark dikelola secara global di tingkat video (`video_config.json` dan in-memory map) sehingga input teks, ukuran, dan posisi otomatis berlaku serentak pada seluruh klip dalam video yang sama.
+     - Posisi `x` (0-100%) dan `y` (0-100%) dihitung relatif terhadap seluruh kontainer kanvas luar (*outer canvas container*) video, bukan terikat pada sub-pemutar tertentu.
+  2. Komponen Overlay Pratinjau Watermark (`WatermarkOverlay.tsx`, `FeedScreen.tsx`):
+     - Merender teks watermark di atas kontainer kanvas luar dengan 8 arah stroke outline kontras tinggi agar teks selalu terbaca jelas di atas video terang maupun gelap.
+     - Menyesuaikan ukuran font secara proporsional terhadap dimensi terpendek kontainer canvas (identik 1:1 dengan sistem penskalaan subtitle).
+  3. Antarmuka Pengaturan Watermark (`FeedTopControls.tsx`):
+     - Menambahkan tombol aksi Watermark pada deretan kontrol template editor klip.
+     - Menyediakan modal pengaturan dengan toggle aktivasi, input teks watermark, tombol preset ukuran font (12, 14, 16, 18, 20 dp), tombol preset posisi cepat (Kiri Atas, Kanan Atas, Kiri Bawah, Kanan Bawah), serta input manual koordinat X dan Y (0-100%).
+  4. Komposisi Burn-In Watermark pada Ekspor Video FFmpeg (`subtitle_burner.py`):
+     - Membakar watermark permanen ke dalam file video hasil ekspor menggunakan filter `drawtext` pada tahap perakitan filtergraph 1-pass.
+     - Menghitung koordinat piksel secara proporsional terhadap resolusi canvas video akhir (`w-text_w` dan `h-text_h`) dengan border hitam pelindung.
+- **Perubahan Kode Penting**:
+  - `mobile/src/services/api.ts`:
+    - Menambahkan `watermark` pada `ClipTemplateConfig`, `DEFAULT_TEMPLATE_CONFIG`, dan `VideoGlobalConfig`.
+  - `mobile/src/hooks/useClipTemplate.ts`:
+    - Mengintegrasikan pembacaan dan penyimpanan watermark global serta menyediakan handler `handleUpdateWatermark`.
+  - `mobile/src/hooks/useClipSubtitle.ts`:
+    - Menyertakan konfigurasi watermark dalam resolusi `activeTemplateConfig` dan pengecekan `hasTemplate`.
+  - `mobile/src/components/feed/WatermarkOverlay.tsx`:
+    - Membuat komponen overlay watermark dengan 8 arah outline dan positioning dinamis relatif terhadap canvas luar.
+  - `mobile/src/components/FeedScreen.tsx`:
+    - Menghubungkan handler watermark ke `FeedTopControls` dan merender `WatermarkOverlay` pada kanvas luar.
+  - `mobile/src/components/feed/FeedTopControls.tsx`:
+    - Menambahkan tombol aksi Watermark dan modal pengaturan interaktif dengan preset posisi/ukuran.
+  - `mobile/scripts/utils/subtitle_burner.py`:
+    - Menambahkan filter `drawtext` watermark pada `generate_template_filtergraph` dan pemeriksaan `has_template`.
+
+## [f6c258a] - Implement Dynamic Stream Offset with 0.25s Floor and 1.0s Cap
 - **Konteks Struktural**:
   1. Kompensasi Offset Dinamis pada Pemotongan Stream Online (`clip_downloader.py`):
      - Menggantikan nilai offset statis 0.5s (+-500ms) pada mode stream online menjadi kompensasi dinamis: `stream_offset = min(1.0, max(0.25, chunk_n * 0.0005))`.

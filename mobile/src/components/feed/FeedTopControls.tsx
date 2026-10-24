@@ -26,6 +26,7 @@ import {
   Camera,
   Gamepad2,
   SlidersHorizontal,
+  Stamp,
 } from 'lucide-react-native';
 import { ClipItem, SubtitleCue, ClipTemplateConfig } from '../../services/api';
 import { formatTimeWithMs, formatDisplayTime } from './timeUtils';
@@ -90,6 +91,7 @@ export interface FeedTopControlsProps {
   onUpdateContext?: (updates: Partial<ClipTemplateConfig['context']>) => void;
   onUpdateFacecam?: (updates: Partial<ClipTemplateConfig['facecam']>) => void;
   onUpdateMainVideo?: (updates: Partial<ClipTemplateConfig['mainVideo']>) => void;
+  onUpdateWatermark?: (updates: Partial<ClipTemplateConfig['watermark']>) => void;
   activeTimeEdit: 'start' | 'end' | null;
   tempTimeValue: string;
   getDownloadProgressLabel: (info?: { stage: string; code: string; percent: number }) => string;
@@ -135,6 +137,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
   onUpdateContext,
   onUpdateFacecam,
   onUpdateMainVideo,
+  onUpdateWatermark,
   activeTimeEdit,
   tempTimeValue,
   getDownloadProgressLabel,
@@ -193,12 +196,20 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
   const [showContextModal, setShowContextModal] = useState<boolean>(false);
   const [showFacecamModal, setShowFacecamModal] = useState<boolean>(false);
   const [showMainVideoModal, setShowMainVideoModal] = useState<boolean>(false);
+  const [showWatermarkModal, setShowWatermarkModal] = useState<boolean>(false);
 
   // Temp states untuk modal Elemen Konteks
   const [tempContextEnabled, setTempContextEnabled] = useState<boolean>(false);
   const [tempContextText, setTempContextText] = useState<string>('');
   const [tempContextFontSize, setTempContextFontSize] = useState<string>('16');
   const [tempContextPaddingY, setTempContextPaddingY] = useState<string>('10');
+
+  // Temp states untuk modal Elemen Watermark
+  const [tempWatermarkEnabled, setTempWatermarkEnabled] = useState<boolean>(false);
+  const [tempWatermarkText, setTempWatermarkText] = useState<string>('');
+  const [tempWatermarkSize, setTempWatermarkSize] = useState<string>('14');
+  const [tempWatermarkX, setTempWatermarkX] = useState<string>('85');
+  const [tempWatermarkY, setTempWatermarkY] = useState<string>('15');
 
   // Temp states untuk modal Elemen Facecam
   const [tempFacecamEnabled, setTempFacecamEnabled] = useState<boolean>(false);
@@ -238,6 +249,17 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
       setTempMainCropY(String(templateConfig.mainVideo.cropY));
     }
     setShowMainVideoModal(true);
+  };
+
+  const openWatermarkModal = () => {
+    if (templateConfig) {
+      setTempWatermarkEnabled(templateConfig.watermark?.enabled ?? false);
+      setTempWatermarkText(templateConfig.watermark?.text ?? '');
+      setTempWatermarkSize(String(templateConfig.watermark?.size ?? 14));
+      setTempWatermarkX(String(templateConfig.watermark?.x ?? 85));
+      setTempWatermarkY(String(templateConfig.watermark?.y ?? 15));
+    }
+    setShowWatermarkModal(true);
   };
 
   const clipDuration = Math.max(0.1, activeClip.end - activeClip.start);
@@ -979,6 +1001,30 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                   >
                     <Gamepad2 size={15} color="#38bdf8" />
                     <Text style={styles.templateActionBtnText}>Gameplay</Text>
+                  </Pressable>
+
+                  {/* 4. Tombol Watermark */}
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.templateActionBtn,
+                      templateConfig?.watermark?.enabled && styles.templateBtnActive,
+                      pressed && { opacity: 0.6 },
+                    ]}
+                    onPress={openWatermarkModal}
+                    hitSlop={6}
+                  >
+                    <Stamp
+                      size={15}
+                      color={templateConfig?.watermark?.enabled ? '#38bdf8' : 'rgba(255, 255, 255, 0.7)'}
+                    />
+                    <Text
+                      style={[
+                        styles.templateActionBtnText,
+                        templateConfig?.watermark?.enabled && styles.templateActionBtnTextActive,
+                      ]}
+                    >
+                      Watermark
+                    </Text>
                   </Pressable>
                 </View>
               </View>
@@ -1903,6 +1949,190 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                     cropY: Math.max(0, Math.min(100, parseInt(tempMainCropY, 10) || 50)),
                   });
                   setShowMainVideoModal(false);
+                }}
+              >
+                <Text style={styles.modalSaveBtnText}>Simpan</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* MODAL: Modal Elemen Watermark */}
+      <Modal
+        visible={showWatermarkModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowWatermarkModal(false)}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={() => setShowWatermarkModal(false)}>
+          <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalHeaderLeft}>
+                <Stamp size={18} color="#38bdf8" />
+                <Text style={styles.modalTitle}>Pengaturan Watermark</Text>
+              </View>
+              <Pressable
+                style={({ pressed }) => [styles.modalCloseBtn, pressed && { opacity: 0.6 }]}
+                onPress={() => setShowWatermarkModal(false)}
+                hitSlop={8}
+              >
+                <X size={18} color="#94a3b8" />
+              </Pressable>
+            </View>
+
+            {/* Toggle Aktif */}
+            <Pressable
+              style={[
+                styles.templateToggleRow,
+                tempWatermarkEnabled && styles.templateToggleRowActive,
+              ]}
+              onPress={() => setTempWatermarkEnabled((p) => !p)}
+            >
+              <Text style={styles.templateToggleLabel}>Tampilkan Watermark</Text>
+              <View
+                style={[
+                  styles.templateToggleSwitch,
+                  tempWatermarkEnabled && styles.templateToggleSwitchActive,
+                ]}
+              >
+                <View
+                  style={[
+                    styles.templateToggleKnob,
+                    tempWatermarkEnabled && styles.templateToggleKnobActive,
+                  ]}
+                />
+              </View>
+            </Pressable>
+
+            {/* Input Teks Watermark */}
+            <View style={styles.posSectionContainer}>
+              <Text style={styles.timeSectionLabel}>TEKS WATERMARK</Text>
+              <TextInput
+                style={styles.modalSingleInput}
+                value={tempWatermarkText}
+                onChangeText={setTempWatermarkText}
+                placeholder="Contoh: @channel_kamu"
+                placeholderTextColor="rgba(255, 255, 255, 0.4)"
+                autoCapitalize="none"
+                selectTextOnFocus
+              />
+            </View>
+
+            {/* Input Ukuran Font Size */}
+            <View style={styles.posSectionContainer}>
+              <Text style={styles.timeSectionLabel}>UKURAN WATERMARK (DP)</Text>
+              <View style={styles.posPresetGroup}>
+                {['12', '14', '16', '18', '20'].map((val) => (
+                  <Pressable
+                    key={val}
+                    style={[
+                      styles.posPresetBtn,
+                      tempWatermarkSize === val && styles.posPresetBtnActive,
+                    ]}
+                    onPress={() => setTempWatermarkSize(val)}
+                  >
+                    <Text
+                      style={[
+                        styles.posPresetText,
+                        tempWatermarkSize === val && styles.posPresetTextActive,
+                      ]}
+                    >
+                      {val}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            {/* Input Posisi X, Y (Terhadap Container Luar) */}
+            <View style={styles.posSectionContainer}>
+              <Text style={styles.timeSectionLabel}>POSISI (X, Y) RELATIF CONTAINER LUAR</Text>
+              
+              {/* Presets Posisi Cepat */}
+              <View style={styles.posPresetGroup}>
+                {[
+                  { label: 'Kiri Atas', x: '15', y: '10' },
+                  { label: 'Kanan Atas', x: '85', y: '10' },
+                  { label: 'Kiri Bawah', x: '15', y: '90' },
+                  { label: 'Kanan Bawah', x: '85', y: '90' },
+                ].map((preset) => (
+                  <Pressable
+                    key={preset.label}
+                    style={[
+                      styles.posPresetBtn,
+                      tempWatermarkX === preset.x && tempWatermarkY === preset.y && styles.posPresetBtnActive,
+                    ]}
+                    onPress={() => {
+                      setTempWatermarkX(preset.x);
+                      setTempWatermarkY(preset.y);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.posPresetText,
+                        tempWatermarkX === preset.x && tempWatermarkY === preset.y && styles.posPresetTextActive,
+                        { fontSize: 10 },
+                      ]}
+                    >
+                      {preset.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              <View style={[styles.cropCoordinatesRow, { marginTop: 8 }]}>
+                <View style={styles.cropCoordinateBox}>
+                  <Text style={styles.coordinatePrefixLabel}>X</Text>
+                  <TextInput
+                    style={styles.coordinateInput}
+                    value={tempWatermarkX}
+                    onChangeText={setTempWatermarkX}
+                    keyboardType="numeric"
+                    placeholder="85"
+                    placeholderTextColor="rgba(255, 255, 255, 0.3)"
+                    selectTextOnFocus
+                  />
+                  <Text style={styles.coordinateSuffixUnit}>%</Text>
+                </View>
+                <View style={styles.cropCoordinateBox}>
+                  <Text style={styles.coordinatePrefixLabel}>Y</Text>
+                  <TextInput
+                    style={styles.coordinateInput}
+                    value={tempWatermarkY}
+                    onChangeText={setTempWatermarkY}
+                    keyboardType="numeric"
+                    placeholder="15"
+                    placeholderTextColor="rgba(255, 255, 255, 0.3)"
+                    selectTextOnFocus
+                  />
+                  <Text style={styles.coordinateSuffixUnit}>%</Text>
+                </View>
+              </View>
+              <Text style={styles.cropCoordinatesHint}>
+                0% = Kiri / Atas, 50% = Tengah, 100% = Kanan / Bawah
+              </Text>
+            </View>
+
+            {/* Footer Buttons */}
+            <View style={styles.modalActionsRow}>
+              <Pressable
+                style={({ pressed }) => [styles.modalCancelBtn, pressed && { opacity: 0.7 }]}
+                onPress={() => setShowWatermarkModal(false)}
+              >
+                <Text style={styles.modalCancelBtnText}>Batal</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [styles.modalSaveBtn, pressed && { opacity: 0.8 }]}
+                onPress={() => {
+                  onUpdateWatermark?.({
+                    enabled: tempWatermarkEnabled,
+                    text: tempWatermarkText.trim(),
+                    size: Math.max(8, Math.min(40, parseInt(tempWatermarkSize, 10) || 14)),
+                    x: Math.max(0, Math.min(100, parseFloat(tempWatermarkX) || 85)),
+                    y: Math.max(0, Math.min(100, parseFloat(tempWatermarkY) || 15)),
+                  });
+                  setShowWatermarkModal(false);
                 }}
               >
                 <Text style={styles.modalSaveBtnText}>Simpan</Text>

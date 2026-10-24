@@ -389,7 +389,12 @@ export function useClipSubtitle({
 
     // 3. Resolusi Konfigurasi Template (Memory State atau Disk Fallback)
     let activeTemplateConfig = templateConfig;
-    if (!activeTemplateConfig || (!activeTemplateConfig.context.enabled && !activeTemplateConfig.facecam.enabled)) {
+    if (
+      !activeTemplateConfig ||
+      (!activeTemplateConfig.context.enabled &&
+        !activeTemplateConfig.facecam.enabled &&
+        !activeTemplateConfig.watermark?.enabled)
+    ) {
       try {
         const savedTemplate = await loadClipTemplate(activeClip.videoId, activeClip.start, activeClip.end);
         const globalConfig = await loadVideoGlobalConfig(activeClip.videoId);
@@ -409,13 +414,24 @@ export function useClipSubtitle({
               cropX: globalConfig?.mainVideo?.cropX ?? savedTemplate?.mainVideo?.cropX ?? DEFAULT_TEMPLATE_CONFIG.mainVideo.cropX,
               cropY: globalConfig?.mainVideo?.cropY ?? savedTemplate?.mainVideo?.cropY ?? DEFAULT_TEMPLATE_CONFIG.mainVideo.cropY,
             },
+            watermark: {
+              ...DEFAULT_TEMPLATE_CONFIG.watermark,
+              enabled: globalConfig?.watermark?.enabled ?? savedTemplate?.watermark?.enabled ?? false,
+              text: globalConfig?.watermark?.text ?? savedTemplate?.watermark?.text ?? '',
+              size: globalConfig?.watermark?.size ?? savedTemplate?.watermark?.size ?? DEFAULT_TEMPLATE_CONFIG.watermark.size,
+              x: globalConfig?.watermark?.x ?? savedTemplate?.watermark?.x ?? DEFAULT_TEMPLATE_CONFIG.watermark.x,
+              y: globalConfig?.watermark?.y ?? savedTemplate?.watermark?.y ?? DEFAULT_TEMPLATE_CONFIG.watermark.y,
+            },
           };
         }
       } catch (e) {}
     }
 
     const hasTemplate = Boolean(
-      activeTemplateConfig && (activeTemplateConfig.facecam?.enabled || activeTemplateConfig.context?.enabled)
+      activeTemplateConfig &&
+        (activeTemplateConfig.facecam?.enabled ||
+          activeTemplateConfig.context?.enabled ||
+          (activeTemplateConfig.watermark?.enabled && Boolean(activeTemplateConfig.watermark?.text?.trim())))
     );
 
     if ((!currentCues || currentCues.length === 0) && !hasTemplate) {

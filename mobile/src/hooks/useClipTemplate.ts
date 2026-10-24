@@ -70,14 +70,26 @@ export function useClipTemplate({ videoId, activeClip, isDownloaded }: UseClipTe
             text: clipSaved?.context?.text ?? '',
           };
 
+          // 4. Elemen Watermark:
+          // Global tingkat video: enabled, text, size, x, y (mewarisi global video config)
+          const mergedWatermark = {
+            ...DEFAULT_TEMPLATE_CONFIG.watermark,
+            enabled: globalConf?.watermark?.enabled ?? clipSaved?.watermark?.enabled ?? false,
+            text: globalConf?.watermark?.text ?? clipSaved?.watermark?.text ?? '',
+            size: globalConf?.watermark?.size ?? clipSaved?.watermark?.size ?? DEFAULT_TEMPLATE_CONFIG.watermark.size,
+            x: globalConf?.watermark?.x ?? clipSaved?.watermark?.x ?? DEFAULT_TEMPLATE_CONFIG.watermark.x,
+            y: globalConf?.watermark?.y ?? clipSaved?.watermark?.y ?? DEFAULT_TEMPLATE_CONFIG.watermark.y,
+          };
+
           const merged: ClipTemplateConfig = {
             context: mergedContext,
             facecam: mergedFacecam,
             mainVideo: mergedMainVideo,
+            watermark: mergedWatermark,
           };
           setTemplateConfig(merged);
 
-          // Seed ke global config jika file global belum ada (hanya framing zoom/crop, tanpa status enabled)
+          // Seed ke global config jika file global belum ada
           if (!globalConf?.facecam && clipSaved?.facecam) {
             saveVideoGlobalConfig(activeClip.videoId, {
               facecam: {
@@ -94,6 +106,7 @@ export function useClipTemplate({ videoId, activeClip, isDownloaded }: UseClipTe
                 fontSize: mergedContext.fontSize,
                 paddingY: mergedContext.paddingY,
               },
+              watermark: mergedWatermark,
             }).catch(() => {});
           }
         }
@@ -213,6 +226,34 @@ export function useClipTemplate({ videoId, activeClip, isDownloaded }: UseClipTe
     [persistTemplate]
   );
 
+  // Update elemen Watermark (Global tingkat video: enabled, text, size, x, y)
+  const handleUpdateWatermark = useCallback(
+    (updates: Partial<ClipTemplateConfig['watermark']>) => {
+      const clip = activeClipRef.current;
+      setTemplateConfig((prev) => {
+        const updatedWatermark = {
+          ...prev.watermark,
+          ...updates,
+        };
+        const next: ClipTemplateConfig = {
+          ...prev,
+          watermark: updatedWatermark,
+        };
+        persistTemplate(next);
+
+        // Karena watermark bersifat global per video, sinkronkan ke Global Video Config
+        if (clip && clip.videoId) {
+          saveVideoGlobalConfig(clip.videoId, {
+            watermark: updatedWatermark,
+          }).catch(() => {});
+        }
+
+        return next;
+      });
+    },
+    [persistTemplate]
+  );
+
   // Status apakah kanvas berpindah ke mode portrait 9:16
   const isPortrait = useMemo(() => {
     // Syarat mutlak mode portrait 9:16 aktif:
@@ -233,5 +274,6 @@ export function useClipTemplate({ videoId, activeClip, isDownloaded }: UseClipTe
     handleUpdateContext,
     handleUpdateFacecam,
     handleUpdateMainVideo,
+    handleUpdateWatermark,
   };
 }

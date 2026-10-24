@@ -20,6 +20,7 @@ import { FeedClipCarousel } from './feed/FeedClipCarousel';
 import { CustomRangeModal } from './feed/CustomRangeModal';
 import { VisibleCountModal } from './feed/VisibleCountModal';
 import { SubtitleOverlay } from './feed/SubtitleOverlay';
+import { WatermarkOverlay } from './feed/WatermarkOverlay';
 import { useClipData } from '../hooks/useClipData';
 import { useClipPlayer } from '../hooks/useClipPlayer';
 import { useClipDownload } from '../hooks/useClipDownload';
@@ -191,6 +192,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     handleUpdateContext,
     handleUpdateFacecam,
     handleUpdateMainVideo,
+    handleUpdateWatermark,
   } = useClipTemplate({
     videoId,
     activeClip,
@@ -370,6 +372,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
         onUpdateContext={handleUpdateContext}
         onUpdateFacecam={handleUpdateFacecam}
         onUpdateMainVideo={handleUpdateMainVideo}
+        onUpdateWatermark={handleUpdateWatermark}
         downloadProgressInfo={downloadProgress[activeClip.id]}
         visibleHeatmapCount={visibleHeatmapCount}
         onAddCustomPress={() => setIsCustomModalVisible(true)}
@@ -495,6 +498,16 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
                 positionX={subtitlePosition.x}
                 positionY={subtitlePosition.y}
               />
+
+              {/* Watermark Overlay: Selalu dirender relatif terhadap Canvas Wrapper luar */}
+              {templateConfig.watermark?.enabled && Boolean(templateConfig.watermark?.text?.trim()) && (
+                <WatermarkOverlay
+                  text={templateConfig.watermark.text}
+                  size={templateConfig.watermark.size}
+                  x={templateConfig.watermark.x}
+                  y={templateConfig.watermark.y}
+                />
+              )}
             </>
           ) : (
             <View style={styles.streamPendingBox}>

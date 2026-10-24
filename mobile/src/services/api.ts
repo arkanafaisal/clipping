@@ -1929,6 +1929,13 @@ export interface ClipTemplateConfig {
     cropX: number; // 0 - 100 (% offset from center)
     cropY: number; // 0 - 100 (% offset from center)
   };
+  watermark: {
+    enabled: boolean;
+    text: string;
+    size: number; // Ukuran font dp
+    x: number; // 0 - 100 (% horizontal relatif terhadap container luar)
+    y: number; // 0 - 100 (% vertikal relatif terhadap container luar)
+  };
 }
 
 export const DEFAULT_TEMPLATE_CONFIG: ClipTemplateConfig = {
@@ -1948,6 +1955,13 @@ export const DEFAULT_TEMPLATE_CONFIG: ClipTemplateConfig = {
     zoom: 1.0,
     cropX: 50,
     cropY: 50,
+  },
+  watermark: {
+    enabled: false,
+    text: '',
+    size: 14,
+    x: 85,
+    y: 15,
   },
 };
 
@@ -1992,6 +2006,10 @@ export async function loadClipTemplate(
           mainVideo: {
             ...DEFAULT_TEMPLATE_CONFIG.mainVideo,
             ...(parsed.mainVideo || {}),
+          },
+          watermark: {
+            ...DEFAULT_TEMPLATE_CONFIG.watermark,
+            ...(parsed.watermark || {}),
           },
         };
       }
@@ -2048,6 +2066,13 @@ export interface VideoGlobalConfig {
   contextStyle?: {
     fontSize: number;
     paddingY: number;
+  };
+  watermark?: {
+    enabled: boolean;
+    text: string;
+    size: number;
+    x: number;
+    y: number;
   };
   updatedAt?: number;
 }
@@ -2118,6 +2143,15 @@ export async function saveVideoGlobalConfig(
     contextStyle: updates.contextStyle
       ? { ...(current.contextStyle || { fontSize: 16, paddingY: 10 }), ...updates.contextStyle }
       : current.contextStyle,
+    watermark: updates.watermark
+      ? {
+          enabled: updates.watermark.enabled ?? current.watermark?.enabled ?? false,
+          text: updates.watermark.text ?? current.watermark?.text ?? '',
+          size: updates.watermark.size ?? current.watermark?.size ?? DEFAULT_TEMPLATE_CONFIG.watermark.size,
+          x: updates.watermark.x ?? current.watermark?.x ?? DEFAULT_TEMPLATE_CONFIG.watermark.x,
+          y: updates.watermark.y ?? current.watermark?.y ?? DEFAULT_TEMPLATE_CONFIG.watermark.y,
+        }
+      : current.watermark,
     updatedAt: Date.now(),
   };
 

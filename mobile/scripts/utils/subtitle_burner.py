@@ -438,6 +438,39 @@ def build_multi_layer_pipeline(
         filter_lines.append(f"{current_node}{','.join(banner_filters)}[canvas_banner];")
         current_node = "[canvas_banner]"
 
+    # 5.1 Pasang Watermark jika aktif
+    watermark_cfg = template_data.get("watermark") or {}
+    wm_enabled = bool(watermark_cfg.get("enabled", False))
+    wm_text = str(watermark_cfg.get("text", "")).strip() if wm_enabled else ""
+
+    if wm_enabled and wm_text:
+        ref_dim = min(out_w, out_h)
+        base_unit = ref_dim * 0.073
+        wm_size_dp = float(watermark_cfg.get("size", 14))
+        wm_fs = max(10, int(round(base_unit * (wm_size_dp / 14.0))))
+        wm_border = max(1, int(round(wm_fs * 0.07)))
+
+        wm_x = max(0.0, min(100.0, float(watermark_cfg.get("x", 85.0))))
+        wm_y = max(0.0, min(100.0, float(watermark_cfg.get("y", 15.0))))
+
+        wm_x_expr = f"(w-text_w)*{wm_x/100.0:.3f}"
+        wm_y_expr = f"(h-text_h)*{wm_y/100.0:.3f}"
+
+        wm_file = f"{output_base}.watermark.txt"
+        with open(wm_file, "w", encoding="utf-8") as f:
+            f.write(wm_text)
+        temp_files.append(wm_file)
+        esc_wm_file = escape_ffmpeg_filter_path(wm_file)
+
+        wm_filter = (
+            f"drawtext=textfile='{esc_wm_file}'{font_opt}"
+            f":fontsize={wm_fs}:fontcolor=white"
+            f":borderw={wm_border}:bordercolor=black"
+            f":x={wm_x_expr}:y={wm_y_expr}"
+        )
+        filter_lines.append(f"{current_node}{wm_filter}[canvas_wm];")
+        current_node = "[canvas_wm]"
+
     # 6. Pasang Subtitle Burn-In jika tersedia
     has_cues = bool(cues and isinstance(cues, list) and len(cues) > 0)
 
@@ -590,9 +623,11 @@ def burn_subtitles_to_video(
     fc = template_data.get("facecam") or {}
     ctx = template_data.get("context") or {}
     main_v = template_data.get("mainVideo") or {}
+    wm = template_data.get("watermark") or {}
     if (
         fc.get("enabled")
         or ctx.get("enabled")
+        or (wm.get("enabled") and bool(str(wm.get("text", "")).strip()))
         or float(main_v.get("zoom", 1.0)) > 1.001
         or float(main_v.get("cropX", 50)) != 50
         or float(main_v.get("cropY", 50)) != 50
