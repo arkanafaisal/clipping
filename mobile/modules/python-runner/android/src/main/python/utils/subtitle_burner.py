@@ -138,7 +138,7 @@ PlayResY: {play_res_y}
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Arial,{ass_base_fs},&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,{ass_outline},0,5,10,10,10,1
+Style: Default,Roboto,Noto Color Emoji,{ass_base_fs},&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,{ass_outline},0,5,10,10,10,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -284,8 +284,9 @@ def build_multi_layer_pipeline(
 
     ctx_enabled = bool(context_cfg.get("enabled", False))
     fc_enabled = bool(facecam_cfg.get("enabled", False))
+    main_enabled = bool(main_cfg.get("enabled", True))
 
-    is_portrait = fc_enabled or ctx_enabled
+    is_portrait = fc_enabled or ctx_enabled or (not main_enabled)
 
     vw = max(240, int(video_width)) if video_width else 1280
     vh = max(240, int(video_height)) if video_height else 720
@@ -311,6 +312,11 @@ def build_multi_layer_pipeline(
     banner_h = 0
     ctx_text = str(context_cfg.get("text", "")).strip() if ctx_enabled else ""
     ctx_fs = 24
+    ctx_align = str(context_cfg.get("align", "start")).lower().strip()
+    if ctx_align not in ("center", "start"):
+        ctx_align = "start"
+
+    ctx_drawtext_filters = []
     if ctx_enabled and ctx_text:
         ref_dim = min(out_w, out_h)
         base_unit = ref_dim * 0.073  # Rasio acuan dinamis setara 14dp di preview React Native
@@ -318,21 +324,49 @@ def build_multi_layer_pipeline(
         ctx_pad_dp = float(context_cfg.get("paddingY", 10))
 
         # Skala font konteks proporsional dengan kalibrasi visual subtitle (14dp -> base_unit):
-        ctx_fs = max(14, int(round(base_unit * (ctx_fs_dp / 14.0))))
+        ctx_fs = max(8, int(round(base_unit * (ctx_fs_dp / 14.0))))
 
         # Skala padding Y proporsional dengan rasio dimensi acuan yang sama:
-        ctx_pad = max(4, int(round(base_unit * (ctx_pad_dp / 14.0))))
+        ctx_pad = max(0, int(round(base_unit * (ctx_pad_dp / 14.0))))
 
-        # Tinggi banner: ruang teks vertikal (lineHeight ~1.35 * ctx_fs) + 2 * padding
-        banner_h = int(round(ctx_fs * 1.35 + 2 * ctx_pad))
+        # Padding horizontal saat rata kiri (start): selaras dengan 12dp preview
+        pad_x = max(10, int(round(base_unit * (12.0 / 14.0))))
+
+        # Pisahkan baris teks (maksimal 3 baris sesuai spesifikasi)
+        raw_lines = [l.strip() for l in ctx_text.splitlines() if l.strip()]
+        ctx_lines = raw_lines[:3] if raw_lines else [ctx_text]
+        num_lines = max(1, len(ctx_lines))
+
+        # Tinggi banner: ruang teks vertikal (lineHeight ~1.35 * ctx_fs per baris) + 2 * padding
+        line_height = int(round(ctx_fs * 1.35))
+        banner_h = int(round(num_lines * line_height + 2 * ctx_pad))
         if banner_h % 2 != 0:
             banner_h += 1
 
-        ctx_file = f"{output_base}.context.txt"
-        with open(ctx_file, "w", encoding="utf-8") as f:
-            f.write(ctx_text)
-        temp_files.append(ctx_file)
-        esc_ctx_file = escape_ffmpeg_filter_path(ctx_file)
+        if num_lines == 1:
+            ctx_file = f"{output_base}.context.txt"
+            with open(ctx_file, "w", encoding="utf-8") as f:
+                f.write(ctx_lines[0])
+            temp_files.append(ctx_file)
+            esc_ctx_file = escape_ffmpeg_filter_path(ctx_file)
+            x_expr = "(w-text_w)/2" if ctx_align == "center" else f"{pad_x}"
+            ctx_drawtext_filters.append(
+                f"drawtext=textfile='{esc_ctx_file}'{font_opt}:fontsize={ctx_fs}:fontcolor=black:x={x_expr}:y=({banner_h}-text_h)/2"
+            )
+        else:
+            total_text_h = num_lines * line_height
+            start_y = max(0, int(round((banner_h - total_text_h) / 2)))
+            for i, line in enumerate(ctx_lines):
+                line_file = f"{output_base}.context_{i}.txt"
+                with open(line_file, "w", encoding="utf-8") as f:
+                    f.write(line)
+                temp_files.append(line_file)
+                esc_line_file = escape_ffmpeg_filter_path(line_file)
+                x_expr = "(w-text_w)/2" if ctx_align == "center" else f"{pad_x}"
+                y_pos = start_y + i * line_height
+                ctx_drawtext_filters.append(
+                    f"drawtext=textfile='{esc_line_file}'{font_opt}:fontsize={ctx_fs}:fontcolor=black:x={x_expr}:y={y_pos}"
+                )
 
     # 2. Hitung Geometri Facecam (Viewport 4:3)
     if fc_enabled:
@@ -413,13 +447,20 @@ def build_multi_layer_pipeline(
     filter_lines = []
 
     if is_portrait:
-        if fc_enabled:
+        if fc_enabled and main_enabled:
             filter_lines.append("[0:v]split=2[in_fc][in_main];")
             filter_lines.append(f"[in_fc]crop={cw_fc}:{ch_fc}:{cx_fc}:{cy_fc},scale={w_fc}:{h_fc}[fc_box];")
             filter_lines.append(f"[in_main]crop={cw_main}:{ch_main}:{cx_main}:{cy_main},scale={w_main}:{h_main},pad={out_w}:{out_h}:0:{y_main}:black[canvas_pad];")
             filter_lines.append(f"[canvas_pad][fc_box]overlay=0:{y_fc}[canvas_comp];")
-        else:
+        elif fc_enabled and not main_enabled:
+            # Facecam Saja (tanpa gameplay) pada kanvas 9:16 portrait
+            filter_lines.append(f"[0:v]crop={cw_fc}:{ch_fc}:{cx_fc}:{cy_fc},scale={w_fc}:{h_fc},pad={out_w}:{out_h}:0:{y_fc}:black[canvas_comp];")
+        elif not fc_enabled and main_enabled:
+            # Gameplay Saja (16:9) pada kanvas 9:16 portrait
             filter_lines.append(f"[0:v]crop={cw_main}:{ch_main}:{cx_main}:{cy_main},scale={w_main}:{h_main},pad={out_w}:{out_h}:0:{y_main}:black[canvas_comp];")
+        else:
+            # Keduanya nonaktif (misal hanya banner konteks / watermark / subtitle)
+            filter_lines.append(f"[0:v]scale={out_w}:{out_h},drawbox=x=0:y=0:w={out_w}:h={out_h}:color=black:t=fill[canvas_comp];")
     else:
         is_cropped = (cw_main < vw) or (ch_main < vh)
         if is_cropped:
@@ -430,13 +471,45 @@ def build_multi_layer_pipeline(
     current_node = "[canvas_comp]"
 
     # 5. Pasang Banner Konteks jika aktif
-    if ctx_enabled and ctx_text:
+    if ctx_enabled and ctx_text and ctx_drawtext_filters:
         banner_filters = [
-            f"drawbox=x=0:y=0:w={out_w}:h={banner_h}:color=white:t={banner_h}",
-            f"drawtext=textfile='{esc_ctx_file}'{font_opt}:fontsize={ctx_fs}:fontcolor=black:x=(w-text_w)/2:y=({banner_h}-text_h)/2"
-        ]
+            f"drawbox=x=0:y=0:w={out_w}:h={banner_h}:color=white:t={banner_h}"
+        ] + ctx_drawtext_filters
         filter_lines.append(f"{current_node}{','.join(banner_filters)}[canvas_banner];")
         current_node = "[canvas_banner]"
+
+    # 5.1 Pasang Watermark jika aktif
+    watermark_cfg = template_data.get("watermark") or {}
+    wm_enabled = bool(watermark_cfg.get("enabled", False))
+    wm_text = str(watermark_cfg.get("text", "")).strip() if wm_enabled else ""
+
+    if wm_enabled and wm_text:
+        ref_dim = min(out_w, out_h)
+        base_unit = ref_dim * 0.073
+        wm_size_dp = float(watermark_cfg.get("size", 14))
+        wm_fs = max(10, int(round(base_unit * (wm_size_dp / 14.0))))
+        wm_border = max(1, int(round(wm_fs * 0.07)))
+
+        wm_x = max(0.0, min(100.0, float(watermark_cfg.get("x", 85.0))))
+        wm_y = max(0.0, min(100.0, float(watermark_cfg.get("y", 15.0))))
+
+        wm_x_expr = f"(w-text_w)*{wm_x/100.0:.3f}"
+        wm_y_expr = f"(h-text_h)*{wm_y/100.0:.3f}"
+
+        wm_file = f"{output_base}.watermark.txt"
+        with open(wm_file, "w", encoding="utf-8") as f:
+            f.write(wm_text)
+        temp_files.append(wm_file)
+        esc_wm_file = escape_ffmpeg_filter_path(wm_file)
+
+        wm_filter = (
+            f"drawtext=textfile='{esc_wm_file}'{font_opt}"
+            f":fontsize={wm_fs}:fontcolor=white"
+            f":borderw={wm_border}:bordercolor=black"
+            f":x={wm_x_expr}:y={wm_y_expr}"
+        )
+        filter_lines.append(f"{current_node}{wm_filter}[canvas_wm];")
+        current_node = "[canvas_wm]"
 
     # 6. Pasang Subtitle Burn-In jika tersedia
     has_cues = bool(cues and isinstance(cues, list) and len(cues) > 0)
@@ -449,7 +522,9 @@ def build_multi_layer_pipeline(
                 f.write(ass_content)
             temp_files.append(ass_path)
             esc_ass = escape_ffmpeg_filter_path(ass_path)
-            filter_lines.append(f"{current_node}subtitles='{esc_ass}'[v_out]")
+            fonts_dir = "/system/fonts" if os.path.exists("/system/fonts") else ""
+            fonts_dir_opt = f":fontsdir='{escape_ffmpeg_filter_path(fonts_dir)}'" if fonts_dir else ""
+            filter_lines.append(f"{current_node}subtitles='{esc_ass}'{fonts_dir_opt}[v_out]")
         else:
             ref_dim = min(out_w, out_h)
             base_fs = max(14, int(round(ref_dim * 0.073)))
@@ -588,9 +663,12 @@ def burn_subtitles_to_video(
     fc = template_data.get("facecam") or {}
     ctx = template_data.get("context") or {}
     main_v = template_data.get("mainVideo") or {}
+    wm = template_data.get("watermark") or {}
     if (
         fc.get("enabled")
         or ctx.get("enabled")
+        or (main_v.get("enabled") is False)
+        or (wm.get("enabled") and bool(str(wm.get("text", "")).strip()))
         or float(main_v.get("zoom", 1.0)) > 1.001
         or float(main_v.get("cropX", 50)) != 50
         or float(main_v.get("cropY", 50)) != 50

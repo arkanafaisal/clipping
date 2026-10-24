@@ -83,10 +83,20 @@ def download_clip_direct(
             "error": f"Waktu 'end' ({end_num}) harus lebih besar daripada 'start' ({start_num})."
         }
 
-    # Kompensasi universal timeline drift HLS vs preview:
-    # Tambahkan 500ms (+0.5s) pada rentang akhir agar pemotongan FFmpeg
-    # mencakup frame dan audio penutup klip secara presisi tanpa terpotong prematur.
-    end_num += 0.5
+    is_local_source = bool(source_video_path and os.path.exists(source_video_path) and os.path.getsize(source_video_path) > 0)
+
+    # Kompensasi timeline drift HLS vs preview stream (HANYA berlaku pada mode stream online):
+    # Mode lokal dari full video offline sudah 100% frame-accurate tanpa drift sehingga 100% murni tanpa offset (0.0s).
+    # Untuk mode stream online:
+    # 1. Base offset minimal 0.25s (250ms) menjamin batas aman kuantisasi 8 frame video dan paket audio AAC.
+    # 2. Dynamic scaling (N/2 * 0.001s atau chunk_n * 0.0005s) mengantisipasi akumulasi drift pembulatan m3u8
+    #    dengan memperhitungkan efek saling meniadakan (random walk error cancellation ~50%).
+    # 3. Batas atas (cap) 1.0s memastikan klip pada video panjang (2-3 jam) tidak pernah kepanjangan berlebihan.
+    if not is_local_source:
+        chunk_n = max(1.0, start_num / 5.0)
+        stream_offset = min(1.0, max(0.25, chunk_n * 0.0005))
+        start_num = max(0.0, start_num - stream_offset)
+        end_num += stream_offset
 
     # Mekanisme Realtime Progress Throttling (250ms)
     last_write_time = 0.0
@@ -169,7 +179,7 @@ def download_clip_direct(
     captured_stream_url = stream_url
 
     # 3.1. Jalur Cepat: Jika file fisik full video lokal tersedia di shared storage, potong langsung dengan FFmpeg offline
-    if source_video_path and os.path.exists(source_video_path) and os.path.getsize(source_video_path) > 0:
+    if is_local_source:
         write_progress("STAGE_INIT", "CUTTING_FROM_LOCAL_SOURCE", 0, force=True)
         cut_start = start_num
         cut_dur = end_num - start_num

@@ -14,7 +14,19 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Fix Dropped Trailing Word via Non-Breaking Spaces and Simple Break Strategy
+## [Unreleased] - Sync Python Scripts to Native Module for Production APK Bundle
+- **Konteks Struktural**:
+  1. Sinkronisasi Python Engine ke Native Bundle Module (`python-runner`):
+     - Menyalin seluruh pembaruan skrip Python dari direktori sumber kebenaran (`mobile/scripts/utils/`) ke modul native embedded Chaquopy (`mobile/modules/python-runner/android/src/main/python/utils/`) sesuai Rule 22 untuk persiapan build produksi APK.
+     - Sinkronisasi mencakup fitur pemotongan klip video lokal (`clip_downloader.py`), pembakaran ASS subtitle, banner konteks multiline, watermark overlay, serta konfigurasi path font sistem Android (`subtitle_burner.py`).
+     - Membersihkan seluruh cache bytecode compile (`__pycache__`) sebelum bundling agar paket rilis APK bersih dan bebas artefak dev.
+- **Perubahan Kode Penting**:
+  - `mobile/modules/python-runner/android/src/main/python/utils/clip_downloader.py`:
+    - Menyinkronkan fungsionalitas pemotongan klip langsung dan handling path lokal.
+  - `mobile/modules/python-runner/android/src/main/python/utils/subtitle_burner.py`:
+    - Menyinkronkan pipeline filter multi-layer FFmpeg (multiline banner konteks, watermark, dan fontdir).
+
+## [360aa94] - Fix Dropped Trailing Word via Non-Breaking Spaces and Simple Break Strategy
 - **Konteks Struktural**:
   1. Resolusi Bug Hilangnya Kata Terakhir pada Baris Subtitle (`SubtitleOverlay.tsx`):
      - Mengidentifikasi akar masalah hilangnya kata terakhir (misalnya kata "mereview" atau "bisa" pada baris pertama): saat properti `numberOfLines={1}` dan `ellipsizeMode="clip"` digunakan bersama spasi biasa, algoritma pemecah baris Android `StaticLayout` (dengan strategi default `highQuality`/`balanced`) mencoba menyeimbangkan baris dan memindahkan kata terakhir ke baris ke-2. Karena batas `numberOfLines={1}` aktif dengan mode `clip`, baris ke-2 tersebut dipotong dan disembunyikan secara hening oleh sistem native tanpa tanda elipsis (`...`).
