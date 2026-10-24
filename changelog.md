@@ -14,7 +14,21 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Expand Subtitle Stroke to 8-Way Solid Outline Without Shadow or Blur
+## [Unreleased] - Eliminate Play-Pause Lag via Synchronous Ref Sync and Direct Native Dispatch
+- **Konteks Struktural**:
+  1. Sinkronisasi Ref Seketika pada Play/Pause (`useClipPlayer.ts`):
+     - Memperbarui `isContinueStateRef.current = nextState` secara sinkron (milidetik ke-0) di dalam `togglePlayPause`, mendahului proses render asinkron React (`setIsContinueState`). Sebelumnya, jeda antara panggilan state dan eksekusi `useEffect` menyebabkan event native (`statusChange` dan `timeUpdate`) membaca nilai ref lama yang masih `true` saat tombol pause ditekan, sehingga secara keliru memanggil kembali `player.play()` dan menimbulkan race condition / stutter / delay jeda.
+     - Menghapus pengecekan kondisi `if (player.playing)` dan `if (!player.playing)` yang rentan terhadap pembacaan nilai status getter native yang stale di tengah transisi buffer/pause. Pemanggilan `player.pause()` dan `player.play()` kini dikirimkan langsung dan tanpa hambatan.
+  2. Optimalisasi Responsivitas Tombol Kontrol (`FeedPlaybackControls.tsx`):
+     - Mengubah handler sentuhan tombol playback (Play/Pause dan Skip -10s, -3s, +5s, +15s) dari `onPressIn` menjadi `onPress` standar dengan `hitSlop={8}`.
+     - Menghilangkan delay `delayPressIn` bawaan Android dan mencegah pembatalan sentuhan prematur akibat pergeseran mikroskopis jari.
+- **Perubahan Kode Penting**:
+  - `mobile/src/hooks/useClipPlayer.ts`:
+    - Mengoptimalkan fungsi `togglePlayPause` dengan ref synchronization sinkron dan direct native pause/play.
+  - `mobile/src/components/feed/FeedPlaybackControls.tsx`:
+    - Mengganti `onPressIn` menjadi `onPress` dan menambahkan `hitSlop={8}` pada seluruh tombol playback.
+
+## [27842f7] - Expand Subtitle Stroke to 8-Way Solid Outline Without Shadow or Blur
 - **Konteks Struktural**:
   1. Penambahan Arah Border Subtitle Menjadi 8 Arah Solid (`SubtitleOverlay.tsx`):
      - Memperluas konstanta `STROKE_OFFSETS` dari 4 arah mata angin menjadi 8 arah penuh (kombinasi kardinal atas/bawah/kiri/kanan dan 4 diagonal sudut) guna menghasilkan ketebalan outline hitam yang merata di seluruh kontur font tanpa celah sudut.

@@ -81,21 +81,24 @@ export const FeedPlaybackControls: React.FC<FeedPlaybackControlsProps> = React.m
       <View style={styles.playbackControlsRow}>
         <Pressable
           style={({ pressed }) => [styles.skipBtn, pressed && { opacity: 0.5 }]}
-          onPressIn={() => onSkipSeconds(-10)}
+          onPress={() => onSkipSeconds(-10)}
+          hitSlop={8}
         >
           <Rewind size={20} color="rgba(255, 255, 255, 0.6)" />
         </Pressable>
 
         <Pressable
           style={({ pressed }) => [styles.skipBtn, pressed && { opacity: 0.5 }]}
-          onPressIn={() => onSkipSeconds(-3)}
+          onPress={() => onSkipSeconds(-3)}
+          hitSlop={8}
         >
           <ChevronLeft size={24} color="rgba(255, 255, 255, 0.6)" />
         </Pressable>
 
         <Pressable
           style={({ pressed }) => [styles.playPauseBtn, pressed && { transform: [{ scale: 0.95 }] }]}
-          onPressIn={onTogglePlayPause}
+          onPress={onTogglePlayPause}
+          hitSlop={8}
         >
           {isContinueState ? (
             <Pause size={22} color="#000000" fill="#000000" />
@@ -106,14 +109,16 @@ export const FeedPlaybackControls: React.FC<FeedPlaybackControlsProps> = React.m
 
         <Pressable
           style={({ pressed }) => [styles.skipBtn, pressed && { opacity: 0.5 }]}
-          onPressIn={() => onSkipSeconds(5)}
+          onPress={() => onSkipSeconds(5)}
+          hitSlop={8}
         >
           <ChevronRight size={24} color="rgba(255, 255, 255, 0.6)" />
         </Pressable>
 
         <Pressable
           style={({ pressed }) => [styles.skipBtn, pressed && { opacity: 0.5 }]}
-          onPressIn={() => onSkipSeconds(15)}
+          onPress={() => onSkipSeconds(15)}
+          hitSlop={8}
         >
           <FastForward size={20} color="rgba(255, 255, 255, 0.6)" />
         </Pressable>

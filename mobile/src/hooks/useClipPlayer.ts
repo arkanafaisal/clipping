@@ -703,19 +703,22 @@ export function useClipPlayer({
   // Playback Control Handlers (Force manual control terisolasi dari auto-seek/auto-play)
   const togglePlayPause = useCallback(() => {
     if (!player) return;
-    if (isContinueStateRef.current) {
-      // Pindah dari continue ke pause: force pause jika video sedang berputar
-      setIsContinueState(false);
+    const nextState = !isContinueStateRef.current;
+    // 1. Update ref seketika (synchronous) agar event listener statusChange/timeUpdate tidak race condition
+    isContinueStateRef.current = nextState;
+    // 2. Update state UI React
+    setIsContinueState(nextState);
+
+    // 3. Perintahkan native player seketika tanpa gating player.playing yang bisa stale
+    if (!nextState) {
       try {
-        if (player.playing) player.pause();
-        if (facecamPlayer && facecamPlayer.playing) facecamPlayer.pause();
+        player.pause();
+        if (facecamPlayer) facecamPlayer.pause();
       } catch (e) {}
     } else {
-      // Pindah dari pause ke continue: force play jika video sedang berhenti
-      setIsContinueState(true);
       try {
-        if (!player.playing) player.play();
-        if (isFacecamActiveRef.current && facecamPlayer && !facecamPlayer.playing) {
+        player.play();
+        if (isFacecamActiveRef.current && facecamPlayer) {
           facecamPlayer.play();
         }
       } catch (e) {}
