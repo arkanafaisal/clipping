@@ -10,12 +10,16 @@ export interface SubtitleOverlayProps {
   subtitleListenerRef?: React.MutableRefObject<((text: string, fontSize?: number) => void) | null>;
 }
 
-// 4 arah offset (atas, bawah, kiri, kanan) solid tanpa shadow dan tanpa blur
+// 8 arah offset (kardinal & diagonal) solid tanpa shadow dan tanpa blur
 const STROKE_OFFSETS = [
-  { x: 0, y: -1.5 },
-  { x: 0, y: 1.5 },
-  { x: -1.5, y: 0 },
-  { x: 1.5, y: 0 },
+  { x: -1.5, y: -1.5 },
+  { x: 0, y: -2 },
+  { x: 1.5, y: -1.5 },
+  { x: -2, y: 0 },
+  { x: 2, y: 0 },
+  { x: -1.5, y: 1.5 },
+  { x: 0, y: 2 },
+  { x: 1.5, y: 1.5 },
 ];
 
 export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = React.memo(({
@@ -138,7 +142,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = React.memo(({
           },
         ]}
       >
-        {/* Layer Border / Stroke Hitam Pekat (4 arah) tanpa shadow atau blur */}
+        {/* Layer Border / Stroke Hitam Pekat (8 arah) tanpa shadow atau blur */}
         {STROKE_OFFSETS.map((offset, index) => (
           <Text
             key={index}

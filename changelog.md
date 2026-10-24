@@ -14,7 +14,17 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Implement 4-Way Subtitle Stroke Without Shadow or Blur
+## [Unreleased] - Expand Subtitle Stroke to 8-Way Solid Outline Without Shadow or Blur
+- **Konteks Struktural**:
+  1. Penambahan Arah Border Subtitle Menjadi 8 Arah Solid (`SubtitleOverlay.tsx`):
+     - Memperluas konstanta `STROKE_OFFSETS` dari 4 arah mata angin menjadi 8 arah penuh (kombinasi kardinal atas/bawah/kiri/kanan dan 4 diagonal sudut) guna menghasilkan ketebalan outline hitam yang merata di seluruh kontur font tanpa celah sudut.
+     - Tetap mempertahankan prinsip zero-overhead: 100% tanpa properti `textShadowColor`, `textShadowOffset`, maupun `textShadowRadius` (zero blur), serta tanpa pemecahan baris manual (`lines.map`).
+     - Total elemen native TextView yang aktif di memori untuk seluruh subtitle (termasuk teks multiline 3 baris) hanya 9 TextView (8 stroke + 1 foreground), jauh di bawah arsitektur lama (27 TextView) dan tetap menggunakan akselerasi GPU font texture atlas bawaan.
+- **Perubahan Kode Penting**:
+  - `mobile/src/components/feed/SubtitleOverlay.tsx`:
+    - Mengubah `STROKE_OFFSETS` menjadi 8 arah: `[{ x: -1.5, y: -1.5 }, { x: 0, y: -2 }, { x: 1.5, y: -1.5 }, { x: -2, y: 0 }, { x: 2, y: 0 }, { x: -1.5, y: 1.5 }, { x: 0, y: 2 }, { x: 1.5, y: 1.5 }]`.
+
+## [a1a01f0] - Implement 4-Way Subtitle Stroke Without Shadow or Blur
 - **Konteks Struktural**:
   1. Rekonstruksi Border Subtitle 4 Arah Tanpa Shadow dan Blur (`SubtitleOverlay.tsx`):
      - Mengimplementasikan 4 layer stroke hitam pekat arah mata angin (atas, bawah, kiri, kanan dengan offset ±1.5px) di belakang layer teks utama putih.
