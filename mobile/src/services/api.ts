@@ -1569,9 +1569,11 @@ export function parseVttToCues(vttContent: string): SubtitleCue[] {
  * Menormalisasi daftar SubtitleCue agar strictly single-line & non-overlapping:
  * 1. Diurutkan berdasarkan start time lalu end time.
  * 2. Teks dibersihkan menjadi 1 baris (single line, no newlines).
- * 3. Jika ada tumpang tindih waktu (overlap), previous.end dipotong agar tepat di current.start.
- * 4. Jika start sama persis, teks digabungkan.
- * 5. Memastikan setiap cue berdurasi minimal 0.4s.
+ * 3. Jika ada tumpang tindih waktu (current.start < prev.end):
+ *    - TIDAK menggabungkan teks (no auto-merge) agar setiap kalimat tetap independen.
+ *    - Memprioritaskan detik awal cue kedua (current.start): waktu akhir cue sebelumnya (prev.end) dipotong tepat di current.start.
+ *    - Jika current.start <= prev.start, cue yang lebih lama digantikan oleh cue yang lebih baru.
+ * 4. Memastikan end > start untuk setiap cue.
  */
 export function normalizeSingleTrackCues(cues: SubtitleCue[], maxDuration?: number): SubtitleCue[] {
   if (!Array.isArray(cues) || cues.length === 0) return [];
@@ -1614,23 +1616,14 @@ export function normalizeSingleTrackCues(cues: SubtitleCue[], maxDuration?: numb
 
     const prev = normalized[normalized.length - 1];
 
-    // Jika start sama persis atau sangat berdekatan (< 0.15s)
-    if (Math.abs(current.start - prev.start) < 0.15) {
-      if (!prev.text.includes(current.text)) {
-        prev.text = `${prev.text} ${current.text}`.trim();
-      }
-      prev.end = Math.max(prev.end, current.end);
-      continue;
-    }
-
-    // Jika terjadi overlap waktu (current.start < prev.end)
+    // Jika terjadi tumpang tindih waktu (current.start < prev.end):
     if (current.start < prev.end) {
-      prev.end = Math.max(prev.start + 0.3, current.start);
-      if (prev.end - prev.start < 0.3) {
-        if (!current.text.includes(prev.text)) {
-          current.text = `${prev.text} ${current.text}`.trim();
-        }
+      if (current.start <= prev.start) {
+        // Jika detik awal sama persis atau lebih kecil, prioritaskan cue yang lebih baru/kedua
         normalized.pop();
+      } else {
+        // Potong (trim) waktu akhir cue sebelumnya agar tepat berakhir saat cue kedua dimulai
+        prev.end = current.start;
       }
     }
 

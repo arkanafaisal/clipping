@@ -14,7 +14,20 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Remove 500ms Offset on Local Video Cutting for Frame-Accurate Precision
+## [Unreleased] - Remove Subtitle Auto-Merge and Implement Overlap Trimming Prioritizing Cue Start Times
+- **Konteks Struktural**:
+  1. Penghapusan Fitur Auto-Merge pada Subtitle (`normalizeSingleTrackCues`):
+     - Menghilangkan perilaku penggabungan teks otomatis (*auto-merge*) ketika dua cue subtitle memiliki waktu yang berdekatan atau bertumpuk (*overlapping*).
+     - Menjaga teks setiap kalimat/cue tetap independen murni tanpa digabung menjadi satu kalimat panjang yang merepotkan saat proses editing.
+  2. Logika Resolusi Overlap Baru (Prioritas Titik Awal Cue Kedua):
+     - Dalam proses editing klip video, penanda waktu mulai bicara (`start`) kalimat baru adalah titik sinkronisasi yang paling krusial.
+     - Jika Cue 1 bertumpuk dengan Cue 2 (`current.start < prev.end`): waktu akhir Cue 1 (`prev.end`) otomatis dipotong (*trimmed*) agar tepat berakhir di detik mulainya Cue 2 (`current.start`).
+     - Jika kedua cue memiliki titik awal yang sama persis atau `current.start <= prev.start`, cue yang lebih baru/kedua menggantikan cue sebelumnya.
+- **Perubahan Kode Penting**:
+  - `mobile/src/services/api.ts`:
+    - Mengganti logika `normalizeSingleTrackCues` dari penggabungan teks (`prev.text = prev.text + current.text`) menjadi pemotongan waktu akhir (`prev.end = current.start`) tanpa penggabungan teks.
+
+## [e264379] - Remove 500ms Offset on Local Video Cutting for Frame-Accurate Precision
 - **Konteks Struktural**:
   1. Penghapusan Kompensasi Offset pada Pemotongan Video Lokal:
      - Mengatasi kendala di mana hasil potong klip dari file full video lokal (`source_video_path`) mengalami kelebihan durasi tepat 0.5 detik (+500ms) di akhir.
