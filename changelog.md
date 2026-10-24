@@ -14,7 +14,22 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Eliminate Play-Pause Lag via Synchronous Ref Sync and Direct Native Dispatch
+## [Unreleased] - Eliminate Subtitle Auto-Breakline and Resolve Black Ghost Line Bug
+- **Konteks Struktural**:
+  1. Penghapusan Auto-Breakline pada Subtitle Preview (`SubtitleOverlay.tsx`):
+     - Memecah teks subtitle manual secara eksplisit berdasarkan karakter baris baru (`\n`) ke dalam `linesData` dan merender setiap baris dalam `lineWrapper` mandiri dengan `numberOfLines={1}` serta `ellipsizeMode="clip"`.
+     - Menghentikan perilaku default React Native `<Text>` yang secara otomatis melakukan pembungkusan kata (*word wrap*) saat teks melebihi lebar kontainer. Teks kini hanya terbagi ke baris baru jika user sengaja menyematkan `\n`, menjamin keselarasan visual 100% presisi dengan perilaku ekspor subtitle FFmpeg ASS.
+  2. Resolusi Bug Baris Subtitle Gosong / Full Hitam (`SubtitleOverlay.tsx`):
+     - Mengidentifikasi akar masalah teks gosong (terutama di baris paling bawah): sebelumnya seluruh teks multiline digabung ke dalam 1 komponen `<Text>`, di mana layer stroke hitam memiliki `position: 'absolute'` dan struktur anak regex emoji yang berbeda dari layer putih foreground. Ketika teks panjang mendekati batas kontainer, layer stroke membungkus kata terakhir ke baris baru ekstra sementara layer putih tidak membungkusnya, sehingga baris terbawah hanya menampilkan layer stroke hitam pekat tanpa teks putih di atasnya.
+     - Melalui isolasi per-baris menggunakan `lineWrapper` dan `numberOfLines={1}`, layer stroke dan layer foreground dijamin selalu memiliki tinggi, lebar, dan jumlah baris yang identik secara deterministik, mengeliminasi total kemungkinan munculnya baris hitam gosong.
+     - Menggunakan `useMemo` untuk pemrosesan `linesData` dan regex emoji per-baris, menjaga performa rendering tetap instan tanpa micro-freeze.
+- **Perubahan Kode Penting**:
+  - `mobile/src/components/feed/SubtitleOverlay.tsx`:
+    - Mengganti render teks tunggal dengan pemetaan `linesData.map` dan membungkus setiap baris dengan `lineWrapper`.
+    - Menambahkan `numberOfLines={1}` dan `ellipsizeMode="clip"` pada seluruh layer stroke dan foreground.
+    - Menambahkan styling `lineWrapper` pada StyleSheet.
+
+## [ff52f73] - Eliminate Play-Pause Lag via Synchronous Ref Sync and Direct Native Dispatch
 - **Konteks Struktural**:
   1. Sinkronisasi Ref Seketika pada Play/Pause (`useClipPlayer.ts`):
      - Memperbarui `isContinueStateRef.current = nextState` secara sinkron (milidetik ke-0) di dalam `togglePlayPause`, mendahului proses render asinkron React (`setIsContinueState`). Sebelumnya, jeda antara panggilan state dan eksekusi `useEffect` menyebabkan event native (`statusChange` dan `timeUpdate`) membaca nilai ref lama yang masih `true` saat tombol pause ditekan, sehingga secara keliru memanggil kembali `player.play()` dan menimbulkan race condition / stutter / delay jeda.

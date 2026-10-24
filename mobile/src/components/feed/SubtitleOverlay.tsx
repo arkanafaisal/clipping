@@ -96,23 +96,31 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = React.memo(({
   // Saat jeda bicara (hasText = false), container ber-opacity 0 dan teks terakhir tetap disimpan
   const displayText = hasText ? currentText : lastNonEmptyTextRef.current;
 
-  // Menghilangkan duplikasi bayangan hitam pada emoji di 4 layer stroke:
-  // Karakter emoji disembunyikan (opacity: 0) pada layer stroke agar tidak memunculkan kotak hitam,
-  // namun tetap mempertahankan metrik lebar/tinggi karakter (zero layout shift).
-  const strokeContent = useMemo(() => {
-    if (!displayText || !/\p{Extended_Pictographic}|\p{Emoji_Presentation}/u.test(displayText)) {
-      return displayText;
-    }
-    const parts = displayText.split(/(\p{Extended_Pictographic}+|\p{Emoji_Presentation}+)/gu);
-    return parts.map((part, pIdx) => {
-      if (/\p{Extended_Pictographic}|\p{Emoji_Presentation}/u.test(part)) {
-        return (
-          <Text key={pIdx} style={{ opacity: 0 }}>
-            {part}
-          </Text>
-        );
+  // Parsing baris teks manual (tanpa auto-breakline agar 100% presisi dengan ekspor FFmpeg ASS).
+  // Setiap baris diisolasi dengan numberOfLines={1} di dalam lineWrapper,
+  // sehingga stroke layer dan foreground layer selalu memiliki dimensi & jumlah baris yang identik,
+  // mengeliminasi total bug teks gosong (stroke wrapping ke baris ekstra tanpa layer putih di atasnya).
+  const linesData = useMemo(() => {
+    const rawLines = displayText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+    return rawLines.map((lineText) => {
+      let strokeContent: React.ReactNode = lineText;
+      if (lineText && /\p{Extended_Pictographic}|\p{Emoji_Presentation}/u.test(lineText)) {
+        const parts = lineText.split(/(\p{Extended_Pictographic}+|\p{Emoji_Presentation}+)/gu);
+        strokeContent = parts.map((part, pIdx) => {
+          if (/\p{Extended_Pictographic}|\p{Emoji_Presentation}/u.test(part)) {
+            return (
+              <Text key={pIdx} style={{ opacity: 0 }}>
+                {part}
+              </Text>
+            );
+          }
+          return part;
+        });
       }
-      return part;
+      return {
+        lineText,
+        strokeContent,
+      };
     });
   }, [displayText]);
 
@@ -142,41 +150,49 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = React.memo(({
           },
         ]}
       >
-        {/* Layer Border / Stroke Hitam Pekat (8 arah) tanpa shadow atau blur */}
-        {STROKE_OFFSETS.map((offset, index) => (
-          <Text
-            key={index}
-            style={[
-              styles.subtitleText,
-              styles.strokeText,
-              {
-                fontSize: scaledFontSize,
-                lineHeight,
-                transform: [
-                  { translateX: offset.x * strokeScale },
-                  { translateY: offset.y * strokeScale },
-                ],
-              },
-            ]}
-            aria-hidden
-          >
-            {strokeContent}
-          </Text>
-        ))}
+        {linesData.map((item, lineIdx) => (
+          <View key={lineIdx} style={styles.lineWrapper}>
+            {/* Layer Border / Stroke Hitam Pekat (8 arah) tanpa shadow atau blur */}
+            {STROKE_OFFSETS.map((offset, index) => (
+              <Text
+                key={index}
+                numberOfLines={1}
+                ellipsizeMode="clip"
+                style={[
+                  styles.subtitleText,
+                  styles.strokeText,
+                  {
+                    fontSize: scaledFontSize,
+                    lineHeight,
+                    transform: [
+                      { translateX: offset.x * strokeScale },
+                      { translateY: offset.y * strokeScale },
+                    ],
+                  },
+                ]}
+                aria-hidden
+              >
+                {item.strokeContent}
+              </Text>
+            ))}
 
-        {/* Layer Teks Utama Putih Bersih */}
-        <Text
-          style={[
-            styles.subtitleText,
-            styles.foregroundText,
-            {
-              fontSize: scaledFontSize,
-              lineHeight,
-            },
-          ]}
-        >
-          {displayText}
-        </Text>
+            {/* Layer Teks Utama Putih Bersih */}
+            <Text
+              numberOfLines={1}
+              ellipsizeMode="clip"
+              style={[
+                styles.subtitleText,
+                styles.foregroundText,
+                {
+                  fontSize: scaledFontSize,
+                  lineHeight,
+                },
+              ]}
+            >
+              {item.lineText}
+            </Text>
+          </View>
+        ))}
       </View>
     </View>
   );
@@ -198,6 +214,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'transparent',
+    overflow: 'visible',
+  },
+  lineWrapper: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
     overflow: 'visible',
   },
   subtitleText: {
