@@ -90,7 +90,7 @@ const LiveTimeDisplay: React.FC<LiveTimeDisplayProps> = React.memo(({ progressAn
     const listenerId = progressAnim.addListener(({ value }) => {
       const curSec = (Math.max(0, Math.min(100, value)) / 100) * duration;
       // Perbarui tampilan waktu milidetik secara halus ~30 FPS (interval 33ms)
-      if (Math.abs(curSec - lastSecRef.current) >= 0.033) {
+      if (Math.abs(curSec - lastSecRef.current) >= 0.02) {
         lastSecRef.current = curSec;
         setDisplayTime(formatTimeWithMs(curSec));
       }

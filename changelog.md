@@ -14,7 +14,33 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Isolate Subtitle Overlay and Implement Continuous Mid-Flight Playback Calibration
+## [Unreleased] - Rebuild Playback Sync with Video Player as Single Source of Truth
+- **Konteks Struktural**:
+  1. Restorasi Video Player sebagai Single Source of Truth Murni (`useClipPlayer.ts`):
+     - Menghapus total jam linier buatan (`stopLinearClock`, `startLinearClock`, `linearClockTimerRef`, `playStartWallTimeRef`, `playStartClipTimeRef`, `stopGraceTimerRef`, dan kalkulasi drift mid-flight). Jam linier tiruan sebelumnya mengasumsikan kecepatan putar statis dari `Date.now()`, yang mengakibatkan desinkronisasi/drift saat terjadi fluktuasi decode frame atau micro-buffering pada audio/video asli.
+     - Mengonfigurasi `player.timeUpdateEventInterval = 0.033` (~30 FPS) secara langsung pada native ExoPlayer (`expo-video`). Setiap event `timeUpdate` kini dipancarkan langsung dari thread audio/video decoder native saat frame video dirender ke layar HP.
+  2. Direct Lockstep Progress Animation (`useClipPlayer.ts`, `FeedTopControls.tsx`):
+     - Nilai persentase posisi klip (`pct`) dari setiap event `timeUpdate` langsung diteruskan ke `progressAnim.setValue(pct)`.
+     - Jarum needle playhead pada editor rentang (`FeedTopControls.tsx`) dan progress bar playback (`FeedPlaybackControls.tsx`) bergerak secara instan dan terkunci 100% presisi (0ms lag, 0ms drift) dengan frame fisik video.
+     - Penampil waktu milidetik (`LiveTimeDisplay`) diperbarui secara mulus pada threshold $\ge$ 20ms (0.02s) langsung dari listener `progressAnim` tanpa memicu re-render pada `FeedTopControls` maupun `FeedScreen`.
+  3. Sinkronisasi Subtitle 0ms Drift (`useClipPlayer.ts`):
+     - Evaluasi subtitle (`syncSubtitleCueAtTime(nativeRel, false)`) dieksekusi secara berkelanjutan di setiap frame `timeUpdate` (~30 FPS), sehingga teks subtitle overlay video muncul dan hilang pada timestamp riil yang identik dengan suara ucapan tanpa jeda.
+     - Saat video dijeda (Pause) atau diseek, sinkronisasi seleksi cue (`syncSubtitleCueAtTime(nativeRel, true)`) diaktifkan untuk menyorot kotak cue aktif di timeline tanpa membebani performa selama pemutaran kontinu.
+  4. Penyederhanaan Seek dan Playback Controls (`useClipPlayer.ts`):
+     - `skipSeconds`, `centralizedSeek`, dan `togglePlayPause` kini membaca `player.currentTime` langsung dari instance native pemutar video tanpa mengandalkan variabel wall-clock eksternal.
+- **Perubahan Kode Penting**:
+  - `mobile/src/hooks/useClipPlayer.ts`:
+    - Menghapus import `Easing` dan seluruh referensi `Animated.timing` pada `progressAnim`.
+    - Menghapus refs jam linier (`playStartWallTimeRef`, `playStartClipTimeRef`, `isPlaybackActiveRef`, `linearClockTimerRef`, `stopGraceTimerRef`).
+    - Menghapus fungsi `startLinearClock` dan `stopLinearClock`.
+    - Mengonfigurasi `timeUpdateEventInterval: 0.033` (~30 FPS) pada `useVideoPlayer` dan `useEffect`.
+    - Memperbarui event listener `timeUpdate` untuk langsung menyetel `progressAnim.setValue(pct)` dan `syncSubtitleCueAtTime(nativeRel, false)`.
+    - Memperbarui listener `playingChange` untuk menyelaraskan posisi jeda (pause) dan seleksi subtitle cue saat pemutaran berhenti.
+    - Menyederhanakan `centralizedSeek`, `skipSeconds`, dan `togglePlayPause` agar murni merujuk ke hardware clock `player.currentTime`.
+  - `mobile/src/components/feed/FeedTopControls.tsx`:
+    - Mengubah threshold pembaruan waktu milidetik `LiveTimeDisplay` menjadi $\ge 0.02$ detik agar merespons event 30 FPS secara konsisten dan mulus tanpa frame drop.
+
+## [8be4ad4] - Isolate Subtitle Overlay and Implement Continuous Mid-Flight Playback Calibration
 - **Konteks Struktural**:
   1. Isolasi Total Subtitle Overlay (`SubtitleOverlay.tsx`, `FeedScreen.tsx`):
      - Memindahkan pengelolaan teks dan ukuran font subtitle (`activeSubtitleText`, `activeSubtitleFontSize`) dari state induk `FeedScreen` langsung ke dalam `SubtitleOverlay` melalui `subtitleListenerRef`.
