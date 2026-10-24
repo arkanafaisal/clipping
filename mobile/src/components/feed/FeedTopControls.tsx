@@ -1023,7 +1023,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                         templateConfig?.watermark?.enabled && styles.templateActionBtnTextActive,
                       ]}
                     >
-                      Watermark
+                      {templateConfig?.watermark?.enabled ? 'WM: ON' : 'Watermark'}
                     </Text>
                   </Pressable>
                 </View>
@@ -1981,29 +1981,53 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
               </Pressable>
             </View>
 
-            {/* Toggle Aktif */}
-            <Pressable
-              style={[
-                styles.templateToggleRow,
-                tempWatermarkEnabled && styles.templateToggleRowActive,
-              ]}
-              onPress={() => setTempWatermarkEnabled((p) => !p)}
-            >
-              <Text style={styles.templateToggleLabel}>Tampilkan Watermark</Text>
-              <View
-                style={[
-                  styles.templateToggleSwitch,
-                  tempWatermarkEnabled && styles.templateToggleSwitchActive,
-                ]}
-              >
-                <View
+            {/* Pilihan: Tanpa Watermark vs Dengan Watermark */}
+            <View style={styles.posSectionContainer}>
+              <Text style={styles.timeSectionLabel}>PILIHAN PENGGUNAAN WATERMARK</Text>
+              <View style={styles.posPresetGroup}>
+                <Pressable
                   style={[
-                    styles.templateToggleKnob,
-                    tempWatermarkEnabled && styles.templateToggleKnobActive,
+                    styles.posPresetBtn,
+                    !tempWatermarkEnabled && styles.posPresetBtnActive,
+                    { flex: 1, paddingVertical: 10 },
                   ]}
-                />
+                  onPress={() => setTempWatermarkEnabled(false)}
+                >
+                  <Text
+                    style={[
+                      styles.posPresetText,
+                      !tempWatermarkEnabled && styles.posPresetTextActive,
+                      { fontWeight: '700' },
+                    ]}
+                  >
+                    Tanpa Watermark
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={[
+                    styles.posPresetBtn,
+                    tempWatermarkEnabled && styles.posPresetBtnActive,
+                    { flex: 1, paddingVertical: 10 },
+                  ]}
+                  onPress={() => setTempWatermarkEnabled(true)}
+                >
+                  <Text
+                    style={[
+                      styles.posPresetText,
+                      tempWatermarkEnabled && styles.posPresetTextActive,
+                      { fontWeight: '700' },
+                    ]}
+                  >
+                    Dengan Watermark
+                  </Text>
+                </Pressable>
               </View>
-            </Pressable>
+              <Text style={[styles.cropCoordinatesHint, { marginTop: 6 }]}>
+                {tempWatermarkEnabled
+                  ? 'Klip ini AKAN memakai watermark (tampil di preview & ekspor).'
+                  : 'Klip ini TANPA watermark (bersih tanpa teks watermark).'}
+              </Text>
+            </View>
 
             {/* Input Teks Watermark */}
             <View style={styles.posSectionContainer}>

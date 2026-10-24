@@ -14,7 +14,21 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Support Global Watermark Template with Custom Position, Size, and Text
+## [Unreleased] - Support Per-Clip Watermark Choice (With or Without Watermark)
+- **Konteks Struktural**:
+  1. Fleksibilitas Pemilihan Status Watermark per Klip (`useClipTemplate.ts`):
+     - Memprioritaskan status simpanan klip (`clipSaved?.watermark?.enabled`) di atas status default global (`globalConf?.watermark?.enabled`), sehingga setiap klip bebas dipilih apakah ingin menggunakan watermark atau bersih tanpa watermark.
+     - Properti styling (teks, ukuran font, koordinat X/Y) tetap diwarisi secara global dari `video_config.json` agar pengguna tidak perlu repot mengetik ulang pada setiap klip.
+  2. Pilihan Antarmuka Segmented "Tanpa Watermark" vs "Dengan Watermark" (`FeedTopControls.tsx`):
+     - Menambahkan tombol pilihan segmented yang jelas dan tegas di bagian atas modal watermark: `[ Tanpa Watermark ]` dan `[ Dengan Watermark ]`.
+     - Menampilkan indikator status dinamis langsung pada baris tombol template editor (`WM: ON` saat klip memakai watermark, dan `Watermark` saat klip tanpa watermark).
+- **Perubahan Kode Penting**:
+  - `mobile/src/hooks/useClipTemplate.ts`:
+    - Memperbarui resolusi `enabled` agar mendahulukan status spesifik per-klip (`clipSaved?.watermark?.enabled !== undefined`).
+  - `mobile/src/components/feed/FeedTopControls.tsx`:
+    - Menyediakan tombol pemilih segmented 2-opsi "Tanpa Watermark" vs "Dengan Watermark" dan label indikator `WM: ON`.
+
+## [0f74028] - Support Global Watermark Template with Custom Position, Size, and Text
 - **Konteks Struktural**:
   1. Penambahan Template Watermark Global (`api.ts`, `useClipTemplate.ts`):
      - Menambahkan konfigurasi elemen `watermark` pada `ClipTemplateConfig` dan `VideoGlobalConfig` dengan parameter `enabled`, `text`, `size`, `x`, dan `y`.

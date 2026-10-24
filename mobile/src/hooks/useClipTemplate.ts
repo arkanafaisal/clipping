@@ -71,10 +71,14 @@ export function useClipTemplate({ videoId, activeClip, isDownloaded }: UseClipTe
           };
 
           // 4. Elemen Watermark:
-          // Global tingkat video: enabled, text, size, x, y (mewarisi global video config)
+          // Global tingkat video: text, size, x, y (mewarisi global video config)
+          // enabled: Bebas dipilih per-klip (bisa tanpa atau dengan watermark)
           const mergedWatermark = {
             ...DEFAULT_TEMPLATE_CONFIG.watermark,
-            enabled: globalConf?.watermark?.enabled ?? clipSaved?.watermark?.enabled ?? false,
+            enabled:
+              clipSaved?.watermark?.enabled !== undefined
+                ? clipSaved.watermark.enabled
+                : globalConf?.watermark?.enabled ?? false,
             text: globalConf?.watermark?.text ?? clipSaved?.watermark?.text ?? '',
             size: globalConf?.watermark?.size ?? clipSaved?.watermark?.size ?? DEFAULT_TEMPLATE_CONFIG.watermark.size,
             x: globalConf?.watermark?.x ?? clipSaved?.watermark?.x ?? DEFAULT_TEMPLATE_CONFIG.watermark.x,
