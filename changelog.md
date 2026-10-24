@@ -14,7 +14,24 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Isolate Progress Bar Re-Renders with Core Animated.Value & Throttle Screen State Updates
+## [Unreleased] - Unify Subtitle Needle and Live Time Display with Single progressAnim Value
+- **Konteks Struktural**:
+  1. Penyatuan Tiga Indikator Waktu (`FeedTopControls.tsx`, `FeedScreen.tsx`):
+     - Menyatukan angka waktu atas, progress bar merah bawah, dan jarum needle playhead subtitle mini-track ke satu sumber nilai yang sama (`progressAnim: Animated.Value`).
+     - Mengubah needle playhead timeline subtitle (`styles.playheadNeedle`) menjadi `<Animated.View>` yang diinterpolasi langsung dari `progressAnim` (`outputRange: [0, trackLayoutWidth - 2.5]`) untuk pergerakan 60 FPS tanpa re-render React.
+     - Mengekstrak teks angka waktu atas ke dalam mikro-komponen terisolasi `LiveTimeDisplay` yang mendengarkan `progressAnim.addListener` dan memperbarui teks waktu milidetik secara mulus ~30 FPS (33ms) secara lokal tanpa memicu re-render pada `FeedTopControls` maupun `FeedScreen`.
+     - Mengisolasi `LiveTimeDisplay` dari throttling 250ms parent screen saat playback, sembari menjaga sinkronisasi otomatis saat seek, pause, dan pergantian klip (`clipId`).
+- **Perubahan Kode Penting**:
+  - `mobile/src/components/feed/FeedTopControls.tsx`:
+    - Menambahkan `Animated` ke impor react-native.
+    - Menambahkan prop `progressAnim?: Animated.Value` pada `FeedTopControlsProps`.
+    - Membuat mikro-komponen `LiveTimeDisplay` dengan `progressAnim.addListener` lokal (~30 FPS).
+    - Memasang `LiveTimeDisplay` di slot durasi realtime mode done.
+    - Mengonversi `styles.playheadNeedle` menjadi `<Animated.View>` dengan interpolasi `progressAnim`.
+  - `mobile/src/components/FeedScreen.tsx`:
+    - Mengoperkan `progressAnim={progressAnim}` ke `<FeedTopControls>`.
+
+## [e6e5afa] - Isolate Progress Bar Re-Renders with Core Animated.Value & Throttle Screen State Updates
 - **Konteks Struktural**:
   1. Isolasi Total Animasi Progress Bar (`useClipPlayer.ts`, `FeedPlaybackControls.tsx`, `FeedScreen.tsx`):
      - Mengimplementasikan `progressAnim = useRef(new Animated.Value(0)).current` dari modul core `react-native` untuk menggerakkan progress bar secara mandiri di pipeline animasi tanpa memicu re-render React pada komponen layar induk.

@@ -366,6 +366,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
       {/* 1. TOP CONTROLS */}
       <FeedTopControls
         activeClip={activeClip}
+        progressAnim={progressAnim}
         currentClipTime={currentClipTime}
         isDownloaded={Boolean(downloadedClips[activeClip.id])}
         isDownloading={Boolean(downloadingClips[activeClip.id])}

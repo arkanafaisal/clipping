@@ -9,6 +9,7 @@ import {
   Platform,
   PanResponder,
   Modal,
+  Animated,
 } from 'react-native';
 import {
   Trash2,
@@ -67,10 +68,67 @@ const SubtitleCuePill: React.FC<SubtitleCuePillProps> = React.memo(
   }
 );
 
+interface LiveTimeDisplayProps {
+  progressAnim?: Animated.Value;
+  duration: number;
+  fallbackTime: number;
+  clipId?: string;
+}
+
+const LiveTimeDisplay: React.FC<LiveTimeDisplayProps> = React.memo(({ progressAnim, duration, fallbackTime, clipId }) => {
+  const [displayTime, setDisplayTime] = useState<string>(() => formatTimeWithMs(fallbackTime));
+  const lastSecRef = useRef<number>(fallbackTime);
+
+  useEffect(() => {
+    if (!progressAnim || duration <= 0) {
+      setDisplayTime(formatTimeWithMs(fallbackTime));
+      return;
+    }
+
+    // Set initial display time for current clip
+    setDisplayTime(formatTimeWithMs(fallbackTime));
+    lastSecRef.current = fallbackTime;
+
+    const listenerId = progressAnim.addListener(({ value }) => {
+      const curSec = (Math.max(0, Math.min(100, value)) / 100) * duration;
+      // Perbarui tampilan waktu milidetik secara halus ~30 FPS (interval 33ms)
+      if (Math.abs(curSec - lastSecRef.current) >= 0.033) {
+        lastSecRef.current = curSec;
+        setDisplayTime(formatTimeWithMs(curSec));
+      }
+    });
+
+    return () => {
+      progressAnim.removeListener(listenerId);
+    };
+  }, [progressAnim, duration]);
+
+  useEffect(() => {
+    // Sinkronisasi saat progressAnim tidak tersedia (fallback mode)
+    if (!progressAnim) {
+      setDisplayTime(formatTimeWithMs(fallbackTime));
+      lastSecRef.current = fallbackTime;
+    }
+  }, [fallbackTime, progressAnim]);
+
+  useEffect(() => {
+    // Sinkronisasi saat pergantian klip
+    setDisplayTime(formatTimeWithMs(fallbackTime));
+    lastSecRef.current = fallbackTime;
+  }, [clipId]);
+
+  return (
+    <Text style={[styles.timeNumberText, styles.timeMsText]}>
+      {displayTime}
+    </Text>
+  );
+});
+
 export type EditorMode = 'subtitle' | 'template' | null;
 
 export interface FeedTopControlsProps {
   activeClip: ClipItem;
+  progressAnim?: Animated.Value;
   currentClipTime: number;
   isDownloaded: boolean;
   isDownloading: boolean;
@@ -117,6 +175,7 @@ export interface FeedTopControlsProps {
 
 export const FeedTopControls: React.FC<FeedTopControlsProps> = React.memo(({
   activeClip,
+  progressAnim,
   currentClipTime,
   isDownloaded,
   isDownloading,
@@ -512,9 +571,12 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = React.memo(({
         <View style={styles.centerTimeWrapper} pointerEvents="box-none">
           {activeClip.status === 'done' ? (
             <View style={styles.timeDisplay}>
-              <Text style={[styles.timeNumberText, styles.timeMsText]}>
-                {formatTimeWithMs(currentClipTime)}
-              </Text>
+              <LiveTimeDisplay
+                progressAnim={progressAnim}
+                duration={activeClip.end - activeClip.start}
+                fallbackTime={currentClipTime}
+                clipId={activeClip.id}
+              />
               <Text style={styles.timeSeparatorText}>/</Text>
               <Text style={[styles.timeNumberText, styles.timeMsText, styles.timeMsDim]}>
                 {formatTimeWithMs(activeClip.end - activeClip.start)}
@@ -782,13 +844,18 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = React.memo(({
                   {...trackPanResponder.panHandlers}
                 >
                   <View style={styles.miniTrackBackground} pointerEvents="none">
-                    {/* Needle Playhead (Merah kontras seperti scrubber bawah) */}
-                    <View
+                    {/* Needle Playhead (Merah kontras seperti scrubber bawah, 60 FPS via progressAnim) */}
+                    <Animated.View
                       style={[
                         styles.playheadNeedle,
                         {
                           left:
-                            clipDuration > 0
+                            progressAnim && trackLayoutWidth > 0
+                              ? progressAnim.interpolate({
+                                  inputRange: [0, 100],
+                                  outputRange: [0, Math.max(0, trackLayoutWidth - 2.5)],
+                                })
+                              : clipDuration > 0
                               ? Math.max(
                                   0,
                                   Math.min(
@@ -801,7 +868,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = React.memo(({
                       ]}
                     >
                       <View style={styles.playheadCap} />
-                    </View>
+                    </Animated.View>
 
                     {/* Subtitle Cue Pills (Visual timeline blocks) */}
                     {subtitles.map((cue, index) => (
