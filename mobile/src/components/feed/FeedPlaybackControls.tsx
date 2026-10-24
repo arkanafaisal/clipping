@@ -5,6 +5,7 @@ import {
   Pressable,
   GestureResponderEvent,
   LayoutChangeEvent,
+  Animated,
 } from 'react-native';
 import {
   Rewind,
@@ -16,6 +17,7 @@ import {
 } from 'lucide-react-native';
 
 export interface FeedPlaybackControlsProps {
+  progressAnim?: Animated.Value;
   progressPercent: number;
   isContinueState: boolean;
   onScrubberPress: (e: GestureResponderEvent) => void;
@@ -25,6 +27,7 @@ export interface FeedPlaybackControlsProps {
 }
 
 export const FeedPlaybackControls: React.FC<FeedPlaybackControlsProps> = React.memo(({
+  progressAnim,
   progressPercent,
   isContinueState,
   onScrubberPress,
@@ -44,8 +47,32 @@ export const FeedPlaybackControls: React.FC<FeedPlaybackControlsProps> = React.m
         onResponderGrant={onScrubberPress}
         onResponderMove={onScrubberPress}
       >
-        <View style={[styles.progressBarFill, { width: `${progressPercent}%` }]} />
-        <View style={[styles.progressKnob, { left: `${progressPercent}%` }]} />
+        <Animated.View
+          style={[
+            styles.progressBarFill,
+            {
+              width: progressAnim
+                ? progressAnim.interpolate({
+                    inputRange: [0, 100],
+                    outputRange: ['0%', '100%'],
+                  })
+                : `${progressPercent}%`,
+            },
+          ]}
+        />
+        <Animated.View
+          style={[
+            styles.progressKnob,
+            {
+              left: progressAnim
+                ? progressAnim.interpolate({
+                    inputRange: [0, 100],
+                    outputRange: ['0%', '100%'],
+                  })
+                : `${progressPercent}%`,
+            },
+          ]}
+        />
       </View>
 
       {/* Playback Buttons (-10s, -3s, Play/Pause, +5s, +15s) */}

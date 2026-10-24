@@ -73,6 +73,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     isContinueState,
     progressPercent,
     setProgressPercent,
+    progressAnim,
     currentClipTime,
     setCurrentClipTime,
     trackWidthRef,
@@ -112,11 +113,13 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
       const clampedRel = Math.max(0, Math.min(duration, relSec));
       const targetTime = isIndividualCutClip ? clampedRel : curClip.start + clampedRel;
       const pct = (clampedRel / duration) * 100;
+      progressAnim.stopAnimation();
+      progressAnim.setValue(pct);
       setProgressPercent(pct);
       setCurrentClipTime(clampedRel);
       centralizedSeek(targetTime, shouldPlay);
     },
-    [centralizedSeek, setProgressPercent, setCurrentClipTime, currentSourceUriRef]
+    [centralizedSeek, setProgressPercent, setCurrentClipTime, currentSourceUriRef, progressAnim]
   );
 
   // Hook 1: useClipData
@@ -544,6 +547,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
 
       {/* 3. BOTTOM PLAYBACK CONTROLS (Fixed Height) */}
       <FeedPlaybackControls
+        progressAnim={progressAnim}
         progressPercent={progressPercent}
         isContinueState={isContinueState}
         onScrubberPress={(e) => {
@@ -565,6 +569,8 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
             ? (pct / 100) * duration
             : currentActive.start + (pct / 100) * duration;
 
+          progressAnim.stopAnimation();
+          progressAnim.setValue(pct);
           setProgressPercent(pct);
           setCurrentClipTime((pct / 100) * duration);
           centralizedSeek(targetTime, true);

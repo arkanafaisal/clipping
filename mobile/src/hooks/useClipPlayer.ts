@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { BackHandler } from 'react-native';
+import { BackHandler, Animated, Easing } from 'react-native';
 import { useVideoPlayer } from 'expo-video';
 import {
   ClipItem,
@@ -75,6 +75,8 @@ export function useClipPlayer({
   const linearClockTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const stopGraceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastDispatchedSubtitleTextRef = useRef<string>('');
+  const progressAnim = useRef<Animated.Value>(new Animated.Value(0)).current;
+  const lastStateUpdateWallTimeRef = useRef<number>(0);
 
   useEffect(() => {
     isContinueStateRef.current = isContinueState;
@@ -240,6 +242,7 @@ export function useClipPlayer({
       stopGraceTimerRef.current = null;
     }
     isPlaybackActiveRef.current = false;
+    progressAnim.stopAnimation();
     if (linearClockTimerRef.current) {
       clearInterval(linearClockTimerRef.current);
       linearClockTimerRef.current = null;
@@ -255,11 +258,13 @@ export function useClipPlayer({
       playStartWallTimeRef.current = null;
       setCurrentClipTime(finalTime);
       if (duration > 0) {
-        setProgressPercent(Math.max(0, Math.min(100, (finalTime / duration) * 100)));
+        const finalPct = Math.max(0, Math.min(100, (finalTime / duration) * 100));
+        setProgressPercent(finalPct);
+        progressAnim.setValue(finalPct);
       }
       syncSubtitleCueAtTime(finalTime);
     }
-  }, [getActiveClip, player, syncSubtitleCueAtTime]);
+  }, [getActiveClip, player, syncSubtitleCueAtTime, progressAnim]);
 
   /**
    * Memulai jam linier (linear wall-clock) independen:
@@ -290,18 +295,33 @@ export function useClipPlayer({
       playStartWallTimeRef.current = Date.now();
       isPlaybackActiveRef.current = true;
 
+      // Start Animated.timing for 60 FPS smooth progress bar without React re-renders
+      const initialPct = duration > 0 ? (initialTime / duration) * 100 : 0;
+      progressAnim.stopAnimation();
+      progressAnim.setValue(initialPct);
+      const remainingSec = Math.max(0, duration - initialTime);
+      const rate = player?.playbackRate || 1.0;
+      const remainingMs = Math.max(0, (remainingSec / rate) * 1000);
+      Animated.timing(progressAnim, {
+        toValue: 100,
+        duration: remainingMs,
+        easing: Easing.linear,
+        useNativeDriver: false,
+      }).start();
+
       // Cara 2 Catch-Up Instan: perbarui posisi UI seketika tanpa menunggu interval 50ms pertama
       setCurrentClipTime(initialTime);
       if (duration > 0) {
-        setProgressPercent(Math.max(0, Math.min(100, (initialTime / duration) * 100)));
+        setProgressPercent(initialPct);
       }
       syncSubtitleCueAtTime(initialTime);
+      lastStateUpdateWallTimeRef.current = Date.now();
 
       if (linearClockTimerRef.current) {
         clearInterval(linearClockTimerRef.current);
       }
 
-      // Interval 50ms (20 FPS) super ringan dan mulus di layar
+      // Interval 50ms super ringan: HANYA mengevaluasi subtitle & boundary check tanpa membebani render layar!
       linearClockTimerRef.current = setInterval(() => {
         if (!isPlaybackActiveRef.current || playStartWallTimeRef.current === null) return;
 
@@ -318,9 +338,20 @@ export function useClipPlayer({
         if (curTime >= curDuration) {
           playStartClipTimeRef.current = 0;
           playStartWallTimeRef.current = Date.now();
+          lastStateUpdateWallTimeRef.current = Date.now();
           setCurrentClipTime(0);
           setProgressPercent(0);
           syncSubtitleCueAtTime(0);
+
+          progressAnim.stopAnimation();
+          progressAnim.setValue(0);
+          const loopRate = player?.playbackRate || 1.0;
+          Animated.timing(progressAnim, {
+            toValue: 100,
+            duration: Math.max(0, (curDuration / loopRate) * 1000),
+            easing: Easing.linear,
+            useNativeDriver: false,
+          }).start();
 
           if (player) {
             const isIndividualCutClip =
@@ -346,10 +377,17 @@ export function useClipPlayer({
         }
 
         const clampedTime = Math.max(0, Math.min(curDuration, curTime));
-        const pct = (clampedTime / curDuration) * 100;
-        setCurrentClipTime(clampedTime);
-        setProgressPercent(pct);
+        // Subtitle evaluation: 100% presisi tanpa tertahan antrean render React!
         syncSubtitleCueAtTime(clampedTime);
+
+        // Throttle root React state updates to 250ms (4 FPS) to keep JS thread 100% free
+        // (Progress bar is animated natively at 60 FPS via progressAnim!)
+        if (now - lastStateUpdateWallTimeRef.current >= 250) {
+          lastStateUpdateWallTimeRef.current = now;
+          const pct = (clampedTime / curDuration) * 100;
+          setCurrentClipTime(clampedTime);
+          setProgressPercent(pct);
+        }
       }, 50);
     },
     [
@@ -359,6 +397,7 @@ export function useClipPlayer({
       setPendingSeek,
       downloadedClipsRef,
       syncSubtitleCueAtTime,
+      progressAnim,
     ]
   );
 
@@ -375,6 +414,8 @@ export function useClipPlayer({
       if (!player) return;
       cancelPendingSeekDebounce();
       stopLinearClock();
+      progressAnim.stopAnimation();
+      progressAnim.setValue(0);
       playStartClipTimeRef.current = 0;
       setCurrentClipTime(0);
       setProgressPercent(0);
@@ -529,7 +570,10 @@ export function useClipPlayer({
       stopLinearClock();
       setCurrentClipTime(clampedRel);
       if (duration > 0) {
-        setProgressPercent(Math.max(0, Math.min(100, (clampedRel / duration) * 100)));
+        const pct = Math.max(0, Math.min(100, (clampedRel / duration) * 100));
+        setProgressPercent(pct);
+        progressAnim.stopAnimation();
+        progressAnim.setValue(pct);
       }
       syncSubtitleCueAtTime(clampedRel);
 
@@ -709,7 +753,10 @@ export function useClipPlayer({
           playStartClipTimeRef.current = nativeRel;
           setCurrentClipTime(nativeRel);
           if (duration > 0) {
-            setProgressPercent(Math.max(0, Math.min(100, (nativeRel / duration) * 100)));
+            const p = Math.max(0, Math.min(100, (nativeRel / duration) * 100));
+            setProgressPercent(p);
+            progressAnim.stopAnimation();
+            progressAnim.setValue(p);
           }
           syncSubtitleCueAtTime(nativeRel);
         }
@@ -726,6 +773,16 @@ export function useClipPlayer({
           if (drift > 1.5) {
             playStartClipTimeRef.current = nativeRel;
             playStartWallTimeRef.current = Date.now();
+            const p = Math.max(0, Math.min(100, (nativeRel / duration) * 100));
+            progressAnim.stopAnimation();
+            progressAnim.setValue(p);
+            const remainingSec = Math.max(0, duration - nativeRel);
+            Animated.timing(progressAnim, {
+              toValue: 100,
+              duration: Math.max(0, (remainingSec / rate) * 1000),
+              easing: Easing.linear,
+              useNativeDriver: false,
+            }).start();
           }
         }
       }
@@ -1105,6 +1162,7 @@ export function useClipPlayer({
     streamUrlRef,
     isContinueState,
     setIsContinueState,
+    progressAnim,
     progressPercent,
     setProgressPercent,
     currentClipTime,

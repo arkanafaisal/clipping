@@ -14,7 +14,30 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Synchronize Subtitle to Linear Clock & Eliminate Cue Boundary Freeze
+## [Unreleased] - Isolate Progress Bar Re-Renders with Core Animated.Value & Throttle Screen State Updates
+- **Konteks Struktural**:
+  1. Isolasi Total Animasi Progress Bar (`useClipPlayer.ts`, `FeedPlaybackControls.tsx`, `FeedScreen.tsx`):
+     - Mengimplementasikan `progressAnim = useRef(new Animated.Value(0)).current` dari modul core `react-native` untuk menggerakkan progress bar secara mandiri di pipeline animasi tanpa memicu re-render React pada komponen layar induk.
+     - Di `FeedPlaybackControls.tsx`, mengubah `progressBarFill` dan `progressKnob` menjadi `<Animated.View>` yang diinterpolasi langsung dari `progressAnim` (skala 0–100 ke 0%–100%).
+     - Menghubungkan event play, pause, seek, drag scrubber, dan clip loop ke `Animated.timing` dan `progressAnim.setValue(...)` secara langsung.
+  2. Meringankan Beban JS Thread dengan Throttling State Root Screen (`useClipPlayer.ts`):
+     - Mengurangi frekuensi pemanggilan `setCurrentClipTime` dan `setProgressPercent` di dalam interval jam linier dari sebelumnya setiap 50ms (20 FPS re-render layar induk) menjadi throttled ke 250ms (4 FPS).
+     - Menjaga JS thread tetap 100% idle dan bebas dari kemacetan re-render, sehingga interval evaluasi subtitle (`syncSubtitleCueAtTime`) dan timer animasi dapat meletup tepat waktu tanpa tertahan lag ~200ms.
+- **Perubahan Kode Penting**:
+  - `mobile/src/hooks/useClipPlayer.ts`:
+    - Mengimpor `Animated` dan `Easing` dari `react-native`.
+    - Menambahkan ref `progressAnim` dan `lastStateUpdateWallTimeRef`.
+    - Di `startLinearClock`: Memulai `Animated.timing` menuju 100 dengan durasi sisa klip; di interval 50ms, membatasi pembaruan state React (`setCurrentClipTime`, `setProgressPercent`) hanya jika selisih waktu >= 250ms.
+    - Di `stopLinearClock` dan `centralizedSeek`: Menghentikan animasi dengan `progressAnim.stopAnimation()` dan memperbarui nilai seketika dengan `progressAnim.setValue(...)`.
+    - Menambahkan `progressAnim` ke objek balikan hook `useClipPlayer`.
+  - `mobile/src/components/feed/FeedPlaybackControls.tsx`:
+    - Menambahkan prop opsional `progressAnim?: Animated.Value` di antarmuka `FeedPlaybackControlsProps`.
+    - Menggunakan `<Animated.View>` untuk `progressBarFill` dan `progressKnob` dengan interpolasi nilai.
+  - `mobile/src/components/FeedScreen.tsx`:
+    - Menerima `progressAnim` dari `useClipPlayer` dan mengoperkannya ke `FeedPlaybackControls`.
+    - Memperbarui interaksi scrubber (`onScrubberPress`) dan `handleSeekRelative` agar menghentikan dan men-set nilai `progressAnim` seketika (0ms).
+
+## [9393926] - Synchronize Subtitle to Linear Clock & Eliminate Cue Boundary Freeze
 - **Konteks Struktural**:
   1. Koneksikan State Subtitle Aktif ke Jam Linier Player (`FeedScreen.tsx`, `useClipPlayer.ts`):
      - Memperbaiki `setActiveSubtitleTextRef` yang sebelumnya terdefinisi namun tidak pernah dihubungkan (`current = setActiveSubtitleText`) ke hook subtitle.
