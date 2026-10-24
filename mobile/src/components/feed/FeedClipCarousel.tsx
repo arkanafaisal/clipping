@@ -9,7 +9,7 @@ export interface FeedClipCarouselProps {
   onSelectClip: (id: string) => void;
 }
 
-export const FeedClipCarousel: React.FC<FeedClipCarouselProps> = ({
+export const FeedClipCarousel: React.FC<FeedClipCarouselProps> = React.memo(({
   clipColumns,
   activeClipId,
   onSelectClip,
@@ -61,7 +61,7 @@ export const FeedClipCarousel: React.FC<FeedClipCarouselProps> = ({
       </ScrollView>
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   clipGridContainer: {

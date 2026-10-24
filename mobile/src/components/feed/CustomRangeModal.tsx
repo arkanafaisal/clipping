@@ -21,7 +21,7 @@ export interface CustomRangeModalProps {
   onAddCustomRange: (start: number, end: number) => void;
 }
 
-export const CustomRangeModal: React.FC<CustomRangeModalProps> = ({
+export const CustomRangeModal: React.FC<CustomRangeModalProps> = React.memo(({
   visible,
   currentPlaybackTime,
   onClose,
@@ -203,7 +203,7 @@ export const CustomRangeModal: React.FC<CustomRangeModalProps> = ({
       </TouchableWithoutFeedback>
     </Modal>
   );
-};
+});
 
 const styles = StyleSheet.create({
   modalOverlay: {

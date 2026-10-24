@@ -21,7 +21,7 @@ const STROKE_OFFSETS = [
   { x: 1.5, y: 1.5 },
 ];
 
-export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
+export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = React.memo(({
   isVisible,
   subtitleText,
   fontSize = 14,
@@ -37,8 +37,9 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
     height: (windowWidth * 9) / 16,
   });
 
-  if (!isVisible || !subtitleText) return null;
+  if (!isVisible) return null;
 
+  const hasText = Boolean(subtitleText && subtitleText.trim().length > 0);
   const containerWidth = containerSize.width || windowWidth;
   const containerHeight = containerSize.height || (windowWidth * 9) / 16;
 
@@ -61,10 +62,10 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
   const translateX = ((positionX - 50) / 100) * containerWidth;
   const translateY = ((positionY - 50) / 100) * containerHeight;
 
-  // Pisahkan baris hanya jika ada explicit newline (\n).
-  // Teks yang panjang tidak di-auto-break/wrap (overflow dibiarkan melebar tanpa wrap),
-  // identik 100% dengan mekanisme FFmpeg.
-  const lines = subtitleText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+  // Pisahkan baris hanya jika ada teks dan explicit newline (\n).
+  const lines = hasText
+    ? subtitleText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
+    : [];
 
   // Menghilangkan duplikasi bayangan dobel pada emoji di 8 layer stroke belakang:
   // Karakter emoji disembunyikan (opacity: 0) pada layer stroke agar tidak memunculkan bayangan warna-warni,
@@ -89,7 +90,10 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
 
   return (
     <View
-      style={styles.subtitleOverlayContainer}
+      style={[
+        styles.subtitleOverlayContainer,
+        { opacity: hasText ? 1 : 0 },
+      ]}
       pointerEvents="none"
       onLayout={(e) => {
         const { width, height } = e.nativeEvent.layout;
@@ -153,7 +157,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
       </View>
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   subtitleOverlayContainer: {

@@ -24,7 +24,7 @@ export interface FeedPlaybackControlsProps {
   onSkipSeconds: (seconds: number) => void;
 }
 
-export const FeedPlaybackControls: React.FC<FeedPlaybackControlsProps> = ({
+export const FeedPlaybackControls: React.FC<FeedPlaybackControlsProps> = React.memo(({
   progressPercent,
   isContinueState,
   onScrubberPress,
@@ -91,7 +91,7 @@ export const FeedPlaybackControls: React.FC<FeedPlaybackControlsProps> = ({
       </View>
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   bottomPlayback: {

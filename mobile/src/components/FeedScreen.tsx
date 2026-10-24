@@ -49,7 +49,8 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
   const subtitlesRef = useRef<SubtitleCue[]>([]);
   const setCookiesModalVisibleRef = useRef<(visible: boolean) => void>(() => {});
   const setDownloadedClipsRef = useRef<React.Dispatch<React.SetStateAction<Record<string, boolean>>>>(() => {});
-  const setActiveSubtitleTextRef = useRef<(text: string) => void>(() => {});
+  const setActiveSubtitleTextRef = useRef<(text: string, fontSize?: number) => void>(() => {});
+  const [activeSubtitleFontSize, setActiveSubtitleFontSize] = useState<number>(14);
 
   // Modal dialog states
   const [isCustomModalVisible, setIsCustomModalVisible] = useState(false);
@@ -60,8 +61,8 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     setDownloadedClipsRef.current(val);
   }, []);
 
-  const handleSetActiveSubtitleText = useCallback((text: string) => {
-    setActiveSubtitleTextRef.current(text);
+  const handleSetActiveSubtitleText = useCallback((text: string, fontSize: number = 14) => {
+    setActiveSubtitleTextRef.current(text, fontSize);
   }, []);
 
   // Hook 2: useClipPlayer
@@ -228,6 +229,13 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     onRateLimit: () => setCookiesModalVisible(true),
   });
 
+  useEffect(() => {
+    setActiveSubtitleTextRef.current = (text: string, fontSize: number = 14) => {
+      setActiveSubtitleText(text);
+      setActiveSubtitleFontSize(fontSize);
+    };
+  }, [setActiveSubtitleText]);
+
   const [activeEditorMode, setActiveEditorMode] = useState<EditorMode>(null);
 
   const [facecamLayout, setFacecamLayout] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
@@ -329,12 +337,6 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
   useEffect(() => {
     setCookiesModalVisibleRef.current = setCookiesModalVisible;
   }, [setCookiesModalVisible]);
-
-  // Active Subtitle Cue determination based on playback time
-  const activeSubtitleCue = useMemo(() => {
-    if (subtitles.length === 0) return null;
-    return subtitles.find((c) => currentClipTime >= c.start && currentClipTime <= c.end) || null;
-  }, [subtitles, currentClipTime]);
 
   if (loading) {
     return (
@@ -513,8 +515,8 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
               {/* Subtitle Overlay: Selalu dirender relatif terhadap Canvas Wrapper luar */}
               <SubtitleOverlay
                 isVisible={isSubtitleVisible}
-                subtitleText={activeSubtitleCue ? activeSubtitleCue.text : activeSubtitleText}
-                fontSize={activeSubtitleCue?.fontSize || 14}
+                subtitleText={activeSubtitleText}
+                fontSize={activeSubtitleFontSize}
                 positionX={subtitlePosition.x}
                 positionY={subtitlePosition.y}
               />
@@ -584,7 +586,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
       {/* 5. Custom Range & Visible Count Modals */}
       <CustomRangeModal
         visible={isCustomModalVisible}
-        currentPlaybackTime={currentClipTime}
+        currentPlaybackTime={isCustomModalVisible ? currentClipTime : 0}
         onClose={() => setIsCustomModalVisible(false)}
         onAddCustomRange={handleAddCustomClip}
       />

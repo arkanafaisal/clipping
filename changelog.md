@@ -14,7 +14,42 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Buffer Against Micro-Buffering Drops & Enable Instant Catch-Up on Playback Start
+## [Unreleased] - Synchronize Subtitle to Linear Clock & Eliminate Cue Boundary Freeze
+- **Konteks Struktural**:
+  1. Koneksikan State Subtitle Aktif ke Jam Linier Player (`FeedScreen.tsx`, `useClipPlayer.ts`):
+     - Memperbaiki `setActiveSubtitleTextRef` yang sebelumnya terdefinisi namun tidak pernah dihubungkan (`current = setActiveSubtitleText`) ke hook subtitle.
+     - Menambahkan propagasi `fontSize` bersama teks dari `useClipPlayer` melalui `setActiveSubtitleText(text, fontSize)` dan state `activeSubtitleFontSize`.
+     - Mengeliminasi kalkulasi redundan `activeSubtitleCue = useMemo(..., [subtitles, currentClipTime])` di `FeedScreen.tsx` yang sebelumnya memindai array subtitle di setiap interval 50ms.
+     - Mengalihkan rendering `SubtitleOverlay` 100% langsung ke `activeSubtitleText` dan `activeSubtitleFontSize` yang hanya terpicu saat teks subtitle berganti (`text !== lastDispatchedSubtitleTextRef.current`).
+  2. Eliminasi Jeda / Freeze 100ms di Batas Kotak Subtitle (`SubtitleOverlay.tsx`):
+     - Membungkus komponen `SubtitleOverlay` dalam `React.memo` agar tidak ikut ter-render ulang di setiap tick jam linier saat teks tidak berubah.
+     - Mengubah mekanisme render bersyarat: tidak lagi menghancurkan/membuat ulang view container (`if (!isVisible || !subtitleText) return null`), melainkan mempertahankan kontainer tetap terpasang dengan toggling `opacity: hasText ? 1 : 0` dan `pointerEvents="none"`.
+     - Menghilangkan penghancuran dan pembuatan ulang hierarki 10 native views (8 stroke views ber-regex emoji + 1 foreground view) saat masuk/keluar cue subtitle yang sebelumnya memblokir JS thread selama ~100ms dan menyebabkan timer progress bar tersendat.
+  3. Isolasi Komponen Berat FeedScreen (`CustomRangeModal.tsx`, `FeedClipCarousel.tsx`, `FeedPlaybackControls.tsx`, `FeedTopControls.tsx`):
+     - Membungkus `FeedClipCarousel`, `FeedPlaybackControls`, `FeedTopControls`, dan `CustomRangeModal` dalam `React.memo`.
+     - Mencegah passing timestamp `currentClipTime` ke `CustomRangeModal` saat modal tertutup (`currentPlaybackTime={isCustomModalVisible ? currentClipTime : 0}`), memangkas re-render siklus 50ms pada modal yang tidak terlihat.
+- **Perubahan Kode Penting**:
+  - `mobile/src/hooks/useClipPlayer.ts`:
+    - Memperbarui signature `setActiveSubtitleText?: (text: string, fontSize?: number) => void`.
+    - Di `syncSubtitleCueAtTime`: Mengambil `fontSize` dari cue yang cocok dan menyertakannya ke `setActiveSubtitleText(text, fontSize)`.
+  - `mobile/src/components/FeedScreen.tsx`:
+    - Mengaitkan `setActiveSubtitleTextRef.current` ke `setActiveSubtitleText` dan `setActiveSubtitleFontSize` di dalam `useEffect`.
+    - Menghapus deklarasi `activeSubtitleCue = useMemo(...)` berbasis `currentClipTime`.
+    - Mengoper `subtitleText={activeSubtitleText}` dan `fontSize={activeSubtitleFontSize}` ke `SubtitleOverlay`.
+    - Mengoper `currentPlaybackTime={isCustomModalVisible ? currentClipTime : 0}` ke `CustomRangeModal`.
+  - `mobile/src/components/feed/SubtitleOverlay.tsx`:
+    - Membungkus dalam `React.memo`.
+    - Mengganti unmount menjadi `opacity: hasText ? 1 : 0` dengan `lines = hasText ? ... : []`.
+  - `mobile/src/components/feed/FeedClipCarousel.tsx`:
+    - Membungkus dalam `React.memo`.
+  - `mobile/src/components/feed/FeedPlaybackControls.tsx`:
+    - Membungkus dalam `React.memo`.
+  - `mobile/src/components/feed/FeedTopControls.tsx`:
+    - Membungkus dalam `React.memo`.
+  - `mobile/src/components/feed/CustomRangeModal.tsx`:
+    - Membungkus dalam `React.memo`.
+
+## [7fb43b8] - Buffer Against Micro-Buffering Drops & Enable Instant Catch-Up on Playback Start
 - **Konteks Struktural**:
   1. Redam Gangguan Micro-Buffering dengan Grace Period 150ms (`useClipPlayer.ts`):
      - Menambahkan `stopGraceTimerRef` yang menahan penghentian jam linier selama 150ms ketika event `isPlaying === false` diterima dari ExoPlayer.

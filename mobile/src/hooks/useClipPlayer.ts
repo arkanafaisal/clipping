@@ -19,7 +19,7 @@ export interface UseClipPlayerParams {
   downloadedClipsRef: React.MutableRefObject<Record<string, boolean>>;
   playMode?: 'local' | 'stream';
   subtitlesRef?: React.MutableRefObject<SubtitleCue[]>;
-  setActiveSubtitleText?: (text: string) => void;
+  setActiveSubtitleText?: (text: string, fontSize?: number) => void;
   onBack: () => void;
 }
 
@@ -218,13 +218,14 @@ export function useClipPlayer({
           (c) => targetRelTime >= c.start && targetRelTime <= c.end
         );
         const text = match ? match.text : '';
+        const fontSize = match?.fontSize || 14;
         if (text !== lastDispatchedSubtitleTextRef.current) {
           lastDispatchedSubtitleTextRef.current = text;
-          setActiveSubtitleText(text);
+          setActiveSubtitleText(text, fontSize);
         }
       } else if (setActiveSubtitleText && lastDispatchedSubtitleTextRef.current !== '') {
         lastDispatchedSubtitleTextRef.current = '';
-        setActiveSubtitleText('');
+        setActiveSubtitleText('', 14);
       }
     },
     [subtitlesRef, setActiveSubtitleText]

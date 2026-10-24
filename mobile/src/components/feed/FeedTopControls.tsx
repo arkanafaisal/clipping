@@ -115,7 +115,7 @@ export interface FeedTopControlsProps {
   onUpdateEnd: (delta: number) => void;
 }
 
-export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
+export const FeedTopControls: React.FC<FeedTopControlsProps> = React.memo(({
   activeClip,
   currentClipTime,
   isDownloaded,
@@ -2226,7 +2226,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
       </Modal>
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   topSection: {
