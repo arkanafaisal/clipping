@@ -14,6 +14,18 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
+## [Unreleased] - Add TikTok OAuth Token Generator and Automation Workflow
+- **Konteks Struktural**:
+  1. Modul Otorisasi TikTok OAuth 2.0 Mandiri (`scheduler-uploader/auth_tiktok.js`):
+     - Membangun skrip CLI lokal (`npm run auth:tiktok`) untuk menangani alur otorisasi TikTok Login Kit dan Content Posting API.
+     - Mengotomatisasi penangkapan callback di port 8080 lokal dan pertukaran kode otorisasi menjadi `access_token` dan `refresh_token`.
+     - Menyimpan data otorisasi ke `token_tiktok.json` serta otomatis memperbarui konfigurasi `TIKTOK_API_TOKEN` pada file `.env`.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/auth_tiktok.js`: Menambahkan implementasi server lokal dan pertukaran token TikTok v2.
+  - `scheduler-uploader/package.json`: Menambahkan script command `"auth:tiktok": "node auth_tiktok.js"`.
+  - `scheduler-uploader/.env.example`: Menambahkan panduan variabel `TIKTOK_CLIENT_KEY` dan `TIKTOK_CLIENT_SECRET`.
+  - `scheduler-uploader/.gitignore` & `.gitignore`: Menambahkan pola `token*.json`, `credentials*.json`, `.env.*`, dan `*.mp4` agar seluruh kredensial dan file video sementara terlindungi dari commit Git.
+
 ## [Unreleased] - Make GitHub Actions Workflow Manual Trigger Only
 - **Konteks Struktural**:
   1. Optimasi Kuota Menit CI/CD GitHub Actions (`.github/workflows/build-apk.yml`):
