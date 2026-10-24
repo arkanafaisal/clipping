@@ -14,7 +14,27 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Remove Subtitle Auto-Merge and Implement Overlap Trimming Prioritizing Cue Start Times
+## [Unreleased] - Support Subtitle Emoji Font Fallback, Fix Preview Emoji Ghosting, and Buffer Stream Start Offset
+- **Konteks Struktural**:
+  1. Penyesuaian Offset Titik Start pada Pemotongan Stream Online (`clip_downloader.py`):
+     - Menjawab kendala potensi meleset ke dalam (*inward drift*) pada titik awal saat memotong langsung dari stream YouTube.
+     - Menerapkan kompensasi simetris pada rentang pemotongan stream: titik mulai dimajukan 0.5s (`start_num = max(0.0, start_num - 0.5)`) dan titik selesai dimundurkan 0.5s (`end_num += 0.5`).
+     - Menjamin bahwa klip hasil potong dari stream selalu aman melebar ke luar (*outward buffer*), sehingga tidak ada risiko suku kata pertama atau kata penutup terpotong di kedua ujung video.
+  2. Eliminasi Duplikasi Bayangan Emoji pada Preview Subtitle (`SubtitleOverlay.tsx`):
+     - Memperbaiki efek bayangan dobel/berceceran pada karakter emoji di preview subtitle akibat 8 arah pseudo-stroke hitam pekat.
+     - Menyembunyikan karakter emoji (`opacity: 0`) khusus pada 8 layer stroke belakang sehingga border hitam hanya membungkus teks latin, sementara emoji hanya dirender 1 kali bersih di layer foreground dengan zero layout shift.
+  3. Konfigurasi Dukungan Font Emoji pada Ekspor Subtitle ASS (`subtitle_burner.py`):
+     - Menambahkan konfigurasi fallback font `Noto Color Emoji` di samping `Roboto` pada header format style ASS (`libass`).
+     - Menyediakan opsi `:fontsdir=/system/fonts` pada pemanggilan filter `subtitles` FFmpeg agar mesin rendering libass dapat mengakses font emoji sistem Android secara langsung.
+- **Perubahan Kode Penting**:
+  - `mobile/scripts/utils/clip_downloader.py`:
+    - Menambahkan `start_num = max(0.0, start_num - 0.5)` khusus mode stream online agar rentang aman melebar ke luar di awal.
+  - `mobile/src/components/feed/SubtitleOverlay.tsx`:
+    - Menambahkan `renderStrokeContent` untuk menyembunyikan emoji dari 8 layer stroke belakang.
+  - `mobile/scripts/utils/subtitle_burner.py`:
+    - Menambahkan `Noto Color Emoji` ke style header ASS dan opsi `:fontsdir` ke filter `subtitles`.
+
+## [2989b70] - Remove Subtitle Auto-Merge and Implement Overlap Trimming Prioritizing Cue Start Times
 - **Konteks Struktural**:
   1. Penghapusan Fitur Auto-Merge pada Subtitle (`normalizeSingleTrackCues`):
      - Menghilangkan perilaku penggabungan teks otomatis (*auto-merge*) ketika dua cue subtitle memiliki waktu yang berdekatan atau bertumpuk (*overlapping*).

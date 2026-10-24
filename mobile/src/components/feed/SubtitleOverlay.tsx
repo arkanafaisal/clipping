@@ -66,6 +66,27 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
   // identik 100% dengan mekanisme FFmpeg.
   const lines = subtitleText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
 
+  // Menghilangkan duplikasi bayangan dobel pada emoji di 8 layer stroke belakang:
+  // Karakter emoji disembunyikan (opacity: 0) pada layer stroke agar tidak memunculkan bayangan warna-warni,
+  // namun tetap mempertahankan metrik lebar/tinggi karakter (zero layout shift).
+  const renderStrokeContent = (text: string) => {
+    if (!text) return null;
+    if (!/\p{Extended_Pictographic}|\p{Emoji_Presentation}/u.test(text)) {
+      return text;
+    }
+    const parts = text.split(/(\p{Extended_Pictographic}+|\p{Emoji_Presentation}+)/gu);
+    return parts.map((part, pIdx) => {
+      if (/\p{Extended_Pictographic}|\p{Emoji_Presentation}/u.test(part)) {
+        return (
+          <Text key={pIdx} style={{ opacity: 0 }}>
+            {part}
+          </Text>
+        );
+      }
+      return part;
+    });
+  };
+
   return (
     <View
       style={styles.subtitleOverlayContainer}
@@ -108,7 +129,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
                 ]}
                 aria-hidden
               >
-                {lineText}
+                {renderStrokeContent(lineText)}
               </Text>
             ))}
 

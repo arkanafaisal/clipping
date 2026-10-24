@@ -138,7 +138,7 @@ PlayResY: {play_res_y}
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Arial,{ass_base_fs},&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,{ass_outline},0,5,10,10,10,1
+Style: Default,Roboto,Noto Color Emoji,{ass_base_fs},&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,{ass_outline},0,5,10,10,10,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -449,7 +449,9 @@ def build_multi_layer_pipeline(
                 f.write(ass_content)
             temp_files.append(ass_path)
             esc_ass = escape_ffmpeg_filter_path(ass_path)
-            filter_lines.append(f"{current_node}subtitles='{esc_ass}'[v_out]")
+            fonts_dir = "/system/fonts" if os.path.exists("/system/fonts") else ""
+            fonts_dir_opt = f":fontsdir='{escape_ffmpeg_filter_path(fonts_dir)}'" if fonts_dir else ""
+            filter_lines.append(f"{current_node}subtitles='{esc_ass}'{fonts_dir_opt}[v_out]")
         else:
             ref_dim = min(out_w, out_h)
             base_fs = max(14, int(round(ref_dim * 0.073)))

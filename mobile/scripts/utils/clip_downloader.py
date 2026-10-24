@@ -86,8 +86,11 @@ def download_clip_direct(
     is_local_source = bool(source_video_path and os.path.exists(source_video_path) and os.path.getsize(source_video_path) > 0)
 
     # Kompensasi timeline drift HLS vs preview stream (hanya berlaku pada mode stream online):
-    # Mode lokal dari full video offline sudah 100% frame-accurate tanpa drift sehingga menggunakan rentang murni tanpa offset.
+    # Mendorong kedua ujung keluar (+-500ms): start dimajukan 0.5s dan end dimundurkan 0.5s
+    # agar klip selalu aman 'keluar' (lebih panjang) dan tidak pernah memotong kata di awal maupun akhir.
+    # Mode lokal dari full video offline sudah 100% frame-accurate tanpa drift sehingga murni tanpa offset.
     if not is_local_source:
+        start_num = max(0.0, start_num - 0.5)
         end_num += 0.5
 
     # Mekanisme Realtime Progress Throttling (250ms)
