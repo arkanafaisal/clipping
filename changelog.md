@@ -14,7 +14,16 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Update App Logo and Icon Assets (Neon Laser Film Slice)
+## [Unreleased] - Make GitHub Actions Workflow Manual Trigger Only
+- **Konteks Struktural**:
+  1. Optimasi Kuota Menit CI/CD GitHub Actions (`.github/workflows/build-apk.yml`):
+     - Menghapus trigger otomatis `push` pada branch `main` agar build APK tidak berjalan otomatis setiap kali ada commit/push kecil.
+     - Mengubah pemicu build menjadi 100% manual (`workflow_dispatch`), sehingga build APK hanya berjalan saat user secara eksplisit menekan tombol "Run workflow" di halaman GitHub Actions.
+- **Perubahan Kode Penting**:
+  - `.github/workflows/build-apk.yml`:
+    - Menghapus blok event `push` dan menyisakan hanya event `workflow_dispatch`.
+
+## [5cafc4a] - Update App Logo and Icon Assets (Neon Laser Film Slice)
 - **Konteks Struktural**:
   1. Identitas Visual Logo Aplikasi Clipping (`mobile/assets/images/`):
      - Memperbarui seluruh aset logo dan ikon aplikasi dengan konsep "Video yang Dipotong / Di-klip" (Opsi A: Neon Laser Film Slice).

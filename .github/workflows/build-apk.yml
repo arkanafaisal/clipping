@@ -1,13 +1,7 @@
 name: Build Android APK (EAS Local)
 
 on:
-  workflow_dispatch: # Memungkinkan trigger manual via tombol "Run workflow" di tab Actions GitHub
-  push:
-    branches:
-      - main
-    paths:
-      - 'mobile/**'
-      - '.github/workflows/build-apk.yml'
+  workflow_dispatch: # Hanya berjalan saat tombol "Run workflow" ditekan secara manual di GitHub
 
 jobs:
   build:
