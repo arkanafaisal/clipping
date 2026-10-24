@@ -908,39 +908,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
               </View>
             ) : currentMode === 'template' ? (
               <View style={styles.templateLayerSection}>
-                {/* Baris 1: Status Canvas & Rasio */}
-                <View style={styles.templateHeaderRow}>
-                  <View
-                    style={[
-                      styles.ratioBadge,
-                      (templateConfig?.context.enabled || templateConfig?.facecam.enabled)
-                        ? styles.ratioBadgeActive
-                        : styles.ratioBadgeInactive,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.ratioBadgeText,
-                        (templateConfig?.context.enabled || templateConfig?.facecam.enabled)
-                          ? styles.ratioBadgeTextActive
-                          : styles.ratioBadgeTextInactive,
-                      ]}
-                    >
-                      {(templateConfig?.context.enabled || templateConfig?.facecam.enabled)
-                        ? '9:16 Portrait'
-                        : '16:9 Landscape'}
-                    </Text>
-                  </View>
-                  <Text style={styles.templateHintText}>
-                    {templateConfig?.facecam.enabled
-                      ? 'Facecam 4:3 Aktif'
-                      : templateConfig?.context.enabled
-                      ? 'Banner Konteks Aktif'
-                      : 'Gameplay Penuh 16:9'}
-                  </Text>
-                </View>
-
-                {/* Baris 2: Tombol-tombol Konfigurasi Template */}
+                {/* Baris 1: Facecam & Konteks */}
                 <View style={styles.templateButtonsRow}>
                   {/* 1. Tombol Elemen Facecam */}
                   <Pressable
@@ -989,7 +957,10 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                       Konteks
                     </Text>
                   </Pressable>
+                </View>
 
+                {/* Baris 2: Gameplay & Watermark */}
+                <View style={styles.templateButtonsRow}>
                   {/* 3. Tombol Edit Main Gameplay */}
                   <Pressable
                     style={({ pressed }) => [
@@ -2345,21 +2316,11 @@ const styles = StyleSheet.create({
   },
   templateLayerSection: {
     height: 88,
-    paddingVertical: 8,
+    paddingVertical: 7,
     paddingHorizontal: 12,
     backgroundColor: '#121212',
-    justifyContent: 'space-between',
-  },
-  templateHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 2,
-  },
-  templateHintText: {
-    color: 'rgba(255, 255, 255, 0.45)',
-    fontSize: 11,
-    fontWeight: '500',
+    justifyContent: 'center',
+    gap: 7,
   },
   templateButtonsRow: {
     flexDirection: 'row',
@@ -2371,12 +2332,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    height: 36,
+    gap: 7,
+    height: 33,
     borderRadius: 7,
     backgroundColor: '#1c1c20',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  templateBtnActive: {
+    backgroundColor: 'rgba(56, 189, 248, 0.18)',
+    borderColor: '#38bdf8',
   },
   templateActionBtnText: {
     color: 'rgba(255, 255, 255, 0.8)',
@@ -2399,56 +2364,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontStyle: 'italic',
     textAlign: 'center',
-  },
-  templateActionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    height: 36,
-    paddingHorizontal: 14,
-    backgroundColor: 'rgba(0, 0, 0, 0.25)',
-  },
-  templateLeftInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  ratioBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 5,
-    borderWidth: 1,
-  },
-  ratioBadgeActive: {
-    backgroundColor: 'rgba(56, 189, 248, 0.12)',
-    borderColor: 'rgba(56, 189, 248, 0.3)',
-  },
-  ratioBadgeInactive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-  },
-  ratioBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-  },
-  ratioBadgeTextActive: {
-    color: '#38bdf8',
-  },
-  ratioBadgeTextInactive: {
-    color: 'rgba(255, 255, 255, 0.4)',
-  },
-  templateButtonsGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  templateBtnActive: {
-    backgroundColor: 'rgba(56, 189, 248, 0.18)',
-    borderColor: '#38bdf8',
-  },
-  templateMainBtn: {
-    backgroundColor: 'rgba(56, 189, 248, 0.08)',
-    borderColor: 'rgba(56, 189, 248, 0.3)',
   },
   templateToggleRow: {
     flexDirection: 'row',

@@ -14,7 +14,25 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Implement Zero-Lag Linear Wall-Clock Timeline & Subtitle Synchronization
+## [Unreleased] - Redesign Template Editor Controls to 2-Row 2-Button Grid Layout
+- **Konteks Struktural**:
+  1. Redesain Tata Letak Kontrol Template Editor (`FeedTopControls.tsx`):
+     - Menghapus baris label rasio kanvas/aspek (`templateHeaderRow` dengan tag `16:9 Landscape` / `9:16 Portrait` / `Gameplay Penuh 16:9`) yang sebelumnya menempati baris atas editor template, guna membebaskan ruang vertikal.
+     - Mendistribusikan 4 tombol kontrol template ke dalam 2 baris (masing-masing 2 tombol sejajar secara proporsional berbobot `flex: 1`):
+       - Baris 1: Tombol pengaturan elemen Facecam (`Facecam`) dan banner konteks (`Konteks`).
+       - Baris 2: Tombol pengaturan video utama (`Gameplay`) dan watermark (`Watermark` / `WM: ON`).
+  2. Optimalisasi Ruang & Kerapian UI (`styles.templateLayerSection`, `styles.templateActionBtn`):
+     - Menyesuaikan tinggi tombol menjadi `33dp` dengan jarak `gap: 7dp` dan `paddingVertical: 7dp` agar kedua baris tombol pas dan seimbang di dalam kontainer berukuran tetap `88dp` tanpa terpotong (*zero overflow*).
+     - Lebar setiap tombol meningkat dari ~80dp (saat 4 tombol berdempetan di satu baris) menjadi ~165dp, membuat teks label dan ikon terbaca lapang, jelas, dan mudah ditekan (*touch-friendly*).
+     - Menghapus aturan gaya usang yang tidak terpakai (`templateHeaderRow`, `templateHintText`, `templateActionsRow`, `templateLeftInfo`, `ratioBadge*`, `templateButtonsGroup`, `templateMainBtn`).
+- **Perubahan Kode Penting**:
+  - `mobile/src/components/feed/FeedTopControls.tsx`:
+    - Menghapus blok JSX `templateHeaderRow`.
+    - Membagi 4 tombol aksi template ke dalam 2 elemen kontainer `templateButtonsRow`.
+    - Memperbarui gaya `templateLayerSection`, `templateButtonsRow`, `templateActionBtn`, dan `templateBtnActive`.
+    - Membersihkan kode styling usang yang tidak lagi direferensikan.
+
+## [11ea1f5] - Implement Zero-Lag Linear Wall-Clock Timeline & Subtitle Synchronization
 - **Konteks Struktural**:
   1. Penjadwalan Waktu Linier Deterministik (Client-Side Linear Clock Interpolator di `useClipPlayer.ts`):
      - Menggantikan ketergantungan pasif UI pada event bridge `timeUpdate` ExoPlayer (yang sering mengalami penumpukan antrean/delay hingga 300-400ms di HP berspesifikasi rendah) dengan jam linier independen berbasis `Date.now()`.
