@@ -10,18 +10,6 @@ export interface SubtitleOverlayProps {
   subtitleListenerRef?: React.MutableRefObject<((text: string, fontSize?: number) => void) | null>;
 }
 
-// 8 arah offset untuk membentuk outline/border solid di sekeliling teks tanpa celah
-const STROKE_OFFSETS = [
-  { x: -1.5, y: -1.5 },
-  { x: 0, y: -2 },
-  { x: 1.5, y: -1.5 },
-  { x: -2, y: 0 },
-  { x: 2, y: 0 },
-  { x: -1.5, y: 1.5 },
-  { x: 0, y: 2 },
-  { x: 1.5, y: 1.5 },
-];
-
 export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = React.memo(({
   isVisible,
   subtitleText: initialSubtitleText = '',
@@ -83,7 +71,6 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = React.memo(({
   const scaleFactor = baseViewportRef > 0 ? currentRefDim / baseViewportRef : 1;
   const scaledFontSize = Math.max(8, Math.round(currentFontSize * scaleFactor));
   const lineHeight = Math.round(scaledFontSize * 1.35);
-  const strokeScale = Math.max(0.8, scaleFactor);
 
   // Offset relatif terhadap titik pusat (50%, 50%) video player
   // Contoh default (X=50, Y=85):
@@ -95,28 +82,6 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = React.memo(({
   // Pertahankan layer Text yang sudah mounted di memory tanpa unmount/re-mount:
   // Saat jeda bicara (hasText = false), container ber-opacity 0 dan teks terakhir tetap disimpan
   const displayText = hasText ? currentText : lastNonEmptyTextRef.current;
-  const lines = displayText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
-
-  // Menghilangkan duplikasi bayangan dobel pada emoji di 8 layer stroke belakang:
-  // Karakter emoji disembunyikan (opacity: 0) pada layer stroke agar tidak memunculkan bayangan warna-warni,
-  // namun tetap mempertahankan metrik lebar/tinggi karakter (zero layout shift).
-  const renderStrokeContent = (text: string) => {
-    if (!text) return null;
-    if (!/\p{Extended_Pictographic}|\p{Emoji_Presentation}/u.test(text)) {
-      return text;
-    }
-    const parts = text.split(/(\p{Extended_Pictographic}+|\p{Emoji_Presentation}+)/gu);
-    return parts.map((part, pIdx) => {
-      if (/\p{Extended_Pictographic}|\p{Emoji_Presentation}/u.test(part)) {
-        return (
-          <Text key={pIdx} style={{ opacity: 0 }}>
-            {part}
-          </Text>
-        );
-      }
-      return part;
-    });
-  };
 
   return (
     <View
@@ -144,46 +109,18 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = React.memo(({
           },
         ]}
       >
-        {lines.map((lineText, lineIdx) => (
-          <View key={lineIdx} style={styles.lineWrapper}>
-            {/* Layer Border / Stroke Hitam Pekat (8 arah) */}
-            {STROKE_OFFSETS.map((offset, index) => (
-              <Text
-                key={index}
-                numberOfLines={1}
-                ellipsizeMode="clip"
-                style={[
-                  styles.subtitleText,
-                  styles.strokeText,
-                  {
-                    fontSize: scaledFontSize,
-                    lineHeight,
-                    transform: [{ translateX: offset.x * strokeScale }, { translateY: offset.y * strokeScale }],
-                  },
-                ]}
-                aria-hidden
-              >
-                {renderStrokeContent(lineText)}
-              </Text>
-            ))}
-
-            {/* Layer Teks Utama Putih Bersih */}
-            <Text
-              numberOfLines={1}
-              ellipsizeMode="clip"
-              style={[
-                styles.subtitleText,
-                styles.foregroundText,
-                {
-                  fontSize: scaledFontSize,
-                  lineHeight,
-                },
-              ]}
-            >
-              {lineText}
-            </Text>
-          </View>
-        ))}
+        <Text
+          style={[
+            styles.subtitleText,
+            styles.foregroundText,
+            {
+              fontSize: scaledFontSize,
+              lineHeight,
+            },
+          ]}
+        >
+          {displayText}
+        </Text>
       </View>
     </View>
   );
@@ -207,33 +144,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     overflow: 'visible',
   },
-  lineWrapper: {
-    position: 'relative',
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'visible',
-  },
   subtitleText: {
     textAlign: 'center',
     fontWeight: '800',
     letterSpacing: 0.2,
     includeFontPadding: false,
-    flexWrap: 'nowrap',
-  },
-  strokeText: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    color: '#000000',
-    textShadowColor: '#000000',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 2,
   },
   foregroundText: {
     color: '#ffffff',
-    textShadowColor: 'rgba(0, 0, 0, 0.6)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 1,
   },
 });

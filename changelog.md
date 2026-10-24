@@ -14,7 +14,22 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Rebuild Playback Sync with Video Player as Single Source of Truth
+## [Unreleased] - Eliminate Subtitle Stroke and Shadow Overhead for Zero-Lag Preview
+- **Konteks Struktural**:
+  1. Penghapusan 8-Layer Stroke Duplikat dan Shadow (`SubtitleOverlay.tsx`):
+     - Menghapus seluruh konstanta `STROKE_OFFSETS`, kalkulasi `strokeScale`, fungsi pemecah regex emoji `renderStrokeContent`, serta style `strokeText`.
+     - Menghapus pembagian baris manual (`lines.map` dan `lineWrapper`) dan beralih ke 1 komponen native `<Text>` tunggal yang menangani teks multiline (`\n`) secara native dengan `textAlign: 'center'`.
+     - Menghapus kompensasi bayangan teks (`textShadowColor`, `textShadowOffset`, `textShadowRadius`) pada `styles.foregroundText` untuk mencegah overhead rendering shadow pada layer grafis Android.
+  2. Reduksi Drastis Beban UI Thread Android (~96% Drop):
+     - Untuk teks subtitle 3 baris, jumlah komponen `TextView` native yang dibuat dan diukur (`StaticLayout` / HarfBuzz text shaping) di UI thread Android turun dari 27 komponen menjadi hanya **1 komponen `<Text>` tunggal**.
+     - View ini tetap mounted secara permanen di memori native dan hanya berganti `opacity: 0 / 1` saat jeda bicara tanpa unmount/re-mount, melenyapkan total micro-freeze saat kalimat subtitle masuk atau keluar.
+- **Perubahan Kode Penting**:
+  - `mobile/src/components/feed/SubtitleOverlay.tsx`:
+    - Menghapus `STROKE_OFFSETS`, `strokeScale`, `renderStrokeContent`, `styles.lineWrapper`, dan `styles.strokeText`.
+    - Menghapus seluruh properti `textShadow*` pada `styles.foregroundText`.
+    - Merender `displayText` langsung di dalam 1 komponen `<Text>` tunggal.
+
+## [e61e806] - Rebuild Playback Sync with Video Player as Single Source of Truth
 - **Konteks Struktural**:
   1. Restorasi Video Player sebagai Single Source of Truth Murni (`useClipPlayer.ts`):
      - Menghapus total jam linier buatan (`stopLinearClock`, `startLinearClock`, `linearClockTimerRef`, `playStartWallTimeRef`, `playStartClipTimeRef`, `stopGraceTimerRef`, dan kalkulasi drift mid-flight). Jam linier tiruan sebelumnya mengasumsikan kecepatan putar statis dari `Date.now()`, yang mengakibatkan desinkronisasi/drift saat terjadi fluktuasi decode frame atau micro-buffering pada audio/video asli.
