@@ -221,6 +221,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
   const [tempFacecamCropY, setTempFacecamCropY] = useState<string>('20');
 
   // Temp states untuk modal Elemen Main Video (Gameplay)
+  const [tempMainEnabled, setTempMainEnabled] = useState<boolean>(true);
   const [tempMainZoom, setTempMainZoom] = useState<string>('100');
   const [tempMainCropX, setTempMainCropX] = useState<string>('50');
   const [tempMainCropY, setTempMainCropY] = useState<string>('50');
@@ -248,6 +249,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
 
   const openMainVideoModal = () => {
     if (templateConfig) {
+      setTempMainEnabled(templateConfig.mainVideo.enabled !== false);
       setTempMainZoom(String(Math.round((templateConfig.mainVideo.zoom || 1.0) * 100)));
       setTempMainCropX(String(templateConfig.mainVideo.cropX));
       setTempMainCropY(String(templateConfig.mainVideo.cropY));
@@ -969,13 +971,24 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                   <Pressable
                     style={({ pressed }) => [
                       styles.templateActionBtn,
+                      (templateConfig?.mainVideo?.enabled !== false) && styles.templateBtnActive,
                       pressed && { opacity: 0.6 },
                     ]}
                     onPress={openMainVideoModal}
                     hitSlop={6}
                   >
-                    <Gamepad2 size={15} color="#38bdf8" />
-                    <Text style={styles.templateActionBtnText}>Gameplay</Text>
+                    <Gamepad2
+                      size={15}
+                      color={(templateConfig?.mainVideo?.enabled !== false) ? '#38bdf8' : 'rgba(255, 255, 255, 0.7)'}
+                    />
+                    <Text
+                      style={[
+                        styles.templateActionBtnText,
+                        (templateConfig?.mainVideo?.enabled !== false) && styles.templateActionBtnTextActive,
+                      ]}
+                    >
+                      Gameplay
+                    </Text>
                   </Pressable>
 
                   {/* 4. Tombol Watermark */}
@@ -1900,6 +1913,30 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
               </Pressable>
             </View>
 
+            {/* Toggle Aktif */}
+            <Pressable
+              style={[
+                styles.templateToggleRow,
+                tempMainEnabled && styles.templateToggleRowActive,
+              ]}
+              onPress={() => setTempMainEnabled((p) => !p)}
+            >
+              <Text style={styles.templateToggleLabel}>Tampilkan Box Gameplay</Text>
+              <View
+                style={[
+                  styles.templateToggleSwitch,
+                  tempMainEnabled && styles.templateToggleSwitchActive,
+                ]}
+              >
+                <View
+                  style={[
+                    styles.templateToggleKnob,
+                    tempMainEnabled && styles.templateToggleKnobActive,
+                  ]}
+                />
+              </View>
+            </Pressable>
+
             {/* Input Zoom Persen */}
             <View style={styles.posSectionContainer}>
               <Text style={styles.timeSectionLabel}>ZOOM GAMEPLAY (%)</Text>
@@ -1965,6 +2002,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = ({
                 style={({ pressed }) => [styles.modalSaveBtn, pressed && { opacity: 0.8 }]}
                 onPress={() => {
                   onUpdateMainVideo?.({
+                    enabled: tempMainEnabled,
                     zoom: Math.max(1.0, Math.min(5.0, (parseFloat(tempMainZoom) || 100) / 100)),
                     cropX: Math.max(0, Math.min(100, parseInt(tempMainCropX, 10) || 50)),
                     cropY: Math.max(0, Math.min(100, parseInt(tempMainCropY, 10) || 50)),

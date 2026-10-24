@@ -44,12 +44,14 @@ export function useClipTemplate({ videoId, activeClip, isDownloaded }: UseClipTe
           };
 
           // 2. Elemen Main Video:
+          // enabled: WAJIB per-klip (default true jika belum dimatikan)
           // zoom, cropX, cropY: Mewarisi global video config jika tersedia
           const mergedMainVideo = {
             ...DEFAULT_TEMPLATE_CONFIG.mainVideo,
             zoom: globalConf?.mainVideo?.zoom ?? clipSaved?.mainVideo?.zoom ?? DEFAULT_TEMPLATE_CONFIG.mainVideo.zoom,
             cropX: globalConf?.mainVideo?.cropX ?? clipSaved?.mainVideo?.cropX ?? DEFAULT_TEMPLATE_CONFIG.mainVideo.cropX,
             cropY: globalConf?.mainVideo?.cropY ?? clipSaved?.mainVideo?.cropY ?? DEFAULT_TEMPLATE_CONFIG.mainVideo.cropY,
+            enabled: clipSaved?.mainVideo?.enabled !== undefined ? clipSaved.mainVideo.enabled : true,
           };
 
           // 3. Elemen Konteks:
@@ -273,13 +275,23 @@ export function useClipTemplate({ videoId, activeClip, isDownloaded }: UseClipTe
     // Syarat mutlak mode portrait 9:16 aktif:
     // 1. Klip harus berstatus 'done' (mode edit)
     // 2. Video klip harus sudah selesai diunduh secara lokal
-    // 3. Elemen facecam dinyalakan (facecam.enabled === true) atau konteks dinyalakan (context.enabled === true)
+    // 3. Elemen facecam dinyalakan, konteks dinyalakan, atau gameplay dinonaktifkan (facecam only)
     const isDone = activeClip?.status === 'done';
     if (!isDone || !isDownloaded) {
       return false;
     }
-    return Boolean(templateConfig.facecam.enabled || templateConfig.context.enabled);
-  }, [activeClip?.status, isDownloaded, templateConfig.facecam.enabled, templateConfig.context.enabled]);
+    return Boolean(
+      templateConfig.facecam.enabled ||
+      templateConfig.context.enabled ||
+      templateConfig.mainVideo.enabled === false
+    );
+  }, [
+    activeClip?.status,
+    isDownloaded,
+    templateConfig.facecam.enabled,
+    templateConfig.context.enabled,
+    templateConfig.mainVideo.enabled,
+  ]);
 
   return {
     templateConfig,

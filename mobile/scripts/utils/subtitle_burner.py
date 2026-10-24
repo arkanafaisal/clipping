@@ -284,8 +284,9 @@ def build_multi_layer_pipeline(
 
     ctx_enabled = bool(context_cfg.get("enabled", False))
     fc_enabled = bool(facecam_cfg.get("enabled", False))
+    main_enabled = bool(main_cfg.get("enabled", True))
 
-    is_portrait = fc_enabled or ctx_enabled
+    is_portrait = fc_enabled or ctx_enabled or (not main_enabled)
 
     vw = max(240, int(video_width)) if video_width else 1280
     vh = max(240, int(video_height)) if video_height else 720
@@ -446,13 +447,20 @@ def build_multi_layer_pipeline(
     filter_lines = []
 
     if is_portrait:
-        if fc_enabled:
+        if fc_enabled and main_enabled:
             filter_lines.append("[0:v]split=2[in_fc][in_main];")
             filter_lines.append(f"[in_fc]crop={cw_fc}:{ch_fc}:{cx_fc}:{cy_fc},scale={w_fc}:{h_fc}[fc_box];")
             filter_lines.append(f"[in_main]crop={cw_main}:{ch_main}:{cx_main}:{cy_main},scale={w_main}:{h_main},pad={out_w}:{out_h}:0:{y_main}:black[canvas_pad];")
             filter_lines.append(f"[canvas_pad][fc_box]overlay=0:{y_fc}[canvas_comp];")
-        else:
+        elif fc_enabled and not main_enabled:
+            # Facecam Saja (tanpa gameplay) pada kanvas 9:16 portrait
+            filter_lines.append(f"[0:v]crop={cw_fc}:{ch_fc}:{cx_fc}:{cy_fc},scale={w_fc}:{h_fc},pad={out_w}:{out_h}:0:{y_fc}:black[canvas_comp];")
+        elif not fc_enabled and main_enabled:
+            # Gameplay Saja (16:9) pada kanvas 9:16 portrait
             filter_lines.append(f"[0:v]crop={cw_main}:{ch_main}:{cx_main}:{cy_main},scale={w_main}:{h_main},pad={out_w}:{out_h}:0:{y_main}:black[canvas_comp];")
+        else:
+            # Keduanya nonaktif (misal hanya banner konteks / watermark / subtitle)
+            filter_lines.append(f"[0:v]scale={out_w}:{out_h},drawbox=x=0:y=0:w={out_w}:h={out_h}:color=black:t=fill[canvas_comp];")
     else:
         is_cropped = (cw_main < vw) or (ch_main < vh)
         if is_cropped:
@@ -659,6 +667,7 @@ def burn_subtitles_to_video(
     if (
         fc.get("enabled")
         or ctx.get("enabled")
+        or (main_v.get("enabled") is False)
         or (wm.get("enabled") and bool(str(wm.get("text", "")).strip()))
         or float(main_v.get("zoom", 1.0)) > 1.001
         or float(main_v.get("cropX", 50)) != 50

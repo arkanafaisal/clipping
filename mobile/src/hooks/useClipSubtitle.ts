@@ -413,6 +413,7 @@ export function useClipSubtitle({
               zoom: globalConfig?.mainVideo?.zoom ?? savedTemplate?.mainVideo?.zoom ?? DEFAULT_TEMPLATE_CONFIG.mainVideo.zoom,
               cropX: globalConfig?.mainVideo?.cropX ?? savedTemplate?.mainVideo?.cropX ?? DEFAULT_TEMPLATE_CONFIG.mainVideo.cropX,
               cropY: globalConfig?.mainVideo?.cropY ?? savedTemplate?.mainVideo?.cropY ?? DEFAULT_TEMPLATE_CONFIG.mainVideo.cropY,
+              enabled: savedTemplate?.mainVideo?.enabled !== undefined ? savedTemplate.mainVideo.enabled : true,
             },
             watermark: {
               ...DEFAULT_TEMPLATE_CONFIG.watermark,
@@ -431,6 +432,7 @@ export function useClipSubtitle({
       activeTemplateConfig &&
         (activeTemplateConfig.facecam?.enabled ||
           activeTemplateConfig.context?.enabled ||
+          activeTemplateConfig.mainVideo?.enabled === false ||
           (activeTemplateConfig.watermark?.enabled && Boolean(activeTemplateConfig.watermark?.text?.trim())))
     );
 

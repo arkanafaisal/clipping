@@ -471,31 +471,44 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
               )}
 
               {/* 3. Viewport Main Video Gameplay (4:3 saat Facecam aktif, 16:9 saat Facecam nonaktif) */}
-              <View
-                style={[
-                  styles.mainVideoBox,
-                  !isPortrait
-                    ? styles.mainVideoBoxLandscape
-                    : isFacecamActive
-                    ? styles.mainVideoBox43
-                    : styles.mainVideoBox169,
-                ]}
-                collapsable={false}
-                onLayout={(e) => {
-                  const { width, height } = e.nativeEvent.layout;
-                  if (width > 0 && height > 0) {
-                    setMainVideoLayout({ width, height });
-                  }
-                }}
-              >
-                <VideoView
-                  style={mainVideoStyle}
-                  player={player}
-                  contentFit="cover"
-                  nativeControls={false}
-                  surfaceType="textureView"
-                />
-              </View>
+              {isPortrait && templateConfig.mainVideo.enabled === false ? (
+                // Saat gameplay dinonaktifkan di mode portrait (Facecam Only), sembunyikan visual box namun pertahankan native player aktif di background untuk audio & clock
+                <View style={{ width: 0, height: 0, opacity: 0 }} pointerEvents="none">
+                  <VideoView
+                    style={{ width: 1, height: 1 }}
+                    player={player}
+                    contentFit="cover"
+                    nativeControls={false}
+                    surfaceType="textureView"
+                  />
+                </View>
+              ) : (
+                <View
+                  style={[
+                    styles.mainVideoBox,
+                    !isPortrait
+                      ? styles.mainVideoBoxLandscape
+                      : isFacecamActive
+                      ? styles.mainVideoBox43
+                      : styles.mainVideoBox169,
+                  ]}
+                  collapsable={false}
+                  onLayout={(e) => {
+                    const { width, height } = e.nativeEvent.layout;
+                    if (width > 0 && height > 0) {
+                      setMainVideoLayout({ width, height });
+                    }
+                  }}
+                >
+                  <VideoView
+                    style={mainVideoStyle}
+                    player={player}
+                    contentFit="cover"
+                    nativeControls={false}
+                    surfaceType="textureView"
+                  />
+                </View>
+              )}
 
               {/* Subtitle Overlay: Selalu dirender relatif terhadap Canvas Wrapper luar */}
               <SubtitleOverlay

@@ -14,7 +14,40 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Support Dynamic Numeric Size & Padding, Multiline Textarea, and Alignment Toggle for Context Banner
+## [Unreleased] - Support Gameplay Toggle (Facecam Only & Gameplay Only) in Template Editor and Export
+- **Konteks Struktural**:
+  1. Toggle On/Off Elemen Main Video Gameplay (`FeedTopControls.tsx`, `api.ts`, `useClipTemplate.ts`):
+     - Menambahkan properti `enabled?: boolean` (default `true`) pada elemen `mainVideo` di antarmuka `ClipTemplateConfig`.
+     - Menambahkan saklar toggle visual "Tampilkan Box Gameplay" di dalam Modal Gameplay (`showMainVideoModal`).
+     - Tombol `Gameplay` pada grid 2x2 kontrol template editor kini menampilkan status aktif/redup (`templateConfig?.mainVideo?.enabled !== false`) selaras dengan tombol Facecam dan Konteks.
+  2. Mode Facecam Only di Preview Kanvas 9:16 (`FeedScreen.tsx`, `useClipTemplate.ts`):
+     - Memperluas kalkulasi `isPortrait` agar beralih ke format 9:16 portrait ketika gameplay dimatikan (`mainVideo.enabled === false`).
+     - Di dalam preview `FeedScreen.tsx`, ketika mode Facecam Only aktif, kontainer visual box gameplay disembunyikan sehingga kanvas 9:16 hanya menampilkan Facecam (4:3) di bawah banner judul dengan latar belakang hitam bersih, sementara instance player native tetap berjalan di latar belakang (0x0) guna memastikan kontinuitas audio dan sinkronisasi jam linier/subtitle tanpa risiko interupsi surface Android.
+  3. Adaptasi Engine Ekspor FFmpeg 1-Pass Multi-Layer (`subtitle_burner.py`):
+     - Menyesuaikan pembacaan `main_enabled` dari `template_data['mainVideo']`.
+     - Mendukung 3 mode tata letak video portrait 9:16:
+       - **Facecam + Gameplay**: 2-layer split dengan Facecam 4:3 di atas dan Gameplay 4:3 di bawah.
+       - **Facecam Only** (`fc_enabled and not main_enabled`): 1-layer Facecam 4:3 di-crop dan di-pad ke kanvas 9:16 (`pad={out_w}:{out_h}:0:{y_fc}:black`) di bawah banner judul tanpa layer gameplay.
+       - **Gameplay Only** (`not fc_enabled and main_enabled`): 1-layer Gameplay 16:9 di-crop dan di-pad ke kanvas 9:16 di bawah banner judul tanpa layer facecam.
+     - Memastikan `has_template` mendeteksi kondisi `mainVideo.enabled === false` sebagai konfigurasi template aktif saat ekspor.
+- **Perubahan Kode Penting**:
+  - `mobile/src/services/api.ts`:
+    - Menambahkan `enabled?: boolean` pada `ClipTemplateConfig['mainVideo']` dan menetapkan default `enabled: true` di `DEFAULT_TEMPLATE_CONFIG.mainVideo`.
+  - `mobile/src/hooks/useClipTemplate.ts`:
+    - Menyertakan `enabled` pada `mergedMainVideo` dan menambahkan kondisi `templateConfig.mainVideo.enabled === false` pada `isPortrait`.
+  - `mobile/src/hooks/useClipSubtitle.ts`:
+    - Memasukkan `enabled` pada fallback `activeTemplateConfig.mainVideo` dan menyertakannya di evaluasi `hasTemplate`.
+  - `mobile/src/components/feed/FeedTopControls.tsx`:
+    - Menambahkan state `tempMainEnabled` dan inisialisasi di `openMainVideoModal`.
+    - Menambahkan toggle "Tampilkan Box Gameplay" di Modal 8 dan menyimpan statusnya di `onUpdateMainVideo`.
+    - Memperbarui gaya tombol `Gameplay` di grid kontrol template agar merefleksikan status on/off.
+  - `mobile/src/components/FeedScreen.tsx`:
+    - Menyembunyikan box visual gameplay saat `templateConfig.mainVideo.enabled === false` di mode portrait, dengan mempertahankan native player di background untuk stabilitas audio.
+  - `mobile/scripts/utils/subtitle_burner.py`:
+    - Menambahkan percabangan filtergraph untuk mode Facecam Saja (`fc_enabled and not main_enabled`) dan Gameplay Saja (`not fc_enabled and main_enabled`).
+    - Memperbarui evaluasi `has_template` untuk mendeteksi `main_v.get("enabled") is False`.
+
+## [b6f5f7e] - Support Dynamic Numeric Size & Padding, Multiline Textarea, and Alignment Toggle for Context Banner
 - **Konteks Struktural**:
   1. Input Angka Dinamis Bebas untuk Ukuran Font & Padding (`FeedTopControls.tsx`):
      - Mengganti tombol preset terbatas (`14, 16, 18, 20` untuk font dan `6, 10, 14, 18` untuk padding) dengan input angka bebas (`TextInput` bertipe `numeric`) berdampingan dalam baris `Size (dp)` dan `Pad (px)`.

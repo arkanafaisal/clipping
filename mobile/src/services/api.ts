@@ -1926,6 +1926,7 @@ export interface ClipTemplateConfig {
     cropY: number; // 0 - 100 (% offset from center)
   };
   mainVideo: {
+    enabled?: boolean;
     zoom: number;
     cropX: number; // 0 - 100 (% offset from center)
     cropY: number; // 0 - 100 (% offset from center)
@@ -1954,6 +1955,7 @@ export const DEFAULT_TEMPLATE_CONFIG: ClipTemplateConfig = {
     cropY: 20,
   },
   mainVideo: {
+    enabled: true,
     zoom: 1.0,
     cropX: 50,
     cropY: 50,
