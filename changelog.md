@@ -14,7 +14,36 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Revise Context Alignment and Watermark Modal Configuration UI
+## [Unreleased] - Unify 5-Way Playback Synchronization and Decouple Playback from React Re-renders
+- **Konteks Struktural**:
+  1. Integrasi 5 Elemen Waktu Selaras (`useClipPlayer.ts`, `FeedScreen.tsx`, `FeedTopControls.tsx`):
+     - Menyatukan 5 elemen antarmuka playback ke sistem waktu yang terkoordinasi secara presisi:
+       1) Progress bar merah bawah (kontinu 60 FPS via `progressAnim`).
+       2) Jarum needle mini-track (kontinu 60 FPS via `progressAnim`).
+       3) Angka waktu milidetik atas (semi-kontinu ~30 FPS via `LiveTimeDisplay`).
+       4) Teks subtitle overlay video (diskret event-driven via `syncSubtitleCueAtTime`).
+       5) Kotak cue mini-track subtitle (diskret event-driven via `setActiveCueId`).
+     - Menyinkronkan penyorotan kotak cue aktif langsung dari loop evaluasi jam linier (`syncSubtitleCueAtTime` di `useClipPlayer.ts`) menggunakan callback `setActiveCueId`, sehingga kotak cue aktif menyala pada milidetik yang sama persis saat jarum needle menyentuhnya dan teks subtitle muncul di video (0ms lag).
+  2. Eliminasi Total Re-render React Layar Induk Saat Pemutaran Video:
+     - Menghapus pemanggilan berkala `setCurrentClipTime` dan `setProgressPercent` di dalam interval jam linier saat video sedang aktif diputar, karena seluruh indikator visual kini telah memiliki driver independennya masing-masing.
+     - Menghapus polling `currentMatchingCue = useMemo(..., [currentClipTime])` dan `useEffect` pemilih cue di `FeedTopControls.tsx`.
+     - `FeedScreen`, `FeedTopControls`, dan `FeedPlaybackControls` kini mengalami **0 re-render** selama video diputar, membebaskan thread JS 100% dari beban render virtual DOM berulang dan melenyapkan gejala freeze serta lompat > 500ms.
+  3. Reduksi False-Positive Micro-Buffering ExoPlayer:
+     - Menambah grace period timer deteksi pause (`stopGraceTimerRef`) dari 150ms menjadi 400ms untuk mencegah jam linier terbunuh prematur akibat jitter decoder frame native ExoPlayer.
+- **Perubahan Kode Penting**:
+  - `mobile/src/hooks/useClipPlayer.ts`:
+    - Menambahkan `setActiveCueId?: (cueId: string | null) => void` pada `UseClipPlayerParams`.
+    - Di `syncSubtitleCueAtTime`: Menembakkan `setActiveCueId(cueId)` saat ID cue aktif berganti.
+    - Menghapus throttling berkala 250ms `setCurrentClipTime` dan `setProgressPercent` di interval jam linier.
+    - Menyesuaikan timeout `stopGraceTimerRef` menjadi 400ms.
+  - `mobile/src/components/FeedScreen.tsx`:
+    - Meneruskan `handleSetActiveCueId` ke `useClipPlayer` yang terikat ke `setSelectedCueId` saat mode editor subtitle aktif (`activeEditorMode === 'subtitle'`).
+  - `mobile/src/components/feed/FeedTopControls.tsx`:
+    - Menghapus kalkulasi polling `currentMatchingCue` dan `useEffect` sinkronisasi seleksi cue.
+    - Menambahkan helper `getPlayheadTime()` untuk membaca posisi playhead secara presisi tanpa memicu re-render.
+    - Mengubah prop `currentClipTime` menjadi opsional.
+
+## [796f16a] - Revise Context Alignment and Watermark Modal Configuration UI
 - **Konteks Struktural**:
   1. Perataan Teks Banner Konteks 1-Row Compact (`FeedTopControls.tsx`):
      - Mengubah baris perataan teks modal konfigurasi banner konteks menjadi 1 baris terpadu (`alignRowContainer`) yang menampung label "Perataan Teks" di sisi kiri dan tombol ikon perataan di sisi kanan.

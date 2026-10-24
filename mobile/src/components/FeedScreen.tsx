@@ -50,6 +50,8 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
   const setCookiesModalVisibleRef = useRef<(visible: boolean) => void>(() => {});
   const setDownloadedClipsRef = useRef<React.Dispatch<React.SetStateAction<Record<string, boolean>>>>(() => {});
   const setActiveSubtitleTextRef = useRef<(text: string, fontSize?: number) => void>(() => {});
+  const setActiveCueIdRef = useRef<(cueId: string | null) => void>(() => {});
+  const activeEditorModeRef = useRef<EditorMode>(null);
   const [activeSubtitleFontSize, setActiveSubtitleFontSize] = useState<number>(14);
 
   // Modal dialog states
@@ -63,6 +65,12 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
 
   const handleSetActiveSubtitleText = useCallback((text: string, fontSize: number = 14) => {
     setActiveSubtitleTextRef.current(text, fontSize);
+  }, []);
+
+  const handleSetActiveCueId = useCallback((cueId: string | null) => {
+    if (activeEditorModeRef.current === 'subtitle') {
+      setActiveCueIdRef.current(cueId);
+    }
   }, []);
 
   // Hook 2: useClipPlayer
@@ -93,6 +101,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     playMode,
     subtitlesRef,
     setActiveSubtitleText: handleSetActiveSubtitleText,
+    setActiveCueId: handleSetActiveCueId,
     onBack,
   });
 
@@ -237,9 +246,14 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
       setActiveSubtitleText(text);
       setActiveSubtitleFontSize(fontSize);
     };
-  }, [setActiveSubtitleText]);
+    setActiveCueIdRef.current = setSelectedCueId;
+  }, [setActiveSubtitleText, setSelectedCueId]);
 
   const [activeEditorMode, setActiveEditorMode] = useState<EditorMode>(null);
+
+  useEffect(() => {
+    activeEditorModeRef.current = activeEditorMode;
+  }, [activeEditorMode]);
 
   const [facecamLayout, setFacecamLayout] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
   const [mainVideoLayout, setMainVideoLayout] = useState<{ width: number; height: number }>({ width: 0, height: 0 });

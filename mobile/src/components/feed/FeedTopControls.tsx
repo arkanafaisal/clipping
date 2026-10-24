@@ -129,7 +129,7 @@ export type EditorMode = 'subtitle' | 'template' | null;
 export interface FeedTopControlsProps {
   activeClip: ClipItem;
   progressAnim?: Animated.Value;
-  currentClipTime: number;
+  currentClipTime?: number;
   isDownloaded: boolean;
   isDownloading: boolean;
   isExporting?: boolean;
@@ -176,7 +176,7 @@ export interface FeedTopControlsProps {
 export const FeedTopControls: React.FC<FeedTopControlsProps> = React.memo(({
   activeClip,
   progressAnim,
-  currentClipTime,
+  currentClipTime = 0,
   isDownloaded,
   isDownloading,
   isExporting,
@@ -333,7 +333,6 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = React.memo(({
   const clipDurationRef = useRef<number>(0);
   const onSeekRef = useRef(onSeek);
   const startTouchX = useRef<number>(0);
-  const manuallyDismissedCueIdRef = useRef<string | null>(null);
 
   trackWidthRef.current = trackLayoutWidth;
   clipDurationRef.current = clipDuration;
@@ -364,42 +363,15 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = React.memo(({
     })
   ).current;
 
-  // Cue yang saat ini berada tepat di bawah posisi playhead needle
-  const currentMatchingCue = useMemo(() => {
-    if (!isSubtitleEditorOpen || subtitles.length === 0 || clipDuration <= 0) return null;
-    return (
-      subtitles.find(
-        (cue) => currentClipTime >= cue.start && currentClipTime <= cue.end
-      ) || null
-    );
-  }, [isSubtitleEditorOpen, subtitles, currentClipTime, clipDuration]);
-
-  // Sinkronisasi dinamis: pilih subtitle yang tersentuh needle (hanya saat mode editor subtitle aktif)
-  useEffect(() => {
-    if (!isSubtitleEditorOpen) return;
-    if (showTextModal || showFontModal || showTimeModal || showLangModal || showPositionModal) {
-      return;
+  const getPlayheadTime = useCallback(() => {
+    if (progressAnim) {
+      const val = (progressAnim as any)._value;
+      if (typeof val === 'number') {
+        return Math.max(0, Math.min(clipDuration, (val / 100) * clipDuration));
+      }
     }
-
-    const matchedId = currentMatchingCue ? currentMatchingCue.id : null;
-
-    if (matchedId !== manuallyDismissedCueIdRef.current) {
-      manuallyDismissedCueIdRef.current = null;
-    }
-
-    if (manuallyDismissedCueIdRef.current === null && matchedId !== selectedCueId) {
-      onSelectCue(matchedId);
-    }
-  }, [
-    isSubtitleEditorOpen,
-    currentMatchingCue,
-    selectedCueId,
-    onSelectCue,
-    showTextModal,
-    showFontModal,
-    showTimeModal,
-    showLangModal,
-  ]);
+    return Math.max(0, Math.min(clipDuration, currentClipTime || 0));
+  }, [progressAnim, clipDuration, currentClipTime]);
 
   const openPositionModal = () => {
     setTempPosX(String(subtitlePosition.x));
@@ -446,7 +418,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = React.memo(({
   };
 
   const setStartToPlayhead = () => {
-    const cur = Math.max(0, Math.min(clipDuration, currentClipTime));
+    const cur = getPlayheadTime();
     const m = Math.floor(cur / 60);
     const s = Math.floor(cur % 60);
     const ms = Math.round((cur - Math.floor(cur)) * 1000);
@@ -456,7 +428,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = React.memo(({
   };
 
   const setEndToPlayhead = () => {
-    const cur = Math.max(0, Math.min(clipDuration, currentClipTime));
+    const cur = getPlayheadTime();
     const m = Math.floor(cur / 60);
     const s = Math.floor(cur % 60);
     const ms = Math.round((cur - Math.floor(cur)) * 1000);
@@ -911,7 +883,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = React.memo(({
                     {/* Tombol Tambah Manual (+) */}
                     <Pressable
                       style={({ pressed }) => [styles.addCueBtn, pressed && { opacity: 0.7 }]}
-                      onPress={() => onAddCue(currentClipTime)}
+                      onPress={() => onAddCue(getPlayheadTime())}
                       hitSlop={6}
                     >
                       <Plus size={16} color="#38bdf8" />

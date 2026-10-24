@@ -20,6 +20,7 @@ export interface UseClipPlayerParams {
   playMode?: 'local' | 'stream';
   subtitlesRef?: React.MutableRefObject<SubtitleCue[]>;
   setActiveSubtitleText?: (text: string, fontSize?: number) => void;
+  setActiveCueId?: (cueId: string | null) => void;
   onBack: () => void;
 }
 
@@ -32,6 +33,7 @@ export function useClipPlayer({
   playMode = 'local',
   subtitlesRef,
   setActiveSubtitleText,
+  setActiveCueId,
   onBack,
 }: UseClipPlayerParams) {
   const getActiveClip = useCallback((): ClipItem => {
@@ -75,8 +77,8 @@ export function useClipPlayer({
   const linearClockTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const stopGraceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastDispatchedSubtitleTextRef = useRef<string>('');
+  const lastDispatchedCueIdRef = useRef<string | null>(null);
   const progressAnim = useRef<Animated.Value>(new Animated.Value(0)).current;
-  const lastStateUpdateWallTimeRef = useRef<number>(0);
 
   useEffect(() => {
     isContinueStateRef.current = isContinueState;
@@ -215,22 +217,35 @@ export function useClipPlayer({
    */
   const syncSubtitleCueAtTime = useCallback(
     (targetRelTime: number) => {
-      if (subtitlesRef?.current && subtitlesRef.current.length > 0 && setActiveSubtitleText) {
+      if (subtitlesRef?.current && subtitlesRef.current.length > 0) {
         const match = subtitlesRef.current.find(
           (c) => targetRelTime >= c.start && targetRelTime <= c.end
         );
         const text = match ? match.text : '';
         const fontSize = match?.fontSize || 14;
-        if (text !== lastDispatchedSubtitleTextRef.current) {
+        const cueId = match ? match.id : null;
+
+        if (setActiveSubtitleText && text !== lastDispatchedSubtitleTextRef.current) {
           lastDispatchedSubtitleTextRef.current = text;
           setActiveSubtitleText(text, fontSize);
         }
-      } else if (setActiveSubtitleText && lastDispatchedSubtitleTextRef.current !== '') {
-        lastDispatchedSubtitleTextRef.current = '';
-        setActiveSubtitleText('', 14);
+
+        if (setActiveCueId && cueId !== lastDispatchedCueIdRef.current) {
+          lastDispatchedCueIdRef.current = cueId;
+          setActiveCueId(cueId);
+        }
+      } else {
+        if (setActiveSubtitleText && lastDispatchedSubtitleTextRef.current !== '') {
+          lastDispatchedSubtitleTextRef.current = '';
+          setActiveSubtitleText('', 14);
+        }
+        if (setActiveCueId && lastDispatchedCueIdRef.current !== null) {
+          lastDispatchedCueIdRef.current = null;
+          setActiveCueId(null);
+        }
       }
     },
-    [subtitlesRef, setActiveSubtitleText]
+    [subtitlesRef, setActiveSubtitleText, setActiveCueId]
   );
 
   /**
@@ -315,7 +330,6 @@ export function useClipPlayer({
         setProgressPercent(initialPct);
       }
       syncSubtitleCueAtTime(initialTime);
-      lastStateUpdateWallTimeRef.current = Date.now();
 
       if (linearClockTimerRef.current) {
         clearInterval(linearClockTimerRef.current);
@@ -338,9 +352,10 @@ export function useClipPlayer({
         if (curTime >= curDuration) {
           playStartClipTimeRef.current = 0;
           playStartWallTimeRef.current = Date.now();
-          lastStateUpdateWallTimeRef.current = Date.now();
           setCurrentClipTime(0);
           setProgressPercent(0);
+          lastDispatchedSubtitleTextRef.current = '';
+          lastDispatchedCueIdRef.current = null;
           syncSubtitleCueAtTime(0);
 
           progressAnim.stopAnimation();
@@ -377,17 +392,8 @@ export function useClipPlayer({
         }
 
         const clampedTime = Math.max(0, Math.min(curDuration, curTime));
-        // Subtitle evaluation: 100% presisi tanpa tertahan antrean render React!
+        // Evaluasi subtitle teks dan seleksi kotak cue secara presisi di 50ms tanpa memicu re-render layar induk!
         syncSubtitleCueAtTime(clampedTime);
-
-        // Throttle root React state updates to 250ms (4 FPS) to keep JS thread 100% free
-        // (Progress bar is animated natively at 60 FPS via progressAnim!)
-        if (now - lastStateUpdateWallTimeRef.current >= 250) {
-          lastStateUpdateWallTimeRef.current = now;
-          const pct = (clampedTime / curDuration) * 100;
-          setCurrentClipTime(clampedTime);
-          setProgressPercent(pct);
-        }
       }, 50);
     },
     [
@@ -695,8 +701,8 @@ export function useClipPlayer({
           startLinearClock(rel, true);
         }
       } else {
-        // Redam micro-buffering (Cara 1): Berikan grace period 150ms sebelum mematikan jam linier.
-        // Jika ExoPlayer hanya buffering sesaat (misal < 100ms) lalu lanjut playing,
+        // Redam micro-buffering (Cara 1): Berikan grace period 400ms sebelum mematikan jam linier.
+        // Jika ExoPlayer hanya buffering sesaat lalu lanjut playing,
         // jam linier tidak akan terbunuh/stuck di awal.
         if (stopGraceTimerRef.current) {
           clearTimeout(stopGraceTimerRef.current);
@@ -704,7 +710,7 @@ export function useClipPlayer({
         stopGraceTimerRef.current = setTimeout(() => {
           stopLinearClock();
           stopGraceTimerRef.current = null;
-        }, 150);
+        }, 400);
       }
     });
 
