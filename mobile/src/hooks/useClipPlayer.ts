@@ -83,17 +83,25 @@ export function useClipPlayer({
     streamUrlRef.current = streamUrl;
   }, [streamUrl]);
 
-  // Video Player instance via expo-video (250ms interval untuk kalibrasi drift, UI interpolasi linier di 50ms)
-  // Gunakan null agar player instance stabil dan tidak di-recreate berulang kali saat streamUrl terisi
+  // Video Player instance via expo-video (UI interpolasi linier di 50ms)
+  // - bufferOptions: minBufferForPlayback: 0.05s memangkas delay inisialisasi decoder ExoPlayer dari default 2 detik menjadi 50ms!
   const player = useVideoPlayer(null, (p) => {
     p.loop = false;
     p.timeUpdateEventInterval = 0.25;
+    p.bufferOptions = {
+      preferredForwardBufferDuration: 1.0,
+      minBufferForPlayback: 0.05,
+    };
   });
 
   // Secondary Video Player khusus Facecam Highlight (Muted, decoupled 100% saat nonaktif)
   const facecamPlayer = useVideoPlayer(null, (p) => {
     p.loop = false;
     p.muted = true;
+    p.bufferOptions = {
+      preferredForwardBufferDuration: 1.0,
+      minBufferForPlayback: 0.05,
+    };
   });
 
   const isFacecamActiveRef = useRef<boolean>(false);
@@ -252,7 +260,13 @@ export function useClipPlayer({
    * tanpa menunggu antrean event bridge native ExoPlayer, menghasilkan sinkronisasi 0ms lag.
    */
   const startLinearClock = useCallback(
-    (fromRelTime?: number) => {
+    (fromRelTime?: number, forceReset: boolean = false) => {
+      // Jika jam linier sudah aktif berputar dan bukan instruksi reset eksplisit,
+      // jangan reset jam kembali ke detik awal! Biarkan jam terus berjalan mulus tanpa lompat mundur.
+      if (isPlaybackActiveRef.current && !forceReset && typeof fromRelTime !== 'number') {
+        return;
+      }
+
       const currentActive = getActiveClip();
       const duration = currentActive.end - currentActive.start;
       const initialTime =
@@ -379,6 +393,7 @@ export function useClipPlayer({
             }
             if (autoPlay && isContinueStateRef.current) {
               player.play();
+              startLinearClock(0, true);
             }
           } catch (err) {
             console.warn('[Feed] Play full video proxy error:', err);
@@ -412,6 +427,7 @@ export function useClipPlayer({
               player.currentTime = 0;
               if (autoPlay && isContinueStateRef.current) {
                 player.play();
+                startLinearClock(0, true);
               }
             } catch (err) {
               console.warn('[Feed] Play local error:', err);
@@ -447,6 +463,7 @@ export function useClipPlayer({
           }
           if (autoPlay && isContinueStateRef.current) {
             player.play();
+            startLinearClock(0, true);
           }
         } catch (err) {
           console.warn('[Feed] Play stream error:', err);
@@ -461,6 +478,7 @@ export function useClipPlayer({
       downloadedClipsRef,
       playMode,
       stopLinearClock,
+      startLinearClock,
       syncSubtitleCueAtTime,
     ]
   );
@@ -539,7 +557,7 @@ export function useClipPlayer({
             }
             if (playAfterSeek && isContinueStateRef.current) {
               player.play();
-              startLinearClock(clampedRel);
+              startLinearClock(clampedRel, true);
             }
           } catch (e: any) {
             ToastManager.show({
@@ -554,7 +572,7 @@ export function useClipPlayer({
           try {
             if (!player.playing) player.play();
             if (isFacecamActiveRef.current && facecamPlayer && !facecamPlayer.playing) facecamPlayer.play();
-            startLinearClock(clampedRel);
+            startLinearClock(clampedRel, true);
           } catch (e) {}
         }
         seekDebounceTimerRef.current = null;
@@ -581,18 +599,22 @@ export function useClipPlayer({
     const playingSub = player.addListener('playingChange', (payload: any) => {
       const isPlaying = payload?.isPlaying ?? player.playing;
       if (isPlaying) {
-        const curActive = getActiveClip();
-        const curSource = currentSourceUriRef.current;
-        const isIndividualCutClip =
-          curActive.status === 'done' &&
-          Boolean(downloadedClipsRef.current[curActive.id]) &&
-          !curSource.endsWith('/full.mp4') &&
-          !curSource.endsWith('/full_video.mp4') &&
-          !curSource.endsWith('/full_proxy.mp4');
-        const rel = isIndividualCutClip
-          ? player.currentTime
-          : player.currentTime - curActive.start;
-        startLinearClock(rel);
+        // HANYA jalankan jika linear clock BELUM aktif!
+        // Jika sudah aktif (misal sudah dijalankan oleh togglePlayPause atau seek), JANGAN restart agar tidak lompat mundur!
+        if (!isPlaybackActiveRef.current) {
+          const curActive = getActiveClip();
+          const curSource = currentSourceUriRef.current;
+          const isIndividualCutClip =
+            curActive.status === 'done' &&
+            Boolean(downloadedClipsRef.current[curActive.id]) &&
+            !curSource.endsWith('/full.mp4') &&
+            !curSource.endsWith('/full_video.mp4') &&
+            !curSource.endsWith('/full_proxy.mp4');
+          const rel = isIndividualCutClip
+            ? player.currentTime
+            : player.currentTime - curActive.start;
+          startLinearClock(rel);
+        }
       } else {
         stopLinearClock();
       }
@@ -642,16 +664,16 @@ export function useClipPlayer({
         }
         syncSubtitleCueAtTime(nativeRel);
       } else {
-        // Mode Play: Cek drift antara jam linear wall-clock dan ExoPlayer native
-        if (playStartWallTimeRef.current !== null) {
+        // Mode Play: Untuk file lokal, biarkan progress bar berjalan 100% mulus sebagai animasi linier 0-X tanpa kalkulasi mundur/reset!
+        // Hanya kalibrasi jika mode stream online YouTube mengalami lag/stall jaringan ekstrem (> 1.5 detik)
+        if (playMode === 'stream' && playStartWallTimeRef.current !== null) {
           const now = Date.now();
           const rate = player?.playbackRate || 1.0;
           const elapsed = ((now - playStartWallTimeRef.current) / 1000) * rate;
           const currentInterpolated = playStartClipTimeRef.current + elapsed;
           const drift = Math.abs(nativeRel - currentInterpolated);
 
-          // Kalibrasi hanya jika terjadi drift signifikan (>0.35s) akibat buffering / stall
-          if (drift > 0.35) {
+          if (drift > 1.5) {
             playStartClipTimeRef.current = nativeRel;
             playStartWallTimeRef.current = Date.now();
           }
@@ -733,6 +755,7 @@ export function useClipPlayer({
             if (!player.playing) {
               try { player.play(); } catch (e) {}
             }
+            startLinearClock(0, true);
           }
         }
         return;
@@ -823,9 +846,9 @@ export function useClipPlayer({
         !curSource.endsWith('/full_video.mp4') &&
         !curSource.endsWith('/full_proxy.mp4');
       const rel = isIndividualCutClip
-        ? (player.currentTime || playStartClipTimeRef.current)
-        : ((player.currentTime || curActive.start + playStartClipTimeRef.current) - curActive.start);
-      startLinearClock(rel);
+        ? (typeof player?.currentTime === 'number' && !isNaN(player.currentTime) ? player.currentTime : playStartClipTimeRef.current)
+        : (typeof player?.currentTime === 'number' && !isNaN(player.currentTime) ? Math.max(0, player.currentTime - curActive.start) : playStartClipTimeRef.current);
+      startLinearClock(rel, true);
       try {
         if (!player.playing) player.play();
         if (isFacecamActiveRef.current && facecamPlayer && !facecamPlayer.playing) {

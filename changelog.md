@@ -14,7 +14,28 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Redesign Template Editor Controls to 2-Row 2-Button Grid Layout
+## [Unreleased] - Fix Player Playback Start Delay and Eliminate Progress Bar Jump Back
+- **Konteks Struktural**:
+  1. Pengurangan Buffer Awal ExoPlayer (`player.bufferOptions` di `useClipPlayer.ts`):
+     - Memangkas parameter `bufferOptions.minBufferForPlayback` dari nilai bawaan Android yang berlebihan (2.0 detik) menjadi `0.05` detik (50ms), serta `preferredForwardBufferDuration: 1.0` detik.
+     - Untuk pemutaran file video lokal/proxy di storage HP, decoder tidak lagi tertahan melakukan pre-buffering 2 detik, sehingga video langsung berputar seketika saat tombol Play ditekan (menghilangkan jeda "berhenti sejenak di awal").
+  2. Proteksi Deduplikasi & Pencegahan Reset Ganda Jam Linier (`playingSub` & `startLinearClock`):
+     - Memperbaiki listener `playingChange` agar TIDAK memanggil `startLinearClock` ulang jika jam linier sudah aktif berputar (`!isPlaybackActiveRef.current`).
+     - Mencegah fenomena progress bar "kembali lagi sebentar" yang sebelumnya terjadi akibat tombol Play menyalakan jam di millisecond 0, lalu event native `playingChange` mereset kembali jam tersebut ke detik 0 saat frame pertama baru dirender.
+  3. Penegakan Animasi Linier 0-X Murni Tanpa Drift Snap-Back (`timeUpdate`):
+     - Menghapus logika kalibrasi mundur (*drift snap-back*) pada event `timeUpdate` untuk pemutaran file lokal, sehingga jarum progress bar bergerak 100% mulus dan kontinu secara deterministik tanpa pernah tersentak mundur.
+  4. Sinkronisasi Instan AutoPlay & Pergantian Klip (`syncPlayerSourceForClip` & `statusChange`):
+     - Memastikan `startLinearClock(0, true)` dipanggil secara langsung pada eksekusi autoPlay dan `readyToPlay`, sehingga progress bar langsung aktif bersamaan dengan keberangkatan video klip baru.
+- **Perubahan Kode Penting**:
+  - `mobile/src/hooks/useClipPlayer.ts`:
+    - Mengonfigurasi `p.bufferOptions` pada `player` dan `facecamPlayer` (`minBufferForPlayback: 0.05`).
+    - Menambahkan parameter `forceReset` pada `startLinearClock` dan memproteksi pemanggilan ganda.
+    - Menambahkan penjagaan `!isPlaybackActiveRef.current` pada listener `playingChange`.
+    - Mengeliminasi *drift snap-back* untuk pemutaran lokal di event `timeUpdate`.
+    - Memanggil `startLinearClock(0, true)` pada blok autoPlay `syncPlayerSourceForClip` dan `statusChange`.
+    - Memperbaiki perhitungan `rel` waktu di `togglePlayPause` agar akurat terhadap `player.currentTime`.
+
+## [716471e] - Redesign Template Editor Controls to 2-Row 2-Button Grid Layout
 - **Konteks Struktural**:
   1. Redesain Tata Letak Kontrol Template Editor (`FeedTopControls.tsx`):
      - Menghapus baris label rasio kanvas/aspek (`templateHeaderRow` dengan tag `16:9 Landscape` / `9:16 Portrait` / `Gameplay Penuh 16:9`) yang sebelumnya menempati baris atas editor template, guna membebaskan ruang vertikal.
