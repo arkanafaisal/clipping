@@ -14,7 +14,16 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Simplify File Move Operation Without [USED] Label Prefix
+## [Unreleased] - Reorder Setup Wizard to Place Account Authorization in Step 2
+- **Konteks Struktural**:
+  1. Restrukturisasi Alur Interaktif Wizard (`scheduler-uploader/setup.js`):
+     - Memindahkan proses otorisasi akun (TikTok & Google Drive/YouTube) menjadi Tahap 2, tepat setelah pemeriksaan dependensi (`npm install`).
+     - Memungkinkan wizard mengeksekusi langsung `auth_tiktok.js` dan `auth.js` secara interaktif di terminal saat token belum ditemukan atau pengguna ingin login ulang.
+     - Menyusun urutan langkah menjadi lebih linear dan logis: (1) Dependensi -> (2) Otorisasi Akun -> (3) Konfigurasi Folder GDrive -> (4) Hashtag Konstan -> (5) Ringkasan & Uji Coba.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/setup.js`: Mengatur ulang urutan eksekusi step, menyisipkan sub-prompt otorisasi akun ke Tahap 2.
+
+## [ce83a58] - Simplify File Move Operation Without [USED] Label Prefix
 - **Konteks Struktural**:
   1. Pembersihan Logika Pemindahan File Murni (Pure Move Operation):
      - Mengeliminasi prefix nama `[USED]` dan filter `not name contains '[USED]'` karena sistem pemindahan file secara fisik melepaskan relasi parent dari folder unused (`removeParents: selectedFolder.id`).

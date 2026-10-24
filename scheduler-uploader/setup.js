@@ -3,8 +3,8 @@
  * INTERACTIVE SETUP WIZARD (Panduan Setup Interaktif)
  * ============================================================================
  * Skrip panduan interaktif ramah pengguna untuk mengatur seluruh alur kerja
- * Scheduler Uploader: instalasi dependensi, ID/link folder Google Drive,
- * hashtag konstan, pengecekan otorisasi, dan uji coba.
+ * Scheduler Uploader: instalasi dependensi, otorisasi akun (TikTok & Google),
+ * ID/link folder Google Drive, hashtag konstan, dan uji coba.
  *
  * Jalankan dengan:
  *   npm run setup
@@ -145,13 +145,83 @@ async function runSetup() {
     console.log('✅ Dependensi (node_modules) sudah terpasang.\n');
   }
 
-  await askQuestion('👉 Apakah Tahap 1 sudah selesai dan siap lanjut ke konfigurasi Google Drive? (Tekan ENTER) ');
+  await askQuestion('👉 Apakah Tahap 1 sudah selesai dan siap lanjut ke Otorisasi Akun? (Tekan ENTER) ');
 
   // ============================================================================
-  // TAHAP 2: KONFIGURASI FOLDER GOOGLE DRIVE (UNUSED & USED)
+  // TAHAP 2: OTORISASI AKUN (TIKTOK & GOOGLE DRIVE / YOUTUBE)
   // ============================================================================
   console.log('\n----------------------------------------------------------------');
-  console.log('📁 TAHAP 2: Konfigurasi Folder Google Drive (Unused & Used)');
+  console.log('🔐 TAHAP 2: Otorisasi Akun (TikTok & Google Drive/YouTube)');
+  console.log('----------------------------------------------------------------');
+  console.log('Hubungkan akun TikTok dan Google agar script memiliki izin upload & akses drive.\n');
+
+  let envData = readEnv();
+  let hasTikTokToken = !!envData.TIKTOK_API_TOKEN;
+  let hasGoogleToken =
+    fs.existsSync(TOKEN_JSON_PATH) ||
+    fs.existsSync(ROOT_TOKEN_PATH) ||
+    !!envData.GDRIVE_TOKEN;
+
+  // 1. Akun TikTok
+  console.log('1. Akun TikTok (Content Posting API):');
+  if (hasTikTokToken) {
+    console.log('   ✅ [TERHUBUNG] Token TikTok aktif terdeteksi di .env');
+    console.log(`      Status Privasi Video : ${envData.TIKTOK_PRIVACY_LEVEL || 'SELF_ONLY'}`);
+    const reAuthT = await askQuestion('   👉 Ingin login ulang / ganti akun TikTok? (y/N): ');
+    if (reAuthT.toLowerCase() === 'y') {
+      try {
+        execSync('node auth_tiktok.js', { cwd: __dirname, stdio: 'inherit' });
+      } catch (e) {}
+    }
+  } else {
+    console.log('   ⚠️  [BELUM TERHUBUNG] Token TikTok belum ditemukan.');
+    const doAuthT = await askQuestion('   👉 Jalankan otorisasi TikTok sekarang? (Y/n): ');
+    if (doAuthT.toLowerCase() !== 'n') {
+      try {
+        execSync('node auth_tiktok.js', { cwd: __dirname, stdio: 'inherit' });
+      } catch (e) {
+        console.error('   ❌ Gagal otorisasi TikTok:', e.message);
+      }
+    }
+  }
+
+  // 2. Akun Google Drive & YouTube
+  envData = readEnv();
+  hasGoogleToken =
+    fs.existsSync(TOKEN_JSON_PATH) ||
+    fs.existsSync(ROOT_TOKEN_PATH) ||
+    !!envData.GDRIVE_TOKEN;
+
+  console.log('\n2. Akun Google Drive & YouTube:');
+  if (hasGoogleToken) {
+    console.log('   ✅ [TERHUBUNG] Kredensial Google (token.json) terdeteksi.');
+    console.log('      Memiliki izin penuh baca/tulis Google Drive dan upload YouTube.');
+    const reAuthG = await askQuestion('   👉 Ingin login ulang akun Google? (y/N): ');
+    if (reAuthG.toLowerCase() === 'y') {
+      try {
+        execSync('node auth.js', { cwd: __dirname, stdio: 'inherit' });
+      } catch (e) {}
+    }
+  } else {
+    console.log('   ⚠️  [BELUM TERHUBUNG] File token.json belum ditemukan.');
+    const doAuthG = await askQuestion('   👉 Jalankan otorisasi Google Drive & YouTube sekarang? (Y/n): ');
+    if (doAuthG.toLowerCase() !== 'n') {
+      try {
+        execSync('node auth.js', { cwd: __dirname, stdio: 'inherit' });
+      } catch (e) {
+        console.error('   ❌ Gagal otorisasi Google:', e.message);
+      }
+    }
+  }
+
+  console.log('');
+  await askQuestion('👉 Apakah Tahap 2 sudah selesai dan siap lanjut ke konfigurasi Google Drive? (Tekan ENTER) ');
+
+  // ============================================================================
+  // TAHAP 3: KONFIGURASI FOLDER GOOGLE DRIVE (UNUSED & USED)
+  // ============================================================================
+  console.log('\n----------------------------------------------------------------');
+  console.log('📁 TAHAP 3: Konfigurasi Folder Google Drive (Unused & Used)');
   console.log('----------------------------------------------------------------');
   console.log('Tips: Anda bisa langsung menempelkan LINK URL Google Drive lengkap');
   console.log('      (misal: https://drive.google.com/drive/folders/...) atau ID mentahnya.\n');
@@ -185,13 +255,13 @@ async function runSetup() {
   console.log(` - GDRIVE_UNUSED_FOLDER_ID : ${finalUnused || '(Belum diisi)'}`);
   console.log(` - GDRIVE_USED_FOLDER_ID   : ${finalUsed || '(Belum diisi)'}\n`);
 
-  await askQuestion('👉 Apakah Tahap 2 sudah selesai dan siap lanjut ke pengaturan Hashtag? (Tekan ENTER) ');
+  await askQuestion('👉 Apakah Tahap 3 sudah selesai dan siap lanjut ke pengaturan Hashtag? (Tekan ENTER) ');
 
   // ============================================================================
-  // TAHAP 3: KONFIGURASI GLOBAL HASHTAGS (MAKSIMAL 4 TAG KONSTAN)
+  // TAHAP 4: KONFIGURASI GLOBAL HASHTAGS (MAKSIMAL 4 TAG KONSTAN)
   // ============================================================================
   console.log('\n----------------------------------------------------------------');
-  console.log('🏷️  TAHAP 3: Konfigurasi Hashtag Konstan (hashtags.txt)');
+  console.log('🏷️  TAHAP 4: Konfigurasi Hashtag Konstan (hashtags.txt)');
   console.log('----------------------------------------------------------------');
   console.log('Setiap video yang terupload otomatis memiliki caption:');
   console.log('  "<Nama File Terpilih> #<NamaFolderGame> <Hashtag Konstan>"');
@@ -244,44 +314,7 @@ async function runSetup() {
   console.log(`\n✅ File "hashtags.txt" berhasil diperbarui:`);
   console.log(`   Tags: ${finalTagsToSave || '(Kosong / hanya tag folder game)'}\n`);
 
-  await askQuestion('👉 Apakah Tahap 3 sudah selesai dan siap lanjut ke pengecekan akun? (Tekan ENTER) ');
-
-  // ============================================================================
-  // TAHAP 4: STATUS OTORISASI AKUN (TIKTOK & GOOGLE DRIVE/YOUTUBE)
-  // ============================================================================
-  console.log('\n----------------------------------------------------------------');
-  console.log('🔐 TAHAP 4: Pemeriksaan Otorisasi Akun');
-  console.log('----------------------------------------------------------------');
-
-  const refreshedEnv = readEnv();
-  const hasTikTokToken = !!refreshedEnv.TIKTOK_API_TOKEN;
-  const hasGoogleToken =
-    fs.existsSync(TOKEN_JSON_PATH) ||
-    fs.existsSync(ROOT_TOKEN_PATH) ||
-    !!refreshedEnv.GDRIVE_TOKEN;
-
-  console.log('1. Akun TikTok:');
-  if (hasTikTokToken) {
-    console.log('   ✅ [TERHUBUNG] Token TikTok aktif terdeteksi di .env');
-    console.log(`      Status Privasi Video : ${refreshedEnv.TIKTOK_PRIVACY_LEVEL || 'SELF_ONLY'}`);
-  } else {
-    console.log('   ⚠️  [BELUM TERHUBUNG] Token TikTok belum ada.');
-    console.log('      Untuk menghubungkan, jalankan di terminal baru:');
-    console.log('      👉 npm run auth:tiktok');
-  }
-
-  console.log('\n2. Akun Google Drive & YouTube:');
-  if (hasGoogleToken) {
-    console.log('   ✅ [TERHUBUNG] Kredensial Google (token.json) terdeteksi.');
-    console.log('      Memiliki izin penuh baca/tulis Google Drive dan upload YouTube.');
-  } else {
-    console.log('   ⚠️  [BELUM TERHUBUNG] File token.json belum ditemukan.');
-    console.log('      Untuk login ke akun Google Drive & YouTube, jalankan:');
-    console.log('      👉 npm run auth');
-  }
-
-  console.log('');
-  await askQuestion('👉 Apakah Tahap 4 sudah dipahami dan siap ke ringkasan & uji coba? (Tekan ENTER) ');
+  await askQuestion('👉 Apakah Tahap 4 sudah selesai dan siap ke ringkasan & uji coba? (Tekan ENTER) ');
 
   // ============================================================================
   // TAHAP 5: RINGKASAN KONFIGURASI & PILIHAN PENGUJIAN
@@ -289,12 +322,19 @@ async function runSetup() {
   console.log('\n================================================================');
   console.log('📋 TAHAP 5: Ringkasan Konfigurasi & Uji Coba');
   console.log('================================================================');
-  console.log(`- Folder Unused (Input)  : ${refreshedEnv.GDRIVE_UNUSED_FOLDER_ID || 'Belum diisi'}`);
-  console.log(`- Folder Used (Arsip)    : ${refreshedEnv.GDRIVE_USED_FOLDER_ID || 'Belum diisi'}`);
-  console.log(`- Mode Antrean           : ${refreshedEnv.QUEUE_MODE || 'random'}`);
+  const finalEnv = readEnv();
+  const finalHasTikTok = !!finalEnv.TIKTOK_API_TOKEN;
+  const finalHasGoogle =
+    fs.existsSync(TOKEN_JSON_PATH) ||
+    fs.existsSync(ROOT_TOKEN_PATH) ||
+    !!finalEnv.GDRIVE_TOKEN;
+
+  console.log(`- Folder Unused (Input)  : ${finalEnv.GDRIVE_UNUSED_FOLDER_ID || 'Belum diisi'}`);
+  console.log(`- Folder Used (Arsip)    : ${finalEnv.GDRIVE_USED_FOLDER_ID || 'Belum diisi'}`);
+  console.log(`- Mode Antrean           : ${finalEnv.QUEUE_MODE || 'random'}`);
   console.log(`- Hashtag Konstan        : ${finalTagsToSave || '(Hanya tag folder game)'}`);
-  console.log(`- TikTok OAuth           : ${hasTikTokToken ? 'Siap (Token OK)' : 'Belum Login'}`);
-  console.log(`- Google OAuth           : ${hasGoogleToken ? 'Siap (Token OK)' : 'Belum Login'}`);
+  console.log(`- TikTok OAuth           : ${finalHasTikTok ? 'Siap (Token OK)' : 'Belum Login'}`);
+  console.log(`- Google OAuth           : ${finalHasGoogle ? 'Siap (Token OK)' : 'Belum Login'}`);
   console.log('================================================================\n');
 
   console.log('Pilihan Tindakan Selanjutnya:');
