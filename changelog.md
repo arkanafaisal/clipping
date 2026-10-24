@@ -14,7 +14,19 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Eliminate Subtitle Auto-Breakline and Resolve Black Ghost Line Bug
+## [Unreleased] - Fix Dropped Trailing Word via Non-Breaking Spaces and Simple Break Strategy
+- **Konteks Struktural**:
+  1. Resolusi Bug Hilangnya Kata Terakhir pada Baris Subtitle (`SubtitleOverlay.tsx`):
+     - Mengidentifikasi akar masalah hilangnya kata terakhir (misalnya kata "mereview" atau "bisa" pada baris pertama): saat properti `numberOfLines={1}` dan `ellipsizeMode="clip"` digunakan bersama spasi biasa, algoritma pemecah baris Android `StaticLayout` (dengan strategi default `highQuality`/`balanced`) mencoba menyeimbangkan baris dan memindahkan kata terakhir ke baris ke-2. Karena batas `numberOfLines={1}` aktif dengan mode `clip`, baris ke-2 tersebut dipotong dan disembunyikan secara hening oleh sistem native tanpa tanda elipsis (`...`).
+     - Mengonversi seluruh spasi biasa (` `) pada setiap baris manual menjadi *Non-Breaking Space* (`\u00A0`). Dalam standar Unicode, karakter ini memaksa engine teks Android dan iOS untuk memperlakukan seluruh kalimat pada baris tersebut sebagai satu kesatuan utuh tanpa titik pemutus (*zero break points*).
+     - Menghapus pembatas `numberOfLines={1}` dan `ellipsizeMode="clip"` yang menjadi penyebab pemotongan kata, serta menambahkan `textBreakStrategy="simple"`. Teks kini tampil 100% utuh tanpa kata yang hilang, dan tetap terlindungi dari auto-word-wrap secara alami.
+- **Perubahan Kode Penting**:
+  - `mobile/src/components/feed/SubtitleOverlay.tsx`:
+    - Mengonversi spasi biasa ke `\u00A0` di dalam `linesData.map`.
+    - Menghapus `numberOfLines={1}` dan `ellipsizeMode="clip"` dari seluruh layer stroke dan foreground.
+    - Menambahkan `textBreakStrategy="simple"` pada seluruh komponen `<Text>`.
+
+## [551d05c] - Eliminate Subtitle Auto-Breakline and Resolve Black Ghost Line Bug
 - **Konteks Struktural**:
   1. Penghapusan Auto-Breakline pada Subtitle Preview (`SubtitleOverlay.tsx`):
      - Memecah teks subtitle manual secara eksplisit berdasarkan karakter baris baru (`\n`) ke dalam `linesData` dan merender setiap baris dalam `lineWrapper` mandiri dengan `numberOfLines={1}` serta `ellipsizeMode="clip"`.

@@ -97,15 +97,19 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = React.memo(({
   const displayText = hasText ? currentText : lastNonEmptyTextRef.current;
 
   // Parsing baris teks manual (tanpa auto-breakline agar 100% presisi dengan ekspor FFmpeg ASS).
-  // Setiap baris diisolasi dengan numberOfLines={1} di dalam lineWrapper,
-  // sehingga stroke layer dan foreground layer selalu memiliki dimensi & jumlah baris yang identik,
-  // mengeliminasi total bug teks gosong (stroke wrapping ke baris ekstra tanpa layer putih di atasnya).
+  // Mengonversi spasi biasa menjadi Non-Breaking Space (\u00A0) dan menggunakan textBreakStrategy="simple":
+  // 1. Menjamin Android StaticLayout tidak pernah memotong/menyembunyikan kata terakhir (orphan token drop bug).
+  // 2. Mencegah auto-word-wrap secara alami tanpa memerlukan numberOfLines={1} yang merusak rendering teks.
+  // 3. Menjamin layer stroke hitam dan layer teks putih selalu memiliki ukuran dan kata yang utuh 1:1.
   const linesData = useMemo(() => {
     const rawLines = displayText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
     return rawLines.map((lineText) => {
-      let strokeContent: React.ReactNode = lineText;
-      if (lineText && /\p{Extended_Pictographic}|\p{Emoji_Presentation}/u.test(lineText)) {
-        const parts = lineText.split(/(\p{Extended_Pictographic}+|\p{Emoji_Presentation}+)/gu);
+      // Ubah semua spasi menjadi Non-Breaking Space agar engine teks Android tidak memecah baris di tengah kalimat
+      const nonBreakingLine = lineText.replace(/ /g, '\u00A0');
+
+      let strokeContent: React.ReactNode = nonBreakingLine;
+      if (nonBreakingLine && /\p{Extended_Pictographic}|\p{Emoji_Presentation}/u.test(nonBreakingLine)) {
+        const parts = nonBreakingLine.split(/(\p{Extended_Pictographic}+|\p{Emoji_Presentation}+)/gu);
         strokeContent = parts.map((part, pIdx) => {
           if (/\p{Extended_Pictographic}|\p{Emoji_Presentation}/u.test(part)) {
             return (
@@ -118,7 +122,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = React.memo(({
         });
       }
       return {
-        lineText,
+        lineText: nonBreakingLine,
         strokeContent,
       };
     });
@@ -156,8 +160,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = React.memo(({
             {STROKE_OFFSETS.map((offset, index) => (
               <Text
                 key={index}
-                numberOfLines={1}
-                ellipsizeMode="clip"
+                textBreakStrategy="simple"
                 style={[
                   styles.subtitleText,
                   styles.strokeText,
@@ -178,8 +181,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = React.memo(({
 
             {/* Layer Teks Utama Putih Bersih */}
             <Text
-              numberOfLines={1}
-              ellipsizeMode="clip"
+              textBreakStrategy="simple"
               style={[
                 styles.subtitleText,
                 styles.foregroundText,
