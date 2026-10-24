@@ -14,7 +14,16 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Fix Android SDK Step in GitHub Actions Workflow
+## [Unreleased] - Upgrade Node.js to 22 in GitHub Actions Workflow
+- **Konteks Struktural**:
+  1. Kompatibilitas Engine EAS CLI v25+:
+     - Memperbarui versi runtime Node.js dari 20 ke 22 (`setup-node@v4` dengan `node-version: 22`).
+     - Menyelesaikan kegagalan instalasi `eas-cli` (v25.3.0) di mana modul internal `@oclif/plugin-autocomplete` mewajibkan versi runtime engine Node `>=22.0.0`.
+- **Perubahan Kode Penting**:
+  - `.github/workflows/build-apk.yml`:
+    - Mengubah `node-version` dari `20` menjadi `22`.
+
+## [06e197a] - Fix Android SDK Step in GitHub Actions Workflow
 - **Konteks Struktural**:
   1. Penyesuaian Setup Toolchain Android pada GitHub Runner:
      - Menghapus dependensi pihak ketiga `android-actions/setup-android@v3` yang gagal mengeksekusi `sdkmanager tools` karena paket legacy `tools` telah didepresiasi dan dihapus oleh repositori Google Android SDK.
