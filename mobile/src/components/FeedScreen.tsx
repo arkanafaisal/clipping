@@ -264,13 +264,17 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     const zoom = Math.max(1.0, templateConfig.facecam.zoom || 2.0);
     const cropX = Math.max(0, Math.min(100, templateConfig.facecam.cropX ?? 50));
     const cropY = Math.max(0, Math.min(100, templateConfig.facecam.cropY ?? 50));
+    const rw = templateConfig.facecam.ratioWidth && templateConfig.facecam.ratioWidth > 0 ? templateConfig.facecam.ratioWidth : 4;
+    const rh = templateConfig.facecam.ratioHeight && templateConfig.facecam.ratioHeight > 0 ? templateConfig.facecam.ratioHeight : 3;
+    const facecamRatio = rw / rh;
     const w = facecamLayout.width || 280;
-    const h = facecamLayout.height || (w * 0.75);
+    const h = facecamLayout.height || (w / facecamRatio);
 
     // Dimensi video 16:9 penuh agar native player tidak memotong gambar
-    const baseVideoWidth = h * (16 / 9);
+    const baseVideoWidth = Math.max(w, h * (16 / 9));
+    const baseVideoHeight = baseVideoWidth / (16 / 9);
     const scaledWidth = baseVideoWidth * zoom;
-    const scaledHeight = h * zoom;
+    const scaledHeight = baseVideoHeight * zoom;
 
     const maxShiftX = Math.max(0, (scaledWidth - w) / 2);
     const maxShiftY = Math.max(0, (scaledHeight - h) / 2);
@@ -302,36 +306,18 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     const zoom = Math.max(1.0, templateConfig.mainVideo.zoom || 1.0);
     const cropX = Math.max(0, Math.min(100, templateConfig.mainVideo.cropX ?? 50));
     const cropY = Math.max(0, Math.min(100, templateConfig.mainVideo.cropY ?? 50));
+    const defaultRw = isFacecamActive ? 4 : 16;
+    const defaultRh = isFacecamActive ? 3 : 9;
+    const rw = templateConfig.mainVideo.ratioWidth && templateConfig.mainVideo.ratioWidth > 0 ? templateConfig.mainVideo.ratioWidth : defaultRw;
+    const rh = templateConfig.mainVideo.ratioHeight && templateConfig.mainVideo.ratioHeight > 0 ? templateConfig.mainVideo.ratioHeight : defaultRh;
+    const mainRatio = rw / rh;
     const w = mainVideoLayout.width || 280;
+    const h = mainVideoLayout.height || (w / mainRatio);
 
-    if (isFacecamActive) {
-      // Saat facecam aktif: viewport gameplay berasio 4:3 (h = w * 0.75)
-      // Video sumber tetap murni 16:9 dengan baseVideoWidth = h * (16 / 9)
-      // Sisi kiri & kanan dipotong rapi via container overflow hidden tanpa mengubah aspek rasio asli video
-      const h = mainVideoLayout.height || (w * 0.75);
-      const baseVideoWidth = h * (16 / 9);
-      const scaledWidth = baseVideoWidth * zoom;
-      const scaledHeight = h * zoom;
-
-      const maxShiftX = Math.max(0, (scaledWidth - w) / 2);
-      const maxShiftY = Math.max(0, (scaledHeight - h) / 2);
-
-      const left = (w - scaledWidth) / 2 + ((50 - cropX) / 50) * maxShiftX;
-      const top = (h - scaledHeight) / 2 + ((50 - cropY) / 50) * maxShiftY;
-
-      return {
-        position: 'absolute' as const,
-        width: scaledWidth,
-        height: scaledHeight,
-        left,
-        top,
-      };
-    }
-
-    // Default 16:9 di dalam mode portrait dengan banner konteks saja
-    const h = mainVideoLayout.height || (w * (9 / 16));
-    const scaledWidth = w * zoom;
-    const scaledHeight = h * zoom;
+    const baseVideoWidth = Math.max(w, h * (16 / 9));
+    const baseVideoHeight = baseVideoWidth / (16 / 9);
+    const scaledWidth = baseVideoWidth * zoom;
+    const scaledHeight = baseVideoHeight * zoom;
 
     const maxShiftX = Math.max(0, (scaledWidth - w) / 2);
     const maxShiftY = Math.max(0, (scaledHeight - h) / 2);
@@ -494,7 +480,15 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
               {/* 2. Viewport Facecam (Hanya saat mode portrait & diaktifkan) */}
               {isPortrait && templateConfig.facecam.enabled && (
                 <View
-                  style={styles.facecamBox}
+                  style={[
+                    styles.facecamBox,
+                    {
+                      aspectRatio:
+                        templateConfig.facecam.ratioWidth && templateConfig.facecam.ratioHeight
+                          ? templateConfig.facecam.ratioWidth / templateConfig.facecam.ratioHeight
+                          : 4 / 3,
+                    },
+                  ]}
                   collapsable={false}
                   onLayout={(e) => {
                     const { width, height } = e.nativeEvent.layout;
@@ -513,7 +507,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
                 </View>
               )}
 
-              {/* 3. Viewport Main Video Gameplay (4:3 saat Facecam aktif, 16:9 saat Facecam nonaktif) */}
+              {/* 3. Viewport Main Video Gameplay */}
               {isPortrait && templateConfig.mainVideo.enabled === false ? (
                 // Saat gameplay dinonaktifkan di mode portrait (Facecam Only), sembunyikan visual box namun pertahankan native player aktif di background untuk audio & clock
                 <View style={{ position: 'absolute', width: 0, height: 0, opacity: 0 }} pointerEvents="none">
@@ -531,9 +525,15 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
                     styles.mainVideoBox,
                     !isPortrait
                       ? styles.mainVideoBoxLandscape
-                      : isFacecamActive
-                      ? styles.mainVideoBox43
-                      : styles.mainVideoBox169,
+                      : {
+                          width: '100%',
+                          aspectRatio:
+                            templateConfig.mainVideo.ratioWidth && templateConfig.mainVideo.ratioHeight
+                              ? templateConfig.mainVideo.ratioWidth / templateConfig.mainVideo.ratioHeight
+                              : isFacecamActive
+                              ? 4 / 3
+                              : 16 / 9,
+                        },
                   ]}
                   collapsable={false}
                   onLayout={(e) => {

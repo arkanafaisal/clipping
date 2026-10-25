@@ -1924,12 +1924,16 @@ export interface ClipTemplateConfig {
     zoom: number;
     cropX: number; // 0 - 100 (% offset from center)
     cropY: number; // 0 - 100 (% offset from center)
+    ratioWidth?: number; // Nilai 'a' pada rasio a:b (default: 4)
+    ratioHeight?: number; // Nilai 'b' pada rasio a:b (default: 3)
   };
   mainVideo: {
     enabled?: boolean;
     zoom: number;
     cropX: number; // 0 - 100 (% offset from center)
     cropY: number; // 0 - 100 (% offset from center)
+    ratioWidth?: number; // Nilai 'a' pada rasio a:b (default: 4 saat facecam aktif, 16 saat nonaktif)
+    ratioHeight?: number; // Nilai 'b' pada rasio a:b (default: 3 saat facecam aktif, 9 saat nonaktif)
   };
   watermark: {
     enabled: boolean;
@@ -1953,12 +1957,16 @@ export const DEFAULT_TEMPLATE_CONFIG: ClipTemplateConfig = {
     zoom: 2.0,
     cropX: 80,
     cropY: 20,
+    ratioWidth: 4,
+    ratioHeight: 3,
   },
   mainVideo: {
     enabled: true,
     zoom: 1.0,
     cropX: 50,
     cropY: 50,
+    ratioWidth: 4,
+    ratioHeight: 3,
   },
   watermark: {
     enabled: false,
@@ -2061,11 +2069,15 @@ export interface VideoGlobalConfig {
     zoom: number;
     cropX: number;
     cropY: number;
+    ratioWidth?: number;
+    ratioHeight?: number;
   };
   mainVideo?: {
     zoom: number;
     cropX: number;
     cropY: number;
+    ratioWidth?: number;
+    ratioHeight?: number;
   };
   contextStyle?: {
     fontSize: number;

@@ -276,12 +276,16 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = React.memo(({
   const [tempFacecamZoom, setTempFacecamZoom] = useState<string>('200');
   const [tempFacecamCropX, setTempFacecamCropX] = useState<string>('80');
   const [tempFacecamCropY, setTempFacecamCropY] = useState<string>('20');
+  const [tempFacecamRatioW, setTempFacecamRatioW] = useState<string>('4');
+  const [tempFacecamRatioH, setTempFacecamRatioH] = useState<string>('3');
 
   // Temp states untuk modal Elemen Main Video (Gameplay)
   const [tempMainEnabled, setTempMainEnabled] = useState<boolean>(true);
   const [tempMainZoom, setTempMainZoom] = useState<string>('100');
   const [tempMainCropX, setTempMainCropX] = useState<string>('50');
   const [tempMainCropY, setTempMainCropY] = useState<string>('50');
+  const [tempMainRatioW, setTempMainRatioW] = useState<string>('4');
+  const [tempMainRatioH, setTempMainRatioH] = useState<string>('3');
 
   const openContextModal = () => {
     if (templateConfig) {
@@ -300,6 +304,8 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = React.memo(({
       setTempFacecamZoom(String(Math.round((templateConfig.facecam.zoom || 2.0) * 100)));
       setTempFacecamCropX(String(templateConfig.facecam.cropX));
       setTempFacecamCropY(String(templateConfig.facecam.cropY));
+      setTempFacecamRatioW(String(templateConfig.facecam.ratioWidth || 4));
+      setTempFacecamRatioH(String(templateConfig.facecam.ratioHeight || 3));
     }
     setShowFacecamModal(true);
   };
@@ -310,6 +316,10 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = React.memo(({
       setTempMainZoom(String(Math.round((templateConfig.mainVideo.zoom || 1.0) * 100)));
       setTempMainCropX(String(templateConfig.mainVideo.cropX));
       setTempMainCropY(String(templateConfig.mainVideo.cropY));
+      const defW = templateConfig.facecam?.enabled ? 4 : 16;
+      const defH = templateConfig.facecam?.enabled ? 3 : 9;
+      setTempMainRatioW(String(templateConfig.mainVideo.ratioWidth || defW));
+      setTempMainRatioH(String(templateConfig.mainVideo.ratioHeight || defH));
     }
     setShowMainVideoModal(true);
   };
@@ -1834,7 +1844,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = React.memo(({
               ]}
               onPress={() => setTempFacecamEnabled((p) => !p)}
             >
-              <Text style={styles.templateToggleLabel}>Tampilkan Box Facecam (4:3)</Text>
+              <Text style={styles.templateToggleLabel}>Tampilkan Box Facecam</Text>
               <View
                 style={[
                   styles.templateToggleSwitch,
@@ -1903,6 +1913,42 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = React.memo(({
               </Text>
             </View>
 
+            {/* Input Rasio Aspek (A : B) */}
+            <View style={styles.posSectionContainer}>
+              <Text style={styles.timeSectionLabel}>RASIO ASPEK (A : B)</Text>
+              <View style={styles.cropCoordinatesRow}>
+                <View style={styles.cropCoordinateBox}>
+                  <Text style={styles.coordinatePrefixLabel}>A</Text>
+                  <TextInput
+                    style={styles.coordinateInput}
+                    value={tempFacecamRatioW}
+                    onChangeText={setTempFacecamRatioW}
+                    keyboardType="numeric"
+                    placeholder="4"
+                    placeholderTextColor="rgba(255, 255, 255, 0.3)"
+                    selectTextOnFocus
+                  />
+                  <Text style={styles.coordinateSuffixUnit}>W</Text>
+                </View>
+                <View style={styles.cropCoordinateBox}>
+                  <Text style={styles.coordinatePrefixLabel}>B</Text>
+                  <TextInput
+                    style={styles.coordinateInput}
+                    value={tempFacecamRatioH}
+                    onChangeText={setTempFacecamRatioH}
+                    keyboardType="numeric"
+                    placeholder="3"
+                    placeholderTextColor="rgba(255, 255, 255, 0.3)"
+                    selectTextOnFocus
+                  />
+                  <Text style={styles.coordinateSuffixUnit}>H</Text>
+                </View>
+              </View>
+              <Text style={styles.cropCoordinatesHint}>
+                Bebas diisi angka rasio viewport (misal: 4:3, 16:9, 1:1, 9:16).
+              </Text>
+            </View>
+
             {/* Footer Buttons */}
             <View style={styles.modalActionsRow}>
               <Pressable
@@ -1919,6 +1965,8 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = React.memo(({
                     zoom: Math.max(1.0, Math.min(5.0, (parseFloat(tempFacecamZoom) || 200) / 100)),
                     cropX: Math.max(0, Math.min(100, parseInt(tempFacecamCropX, 10) || 80)),
                     cropY: Math.max(0, Math.min(100, parseInt(tempFacecamCropY, 10) || 20)),
+                    ratioWidth: Math.max(1, parseInt(tempFacecamRatioW, 10) || 4),
+                    ratioHeight: Math.max(1, parseInt(tempFacecamRatioH, 10) || 3),
                   });
                   setShowFacecamModal(false);
                 }}
@@ -2030,6 +2078,42 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = React.memo(({
               </Text>
             </View>
 
+            {/* Input Rasio Aspek (A : B) */}
+            <View style={styles.posSectionContainer}>
+              <Text style={styles.timeSectionLabel}>RASIO ASPEK (A : B)</Text>
+              <View style={styles.cropCoordinatesRow}>
+                <View style={styles.cropCoordinateBox}>
+                  <Text style={styles.coordinatePrefixLabel}>A</Text>
+                  <TextInput
+                    style={styles.coordinateInput}
+                    value={tempMainRatioW}
+                    onChangeText={setTempMainRatioW}
+                    keyboardType="numeric"
+                    placeholder={templateConfig?.facecam?.enabled ? '4' : '16'}
+                    placeholderTextColor="rgba(255, 255, 255, 0.3)"
+                    selectTextOnFocus
+                  />
+                  <Text style={styles.coordinateSuffixUnit}>W</Text>
+                </View>
+                <View style={styles.cropCoordinateBox}>
+                  <Text style={styles.coordinatePrefixLabel}>B</Text>
+                  <TextInput
+                    style={styles.coordinateInput}
+                    value={tempMainRatioH}
+                    onChangeText={setTempMainRatioH}
+                    keyboardType="numeric"
+                    placeholder={templateConfig?.facecam?.enabled ? '3' : '9'}
+                    placeholderTextColor="rgba(255, 255, 255, 0.3)"
+                    selectTextOnFocus
+                  />
+                  <Text style={styles.coordinateSuffixUnit}>H</Text>
+                </View>
+              </View>
+              <Text style={styles.cropCoordinatesHint}>
+                Bebas diisi angka rasio viewport (misal: 4:3, 16:9, 1:1, 9:16).
+              </Text>
+            </View>
+
             {/* Footer Buttons */}
             <View style={styles.modalActionsRow}>
               <Pressable
@@ -2041,11 +2125,15 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = React.memo(({
               <Pressable
                 style={({ pressed }) => [styles.modalSaveBtn, pressed && { opacity: 0.8 }]}
                 onPress={() => {
+                  const defW = templateConfig?.facecam?.enabled ? 4 : 16;
+                  const defH = templateConfig?.facecam?.enabled ? 3 : 9;
                   onUpdateMainVideo?.({
                     enabled: tempMainEnabled,
                     zoom: Math.max(1.0, Math.min(5.0, (parseFloat(tempMainZoom) || 100) / 100)),
                     cropX: Math.max(0, Math.min(100, parseInt(tempMainCropX, 10) || 50)),
                     cropY: Math.max(0, Math.min(100, parseInt(tempMainCropY, 10) || 50)),
+                    ratioWidth: Math.max(1, parseInt(tempMainRatioW, 10) || defW),
+                    ratioHeight: Math.max(1, parseInt(tempMainRatioH, 10) || defH),
                   });
                   setShowMainVideoModal(false);
                 }}

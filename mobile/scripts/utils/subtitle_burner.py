@@ -347,12 +347,20 @@ def build_multi_layer_pipeline(
         if banner_h % 2 != 0:
             banner_h += 1
 
-    # 2. Hitung Geometri Facecam (Viewport 4:3)
+    # 2. Hitung Geometri Facecam (Viewport Dinamis berbasis Rasio a:b)
     w_fc = out_w
     h_fc = 0
     cw_fc, ch_fc, cx_fc, cy_fc = 0, 0, 0, 0
     if fc_enabled:
-        h_fc = int(round(out_w * 0.75))
+        fc_rw = float(facecam_cfg.get("ratioWidth") or 4)
+        fc_rh = float(facecam_cfg.get("ratioHeight") or 3)
+        if fc_rw <= 0:
+            fc_rw = 4.0
+        if fc_rh <= 0:
+            fc_rh = 3.0
+        fc_ratio = fc_rw / fc_rh
+
+        h_fc = int(round(out_w / fc_ratio))
         if h_fc % 2 != 0:
             h_fc += 1
 
@@ -360,8 +368,14 @@ def build_multi_layer_pipeline(
         fc_crop_x = max(0.0, min(100.0, float(facecam_cfg.get("cropX", 80.0))))
         fc_crop_y = max(0.0, min(100.0, float(facecam_cfg.get("cropY", 20.0))))
 
-        cw_fc = int(round((0.75 * vw) / fc_zoom))
-        ch_fc = int(round(vh / fc_zoom))
+        src_aspect = vw / vh if vh > 0 else (16.0 / 9.0)
+        if fc_ratio <= src_aspect:
+            ch_fc = int(round(vh / fc_zoom))
+            cw_fc = int(round(ch_fc * fc_ratio))
+        else:
+            cw_fc = int(round(vw / fc_zoom))
+            ch_fc = int(round(cw_fc / fc_ratio))
+
         cw_fc = max(2, min(vw, cw_fc - (cw_fc % 2)))
         ch_fc = max(2, min(vh, ch_fc - (ch_fc % 2)))
 
@@ -372,26 +386,34 @@ def build_multi_layer_pipeline(
         cx_fc = max(0, min(vw - cw_fc, cx_fc - (cx_fc % 2)))
         cy_fc = max(0, min(vh - ch_fc, cy_fc - (cy_fc % 2)))
 
-    # 3. Hitung Geometri Main Video Gameplay
+    # 3. Hitung Geometri Main Video Gameplay (Viewport Dinamis berbasis Rasio a:b)
     main_zoom = max(1.0, float(main_cfg.get("zoom", 1.0)))
     main_crop_x = max(0.0, min(100.0, float(main_cfg.get("cropX", 50.0))))
     main_crop_y = max(0.0, min(100.0, float(main_cfg.get("cropY", 50.0))))
 
     if is_portrait:
-        if fc_enabled:
-            w_main = out_w
-            h_main = int(round(out_w * 0.75))
-            if h_main % 2 != 0:
-                h_main += 1
-            cw_main = int(round((0.75 * vw) / main_zoom))
+        def_main_rw = 4.0 if fc_enabled else 16.0
+        def_main_rh = 3.0 if fc_enabled else 9.0
+        main_rw = float(main_cfg.get("ratioWidth") or def_main_rw)
+        main_rh = float(main_cfg.get("ratioHeight") or def_main_rh)
+        if main_rw <= 0:
+            main_rw = def_main_rw
+        if main_rh <= 0:
+            main_rh = def_main_rh
+        main_ratio = main_rw / main_rh
+
+        w_main = out_w
+        h_main = int(round(out_w / main_ratio))
+        if h_main % 2 != 0:
+            h_main += 1
+
+        src_aspect = vw / vh if vh > 0 else (16.0 / 9.0)
+        if main_ratio <= src_aspect:
             ch_main = int(round(vh / main_zoom))
+            cw_main = int(round(ch_main * main_ratio))
         else:
-            w_main = out_w
-            h_main = int(round(out_w * (9.0 / 16.0)))
-            if h_main % 2 != 0:
-                h_main += 1
             cw_main = int(round(vw / main_zoom))
-            ch_main = int(round(vh / main_zoom))
+            ch_main = int(round(cw_main / main_ratio))
 
         cw_main = max(2, min(vw, cw_main - (cw_main % 2)))
         ch_main = max(2, min(vh, ch_main - (ch_main % 2)))

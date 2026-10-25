@@ -34,23 +34,27 @@ export function useClipTemplate({ videoId, activeClip, isDownloaded }: UseClipTe
         if (isCurrent) {
           // 1. Elemen Facecam:
           // enabled: WAJIB per-klip (default false jika klip ini belum menyalakan facecam)
-          // zoom, cropX, cropY: Mewarisi global video config jika tersedia
+          // zoom, cropX, cropY, ratioWidth, ratioHeight: Mewarisi global video config jika tersedia
           const mergedFacecam = {
             ...DEFAULT_TEMPLATE_CONFIG.facecam,
             zoom: globalConf?.facecam?.zoom ?? clipSaved?.facecam?.zoom ?? DEFAULT_TEMPLATE_CONFIG.facecam.zoom,
             cropX: globalConf?.facecam?.cropX ?? clipSaved?.facecam?.cropX ?? DEFAULT_TEMPLATE_CONFIG.facecam.cropX,
             cropY: globalConf?.facecam?.cropY ?? clipSaved?.facecam?.cropY ?? DEFAULT_TEMPLATE_CONFIG.facecam.cropY,
+            ratioWidth: globalConf?.facecam?.ratioWidth ?? clipSaved?.facecam?.ratioWidth ?? DEFAULT_TEMPLATE_CONFIG.facecam.ratioWidth ?? 4,
+            ratioHeight: globalConf?.facecam?.ratioHeight ?? clipSaved?.facecam?.ratioHeight ?? DEFAULT_TEMPLATE_CONFIG.facecam.ratioHeight ?? 3,
             enabled: clipSaved?.facecam?.enabled ?? false,
           };
 
           // 2. Elemen Main Video:
           // enabled: WAJIB per-klip (default true jika belum dimatikan)
-          // zoom, cropX, cropY: Mewarisi global video config jika tersedia
+          // zoom, cropX, cropY, ratioWidth, ratioHeight: Mewarisi global video config jika tersedia
           const mergedMainVideo = {
             ...DEFAULT_TEMPLATE_CONFIG.mainVideo,
             zoom: globalConf?.mainVideo?.zoom ?? clipSaved?.mainVideo?.zoom ?? DEFAULT_TEMPLATE_CONFIG.mainVideo.zoom,
             cropX: globalConf?.mainVideo?.cropX ?? clipSaved?.mainVideo?.cropX ?? DEFAULT_TEMPLATE_CONFIG.mainVideo.cropX,
             cropY: globalConf?.mainVideo?.cropY ?? clipSaved?.mainVideo?.cropY ?? DEFAULT_TEMPLATE_CONFIG.mainVideo.cropY,
+            ratioWidth: globalConf?.mainVideo?.ratioWidth ?? clipSaved?.mainVideo?.ratioWidth ?? DEFAULT_TEMPLATE_CONFIG.mainVideo.ratioWidth,
+            ratioHeight: globalConf?.mainVideo?.ratioHeight ?? clipSaved?.mainVideo?.ratioHeight ?? DEFAULT_TEMPLATE_CONFIG.mainVideo.ratioHeight,
             enabled: clipSaved?.mainVideo?.enabled !== undefined ? clipSaved.mainVideo.enabled : true,
           };
 
@@ -106,11 +110,15 @@ export function useClipTemplate({ videoId, activeClip, isDownloaded }: UseClipTe
                 zoom: clipSaved.facecam.zoom,
                 cropX: clipSaved.facecam.cropX,
                 cropY: clipSaved.facecam.cropY,
+                ratioWidth: clipSaved.facecam.ratioWidth,
+                ratioHeight: clipSaved.facecam.ratioHeight,
               },
               mainVideo: clipSaved.mainVideo ? {
                 zoom: clipSaved.mainVideo.zoom,
                 cropX: clipSaved.mainVideo.cropX,
                 cropY: clipSaved.mainVideo.cropY,
+                ratioWidth: clipSaved.mainVideo.ratioWidth,
+                ratioHeight: clipSaved.mainVideo.ratioHeight,
               } : undefined,
               contextStyle: {
                 fontSize: mergedContext.fontSize,
@@ -193,13 +201,15 @@ export function useClipTemplate({ videoId, activeClip, isDownloaded }: UseClipTe
         };
         persistTemplate(next);
 
-        // Sinkronkan HANYA properti framing (zoom, cropX, cropY) ke Global Video Config (tanpa enabled flag)
+        // Sinkronkan properti framing (zoom, cropX, cropY, ratioWidth, ratioHeight) ke Global Video Config (tanpa enabled flag)
         if (clip && clip.videoId) {
           saveVideoGlobalConfig(clip.videoId, {
             facecam: {
               zoom: updatedFacecam.zoom,
               cropX: updatedFacecam.cropX,
               cropY: updatedFacecam.cropY,
+              ratioWidth: updatedFacecam.ratioWidth,
+              ratioHeight: updatedFacecam.ratioHeight,
             },
           }).catch(() => {});
         }
@@ -225,13 +235,15 @@ export function useClipTemplate({ videoId, activeClip, isDownloaded }: UseClipTe
         };
         persistTemplate(next);
 
-        // Sinkronkan HANYA properti framing (zoom, cropX, cropY) ke Global Video Config
+        // Sinkronkan properti framing (zoom, cropX, cropY, ratioWidth, ratioHeight) ke Global Video Config
         if (clip && clip.videoId) {
           saveVideoGlobalConfig(clip.videoId, {
             mainVideo: {
               zoom: updatedMain.zoom,
               cropX: updatedMain.cropX,
               cropY: updatedMain.cropY,
+              ratioWidth: updatedMain.ratioWidth,
+              ratioHeight: updatedMain.ratioHeight,
             },
           }).catch(() => {});
         }

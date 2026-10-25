@@ -14,7 +14,30 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Implement Unified Vertical Centering for Canvas Preview and Video Export
+## [Unreleased] - Implement Dynamic Custom Aspect Ratio Inputs for Facecam and Gameplay
+- **Konteks Struktural**:
+  1. Input Rasio Bebas (a : b) pada Modal Konfigurasi Facecam & Gameplay (`FeedTopControls.tsx`):
+     - Menambahkan dua kotak input numerik (A dan B) untuk konfigurasi rasio aspek viewport Facecam dan Gameplay.
+     - Menyediakan nilai default fleksibel: Facecam `4:3`, Gameplay `4:3` (saat facecam aktif) atau `16:9` (saat facecam nonaktif), serta membebaskan kreator memasukkan rasio kustom apa pun (seperti `1:1`, `21:9`, `9:16`).
+  2. Arsitektur State & Sinkronisasi Konfigurasi Global (`api.ts`, `useClipTemplate.ts`):
+     - Menambahkan properti `ratioWidth` dan `ratioHeight` ke dalam antarmuka `ClipTemplateConfig` dan `VideoGlobalConfig`.
+     - Mewariskan dan menyinkronkan rasio aspek otomatis ke `video_config.json` dan in-memory cache map saat diedit sehingga seragam di semua klip pada video yang sama.
+  3. Kalkulasi Geometri Viewport Dinamis pada Preview & Render Video (`FeedScreen.tsx`, `subtitle_burner.py`):
+     - Di React Native ([FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx)): Menghitung tinggi viewport `h = w / (ratioW / ratioH)` dan mengadopsi `baseVideoWidth = max(w, h * 16/9)` agar native video selalu memenuhi viewport tanpa celah hitam untuk rasio apa pun. Mengatur `aspectRatio` kontainer box secara dinamis.
+     - Di Pipeline Ekspor FFmpeg ([subtitle_burner.py](file:///d:/projects/clipping/mobile/scripts/utils/subtitle_burner.py)): Menghitung tinggi dan crop box sumber secara dinamis sesuai perbandingan `src_aspect` vs `ratio`, selaras presisi 1:1 dengan tampilan preview di HP.
+- **Perubahan Kode Penting**:
+  - `mobile/src/services/api.ts`:
+    - Menambahkan `ratioWidth` dan `ratioHeight` pada `ClipTemplateConfig`, `DEFAULT_TEMPLATE_CONFIG`, dan `VideoGlobalConfig`.
+  - `mobile/src/hooks/useClipTemplate.ts`:
+    - Mengintegrasikan pembacaan dan sinkronisasi `ratioWidth` serta `ratioHeight` pada `checkSavedTemplate`, `handleUpdateFacecam`, dan `handleUpdateMainVideo`.
+  - `mobile/src/components/FeedScreen.tsx`:
+    - Memperbarui `facecamVideoStyle`, `mainVideoStyle`, `facecamBox`, dan `mainVideoBox` dengan kalkulasi rasio dinamis.
+  - `mobile/src/components/feed/FeedTopControls.tsx`:
+    - Menambahkan input field Rasio Aspek (A : B) pada modal Facecam dan Gameplay.
+  - `mobile/scripts/utils/subtitle_burner.py`:
+    - Menghitung tinggi viewport dan dimensi crop sumber berbasis `ratioWidth / ratioHeight` dinamis.
+
+## [599b088] - Implement Unified Vertical Centering for Canvas Preview and Video Export
 - **Konteks Struktural**:
   1. Penyelarasan Posisi Vertikal Kanvas Editor (`FeedScreen.tsx`):
      - Mengubah perataan `styles.canvasPortrait` menjadi `justifyContent: 'center'`, sehingga seluruh grup elemen aktif (Banner Konteks, Facecam, dan Gameplay) tersusun mengambang seimbang di tengah kanvas portrait 9:16 dengan ruang kosong atas-bawah yang simetris.
