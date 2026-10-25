@@ -2148,6 +2148,8 @@ export async function saveVideoGlobalConfig(
           zoom: updates.facecam.zoom ?? current.facecam?.zoom ?? DEFAULT_TEMPLATE_CONFIG.facecam.zoom,
           cropX: updates.facecam.cropX ?? current.facecam?.cropX ?? DEFAULT_TEMPLATE_CONFIG.facecam.cropX,
           cropY: updates.facecam.cropY ?? current.facecam?.cropY ?? DEFAULT_TEMPLATE_CONFIG.facecam.cropY,
+          ratioWidth: updates.facecam.ratioWidth ?? current.facecam?.ratioWidth ?? DEFAULT_TEMPLATE_CONFIG.facecam.ratioWidth,
+          ratioHeight: updates.facecam.ratioHeight ?? current.facecam?.ratioHeight ?? DEFAULT_TEMPLATE_CONFIG.facecam.ratioHeight,
         }
       : current.facecam,
     mainVideo: updates.mainVideo
@@ -2155,6 +2157,8 @@ export async function saveVideoGlobalConfig(
           zoom: updates.mainVideo.zoom ?? current.mainVideo?.zoom ?? DEFAULT_TEMPLATE_CONFIG.mainVideo.zoom,
           cropX: updates.mainVideo.cropX ?? current.mainVideo?.cropX ?? DEFAULT_TEMPLATE_CONFIG.mainVideo.cropX,
           cropY: updates.mainVideo.cropY ?? current.mainVideo?.cropY ?? DEFAULT_TEMPLATE_CONFIG.mainVideo.cropY,
+          ratioWidth: updates.mainVideo.ratioWidth ?? current.mainVideo?.ratioWidth ?? DEFAULT_TEMPLATE_CONFIG.mainVideo.ratioWidth,
+          ratioHeight: updates.mainVideo.ratioHeight ?? current.mainVideo?.ratioHeight ?? DEFAULT_TEMPLATE_CONFIG.mainVideo.ratioHeight,
         }
       : current.mainVideo,
     contextStyle: updates.contextStyle

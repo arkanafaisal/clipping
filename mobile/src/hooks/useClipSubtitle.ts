@@ -400,6 +400,8 @@ export function useClipSubtitle({
               zoom: globalConfig?.facecam?.zoom ?? savedTemplate?.facecam?.zoom ?? DEFAULT_TEMPLATE_CONFIG.facecam.zoom,
               cropX: globalConfig?.facecam?.cropX ?? savedTemplate?.facecam?.cropX ?? DEFAULT_TEMPLATE_CONFIG.facecam.cropX,
               cropY: globalConfig?.facecam?.cropY ?? savedTemplate?.facecam?.cropY ?? DEFAULT_TEMPLATE_CONFIG.facecam.cropY,
+              ratioWidth: globalConfig?.facecam?.ratioWidth ?? savedTemplate?.facecam?.ratioWidth ?? DEFAULT_TEMPLATE_CONFIG.facecam.ratioWidth,
+              ratioHeight: globalConfig?.facecam?.ratioHeight ?? savedTemplate?.facecam?.ratioHeight ?? DEFAULT_TEMPLATE_CONFIG.facecam.ratioHeight,
               enabled: savedTemplate?.facecam?.enabled ?? false,
             },
             mainVideo: {
@@ -407,6 +409,8 @@ export function useClipSubtitle({
               zoom: globalConfig?.mainVideo?.zoom ?? savedTemplate?.mainVideo?.zoom ?? DEFAULT_TEMPLATE_CONFIG.mainVideo.zoom,
               cropX: globalConfig?.mainVideo?.cropX ?? savedTemplate?.mainVideo?.cropX ?? DEFAULT_TEMPLATE_CONFIG.mainVideo.cropX,
               cropY: globalConfig?.mainVideo?.cropY ?? savedTemplate?.mainVideo?.cropY ?? DEFAULT_TEMPLATE_CONFIG.mainVideo.cropY,
+              ratioWidth: globalConfig?.mainVideo?.ratioWidth ?? savedTemplate?.mainVideo?.ratioWidth ?? DEFAULT_TEMPLATE_CONFIG.mainVideo.ratioWidth,
+              ratioHeight: globalConfig?.mainVideo?.ratioHeight ?? savedTemplate?.mainVideo?.ratioHeight ?? DEFAULT_TEMPLATE_CONFIG.mainVideo.ratioHeight,
               enabled: savedTemplate?.mainVideo?.enabled !== undefined ? savedTemplate.mainVideo.enabled : true,
             },
             watermark: {

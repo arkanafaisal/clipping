@@ -14,7 +14,19 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Remove Automated yt-dlp Retry Mechanisms Across All Fetch Endpoints
+## [Unreleased] - Persist Custom Aspect Ratio in Video Global Config and Export Pipeline
+- **Konteks Struktural**:
+  1. Sinkronisasi Penuh Rasio Kustom pada Global Config dan Pipeline Ekspor:
+     - Memastikan properti rasio kustom (`ratioWidth` dan `ratioHeight`) tidak terpotong saat dipersistensikan melalui `saveVideoGlobalConfig` di [api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts).
+     - Menghubungkan `ratioWidth` dan `ratioHeight` ke dalam perakitan `activeTemplateConfig` pada [useClipSubtitle.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipSubtitle.ts) saat melakukan ekspor video klip (*burn-in subtitle & layout* via FFmpeg), sehingga hasil ekspor video 100% menggunakan rasio viewport kustom kreator (bukan fallback ke 4:3).
+     - Menjamin ekspor data JSON kamar workshop pada [Dashboard.tsx](file:///d:/projects/clipping/mobile/src/components/Dashboard.tsx) mencakup seluruh konfigurasi rasio aspek kustom kamar secara utuh.
+- **Perubahan Kode Penting**:
+  - `mobile/src/services/api.ts`:
+    - Menyertakan `ratioWidth` dan `ratioHeight` ke dalam merger objek `facecam` dan `mainVideo` pada `saveVideoGlobalConfig`.
+  - `mobile/src/hooks/useClipSubtitle.ts`:
+    - Meneruskan `ratioWidth` dan `ratioHeight` dari `globalConfig` dan `savedTemplate` ke dalam `activeTemplateConfig` saat memicu ekspor burn-in subtitle.
+
+## [4ec7a98] - Remove Automated yt-dlp Retry Mechanisms Across All Fetch Endpoints
 - **Konteks Struktural**:
   1. Penghapusan Mekanisme Retry Otomatis pada Skrip Backend yt-dlp (`heatmap.py`, `stream_extractor.py`, `subtitle_fetcher.py`, `clip_downloader.py`, `downloader.py`):
      - Menghapus pola eksekusi *two-tier retry* di mana kegagalan mode anonim di dalam blok `catch`/`except` atau saat status bernilai false langsung memicu percobaan ulang (*retry*) otomatis menggunakan cookies.
