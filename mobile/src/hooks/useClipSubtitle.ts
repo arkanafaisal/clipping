@@ -11,7 +11,6 @@ import {
   fetchSubtitlesForVideo,
   sliceCuesForClip,
   normalizeSingleTrackCues,
-  isRateLimitOrRestrictedError,
   burnClipSubtitles,
   resolvePlayableClipUri,
   getClipOutputFilePath,
@@ -30,7 +29,6 @@ export interface UseClipSubtitleParams {
   subtitlesRef?: React.MutableRefObject<SubtitleCue[]>;
   templateConfig?: ClipTemplateConfig;
   onSeek?: (timeSec: number, shouldPlay?: boolean) => void;
-  onRateLimit?: () => void;
 }
 
 export function useClipSubtitle({
@@ -39,7 +37,6 @@ export function useClipSubtitle({
   subtitlesRef: externalSubtitlesRef,
   templateConfig,
   onSeek,
-  onRateLimit,
 }: UseClipSubtitleParams) {
   const [subtitles, setSubtitles] = useState<SubtitleCue[]>([]);
   const [activeSubtitleText, setActiveSubtitleText] = useState<string>('');
@@ -311,9 +308,6 @@ export function useClipSubtitle({
           duration: 3000,
         });
       } catch (err: any) {
-        if (isRateLimitOrRestrictedError(err)) {
-          onRateLimit?.();
-        }
         ToastManager.show({
           type: 'error',
           title: 'Subtitle Tidak Tersedia',
@@ -326,7 +320,7 @@ export function useClipSubtitle({
         setIsFetchingSubtitles(false);
       }
     },
-    [activeClip, onRateLimit]
+    [activeClip]
   );
 
   // Update posisi subtitle secara global (skala 0 - 100 terhadap frame video)

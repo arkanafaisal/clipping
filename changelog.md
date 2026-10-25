@@ -14,7 +14,26 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Align Watermark Overlay Architecture with Subtitle and Allow Flexible Font Size
+## [Unreleased] - Remove Intrusive Cookies Auto-Popup and Enhance Dashboard Cookies Management
+- **Konteks Struktural**:
+  1. Penghapusan Total Auto-Popup Modal Cookies pada Penanganan Error (`FeedScreen.tsx`, `useClipSubtitle.ts`):
+     - Menghapus kemunculan modal input cookies otomatis (`onRateLimit` -> `setCookiesModalVisible(true)`) dari seluruh blok penanganan error (heatmap, stream, unduh url, dan subtitle YouTube).
+     - Menjadikan seluruh kegagalan akses yt-dlp maupun rate limit (Error 429) murni ditangani melalui notifikasi Toast standar yang konsisten, tanpa menginterupsi alur kerja pengguna dengan modal popup yang mengganggu.
+     - Menghapus instance `CookiesModal` serta state dan ref terkait dari [FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx).
+  2. Peningkatan Manajemen Cookies pada Pengaturan Dashboard (`SettingsModal.tsx`):
+     - Menambahkan deteksi otomatis keberadaan file cookies aktif (`getValidCookiesPath()`) saat modal pengaturan dibuka.
+     - Menyediakan kartu status visual hijau: *Cookies Terpasang & Aktif* jika file cookies terdeteksi di penyimpanan internal/shared.
+     - Menambahkan tombol aksi *Hapus Cookies* (`Trash2`) dengan dialog konfirmasi (`Alert.alert`) yang memanggil `deleteCookies()` untuk membersihkan cookies dan mengembalikan aplikasi ke mode anonim kapan saja.
+     - Memperjelas tombol submit unduhan Google Drive (`CloudDownload`) dengan teks dinamis ("Unduh & Simpan Cookies" atau "Perbarui / Timpa Cookies") sehingga proses pengambilan (GET) dan penyimpanan file cookies dari link Google Drive berjalan eksplisit dan transparan.
+- **Perubahan Kode Penting**:
+  - `mobile/src/hooks/useClipSubtitle.ts`:
+    - Menghapus parameter `onRateLimit` dari `UseClipSubtitleParams`, menghapus trigger `onRateLimit?.()`, dan membersihkan import `isRateLimitOrRestrictedError`.
+  - `mobile/src/components/FeedScreen.tsx`:
+    - Menghapus import `CookiesModal`, ref `setCookiesModalVisibleRef`, state `cookiesModalVisible`, callback `onRateLimit`, dan elemen JSX `<CookiesModal />`.
+  - `mobile/src/components/SettingsModal.tsx`:
+    - Mengintegrasikan `getValidCookiesPath`, `deleteCookies`, status aktif cookies, tombol hapus cookies dengan dialog konfirmasi, dan penyesuaian label tombol submit unduh/timpa.
+
+## [c9824d0] - Align Watermark Overlay Architecture with Subtitle and Allow Flexible Font Size
 - **Konteks Struktural**:
   1. Penyelarasan Arsitektur Watermark Overlay dengan Subtitle Overlay (`WatermarkOverlay.tsx`):
      - Membungkus komponen dengan `React.memo` untuk mencegah re-render sia-sia saat pembaruan waktu pemutaran / state komponen induk.

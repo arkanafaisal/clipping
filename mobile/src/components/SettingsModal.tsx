@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   TouchableWithoutFeedback,
   Keyboard,
+  Alert,
 } from 'react-native';
 import {
   Settings,
@@ -23,6 +24,7 @@ import {
   Cookie,
   X,
   CloudDownload,
+  Trash2,
 } from 'lucide-react-native';
 import {
   getStorageRootPath,
@@ -35,6 +37,8 @@ import {
   syncCookiesFromGoogleDrive,
   extractGoogleDriveFileId,
   isGoogleDriveFolderLink,
+  getValidCookiesPath,
+  deleteCookies,
 } from '../services/api';
 import { ToastManager } from './Toast';
 
@@ -57,7 +61,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   // --- Section 2: Cookies State ---
   const [driveLink, setDriveLink] = useState('');
   const [isSyncingCookies, setIsSyncingCookies] = useState(false);
+  const [isDeletingCookies, setIsDeletingCookies] = useState(false);
+  const [existingCookiesPath, setExistingCookiesPath] = useState<string | null>(null);
   const [cookiesError, setCookiesError] = useState<string | null>(null);
+
+  const refreshCookiesStatus = async () => {
+    try {
+      const valid = await getValidCookiesPath();
+      setExistingCookiesPath(valid || null);
+    } catch {
+      setExistingCookiesPath(null);
+    }
+  };
 
   useEffect(() => {
     if (visible) {
@@ -66,6 +81,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         setRootPath(current);
         setEditPathValue(current);
         handleVerifyStorage(current, true);
+        refreshCookiesStatus();
       };
       initStorage();
       setCookiesError(null);
@@ -131,6 +147,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       await syncCookiesFromGoogleDrive(trimmed);
       setIsSyncingCookies(false);
       setDriveLink('');
+      await refreshCookiesStatus();
       ToastManager.show({
         type: 'success',
         title: 'Cookies Berhasil Diimpor',
@@ -147,6 +164,42 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         duration: 5000,
       });
     }
+  };
+
+  // Handler Hapus Cookies
+  const handleDeleteCookies = () => {
+    Alert.alert(
+      'Hapus Cookies',
+      'Yakin ingin menghapus file cookies aktif? Aplikasi akan kembali ke mode anonim.',
+      [
+        { text: 'Batal', style: 'cancel' },
+        {
+          text: 'Hapus',
+          style: 'destructive',
+          onPress: async () => {
+            setIsDeletingCookies(true);
+            try {
+              await deleteCookies();
+              setExistingCookiesPath(null);
+              ToastManager.show({
+                type: 'info',
+                title: 'Cookies Berhasil Dihapus',
+                duration: 2500,
+              });
+            } catch (err: any) {
+              ToastManager.show({
+                type: 'error',
+                title: 'Gagal Menghapus Cookies',
+                rawError: err.message || String(err),
+                duration: 3500,
+              });
+            } finally {
+              setIsDeletingCookies(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   return (
@@ -267,14 +320,46 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                 {/* 2. SECTION: GOOGLE DRIVE COOKIES */}
                 <View style={styles.sectionBlock}>
-                  <View style={styles.sectionTitleRow}>
-                    <Cookie size={16} color="#f59e0b" />
-                    <Text style={styles.sectionTitle}>Cookies YouTube (Google Drive)</Text>
+                  <View style={styles.sectionHeader}>
+                    <View style={styles.sectionTitleRow}>
+                      <Cookie size={16} color="#f59e0b" />
+                      <Text style={styles.sectionTitle}>Cookies YouTube (Google Drive)</Text>
+                    </View>
+                    {existingCookiesPath && (
+                      <TouchableOpacity
+                        style={styles.deleteCookieBtn}
+                        onPress={handleDeleteCookies}
+                        disabled={isDeletingCookies}
+                        activeOpacity={0.7}
+                      >
+                        {isDeletingCookies ? (
+                          <ActivityIndicator size="small" color="#ef4444" />
+                        ) : (
+                          <>
+                            <Trash2 size={13} color="#ef4444" />
+                            <Text style={styles.deleteCookieBtnText}>Hapus</Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+                    )}
                   </View>
 
                   <Text style={styles.sectionDescription}>
                     Impor cookies.txt publik untuk mengatasi rate limit (Error 429) atau verifikasi bot YouTube.
                   </Text>
+
+                  {/* Status Cookies Aktif */}
+                  {existingCookiesPath ? (
+                    <View style={styles.cookieStatusCard}>
+                      <CheckCircle size={14} color="#34d399" />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.cookieStatusTitle}>Cookies Terpasang & Aktif</Text>
+                        <Text style={styles.cookieStatusSub} numberOfLines={1}>
+                          File siap digunakan untuk bypass restriksi YouTube
+                        </Text>
+                      </View>
+                    </View>
+                  ) : null}
 
                   <TextInput
                     style={styles.cookieInput}
@@ -294,6 +379,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <Text style={styles.errorText}>{cookiesError}</Text>
                   ) : null}
 
+                  {/* Tombol Simpan / Unduh Cookies */}
                   <TouchableOpacity
                     style={[styles.syncCookieBtn, isSyncingCookies && styles.syncCookieBtnDisabled]}
                     onPress={handleSyncCookies}
@@ -305,7 +391,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     ) : (
                       <>
                         <CloudDownload size={15} color="#ffffff" />
-                        <Text style={styles.syncCookieBtnText}>Sinkronkan Cookies</Text>
+                        <Text style={styles.syncCookieBtnText}>
+                          {existingCookiesPath ? 'Perbarui / Timpa Cookies' : 'Unduh & Simpan Cookies'}
+                        </Text>
                       </>
                     )}
                   </TouchableOpacity>
@@ -523,5 +611,42 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 12,
     fontWeight: '800',
+  },
+  cookieStatusCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(52, 211, 153, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(52, 211, 153, 0.25)',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  cookieStatusTitle: {
+    color: '#34d399',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  cookieStatusSub: {
+    color: 'rgba(255, 255, 255, 0.45)',
+    fontSize: 10,
+    marginTop: 1,
+  },
+  deleteCookieBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.25)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  deleteCookieBtnText: {
+    color: '#ef4444',
+    fontSize: 11,
+    fontWeight: '700',
   },
 });

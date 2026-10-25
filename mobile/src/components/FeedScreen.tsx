@@ -13,7 +13,6 @@ import {
   SubtitleCue,
 } from '../services/api';
 import { ToastManager } from './Toast';
-import { CookiesModal } from './CookiesModal';
 import { FeedTopControls, EditorMode } from './feed/FeedTopControls';
 import { FeedPlaybackControls } from './feed/FeedPlaybackControls';
 import { FeedClipCarousel } from './feed/FeedClipCarousel';
@@ -47,7 +46,6 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
   const activeClipIdRef = useRef<string | null>(null);
   const downloadedClipsRef = useRef<Record<string, boolean>>({});
   const subtitlesRef = useRef<SubtitleCue[]>([]);
-  const setCookiesModalVisibleRef = useRef<(visible: boolean) => void>(() => {});
   const setDownloadedClipsRef = useRef<React.Dispatch<React.SetStateAction<Record<string, boolean>>>>(() => {});
   const setActiveSubtitleTextRef = useRef<(text: string, fontSize?: number) => void>(() => {});
   const setActiveCueIdRef = useRef<(cueId: string | null) => void>(() => {});
@@ -57,7 +55,6 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
   // Modal dialog states
   const [isCustomModalVisible, setIsCustomModalVisible] = useState(false);
   const [isVisibleCountModalVisible, setIsVisibleCountModalVisible] = useState(false);
-  const [cookiesModalVisible, setCookiesModalVisible] = useState(false);
 
   const handleSetDownloadedClips = useCallback<React.Dispatch<React.SetStateAction<Record<string, boolean>>>>((val) => {
     setDownloadedClipsRef.current(val);
@@ -238,7 +235,6 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
     subtitlesRef,
     templateConfig,
     onSeek: (timeSec) => handleSeekRelative(timeSec, true),
-    onRateLimit: () => setCookiesModalVisible(true),
   });
 
   useEffect(() => {
@@ -363,10 +359,6 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
   useEffect(() => {
     setActiveEditorMode(null);
   }, [activeClip?.id]);
-
-  useEffect(() => {
-    setCookiesModalVisibleRef.current = setCookiesModalVisible;
-  }, [setCookiesModalVisible]);
 
   if (loading) {
     return (
@@ -641,12 +633,6 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
           setVisibleHeatmapCount(count);
           setIsVisibleCountModalVisible(false);
         }}
-      />
-
-      {/* 6. Cookies Modal for Rate Limits */}
-      <CookiesModal
-        visible={cookiesModalVisible}
-        onClose={() => setCookiesModalVisible(false)}
       />
     </View>
   );
