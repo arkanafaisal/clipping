@@ -14,7 +14,17 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Persist Custom Aspect Ratio in Video Global Config and Export Pipeline
+## [Unreleased] - Fix Unresponsive Scrolling in Dashboard SettingsModal
+- **Konteks Struktural**:
+  1. Pemulihan Respon Sentuhan Scroll Modal Pengaturan ([SettingsModal.tsx](file:///d:/projects/clipping/mobile/src/components/SettingsModal.tsx)):
+     - Memisahkan elemen `<TouchableWithoutFeedback onPress={Keyboard.dismiss}>` agar hanya berada di layer backdrop absolut di luar modal card, menghilangkan intersepsi gesture sentuh yang sebelumnya menelan event drag native Android pada komponen `ScrollView`.
+     - Mengubah styling `scrollArea` dari batasan kaku `maxHeight: 460` menjadi `flexShrink: 1` dan `modalCard` menjadi `maxHeight: '85%'`, sehingga viewport scroll menyesuaikan proporsional dengan tinggi layar perangkat.
+     - Mengonfigurasi `keyboardShouldPersistTaps="handled"`, `keyboardDismissMode="on-drag"`, `nestedScrollEnabled={true}`, dan `showsVerticalScrollIndicator={true}` untuk pengalaman scrolling yang ringan, mulus, dan responsif.
+- **Perubahan Kode Penting**:
+  - `mobile/src/components/SettingsModal.tsx`:
+    - Mengisolasi dismiss keyboard ke backdrop touchable, menambahkan atribut scroll native, dan memperbarui flex constraint pada `modalCard` serta `scrollArea`.
+
+## [a0340b9] - Persist Custom Aspect Ratio in Video Global Config and Export Pipeline
 - **Konteks Struktural**:
   1. Sinkronisasi Penuh Rasio Kustom pada Global Config dan Pipeline Ekspor:
      - Memastikan properti rasio kustom (`ratioWidth` dan `ratioHeight`) tidak terpotong saat dipersistensikan melalui `saveVideoGlobalConfig` di [api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts).

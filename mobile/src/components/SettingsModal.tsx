@@ -209,32 +209,40 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       animationType="fade"
       onRequestClose={onClose}
     >
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <View style={styles.modalOverlay}>
-          <KeyboardAvoidingView
-            style={styles.keyboardContainer}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          >
-            <View style={styles.modalCard}>
-              {/* Header */}
-              <View style={styles.headerRow}>
-                <View style={styles.titleRow}>
-                  <Settings size={20} color="#38bdf8" />
-                  <Text style={styles.title}>Pengaturan Aplikasi</Text>
-                </View>
-                <TouchableOpacity
-                  onPress={onClose}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <X size={18} color="rgba(255, 255, 255, 0.6)" />
-                </TouchableOpacity>
-              </View>
+      <View style={styles.modalOverlay}>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={StyleSheet.absoluteFill} />
+        </TouchableWithoutFeedback>
 
-              <ScrollView
-                style={styles.scrollArea}
-                contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={false}
+        <KeyboardAvoidingView
+          style={styles.keyboardContainer}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          pointerEvents="box-none"
+        >
+          <View style={styles.modalCard}>
+            {/* Header */}
+            <View style={styles.headerRow}>
+              <View style={styles.titleRow}>
+                <Settings size={20} color="#38bdf8" />
+                <Text style={styles.title}>Pengaturan Aplikasi</Text>
+              </View>
+              <TouchableOpacity
+                onPress={onClose}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
+                <X size={18} color="rgba(255, 255, 255, 0.6)" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              style={styles.scrollArea}
+              contentContainerStyle={styles.scrollContent}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              showsVerticalScrollIndicator={true}
+              nestedScrollEnabled={true}
+              bounces={true}
+            >
                 {/* 1. SECTION: SHARED STORAGE */}
                 <View style={styles.sectionBlock}>
                   <View style={styles.sectionHeader}>
@@ -402,7 +410,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </View>
           </KeyboardAvoidingView>
         </View>
-      </TouchableWithoutFeedback>
     </Modal>
   );
 };
@@ -425,7 +432,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.12)',
     padding: 18,
-    maxHeight: '90%',
+    maxHeight: '85%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.6,
@@ -452,11 +459,12 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   scrollArea: {
-    maxHeight: 460,
+    flexShrink: 1,
   },
   scrollContent: {
     paddingVertical: 4,
     gap: 16,
+    flexGrow: 1,
   },
   sectionBlock: {
     gap: 8,
