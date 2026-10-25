@@ -14,6 +14,16 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
+## [Unreleased] - Add Defined Outline Border to Canvas Wrapper for Editor Visibility
+- **Konteks Struktural**:
+  1. Penambahan Border Visual pada Kanvas Editor (`FeedScreen.tsx`):
+     - Menambahkan garis batas tepi (`borderWidth: 1` dengan `borderColor: 'rgba(255, 255, 255, 0.25)'`) pada kontainer terpadu `canvasWrapper`.
+     - Membantu kreator membedakan dengan jelas batas fisik area kerja video portrait 9:16 maupun landscape 16:9 terhadap latar belakang gelap `#0a0a0a`.
+     - Menerapkan arsitektur single-view statis berbasis akselerasi GPU murni, menjamin zero-lag dan nol overhead komputasi pada mode non-done maupun mode editor template.
+- **Perubahan Kode Penting**:
+  - `mobile/src/components/FeedScreen.tsx`:
+    - Menambahkan `borderWidth: 1` dan `borderColor: 'rgba(255, 255, 255, 0.25)'` pada `styles.canvasWrapper`.
+
 ## [Unreleased] - Reorder Setup Wizard to Place Account Authorization in Step 2
 - **Konteks Struktural**:
   1. Restrukturisasi Alur Interaktif Wizard (`scheduler-uploader/setup.js`):

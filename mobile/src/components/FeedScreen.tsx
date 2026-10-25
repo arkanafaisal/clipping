@@ -689,6 +689,8 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     padding: 0,
     margin: 0,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
   },
   canvasPortrait: {
     height: '100%',
