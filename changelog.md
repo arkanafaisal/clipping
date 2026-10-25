@@ -14,7 +14,24 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Add GitHub Actions EAS Local Build Workflow for Android Development APK
+## [Unreleased] - Implement Unified Vertical Centering for Canvas Preview and Video Export
+- **Konteks Struktural**:
+  1. Penyelarasan Posisi Vertikal Kanvas Editor (`FeedScreen.tsx`):
+     - Mengubah perataan `styles.canvasPortrait` menjadi `justifyContent: 'center'`, sehingga seluruh grup elemen aktif (Banner Konteks, Facecam, dan Gameplay) tersusun mengambang seimbang di tengah kanvas portrait 9:16 dengan ruang kosong atas-bawah yang simetris.
+     - Menyematkan `position: 'absolute'` pada hidden player gameplay saat dinonaktifkan (mode Facecam Only) agar tidak mengambil ruang pada alur tata letak flexbox.
+  2. Kalkulasi Offset Centered Vertikal Otomatis pada Pipeline Ekspor FFmpeg (`subtitle_burner.py`):
+     - Menghitung tinggi aktif kumulatif seluruh layer (`total_content_h = h_banner + h_fc + h_main`) dan menentukan offset vertikal kanvas: `offset_y = max(0, (out_h - total_content_h) // 2)`.
+     - Memposisikan Banner di `y = offset_y`, Facecam di `y = offset_y + h_banner`, dan Gameplay di `y = offset_y + h_banner + h_fc`, menjamin hasil render MP4 100% presisi dan identik dengan preview layar HP.
+     - Mengimplementasikan pengaman *auto-cut* pada filter scale & crop saat padding video mendekati batas bawah kanvas untuk mencegah kegagalan error pad FFmpeg.
+- **Perubahan Kode Penting**:
+  - `mobile/src/components/FeedScreen.tsx`:
+    - Mengubah `justifyContent: 'flex-start'` menjadi `'center'` pada `styles.canvasPortrait`.
+    - Menambahkan `position: 'absolute'` pada kontainer hidden player saat gameplay disabled.
+  - `mobile/scripts/utils/subtitle_burner.py`:
+    - Menghitung `offset_y` dan menyelaraskan penempatan Y pada `drawbox`, `drawtext`, `[fc_box]`, dan `[in_main]`.
+    - Menambahkan filter scale/crop pembatas sebelum operasi `pad` untuk auto-cut yang aman.
+
+## [74a1216] - Add GitHub Actions EAS Local Build Workflow for Android Development APK
 - **Konteks Struktural**:
   1. Pipeline CI/CD EAS Local Build Khusus Development APK (`.github/workflows/build-dev-apk.yml`):
      - Membangun alur kerja GitHub Actions manual (`workflow_dispatch` 100% tanpa pemicu push otomatis) untuk kompilasi binary Development APK (`expo-dev-client`).

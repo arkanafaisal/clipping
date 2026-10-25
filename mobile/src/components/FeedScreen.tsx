@@ -516,7 +516,7 @@ export const FeedScreen: React.FC<FeedScreenProps> = ({
               {/* 3. Viewport Main Video Gameplay (4:3 saat Facecam aktif, 16:9 saat Facecam nonaktif) */}
               {isPortrait && templateConfig.mainVideo.enabled === false ? (
                 // Saat gameplay dinonaktifkan di mode portrait (Facecam Only), sembunyikan visual box namun pertahankan native player aktif di background untuk audio & clock
-                <View style={{ width: 0, height: 0, opacity: 0 }} pointerEvents="none">
+                <View style={{ position: 'absolute', width: 0, height: 0, opacity: 0 }} pointerEvents="none">
                   <VideoView
                     style={{ width: 1, height: 1 }}
                     player={player}
@@ -697,7 +697,7 @@ const styles = StyleSheet.create({
     maxHeight: '100%',
     maxWidth: '100%',
     aspectRatio: 9 / 16,
-    justifyContent: 'flex-start',
+    justifyContent: 'center',
   },
   canvasLandscape: {
     width: '100%',
