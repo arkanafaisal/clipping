@@ -14,7 +14,31 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Remove Intrusive Cookies Auto-Popup and Enhance Dashboard Cookies Management
+## [Unreleased] - Remove Automated yt-dlp Retry Mechanisms Across All Fetch Endpoints
+- **Konteks Struktural**:
+  1. Penghapusan Mekanisme Retry Otomatis pada Skrip Backend yt-dlp (`heatmap.py`, `stream_extractor.py`, `subtitle_fetcher.py`, `clip_downloader.py`, `downloader.py`):
+     - Menghapus pola eksekusi *two-tier retry* di mana kegagalan mode anonim di dalam blok `catch`/`except` atau saat status bernilai false langsung memicu percobaan ulang (*retry*) otomatis menggunakan cookies.
+     - Mengubah arsitektur pemanggilan yt-dlp menjadi *Single Pass*: jika `cookie_path` valid diberikan oleh frontend, skrip langsung menggunakan cookies sejak awal; jika tidak, skrip berjalan dalam mode anonim.
+     - Mengeliminasi loop retry internal bawaan yt-dlp (`retries: 0`, `fragment_retries: 0`, `extractor_retries: 0`, `file_access_retries: 0`) pada [ytdlp.ts](file:///d:/projects/clipping/mobile/src/constants/ytdlp.ts) dan [downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/downloader.py) agar tidak terjadi perulangan tersembunyi yang membakar kuota atau memperparah batasan rate limit (HTTP 429) YouTube.
+     - Menegakkan Rule 19: Menghapus parsing string error dan pengelompokan error manual di backend Python ([heatmap.py](file:///d:/projects/clipping/mobile/scripts/utils/heatmap.py), [stream_extractor.py](file:///d:/projects/clipping/mobile/scripts/utils/stream_extractor.py), [subtitle_fetcher.py](file:///d:/projects/clipping/mobile/scripts/utils/subtitle_fetcher.py), [clip_downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/clip_downloader.py)), mengembalikan pesan error mentah (*raw error & traceback*) secara murni pass-through ke Frontend TypeScript.
+  2. Alur Pengendalian Manual 100% oleh Pengguna (Zero Automated Background Retry):
+     - Mencegah bahaya terselubung di mana error akibat bug kode atau format video yang tidak ada disalahartikan sebagai rate limit lalu di-retry otomatis.
+     - Menyerahkan kendali penuh kepada pengguna: jika terjadi kegagalan (termasuk rate limit), pengguna harus menekan ulang tombol fitur secara sadar tanpa ada popup interupsi retry otomatis.
+- **Perubahan Kode Penting**:
+  - `mobile/scripts/utils/heatmap.py`:
+    - Mengganti logika dua tahap anonim -> cookies menjadi eksekusi tunggal (*single pass*), menghapus evaluasi string error manual.
+  - `mobile/scripts/utils/stream_extractor.py`:
+    - Mengganti logika dua tahap anonim -> cookies menjadi eksekusi tunggal (*single pass*), mengembalikan string error mentah.
+  - `mobile/scripts/utils/subtitle_fetcher.py`:
+    - Mengeliminasi percobaan kedua pada blok `except` atau saat respon bukan `success`, mengembalikan error & traceback asli.
+  - `mobile/scripts/utils/clip_downloader.py`:
+    - Menghapus fallback retry `run_stage1_download(use_cookie=True)` saat `stage1_success` bernilai false, menjalankan satu kali pass sesuai status ketersediaan cookies.
+  - `mobile/scripts/utils/downloader.py`:
+    - Menghapus blok retry `try_download(..., use_cookies=True)` di dalam `except Exception as e_anon`, menyetel `retries` dan `fragment_retries` menjadi 0.
+  - `mobile/src/constants/ytdlp.ts`:
+    - Menyetel `retries: 0`, `fragment_retries: 0`, `extractor_retries: 0`, dan `file_access_retries: 0` pada `PRIME_CLIP_DOWNLOAD_OPTS`.
+
+## [bafd6ee] - Remove Intrusive Cookies Auto-Popup and Enhance Dashboard Cookies Management
 - **Konteks Struktural**:
   1. Penghapusan Total Auto-Popup Modal Cookies pada Penanganan Error (`FeedScreen.tsx`, `useClipSubtitle.ts`):
      - Menghapus kemunculan modal input cookies otomatis (`onRateLimit` -> `setCookiesModalVisible(true)`) dari seluruh blok penanganan error (heatmap, stream, unduh url, dan subtitle YouTube).

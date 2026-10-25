@@ -93,12 +93,12 @@ export const PRIME_CLIP_DOWNLOAD_OPTS: YtdlOpts = {
   merge_output_format: 'mp4',
   quiet: false,
   no_warnings: true,
-  retries: 15,
-  fragment_retries: 15,
+  retries: 0,
+  fragment_retries: 0,
   skip_unavailable_fragments: false,
-  socket_timeout: 60,
-  extractor_retries: 5,
-  file_access_retries: 5,
+  socket_timeout: 30,
+  extractor_retries: 0,
+  file_access_retries: 0,
   external_downloader_args: {
     ffmpeg_i: [
       '-reconnect',

@@ -6,8 +6,9 @@ import yt_dlp
 def extract_subtitles_data(video_id: str, ydl_opts: dict = None, cookie_path: str = None, preferred_lang: str = None) -> dict:
     """
     Ekstrak data mentah subtitle / caption dari YouTube secara murni pass-through tanpa pemrosesan berlebih.
-    Mencoba mode anonim terlebih dahulu. Jika gagal dan cookie_path valid dikirimkan oleh frontend,
-    mencoba sekali lagi menggunakan cookies.
+    Mengeksekusi sekali jalan (single pass) tanpa retry otomatis:
+    - Jika cookie_path valid dikirimkan oleh frontend, gunakan cookies.
+    - Jika tidak, jalankan dalam mode anonim.
     
     Returns:
         dict: { status: 'success', video_id, lang, is_auto, format, raw_data, available_languages }
@@ -29,82 +30,30 @@ def extract_subtitles_data(video_id: str, ydl_opts: dict = None, cookie_path: st
     if 'subtitleslangs' not in base_opts:
         base_opts['subtitleslangs'] = ['id', 'en', 'all']
 
-    first_error = None
-    first_tb = None
-
-    # 1. Percobaan Pertama: Mode Anonim
-    opts_anon = base_opts.copy()
-    opts_anon.pop('cookiefile', None)
-    
-    try:
-        with yt_dlp.YoutubeDL(opts_anon) as ydl:
-            res = _process_extraction(ydl, url, video_id, preferred_lang)
-            if res.get("status") == "success":
-                return res
-            first_error = res.get("error")
-            first_tb = res.get("traceback") or ""
-    except Exception as e:
-        first_error = str(e)
-        first_tb = traceback.format_exc()
-
-    # 2. Percobaan Kedua: Mode Cookies jika anonim gagal
     if cookie_path and os.path.exists(cookie_path):
-        opts_cookies = base_opts.copy()
-        opts_cookies['cookiefile'] = cookie_path
+        base_opts['cookiefile'] = cookie_path
         # Reset player_client ke web & mweb karena browser cookies (format Netscape)
         # hanya didukung oleh web player, bukan native app (android/ios).
-        if 'extractor_args' in opts_cookies and isinstance(opts_cookies['extractor_args'], dict):
-            new_ext_args = {k: (v.copy() if isinstance(v, dict) else v) for k, v in opts_cookies['extractor_args'].items()}
+        if 'extractor_args' in base_opts and isinstance(base_opts['extractor_args'], dict):
+            new_ext_args = {k: (v.copy() if isinstance(v, dict) else v) for k, v in base_opts['extractor_args'].items()}
             if 'youtube' in new_ext_args and isinstance(new_ext_args['youtube'], dict):
                 yt_args = new_ext_args['youtube'].copy()
                 yt_args['player_client'] = ['web', 'mweb']
                 new_ext_args['youtube'] = yt_args
-            opts_cookies['extractor_args'] = new_ext_args
-        try:
-            with yt_dlp.YoutubeDL(opts_cookies) as ydl:
-                res = _process_extraction(ydl, url, video_id, preferred_lang)
-                if res.get("status") == "success":
-                    return res
-                second_error = res.get("error")
-                second_tb = res.get("traceback") or ""
-                code = res.get("code") or "SUBTITLE_NOT_FOUND"
-                combined_error = f"[Anonim]: {first_error}\n\n[Cookies]: {second_error}" if first_error else second_error
-                combined_tb = f"[Anonim Traceback]:\n{first_tb}\n\n[Cookies Traceback]:\n{second_tb}" if first_tb else second_tb
-                return {
-                    "status": "error",
-                    "code": code,
-                    "error": combined_error,
-                    "traceback": combined_tb
-                }
-        except Exception as e:
-            second_error = str(e)
-            second_tb = traceback.format_exc()
-            is_limit = any(k in second_error.lower() for k in ["429", "rate limit", "too many requests"])
-            is_cookie_err = any(k in second_error.lower() for k in ["403", "forbidden", "access denied", "bot", "captcha", "sign in"])
-            if is_limit:
-                code = "RATE_LIMIT_EXCEEDED"
-            elif is_cookie_err:
-                code = "COOKIES_INVALID_OR_EXPIRED"
-            else:
-                code = "EXTRACTOR_ERROR"
-            combined_error = f"[Anonim]: {first_error}\n\n[Cookies]: {second_error}" if first_error else second_error
-            combined_tb = f"[Anonim Traceback]:\n{first_tb}\n\n[Cookies Traceback]:\n{second_tb}" if first_tb else second_tb
-            return {
-                "status": "error",
-                "code": code,
-                "error": combined_error,
-                "traceback": combined_tb
-            }
+            base_opts['extractor_args'] = new_ext_args
+    else:
+        base_opts.pop('cookiefile', None)
 
-    err_msg = first_error or "Gagal mengekstrak data subtitle dari YouTube."
-    is_limit = any(k in err_msg.lower() for k in ["429", "403", "forbidden", "access denied", "rate limit", "bot", "captcha", "sign in"])
-    code = "RATE_LIMIT_EXCEEDED" if is_limit else "EXTRACTOR_ERROR"
-    return {
-        "status": "error",
-        "code": code,
-        "error": err_msg,
-        "traceback": first_tb or ""
-    }
+    try:
+        with yt_dlp.YoutubeDL(base_opts) as ydl:
+            return _process_extraction(ydl, url, video_id, preferred_lang)
+    except Exception as e:
+        return {
+            "status": "error",
+            "code": "SUBTITLE_ERROR",
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }
 
 
 def _process_extraction(ydl, url: str, video_id: str, preferred_lang: str = None) -> dict:
