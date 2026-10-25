@@ -14,7 +14,17 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Add Defined Outline Border to Canvas Wrapper for Editor Visibility
+## [Unreleased] - Add GitHub Actions EAS Local Build Workflow for Android Development APK
+- **Konteks Struktural**:
+  1. Pipeline CI/CD EAS Local Build Khusus Development APK (`.github/workflows/build-dev-apk.yml`):
+     - Membangun alur kerja GitHub Actions manual (`workflow_dispatch` 100% tanpa pemicu push otomatis) untuk kompilasi binary Development APK (`expo-dev-client`).
+     - Menyelaraskan seluruh spesifikasi toolchain dengan pipeline produksi: Node.js 22, Python 3.10 (prasyarat build-time Chaquopy), Java JDK 17 (Temurin), dan penerimaan otomatis lisensi Android SDK bawaan runner Ubuntu 22.04.
+     - Mengeksekusi `eas build --platform android --profile development --local` menggunakan autentikasi `EXPO_TOKEN` akun resmi (`arkanafaisal`) dan menyimpan artefak `clipping-development.apk` (retensi 14 hari).
+- **Perubahan Kode Penting**:
+  - `.github/workflows/build-dev-apk.yml`:
+    - Membuat skrip alur kerja build development APK manual berbasis EAS local runner.
+
+## [6171f0b] - Add Defined Outline Border to Canvas Wrapper for Editor Visibility
 - **Konteks Struktural**:
   1. Penambahan Border Visual pada Kanvas Editor (`FeedScreen.tsx`):
      - Menambahkan garis batas tepi (`borderWidth: 1` dengan `borderColor: 'rgba(255, 255, 255, 0.25)'`) pada kontainer terpadu `canvasWrapper`.
