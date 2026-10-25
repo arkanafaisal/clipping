@@ -14,7 +14,27 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Implement Dynamic Custom Aspect Ratio Inputs for Facecam and Gameplay
+## [Unreleased] - Align Watermark Overlay Architecture with Subtitle and Allow Flexible Font Size
+- **Konteks Struktural**:
+  1. Penyelarasan Arsitektur Watermark Overlay dengan Subtitle Overlay (`WatermarkOverlay.tsx`):
+     - Membungkus komponen dengan `React.memo` untuk mencegah re-render sia-sia saat pembaruan waktu pemutaran / state komponen induk.
+     - Menyamakan metode rendering outline teks dengan solid 8 arah (kardinal & diagonal) tanpa shadow/blur dan tanpa `opacity: 0.85` guna mengeliminasi overdraw blending berulang pada thread render GPU native Android.
+     - Mengimplementasikan `strokeScale = Math.max(0.6, scaleFactor)` agar ketebalan garis tepi outline menyesuaikan proporsional dengan resolusi kanvas.
+     - Mengadopsi konversi spasi menjadi Non-Breaking Space (`\u00A0`), parsing `linesData` via `useMemo`, dan properti `textBreakStrategy="simple"` untuk mencegah Android `StaticLayout` memotong kata terakhir (*orphan token drop bug*) serta menjamin konsistensi posisi antara layer teks utama dan stroke.
+     - Menyematkan `aria-hidden` pada elemen Text stroke outline untuk efisiensi aksesibilitas dan menyetel `includeFontPadding: false` untuk kerapihan teks.
+  2. Fleksibilitas Ukuran Font Watermark (`FeedTopControls.tsx`, `WatermarkOverlay.tsx`, `subtitle_burner.py`):
+     - Menghapus pembatasan minimum font size defensif yang sebelumnya dikunci pada 8/9 dp menjadi minimum 2 dp, memungkinkan teks watermark berukuran kecil diskrit tanpa mengganggu konten video.
+     - Menambahkan barisan tombol *preset* cepat (`4`, `6`, `8`, `10`, `12`, `14`, `18`) pada modal pengaturan watermark di `FeedTopControls.tsx` agar pengguna dapat memilih ukuran kecil secara instan.
+     - Menyesuaikan kalkulasi `wm_fs` di script ekspor FFmpeg ([subtitle_burner.py](file:///d:/projects/clipping/mobile/scripts/utils/subtitle_burner.py)) dari batas minimum `max(10, ...)` menjadi `max(2, ...)` agar hasil video ekspor 100% presisi dan identik dengan preview.
+- **Perubahan Kode Penting**:
+  - `mobile/src/components/feed/WatermarkOverlay.tsx`:
+    - Mengganti arsitektur rendering dengan `React.memo`, 8-way solid offsets dengan `strokeScale`, Non-Breaking Space `\u00A0`, `textBreakStrategy="simple"`, `aria-hidden`, dan penurunan min font clamp menjadi `Math.max(2, ...)`.
+  - `mobile/src/components/feed/FeedTopControls.tsx`:
+    - Menurunkan validasi simpan ukuran watermark dari `Math.max(8, ...)` menjadi `Math.max(2, ...)` dan menambahkan tombol preset ukuran font.
+  - `mobile/scripts/utils/subtitle_burner.py`:
+    - Menurunkan batas pengaman `wm_fs` dari `max(10, ...)` menjadi `max(2, ...)`.
+
+## [cfd7510] - Implement Dynamic Custom Aspect Ratio Inputs for Facecam and Gameplay
 - **Konteks Struktural**:
   1. Input Rasio Bebas (a : b) pada Modal Konfigurasi Facecam & Gameplay (`FeedTopControls.tsx`):
      - Menambahkan dua kotak input numerik (A dan B) untuk konfigurasi rasio aspek viewport Facecam dan Gameplay.

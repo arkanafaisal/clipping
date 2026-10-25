@@ -547,8 +547,8 @@ def build_multi_layer_pipeline(
         ref_dim = min(out_w, out_h)
         base_unit = ref_dim * 0.073
         wm_size_dp = float(watermark_cfg.get("size", 14))
-        wm_fs = max(10, int(round(base_unit * (wm_size_dp / 14.0))))
-        wm_border = max(1, int(round(wm_fs * 0.07)))
+        wm_fs = max(2, int(round(base_unit * (wm_size_dp / 14.0))))
+        wm_border = max(1, int(round(wm_fs * 0.065)))
 
         wm_x = max(0.0, min(100.0, float(watermark_cfg.get("x", 85.0))))
         wm_y = max(0.0, min(100.0, float(watermark_cfg.get("y", 15.0))))

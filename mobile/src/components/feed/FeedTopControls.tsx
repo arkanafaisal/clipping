@@ -2207,6 +2207,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = React.memo(({
             </View>
 
             {/* Input Ukuran Font Size (Numeric) */}
+            {/* Input Ukuran Font Size (Numeric) */}
             <View style={styles.posSectionContainer}>
               <Text style={styles.timeSectionLabel}>UKURAN WATERMARK (DP)</Text>
               <View style={styles.cropCoordinatesRow}>
@@ -2223,6 +2224,30 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = React.memo(({
                   />
                   <Text style={styles.coordinateSuffixUnit}>dp</Text>
                 </View>
+              </View>
+
+              {/* Preset buttons */}
+              <View style={[styles.fontSizePresetGroup, { marginTop: 8 }]}>
+                {['4', '6', '8', '10', '12', '14', '18'].map((preset) => (
+                  <Pressable
+                    key={preset}
+                    style={({ pressed }) => [
+                      styles.fontSizePresetBtn,
+                      tempWatermarkSize === preset && styles.fontSizePresetBtnActive,
+                      pressed && { opacity: 0.7 },
+                    ]}
+                    onPress={() => setTempWatermarkSize(preset)}
+                  >
+                    <Text
+                      style={[
+                        styles.fontSizePresetText,
+                        tempWatermarkSize === preset && styles.fontSizePresetTextActive,
+                      ]}
+                    >
+                      {preset}
+                    </Text>
+                  </Pressable>
+                ))}
               </View>
             </View>
 
@@ -2276,7 +2301,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = React.memo(({
                   onUpdateWatermark?.({
                     enabled: tempWatermarkEnabled,
                     text: tempWatermarkText.trim(),
-                    size: Math.max(8, Math.min(40, parseInt(tempWatermarkSize, 10) || 14)),
+                    size: Math.max(2, Math.min(60, parseInt(tempWatermarkSize, 10) || 14)),
                     x: Math.max(0, Math.min(100, parseFloat(tempWatermarkX) || 85)),
                     y: Math.max(0, Math.min(100, parseFloat(tempWatermarkY) || 15)),
                   });
