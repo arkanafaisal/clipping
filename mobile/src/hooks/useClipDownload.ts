@@ -5,9 +5,12 @@ import {
   downloadClip,
   getClipOutputFilePath,
   checkClipFileExists,
+  hasCachedDownloadStreamUrl,
+  fetchAndCacheDownloadStreamUrl,
 } from '../services/api';
 import { LocalStorage } from '../services/storage';
 import { ToastManager } from '../components/Toast';
+import { UrlConfirmManager } from '../components/UrlConfirmModal';
 
 export interface UseClipDownloadParams {
   videoId: string;
@@ -108,6 +111,21 @@ export function useClipDownload({
         type: 'info',
         title: 'Sedang Mengunduh Klip',
         duration: 2000,
+      });
+      return;
+    }
+
+    // Cek apakah download stream URL sudah tersedia di cache sebelum melakukan download fisik
+    const hasCache = await hasCachedDownloadStreamUrl(videoId);
+    if (!hasCache) {
+      UrlConfirmManager.show({
+        targetName: `Klip #${activeClip.rank || ''}`,
+        title: 'URL Belum Tersedia',
+        message: 'URL download belum tersedia atau kedaluwarsa. Hit get URL sekarang? (~100 KB kuota data)',
+        successMessage: 'URL berhasil didapatkan! Silakan klik tombol unduh klip kembali.',
+        onConfirm: async () => {
+          await fetchAndCacheDownloadStreamUrl(videoId);
+        },
       });
       return;
     }

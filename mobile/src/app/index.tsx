@@ -5,6 +5,7 @@ import { Dashboard } from '../components/Dashboard';
 import { FeedScreen } from '../components/FeedScreen';
 import { ToastContainer, ToastManager } from '../components/Toast';
 import { StoragePermissionModal } from '../components/StoragePermissionModal';
+import { UrlConfirmModal } from '../components/UrlConfirmModal';
 import { pingServer } from '../services/api';
 
 interface ActiveWorkshop {
@@ -70,6 +71,8 @@ export default function HomeScreen() {
       <ToastContainer />
       {/* Modal Izin Akses Penyimpanan File Penuh (MANAGE_EXTERNAL_STORAGE) */}
       <StoragePermissionModal />
+      {/* Modal Konfirmasi Pengambilan Stream/Download URL Terpisah */}
+      <UrlConfirmModal />
     </SafeAreaView>
   );
 }

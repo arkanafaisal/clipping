@@ -14,7 +14,31 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Synchronize Custom Aspect Ratio and Vertical Centering to Embedded Native Python Engine
+## [Unreleased] - Decouple Stream and Download URL Retrieval with Confirmation Modal
+- **Konteks Struktural**:
+  1. Pemisahan Total Ekstraksi URL dari Konsumsi Stream & Download ([UrlConfirmModal.tsx](file:///d:/projects/clipping/mobile/src/components/UrlConfirmModal.tsx), [api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts)):
+     - Menjawab kendala pemborosan kuota data seluler saat pengguna mengalami rate limit/blokir IP YouTube pada koneksi Wi-Fi: ekstraksi metadata URL YouTube (~100 KB) kini dipisahkan sepenuhnya menjadi fungsi mandiri dari proses pengunduhan atau pemutaran video multi-megabyte.
+     - Khusus untuk fungsi **Stream** dan **Download** (Klip & Full Video), aplikasi memeriksa ketersediaan cache URL terlebih dahulu. Jika cache belum ada atau kedaluwarsa, eksekusi stream/download langsung dihentikan (**STOP**) dan memunculkan modal konfirmasi: `"URL belum tersedia, hit get url?"`.
+     - Ketika pengguna menekan **"Ya, Hit Get URL"**, aplikasi hanya mengeksekusi pengambilan URL (~100 KB) dan menyimpannya ke cache. Setelah URL berhasil didapatkan, proses berhenti dan pengguna diminta menekan kembali tombol download/stream secara manual.
+     - Hal ini memungkinkan alur pengguna yang aman dan hemat kuota: pengguna dapat beralih ke paket data seluler untuk bypass blokir IP saat mengambil URL, beralih kembali ke Wi-Fi, lalu menekan tombol download/stream untuk menyedot file video tanpa menghabiskan kuota seluler.
+  2. Isolasi Fitur dan Pelestarian Alur Langsung ([Dashboard.tsx](file:///d:/projects/clipping/mobile/src/components/Dashboard.tsx), [useClipDownload.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipDownload.ts), [useClipPlayer.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipPlayer.ts)):
+     - Alur konfirmasi URL hanya diterapkan pada Stream dan Download. Endpoint data ringan seperti Heatmap, Subtitle, dan pembuatan Workshop tidak menggunakan modal ini (tetap direct fetch).
+     - Jika file full video lokal sudah tersedia, pemotongan klip dilakukan offline melalui FFmpeg secara langsung tanpa network request dan tanpa memunculkan modal konfirmasi URL.
+- **Perubahan Kode Penting**:
+  - `mobile/src/components/UrlConfirmModal.tsx`:
+    - Membuat komponen modal `UrlConfirmModal` dan singleton `UrlConfirmManager` dengan tips panduan jaringan (Wi-Fi vs data seluler) dan feedback visual saat proses pengambilan metadata berlangsung.
+  - `mobile/src/services/api.ts`:
+    - Menambahkan helper `hasCachedStreamUrl`, `clearCachedStreamUrl`, `getCachedStreamUrl`, `hasCachedDownloadStreamUrl`, dan `fetchAndCacheDownloadStreamUrl` untuk mengecek dan mengambil metadata URL stream/download secara terisolasi tanpa payload video.
+  - `mobile/src/hooks/useClipDownload.ts`:
+    - Memeriksa ketersediaan cache sebelum memicu `downloadClip`; jika cache belum tersedia, download dihentikan dan memunculkan modal konfirmasi pengambilan URL.
+  - `mobile/src/components/Dashboard.tsx`:
+    - Memeriksa ketersediaan cache URL sebelum memutar stream workshop (`handleOpenExisting`, `handleSubmitWorkshop`) atau memulai unduhan video utuh (`handleDownloadFullVideo`).
+  - `mobile/src/hooks/useClipPlayer.ts`:
+    - Mengganti auto-refresh background saat player error menjadi dialog konfirmasi pembaruan URL stream via `UrlConfirmManager`.
+  - `mobile/src/app/index.tsx`:
+    - Memasang `<UrlConfirmModal />` pada root level aplikasi.
+
+## [a70411a] - Synchronize Custom Aspect Ratio and Vertical Centering to Embedded Native Python Engine
 - **Konteks Struktural**:
   1. Sinkronisasi Pipeline Ekspor FFmpeg ke Native Module Android ([subtitle_burner.py](file:///d:/projects/clipping/mobile/modules/python-runner/android/src/main/python/utils/subtitle_burner.py)):
      - Menjawab kendala di mana ekspor video di HP tidak menerapkan rasio kustom (a:b) dan perataan tengah (*centered vertical*): modul embedded Chaquopy (`mobile/modules/python-runner/`) sebelumnya belum disinkronkan dari source of truth (`mobile/scripts/utils/`), sehingga ekspor di HP masih mengeksekusi script lama dengan layout hardcoded 4:3 dan top-aligned.

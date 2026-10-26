@@ -4,12 +4,14 @@ import { useVideoPlayer } from 'expo-video';
 import {
   ClipItem,
   fetchStreamUrl,
+  clearCachedStreamUrl,
   getClipOutputFilePath,
   resolvePlayableClipUri,
   resolvePlayableFullVideoUri,
   SubtitleCue,
 } from '../services/api';
 import { ToastManager } from '../components/Toast';
+import { UrlConfirmManager } from '../components/UrlConfirmModal';
 
 export interface UseClipPlayerParams {
   videoId: string;
@@ -657,30 +659,29 @@ export function useClipPlayer({
           return;
         }
 
-        console.warn('[Feed] Player error detected, stream URL mungkin kadaluwarsa. Mengambil URL baru...');
-        try {
-          const freshUrl = await fetchStreamUrl(videoId, true); // forceRefresh = true
-          if (freshUrl) {
-            setStreamUrl(freshUrl);
-            streamUrlRef.current = freshUrl;
-            currentSourceUriRef.current = freshUrl;
-            setPendingSeek(currentActive.start);
-            isSourceSwitchingRef.current = true;
-            player.replace(freshUrl);
-            player.currentTime = currentActive.start;
-            if (isContinueStateRef.current) {
-              player.play();
+        console.warn('[Feed] Player error detected, stream URL mungkin kadaluwarsa.');
+        await clearCachedStreamUrl(videoId);
+        UrlConfirmManager.show({
+          targetName: 'Stream Video',
+          title: 'URL Stream Kedaluwarsa',
+          message: 'URL stream video kedaluwarsa atau terputus. Hit get URL sekarang? (~100 KB kuota data)',
+          successMessage: 'URL stream berhasil diperbarui! Silakan tekan tombol play kembali.',
+          onConfirm: async () => {
+            const freshUrl = await fetchStreamUrl(videoId, true); // forceRefresh = true
+            if (freshUrl) {
+              setStreamUrl(freshUrl);
+              streamUrlRef.current = freshUrl;
+              currentSourceUriRef.current = freshUrl;
+              setPendingSeek(currentActive.start);
+              isSourceSwitchingRef.current = true;
+              player.replace(freshUrl);
+              player.currentTime = currentActive.start;
+              if (isContinueStateRef.current) {
+                player.play();
+              }
             }
-          }
-        } catch (e: any) {
-          ToastManager.show({
-            type: 'error',
-            title: 'Gagal Memperbarui Stream',
-            rawError: e?.rawError || e?.message,
-            errorCode: e?.code,
-            duration: 4000,
-          });
-        }
+          },
+        });
       }
     });
 
@@ -902,13 +903,24 @@ export function useClipPlayer({
           });
         }
       } catch (streamErr: any) {
-        console.warn('[Feed] Stream fetch error:', streamErr.message);
-        ToastManager.show({
-          type: 'error',
-          title: 'Stream Video Gagal',
-          rawError: streamErr.rawError || streamErr.message,
-          errorCode: streamErr.code,
-          duration: 4000,
+        console.warn('[Feed] Stream fetch error:', streamErr?.message);
+        UrlConfirmManager.show({
+          targetName: 'Stream Video',
+          title: 'URL Stream Belum Tersedia',
+          message: 'URL stream belum tersedia atau gagal dimuat. Hit get URL sekarang? (~100 KB kuota data)',
+          successMessage: 'URL stream berhasil didapatkan! Silakan putar video kembali.',
+          onConfirm: async () => {
+            const directUrl = await fetchStreamUrl(videoId, true);
+            if (directUrl) {
+              setStreamUrl(directUrl);
+              streamUrlRef.current = directUrl;
+              currentSourceUriRef.current = directUrl;
+              setPendingSeek(firstClipStart);
+              isSourceSwitchingRef.current = true;
+              player.replace(directUrl);
+              player.currentTime = firstClipStart;
+            }
+          },
         });
       }
     },

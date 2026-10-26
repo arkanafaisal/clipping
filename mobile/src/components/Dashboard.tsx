@@ -17,8 +17,12 @@ import { SettingsModal } from './SettingsModal';
 import { PlayModeModal } from './PlayModeModal';
 import { LocalStorage } from '../services/storage';
 import { ToastManager } from './Toast';
+import { UrlConfirmManager } from './UrlConfirmModal';
 import {
   fetchStreamUrl,
+  hasCachedStreamUrl,
+  hasCachedDownloadStreamUrl,
+  fetchAndCacheDownloadStreamUrl,
   checkFullVideoExists,
   downloadFullVideo,
   resolvePlayableFullVideoUri,
@@ -139,6 +143,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
       return;
     }
 
+    // Cek apakah stream URL sudah tersedia di cache sebelum masuk workshop
+    const hasStream = await hasCachedStreamUrl(videoId);
+    if (!hasStream) {
+      UrlConfirmManager.show({
+        targetName: 'Workshop Baru',
+        title: 'URL Belum Tersedia',
+        message: 'URL stream belum tersedia untuk video ini. Hit get URL sekarang? (~100 KB kuota data)',
+        successMessage: 'URL stream berhasil didapatkan! Silakan klik Submit Workshop kembali.',
+        onConfirm: async () => {
+          await fetchStreamUrl(videoId, true);
+        },
+      });
+      return;
+    }
+
     setIsExtracting(true);
 
     try {
@@ -203,22 +222,46 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
       if (activePlayMode === 'local') {
         const localUri = await resolvePlayableFullVideoUri(videoId);
         if (!localUri) {
-          // File lokal hilang atau korup: coba fallback otomatis ke stream
-          try {
-            await fetchStreamUrl(videoId);
-            activePlayMode = 'stream';
-            ToastManager.show({
-              type: 'info',
-              title: 'Video Lokal Korup / Hilang',
-              rawError: 'Beralih otomatis ke mode stream online.',
-              duration: 3500,
+          // File lokal hilang atau korup: cek ketersediaan cache stream sebelum beralih
+          const hasStream = await hasCachedStreamUrl(videoId);
+          if (!hasStream) {
+            setPlayModeTarget(null);
+            UrlConfirmManager.show({
+              targetName: 'Stream Video',
+              title: 'URL Belum Tersedia',
+              message: 'Video lokal tidak ditemukan dan URL stream belum tersedia. Hit get URL sekarang? (~100 KB kuota data)',
+              successMessage: 'URL stream berhasil didapatkan! Silakan buka kembali workshop.',
+              onConfirm: async () => {
+                await fetchStreamUrl(videoId, true);
+              },
             });
-          } catch (streamErr: any) {
-            throw new Error('Video lokal korup/tidak lengkap dan stream online gagal dimuat.');
+            return;
           }
+          await fetchStreamUrl(videoId);
+          activePlayMode = 'stream';
+          ToastManager.show({
+            type: 'info',
+            title: 'Video Lokal Korup / Hilang',
+            rawError: 'Beralih otomatis ke mode stream online.',
+            duration: 3500,
+          });
         }
       } else {
         // Mode stream online
+        const hasStream = await hasCachedStreamUrl(videoId);
+        if (!hasStream) {
+          setPlayModeTarget(null);
+          UrlConfirmManager.show({
+            targetName: 'Stream Video',
+            title: 'URL Belum Tersedia',
+            message: 'URL stream belum tersedia atau kedaluwarsa. Hit get URL sekarang? (~100 KB kuota data)',
+            successMessage: 'URL stream berhasil didapatkan! Silakan buka kembali workshop.',
+            onConfirm: async () => {
+              await fetchStreamUrl(videoId, true);
+            },
+          });
+          return;
+        }
         await fetchStreamUrl(videoId);
       }
 
@@ -257,6 +300,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
 
   const handleDownloadFullVideo = async (videoId: string) => {
     if (fullVideoStatus[videoId]?.isDownloading) return;
+
+    // Cek ketersediaan URL cache sebelum memulai unduh video utuh
+    const hasCache = await hasCachedDownloadStreamUrl(videoId);
+    if (!hasCache) {
+      UrlConfirmManager.show({
+        targetName: 'Unduh Full Video',
+        title: 'URL Belum Tersedia',
+        message: 'URL download full video belum tersedia. Hit get URL sekarang? (~100 KB kuota data)',
+        successMessage: 'URL berhasil didapatkan! Silakan klik tombol unduh full video kembali.',
+        onConfirm: async () => {
+          await fetchAndCacheDownloadStreamUrl(videoId);
+        },
+      });
+      return;
+    }
+
     setFullVideoStatus((prev) => ({
       ...prev,
       [videoId]: { exists: false, isDownloading: true, percent: 0 },

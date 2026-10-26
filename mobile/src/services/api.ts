@@ -215,6 +215,43 @@ export async function pingDevServer(): Promise<{ status: string; port: number; m
 const STREAM_MEMORY_MAP = new Map<string, string>();
 
 /**
+ * Mengambil URL stream yang tersimpan di cache (Tier 1 In-Memory atau Tier 2 LocalStorage) tanpa network call.
+ */
+export async function getCachedStreamUrl(videoId: string): Promise<string | null> {
+  if (STREAM_MEMORY_MAP.has(videoId)) {
+    const memUrl = STREAM_MEMORY_MAP.get(videoId);
+    if (memUrl) return memUrl;
+  }
+  try {
+    const fileUrl = await LocalStorage.getItem(`stream_url_${videoId}`);
+    if (fileUrl && fileUrl.trim().startsWith('http')) {
+      const trimmed = fileUrl.trim();
+      STREAM_MEMORY_MAP.set(videoId, trimmed);
+      return trimmed;
+    }
+  } catch {}
+  return null;
+}
+
+/**
+ * Memeriksa apakah direct stream URL sudah tersedia di cache tanpa perlu hit ke YouTube.
+ */
+export async function hasCachedStreamUrl(videoId: string): Promise<boolean> {
+  const url = await getCachedStreamUrl(videoId);
+  return Boolean(url && url.length > 0);
+}
+
+/**
+ * Menghapus direct stream URL dari Tier 1 dan Tier 2 jika kedaluwarsa.
+ */
+export async function clearCachedStreamUrl(videoId: string): Promise<void> {
+  STREAM_MEMORY_MAP.delete(videoId);
+  try {
+    await LocalStorage.removeItem(`stream_url_${videoId}`);
+  } catch {}
+}
+
+/**
  * Fetches the direct stream URL for a given YouTube video ID.
  * Menggunakan arsitektur 2-Tier Caching:
  * 1. Tier 1 (In-Memory Map): Akses instan 0ms tanpa membaca disk storage
@@ -1021,6 +1058,83 @@ export async function clearCachedDownloadStreamUrl(videoId: string): Promise<voi
   try {
     await LocalStorage.removeItem(`download_stream_${videoId}`);
   } catch {}
+}
+
+/**
+ * Memeriksa apakah download stream URL sudah tersedia di cache (atau ada file video utuh lokal).
+ * Jika ada file full video lokal, return true (karena pemotongan klip dilakukan offline tanpa perlu URL online).
+ */
+export async function hasCachedDownloadStreamUrl(videoId: string): Promise<boolean> {
+  const fullVideo = getFullVideoFilePath(videoId);
+  try {
+    const fullInfo = await FileSystem.getInfoAsync(fullVideo.fileUri);
+    if (fullInfo.exists && ((fullInfo as any).size === undefined || (fullInfo as any).size > 0)) {
+      return true;
+    }
+  } catch {}
+
+  const url = await getCachedDownloadStreamUrl(videoId);
+  return Boolean(url && url.length > 0);
+}
+
+/**
+ * Mengambil (GET) direct download stream URL baru dari YouTube metadata (hanya ~100 KB payload teks)
+ * dan menyimpannya ke cache Tier 1 & Tier 2. Tidak melakukan pengunduhan file video.
+ */
+export async function fetchAndCacheDownloadStreamUrl(videoId: string): Promise<string> {
+  const cookiePath = await getValidCookiesPath();
+  let data: any = null;
+  const isNative = Platform.OS === 'android' && isPythonInitialized();
+
+  if (isNative) {
+    data = await executePythonScript('utils.stream_extractor', 'extract_stream_url', {
+      video_id: videoId,
+      ydl_opts: STREAM_YTDL_OPTS,
+      cookie_path: cookiePath,
+    });
+  } else {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 20000);
+    try {
+      const response = await fetch(`${DEV_API_BASE_URL}/api/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          video_id: videoId,
+          ydl_opts: STREAM_YTDL_OPTS,
+          cookie_path: cookiePath,
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      data = await response.json().catch(() => ({}));
+    } catch (fetchErr) {
+      clearTimeout(timeoutId);
+      throw fetchErr;
+    }
+  }
+
+  const payload = (data?.data && typeof data.data === 'object') ? data.data : data;
+
+  if (!payload) {
+    throw new ApiError('EMPTY_RESPONSE', 'Python engine tidak mengembalikan respons metadata.');
+  }
+
+  if (payload.status === 'error') {
+    const code = payload.code || 'PYTHON_EXECUTION_ERROR';
+    const rawError = payload.traceback || payload.error || JSON.stringify(payload, null, 2);
+    throw new ApiError(code, rawError);
+  }
+
+  if (!payload.stream_url) {
+    const code = payload.code || 'STREAM_NOT_FOUND';
+    const rawError = payload.error || (payload.message ? String(payload.message) : JSON.stringify(payload, null, 2));
+    throw new ApiError(code, rawError);
+  }
+
+  const streamUrl = payload.stream_url;
+  await saveCachedDownloadStreamUrl(videoId, streamUrl);
+  return streamUrl;
 }
 
 /**
