@@ -14,7 +14,24 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Fix Unresponsive Scrolling in Dashboard SettingsModal
+## [Unreleased] - Synchronize Custom Aspect Ratio and Vertical Centering to Embedded Native Python Engine
+- **Konteks Struktural**:
+  1. Sinkronisasi Pipeline Ekspor FFmpeg ke Native Module Android ([subtitle_burner.py](file:///d:/projects/clipping/mobile/modules/python-runner/android/src/main/python/utils/subtitle_burner.py)):
+     - Menjawab kendala di mana ekspor video di HP tidak menerapkan rasio kustom (a:b) dan perataan tengah (*centered vertical*): modul embedded Chaquopy (`mobile/modules/python-runner/`) sebelumnya belum disinkronkan dari source of truth (`mobile/scripts/utils/`), sehingga ekspor di HP masih mengeksekusi script lama dengan layout hardcoded 4:3 dan top-aligned.
+     - Menyinkronkan seluruh modul Python utilitas (`subtitle_burner.py`, `downloader.py`, `clip_downloader.py`, `heatmap.py`, `stream_extractor.py`, `subtitle_fetcher.py`) dari `mobile/scripts/utils/` ke `mobile/modules/python-runner/android/src/main/python/utils/`.
+     - Memperkuat kalkulasi bounding box Y pada FFmpeg filtergraph: memastikan `y_main` dan `y_fc` dibatasi secara ketat terhadap `out_h - 2` sehingga tidak memicu error batas pad pada kasus rasio ekstrim.
+     - Memperbarui evaluasi `hasTemplate` pada [useClipSubtitle.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipSubtitle.ts) dan [subtitle_burner.py](file:///d:/projects/clipping/mobile/scripts/utils/subtitle_burner.py) agar mendeteksi keberadaan `ratioWidth` dan `ratioHeight` kustom meskipun cue subtitle belum dibuat.
+  2. Ketahanan Download Fragmen Media dengan URL Stream Sama ([downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/downloader.py), [ytdlp.ts](file:///d:/projects/clipping/mobile/src/constants/ytdlp.ts)):
+     - Mengatur `fragment_retries: 10` pada download segmen video (media chunk) dengan URL stream CDN yang sama agar tahan terhadap fluktuasi koneksi internet, sambil tetap menjaga `retries: 0` dan `extractor_retries: 0` untuk mencegah perulangan request ekstraksi YouTube yang menguras kuota rate limit.
+- **Perubahan Kode Penting**:
+  - `mobile/scripts/utils/subtitle_burner.py` & `mobile/modules/python-runner/android/src/main/python/utils/subtitle_burner.py`:
+    - Mengintegrasikan kalkulasi rasio aspek kustom (a:b), offset centered vertikal dinamis, dan proteksi clamping Y pada canvas portrait.
+  - `mobile/src/hooks/useClipSubtitle.ts`:
+    - Memasukkan verifikasi `ratioWidth` dan `ratioHeight` ke dalam penentu `hasTemplate` sebelum ekspor dipicu.
+  - `mobile/src/constants/ytdlp.ts` & `downloader.py`:
+    - Mengonfigurasi `fragment_retries: 10` untuk download media bytes.
+
+## [8c9e22d] - Fix Unresponsive Scrolling in Dashboard SettingsModal
 - **Konteks Struktural**:
   1. Pemulihan Respon Sentuhan Scroll Modal Pengaturan ([SettingsModal.tsx](file:///d:/projects/clipping/mobile/src/components/SettingsModal.tsx)):
      - Memisahkan elemen `<TouchableWithoutFeedback onPress={Keyboard.dismiss}>` agar hanya berada di layer backdrop absolut di luar modal card, menghilangkan intersepsi gesture sentuh yang sebelumnya menelan event drag native Android pada komponen `ScrollView`.

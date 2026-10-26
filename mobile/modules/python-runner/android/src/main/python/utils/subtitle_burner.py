@@ -308,7 +308,7 @@ def build_multi_layer_pipeline(
     font_path = resolve_system_font()
     font_opt = f":fontfile='{escape_ffmpeg_filter_path(font_path)}'" if font_path else ""
 
-    # 1. Hitung Banner Konteks
+    # 1. Hitung Dimensi Banner Konteks
     banner_h = 0
     ctx_text = str(context_cfg.get("text", "")).strip() if ctx_enabled else ""
     ctx_fs = 24
@@ -316,7 +316,11 @@ def build_multi_layer_pipeline(
     if ctx_align not in ("center", "start"):
         ctx_align = "start"
 
-    ctx_drawtext_filters = []
+    num_lines = 1
+    ctx_lines = []
+    line_height = 0
+    pad_x = 10
+
     if ctx_enabled and ctx_text:
         ref_dim = min(out_w, out_h)
         base_unit = ref_dim * 0.073  # Rasio acuan dinamis setara 14dp di preview React Native
@@ -343,45 +347,35 @@ def build_multi_layer_pipeline(
         if banner_h % 2 != 0:
             banner_h += 1
 
-        if num_lines == 1:
-            ctx_file = f"{output_base}.context.txt"
-            with open(ctx_file, "w", encoding="utf-8") as f:
-                f.write(ctx_lines[0])
-            temp_files.append(ctx_file)
-            esc_ctx_file = escape_ffmpeg_filter_path(ctx_file)
-            x_expr = "(w-text_w)/2" if ctx_align == "center" else f"{pad_x}"
-            ctx_drawtext_filters.append(
-                f"drawtext=textfile='{esc_ctx_file}'{font_opt}:fontsize={ctx_fs}:fontcolor=black:x={x_expr}:y=({banner_h}-text_h)/2"
-            )
-        else:
-            total_text_h = num_lines * line_height
-            start_y = max(0, int(round((banner_h - total_text_h) / 2)))
-            for i, line in enumerate(ctx_lines):
-                line_file = f"{output_base}.context_{i}.txt"
-                with open(line_file, "w", encoding="utf-8") as f:
-                    f.write(line)
-                temp_files.append(line_file)
-                esc_line_file = escape_ffmpeg_filter_path(line_file)
-                x_expr = "(w-text_w)/2" if ctx_align == "center" else f"{pad_x}"
-                y_pos = start_y + i * line_height
-                ctx_drawtext_filters.append(
-                    f"drawtext=textfile='{esc_line_file}'{font_opt}:fontsize={ctx_fs}:fontcolor=black:x={x_expr}:y={y_pos}"
-                )
-
-    # 2. Hitung Geometri Facecam (Viewport 4:3)
+    # 2. Hitung Geometri Facecam (Viewport Dinamis berbasis Rasio a:b)
+    w_fc = out_w
+    h_fc = 0
+    cw_fc, ch_fc, cx_fc, cy_fc = 0, 0, 0, 0
     if fc_enabled:
-        w_fc = out_w
-        h_fc = int(round(out_w * 0.75))
+        fc_rw = float(facecam_cfg.get("ratioWidth") or 4)
+        fc_rh = float(facecam_cfg.get("ratioHeight") or 3)
+        if fc_rw <= 0:
+            fc_rw = 4.0
+        if fc_rh <= 0:
+            fc_rh = 3.0
+        fc_ratio = fc_rw / fc_rh
+
+        h_fc = int(round(out_w / fc_ratio))
         if h_fc % 2 != 0:
             h_fc += 1
-        y_fc = banner_h
 
         fc_zoom = max(1.0, float(facecam_cfg.get("zoom", 2.0)))
         fc_crop_x = max(0.0, min(100.0, float(facecam_cfg.get("cropX", 80.0))))
         fc_crop_y = max(0.0, min(100.0, float(facecam_cfg.get("cropY", 20.0))))
 
-        cw_fc = int(round((0.75 * vw) / fc_zoom))
-        ch_fc = int(round(vh / fc_zoom))
+        src_aspect = vw / vh if vh > 0 else (16.0 / 9.0)
+        if fc_ratio <= src_aspect:
+            ch_fc = int(round(vh / fc_zoom))
+            cw_fc = int(round(ch_fc * fc_ratio))
+        else:
+            cw_fc = int(round(vw / fc_zoom))
+            ch_fc = int(round(cw_fc / fc_ratio))
+
         cw_fc = max(2, min(vw, cw_fc - (cw_fc % 2)))
         ch_fc = max(2, min(vh, ch_fc - (ch_fc % 2)))
 
@@ -392,30 +386,34 @@ def build_multi_layer_pipeline(
         cx_fc = max(0, min(vw - cw_fc, cx_fc - (cx_fc % 2)))
         cy_fc = max(0, min(vh - ch_fc, cy_fc - (cy_fc % 2)))
 
-    # 3. Hitung Geometri Main Video Gameplay
+    # 3. Hitung Geometri Main Video Gameplay (Viewport Dinamis berbasis Rasio a:b)
     main_zoom = max(1.0, float(main_cfg.get("zoom", 1.0)))
     main_crop_x = max(0.0, min(100.0, float(main_cfg.get("cropX", 50.0))))
     main_crop_y = max(0.0, min(100.0, float(main_cfg.get("cropY", 50.0))))
 
     if is_portrait:
-        if fc_enabled:
-            w_main = out_w
-            h_main = int(round(out_w * 0.75))
-            if h_main % 2 != 0:
-                h_main += 1
-            y_main = banner_h + h_fc
+        def_main_rw = 4.0 if fc_enabled else 16.0
+        def_main_rh = 3.0 if fc_enabled else 9.0
+        main_rw = float(main_cfg.get("ratioWidth") or def_main_rw)
+        main_rh = float(main_cfg.get("ratioHeight") or def_main_rh)
+        if main_rw <= 0:
+            main_rw = def_main_rw
+        if main_rh <= 0:
+            main_rh = def_main_rh
+        main_ratio = main_rw / main_rh
 
-            cw_main = int(round((0.75 * vw) / main_zoom))
+        w_main = out_w
+        h_main = int(round(out_w / main_ratio))
+        if h_main % 2 != 0:
+            h_main += 1
+
+        src_aspect = vw / vh if vh > 0 else (16.0 / 9.0)
+        if main_ratio <= src_aspect:
             ch_main = int(round(vh / main_zoom))
+            cw_main = int(round(ch_main * main_ratio))
         else:
-            w_main = out_w
-            h_main = int(round(out_w * (9.0 / 16.0)))
-            if h_main % 2 != 0:
-                h_main += 1
-            y_main = banner_h
-
             cw_main = int(round(vw / main_zoom))
-            ch_main = int(round(vh / main_zoom))
+            ch_main = int(round(cw_main / main_ratio))
 
         cw_main = max(2, min(vw, cw_main - (cw_main % 2)))
         ch_main = max(2, min(vh, ch_main - (ch_main % 2)))
@@ -429,7 +427,6 @@ def build_multi_layer_pipeline(
     else:
         w_main = out_w
         h_main = out_h
-        y_main = 0
 
         cw_main = int(round(vw / main_zoom))
         ch_main = int(round(vh / main_zoom))
@@ -443,21 +440,91 @@ def build_multi_layer_pipeline(
         cx_main = max(0, min(vw - cw_main, cx_main - (cx_main % 2)))
         cy_main = max(0, min(vh - ch_main, cy_main - (cy_main % 2)))
 
-    # 4. Susun Baris-Baris Filtergraph FFmpeg
+    # 4. Hitung Posisi Y Tiap Layer (Centered Vertikal Otomatis pada Mode Portrait)
+    h_banner_act = banner_h if (ctx_enabled and ctx_text) else 0
+    h_fc_act = h_fc if fc_enabled else 0
+    h_main_act = h_main if main_enabled else 0
+
+    if is_portrait:
+        total_content_h = h_banner_act + h_fc_act + h_main_act
+        offset_y = max(0, int(round((out_h - total_content_h) / 2)))
+        if offset_y % 2 != 0:
+            offset_y += 1
+
+        y_banner = offset_y
+        y_fc = offset_y + h_banner_act
+        y_main = offset_y + h_banner_act + h_fc_act
+    else:
+        y_banner = 0
+        y_fc = 0
+        y_main = 0
+
+    # 5. Susun Filter Teks Banner Konteks
+    ctx_drawtext_filters = []
+    if ctx_enabled and ctx_text:
+        if num_lines == 1:
+            ctx_file = f"{output_base}.context.txt"
+            with open(ctx_file, "w", encoding="utf-8") as f:
+                f.write(ctx_lines[0])
+            temp_files.append(ctx_file)
+            esc_ctx_file = escape_ffmpeg_filter_path(ctx_file)
+            x_expr = "(w-text_w)/2" if ctx_align == "center" else f"{pad_x}"
+            ctx_drawtext_filters.append(
+                f"drawtext=textfile='{esc_ctx_file}'{font_opt}:fontsize={ctx_fs}:fontcolor=black:x={x_expr}:y={y_banner}+({banner_h}-text_h)/2"
+            )
+        else:
+            total_text_h = num_lines * line_height
+            start_y = max(0, int(round((banner_h - total_text_h) / 2)))
+            for i, line in enumerate(ctx_lines):
+                line_file = f"{output_base}.context_{i}.txt"
+                with open(line_file, "w", encoding="utf-8") as f:
+                    f.write(line)
+                temp_files.append(line_file)
+                esc_line_file = escape_ffmpeg_filter_path(line_file)
+                x_expr = "(w-text_w)/2" if ctx_align == "center" else f"{pad_x}"
+                y_pos = y_banner + start_y + i * line_height
+                ctx_drawtext_filters.append(
+                    f"drawtext=textfile='{esc_line_file}'{font_opt}:fontsize={ctx_fs}:fontcolor=black:x={x_expr}:y={y_pos}"
+                )
+
+    # 6. Susun Baris-Baris Filtergraph FFmpeg
     filter_lines = []
 
     if is_portrait:
+        if y_main >= out_h:
+            y_main = max(0, out_h - 2)
+            y_main -= (y_main % 2)
+        if y_fc >= out_h:
+            y_fc = max(0, out_h - 2)
+            y_fc -= (y_fc % 2)
+
+        avail_main_h = max(2, out_h - y_main)
+        if avail_main_h % 2 != 0:
+            avail_main_h -= 1
+        if h_main > avail_main_h:
+            main_scale_filter = f"scale={w_main}:{h_main},crop={w_main}:{avail_main_h}:0:0"
+        else:
+            main_scale_filter = f"scale={w_main}:{h_main}"
+
+        avail_fc_h = max(2, out_h - y_fc)
+        if avail_fc_h % 2 != 0:
+            avail_fc_h -= 1
+        if h_fc > avail_fc_h:
+            fc_scale_filter = f"scale={w_fc}:{h_fc},crop={w_fc}:{avail_fc_h}:0:0"
+        else:
+            fc_scale_filter = f"scale={w_fc}:{h_fc}"
+
         if fc_enabled and main_enabled:
             filter_lines.append("[0:v]split=2[in_fc][in_main];")
-            filter_lines.append(f"[in_fc]crop={cw_fc}:{ch_fc}:{cx_fc}:{cy_fc},scale={w_fc}:{h_fc}[fc_box];")
-            filter_lines.append(f"[in_main]crop={cw_main}:{ch_main}:{cx_main}:{cy_main},scale={w_main}:{h_main},pad={out_w}:{out_h}:0:{y_main}:black[canvas_pad];")
+            filter_lines.append(f"[in_fc]crop={cw_fc}:{ch_fc}:{cx_fc}:{cy_fc},{fc_scale_filter}[fc_box];")
+            filter_lines.append(f"[in_main]crop={cw_main}:{ch_main}:{cx_main}:{cy_main},{main_scale_filter},pad={out_w}:{out_h}:0:{y_main}:black[canvas_pad];")
             filter_lines.append(f"[canvas_pad][fc_box]overlay=0:{y_fc}[canvas_comp];")
         elif fc_enabled and not main_enabled:
             # Facecam Saja (tanpa gameplay) pada kanvas 9:16 portrait
-            filter_lines.append(f"[0:v]crop={cw_fc}:{ch_fc}:{cx_fc}:{cy_fc},scale={w_fc}:{h_fc},pad={out_w}:{out_h}:0:{y_fc}:black[canvas_comp];")
+            filter_lines.append(f"[0:v]crop={cw_fc}:{ch_fc}:{cx_fc}:{cy_fc},{fc_scale_filter},pad={out_w}:{out_h}:0:{y_fc}:black[canvas_comp];")
         elif not fc_enabled and main_enabled:
             # Gameplay Saja (16:9) pada kanvas 9:16 portrait
-            filter_lines.append(f"[0:v]crop={cw_main}:{ch_main}:{cx_main}:{cy_main},scale={w_main}:{h_main},pad={out_w}:{out_h}:0:{y_main}:black[canvas_comp];")
+            filter_lines.append(f"[0:v]crop={cw_main}:{ch_main}:{cx_main}:{cy_main},{main_scale_filter},pad={out_w}:{out_h}:0:{y_main}:black[canvas_comp];")
         else:
             # Keduanya nonaktif (misal hanya banner konteks / watermark / subtitle)
             filter_lines.append(f"[0:v]scale={out_w}:{out_h},drawbox=x=0:y=0:w={out_w}:h={out_h}:color=black:t=fill[canvas_comp];")
@@ -470,10 +537,10 @@ def build_multi_layer_pipeline(
 
     current_node = "[canvas_comp]"
 
-    # 5. Pasang Banner Konteks jika aktif
+    # 7. Pasang Banner Konteks jika aktif
     if ctx_enabled and ctx_text and ctx_drawtext_filters:
         banner_filters = [
-            f"drawbox=x=0:y=0:w={out_w}:h={banner_h}:color=white:t={banner_h}"
+            f"drawbox=x=0:y={y_banner}:w={out_w}:h={banner_h}:color=white:t={banner_h}"
         ] + ctx_drawtext_filters
         filter_lines.append(f"{current_node}{','.join(banner_filters)}[canvas_banner];")
         current_node = "[canvas_banner]"
@@ -487,8 +554,8 @@ def build_multi_layer_pipeline(
         ref_dim = min(out_w, out_h)
         base_unit = ref_dim * 0.073
         wm_size_dp = float(watermark_cfg.get("size", 14))
-        wm_fs = max(10, int(round(base_unit * (wm_size_dp / 14.0))))
-        wm_border = max(1, int(round(wm_fs * 0.07)))
+        wm_fs = max(2, int(round(base_unit * (wm_size_dp / 14.0))))
+        wm_border = max(1, int(round(wm_fs * 0.065)))
 
         wm_x = max(0.0, min(100.0, float(watermark_cfg.get("x", 85.0))))
         wm_y = max(0.0, min(100.0, float(watermark_cfg.get("y", 15.0))))
@@ -672,6 +739,10 @@ def burn_subtitles_to_video(
         or float(main_v.get("zoom", 1.0)) > 1.001
         or float(main_v.get("cropX", 50)) != 50
         or float(main_v.get("cropY", 50)) != 50
+        or float(main_v.get("ratioWidth") or 0) > 0
+        or float(main_v.get("ratioHeight") or 0) > 0
+        or float(fc.get("ratioWidth") or 0) > 0
+        or float(fc.get("ratioHeight") or 0) > 0
     ):
         has_template = True
 

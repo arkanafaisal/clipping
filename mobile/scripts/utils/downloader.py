@@ -190,7 +190,7 @@ def download_full_video_robust(video_url, full_video_path, cancel_check=None, ex
         'merge_output_format': 'mp4',
         'progress_hooks': hooks,
         'retries': 0,
-        'fragment_retries': 0,
+        'fragment_retries': 10,
         'socket_timeout': 30
     }
     

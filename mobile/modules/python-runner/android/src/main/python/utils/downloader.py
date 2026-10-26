@@ -189,9 +189,9 @@ def download_full_video_robust(video_url, full_video_path, cancel_check=None, ex
         'no_warnings': True,
         'merge_output_format': 'mp4',
         'progress_hooks': hooks,
-        'retries': 15,
-        'fragment_retries': 15,
-        'socket_timeout': 60
+        'retries': 0,
+        'fragment_retries': 10,
+        'socket_timeout': 30
     }
     
     info_json_path = full_video_path.replace(".mp4", ".info.json")
@@ -222,25 +222,18 @@ def download_full_video_robust(video_url, full_video_path, cancel_check=None, ex
             ydl.download([video_url])
         return True
 
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    has_cookies = os.path.exists(os.path.join(base_dir, 'cookies.txt'))
+
     try:
-        try_download(ydl_opts, use_cookies=False)
+        try_download(ydl_opts, use_cookies=has_cookies)
         return True
-    except Exception as e_anon:
-        if "DibatalkanOlehUser" in str(e_anon):
+    except Exception as e:
+        if "DibatalkanOlehUser" in str(e):
             print("\n🛑 Download video utuh DIBATALKAN oleh user!")
-            return False
-        print(f"⚠️ Mode Anonim gagal: {e_anon}")
-        print(f"Mencoba Mode Cookies (Web) standar...")
-        
-        try:
-            try_download(ydl_opts, use_cookies=True)
-            return True
-        except Exception as e:
-            if "DibatalkanOlehUser" in str(e):
-                print("\n🛑 Download video utuh DIBATALKAN oleh user!")
-                return False
-            print(f"[GAGAL] Semua metode pengunduhan Prime gagal: {e}")
-            return False
+        else:
+            print(f"[GAGAL] Pengunduhan video gagal: {e}")
+        return False
 
 def process_clips_generator(video_url, output_dir, clips, force_portrait=False, cancel_check=None):
     import subprocess

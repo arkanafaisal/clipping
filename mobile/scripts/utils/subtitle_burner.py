@@ -491,6 +491,13 @@ def build_multi_layer_pipeline(
     filter_lines = []
 
     if is_portrait:
+        if y_main >= out_h:
+            y_main = max(0, out_h - 2)
+            y_main -= (y_main % 2)
+        if y_fc >= out_h:
+            y_fc = max(0, out_h - 2)
+            y_fc -= (y_fc % 2)
+
         avail_main_h = max(2, out_h - y_main)
         if avail_main_h % 2 != 0:
             avail_main_h -= 1
@@ -732,6 +739,10 @@ def burn_subtitles_to_video(
         or float(main_v.get("zoom", 1.0)) > 1.001
         or float(main_v.get("cropX", 50)) != 50
         or float(main_v.get("cropY", 50)) != 50
+        or float(main_v.get("ratioWidth") or 0) > 0
+        or float(main_v.get("ratioHeight") or 0) > 0
+        or float(fc.get("ratioWidth") or 0) > 0
+        or float(fc.get("ratioHeight") or 0) > 0
     ):
         has_template = True
 

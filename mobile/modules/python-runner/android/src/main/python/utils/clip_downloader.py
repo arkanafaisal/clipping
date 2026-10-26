@@ -472,33 +472,16 @@ def download_clip_direct(
             captured_errors.append(f"[{'Cookies' if use_cookie else 'Anonim'}] {err_msg}")
             return False
 
-    # Percobaan 1: Mode Anonim
-    stage1_success = run_stage1_download(use_cookie=False)
-
-    # Percobaan 2: Mode Cookies jika anonim gagal dan file cookies tersedia
-    if not stage1_success and cookies_available:
-        print("[ClipDownloader] Unduhan anonim gagal, mencoba kembali dengan cookies...")
-        stage1_success = run_stage1_download(use_cookie=True)
+    # Eksekusi Sekali Jalan (Single Pass): Gunakan cookies jika tersedia, jika tidak jalankan anonim.
+    # Tidak ada fallback retry otomatis agar tidak memperparah rate limit atau menyamarkan error format/jaringan.
+    stage1_success = run_stage1_download(use_cookie=cookies_available)
 
     if not stage1_success or not stage1_type:
         full_err_text = "\n\n".join(captured_errors) if captured_errors else "Gagal mengunduh segmen video sementara dari YouTube."
-        eval_err = captured_errors[-1].lower() if captured_errors else full_err_text.lower()
-
-        if any(k in eval_err for k in ["429", "rate limit", "too many requests"]):
-            code = "RATE_LIMIT_EXCEEDED"
-        elif any(k in eval_err for k in ["403", "forbidden", "access denied", "bot", "captcha", "sign in"]):
-            code = "COOKIES_INVALID_OR_EXPIRED" if cookies_attempted else "RATE_LIMIT_EXCEEDED"
-        elif "requested format is not available" in eval_err:
-            code = "FORMAT_NOT_AVAILABLE"
-        elif any(k in eval_err for k in ["permission denied", "errno 13", "operation not permitted"]):
-            code = "STORAGE_PERMISSION_DENIED"
-        else:
-            code = "DOWNLOAD_FAILED"
-
         cleanup_temp_files()
         return {
             "status": "error",
-            "code": code,
+            "code": "DOWNLOAD_FAILED",
             "error": full_err_text,
             "traceback": full_err_text,
             "stream_url": captured_stream_url

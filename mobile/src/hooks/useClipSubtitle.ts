@@ -431,7 +431,9 @@ export function useClipSubtitle({
         (activeTemplateConfig.facecam?.enabled ||
           activeTemplateConfig.context?.enabled ||
           activeTemplateConfig.mainVideo?.enabled === false ||
-          (activeTemplateConfig.watermark?.enabled && Boolean(activeTemplateConfig.watermark?.text?.trim())))
+          (activeTemplateConfig.watermark?.enabled && Boolean(activeTemplateConfig.watermark?.text?.trim())) ||
+          (activeTemplateConfig.facecam?.ratioWidth && activeTemplateConfig.facecam?.ratioHeight) ||
+          (activeTemplateConfig.mainVideo?.ratioWidth && activeTemplateConfig.mainVideo?.ratioHeight))
     );
 
     if ((!currentCues || currentCues.length === 0) && !hasTemplate) {

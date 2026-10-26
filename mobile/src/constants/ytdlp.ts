@@ -94,7 +94,7 @@ export const PRIME_CLIP_DOWNLOAD_OPTS: YtdlOpts = {
   quiet: false,
   no_warnings: true,
   retries: 0,
-  fragment_retries: 0,
+  fragment_retries: 10,
   skip_unavailable_fragments: false,
   socket_timeout: 30,
   extractor_retries: 0,
