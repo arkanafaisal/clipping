@@ -722,6 +722,26 @@ export async function deleteCookies(): Promise<void> {
  * - Jika h === 0: "mm.ss" (contoh: "00.12", "01.35")
  */
 export function formatTimeForFilename(seconds: number): string {
+  if (seconds === undefined || seconds === null || isNaN(seconds)) return '00.00.000';
+  const totalMs = Math.max(0, Math.round(seconds * 1000));
+  const totalSeconds = Math.floor(totalMs / 1000);
+  const ms = totalMs % 1000;
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = Math.floor(totalSeconds % 60);
+  const pad = (num: number, len: number = 2) => num.toString().padStart(len, '0');
+  if (h > 0) {
+    return `${pad(h)}.${pad(m)}.${pad(s)}.${pad(ms, 3)}`;
+  }
+  return `${pad(m)}.${pad(s)}.${pad(ms, 3)}`;
+}
+
+/**
+ * Format waktu warisan tanpa milidetik untuk backward compatibility pencarian file lama:
+ * - Jika h > 0: "hh.mm.ss"
+ * - Jika h === 0: "mm.ss"
+ */
+export function formatLegacyTimeForFilename(seconds: number): string {
   if (seconds === undefined || seconds === null || isNaN(seconds)) return '00.00';
   const totalSeconds = Math.round(seconds);
   const h = Math.floor(totalSeconds / 3600);
@@ -733,6 +753,7 @@ export function formatTimeForFilename(seconds: number): string {
   }
   return `${pad(m)}.${pad(s)}`;
 }
+
 
 /**
  * Menghasilkan nama file klip berbasis rentang waktu yang sudah terformat:
@@ -900,21 +921,36 @@ export async function resolvePlayableClipUri(
   end: number,
   rank?: number | string
 ): Promise<string> {
-  // 1. Cek format baru di shared storage
+  // 1. Cek format baru presisi ms di shared storage
   const shared = getClipOutputFilePath(videoId, start, end, rank);
   try {
     const info = await FileSystem.getInfoAsync(shared.fileUri);
     if (info.exists) return shared.fileUri;
   } catch {}
 
-  // 2. Cek format baru di internal sandbox
+  // 2. Cek format baru presisi ms di internal sandbox
   const internal = getClipInternalOutputFilePath(videoId, start, end, rank);
   try {
     const internalInfo = await FileSystem.getInfoAsync(internal.fileUri);
     if (internalInfo.exists) return internal.fileUri;
   } catch {}
 
-  // 3. Fallback format lama (clip_${rank}_${start}_${end}.mp4 & clip_${videoId}_${start}_${end}.mp4)
+  // 3. Fallback format tanpa ms (legacy: "mm.ss - mm.ss.mp4")
+  const legacyStart = formatLegacyTimeForFilename(start);
+  const legacyEnd = formatLegacyTimeForFilename(end);
+  const legacyShared = `file://${SHARED_CLIPPING_OUTPUT_DIR}/${videoId}/${legacyStart} - ${legacyEnd}.mp4`;
+  try {
+    const legInfo = await FileSystem.getInfoAsync(legacyShared);
+    if (legInfo.exists) return legacyShared;
+  } catch {}
+
+  const legacyInternal = `file://${INTERNAL_CLIPPING_OUTPUT_DIR}/${videoId}/${legacyStart} - ${legacyEnd}.mp4`;
+  try {
+    const legIntInfo = await FileSystem.getInfoAsync(legacyInternal);
+    if (legIntInfo.exists) return legacyInternal;
+  } catch {}
+
+  // 4. Fallback format lama (clip_${rank}_${start}_${end}.mp4 & clip_${videoId}_${start}_${end}.mp4)
   const startStr = Math.round(start).toString();
   const endStr = Math.round(end).toString();
   if (rank) {
@@ -1944,13 +1980,42 @@ export async function loadClipSubtitle(
     }
   } catch {}
 
-  // 2. Fallback legacy jika pernah tersimpan di Shared Storage lama
+  // 2. Fallback jika pernah tersimpan di Shared Storage
   try {
     const filename = getClipSubtitleFilename(start, end);
     const legacySharedUri = `file://${SHARED_CLIPPING_OUTPUT_DIR}/${videoId}/${filename}`;
     const legacyInfo = await FileSystem.getInfoAsync(legacySharedUri);
     if (legacyInfo.exists && !legacyInfo.isDirectory) {
       const content = await FileSystem.readAsStringAsync(legacySharedUri);
+      const parsed = JSON.parse(content);
+      if (parsed && Array.isArray(parsed.cues)) {
+        return parsed as ClipSubtitleData;
+      }
+    }
+  } catch {}
+
+  // 3. Fallback format tanpa ms (legacy: "mm.ss - mm.ss.json")
+  const legStart = formatLegacyTimeForFilename(start);
+  const legEnd = formatLegacyTimeForFilename(end);
+  const legFilename = `${legStart} - ${legEnd}.json`;
+
+  try {
+    const legInternalUri = `file://${INTERNAL_CLIPPING_OUTPUT_DIR}/${videoId}/${legFilename}`;
+    const legIntInfo = await FileSystem.getInfoAsync(legInternalUri);
+    if (legIntInfo.exists && !legIntInfo.isDirectory) {
+      const content = await FileSystem.readAsStringAsync(legInternalUri);
+      const parsed = JSON.parse(content);
+      if (parsed && Array.isArray(parsed.cues)) {
+        return parsed as ClipSubtitleData;
+      }
+    }
+  } catch {}
+
+  try {
+    const legSharedUri = `file://${SHARED_CLIPPING_OUTPUT_DIR}/${videoId}/${legFilename}`;
+    const legSharedInfo = await FileSystem.getInfoAsync(legSharedUri);
+    if (legSharedInfo.exists && !legSharedInfo.isDirectory) {
+      const content = await FileSystem.readAsStringAsync(legSharedUri);
       const parsed = JSON.parse(content);
       if (parsed && Array.isArray(parsed.cues)) {
         return parsed as ClipSubtitleData;
@@ -2114,33 +2179,44 @@ export async function loadClipTemplate(
   end: number
 ): Promise<ClipTemplateConfig | null> {
   const { fileUri } = getClipTemplateFilePath(videoId, start, end);
-  try {
-    const info = await FileSystem.getInfoAsync(fileUri);
-    if (info.exists && !info.isDirectory) {
-      const content = await FileSystem.readAsStringAsync(fileUri);
-      const parsed = JSON.parse(content);
-      if (parsed && typeof parsed === 'object') {
-        return {
-          context: {
-            ...DEFAULT_TEMPLATE_CONFIG.context,
-            ...(parsed.context || {}),
-          },
-          facecam: {
-            ...DEFAULT_TEMPLATE_CONFIG.facecam,
-            ...(parsed.facecam || {}),
-          },
-          mainVideo: {
-            ...DEFAULT_TEMPLATE_CONFIG.mainVideo,
-            ...(parsed.mainVideo || {}),
-          },
-          watermark: {
-            ...DEFAULT_TEMPLATE_CONFIG.watermark,
-            ...(parsed.watermark || {}),
-          },
-        };
+  const candidates = [fileUri];
+
+  // Fallback format tanpa ms jika pernah disimpan dengan format lama
+  const legStart = formatLegacyTimeForFilename(start);
+  const legEnd = formatLegacyTimeForFilename(end);
+  const legFilename = `${legStart} - ${legEnd} (Template).json`;
+  candidates.push(`file://${INTERNAL_CLIPPING_OUTPUT_DIR}/${videoId}/${legFilename}`);
+  candidates.push(`file://${SHARED_CLIPPING_OUTPUT_DIR}/${videoId}/${legFilename}`);
+
+  for (const uri of candidates) {
+    try {
+      const info = await FileSystem.getInfoAsync(uri);
+      if (info.exists && !info.isDirectory) {
+        const content = await FileSystem.readAsStringAsync(uri);
+        const parsed = JSON.parse(content);
+        if (parsed && typeof parsed === 'object') {
+          return {
+            context: {
+              ...DEFAULT_TEMPLATE_CONFIG.context,
+              ...(parsed.context || {}),
+            },
+            facecam: {
+              ...DEFAULT_TEMPLATE_CONFIG.facecam,
+              ...(parsed.facecam || {}),
+            },
+            mainVideo: {
+              ...DEFAULT_TEMPLATE_CONFIG.mainVideo,
+              ...(parsed.mainVideo || {}),
+            },
+            watermark: {
+              ...DEFAULT_TEMPLATE_CONFIG.watermark,
+              ...(parsed.watermark || {}),
+            },
+          };
+        }
       }
-    }
-  } catch {}
+    } catch {}
+  }
   return null;
 }
 

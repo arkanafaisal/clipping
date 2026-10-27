@@ -5,8 +5,6 @@ import {
   ClipItem,
   fetchStreamUrl,
   clearCachedStreamUrl,
-  getClipOutputFilePath,
-  resolvePlayableClipUri,
   resolvePlayableFullVideoUri,
   SubtitleCue,
 } from '../services/api';
@@ -305,41 +303,8 @@ export function useClipPlayer({
         return;
       }
 
-      // 2. JIKA TIDAK ADA FULL VIDEO LOKAL:
-      // A. Jika mode facecam aktif (2 player berjalan):
-      // Wajib gunakan streamUrl (480p progressive YouTube) agar hardware decoder tidak terbebani 2x video 1080p!
-      // B. Jika facecam tidak aktif & klip individual lokal sudah di-download:
-      // Putar file klip lokal (00.12 - 01.35.mp4) mulai dari detik 0.
-      const isDownloaded = Boolean(downloadedClipsRef.current[clip.id]);
-      const isClipDoneLocal = clip.status === 'done' && isDownloaded && !isFacecamActiveRef.current;
-
-      if (isClipDoneLocal) {
-        setPendingSeek(0);
-        const fileUri = await resolvePlayableClipUri(videoId, clip.start, clip.end, clip.rank);
-        if (fileUri) {
-          if (currentSourceUriRef.current !== fileUri) {
-            currentSourceUriRef.current = fileUri;
-            isSourceSwitchingRef.current = true;
-            try {
-              player.replace(fileUri);
-            } catch (err) {
-              console.warn('[Feed] Replace local file error:', err);
-            }
-          } else {
-            try {
-              player.currentTime = 0;
-              if (autoPlay && isContinueStateRef.current) {
-                player.play();
-              }
-            } catch (err) {
-              console.warn('[Feed] Play local error:', err);
-            }
-          }
-          return;
-        }
-      }
-
-      // 3. FALLBACK UNIVERSAL: Mode stream online YouTube (480p)
+      // 2. FALLBACK UNIVERSAL: Mode stream online YouTube (480p)
+      // Selalu memutar full proxy atau stream pada posisi absolut clip.start tanpa me-load video klip potong ke player
       const activeStream = streamUrlRef.current;
       const targetTime = Math.max(0, clip.start);
       setPendingSeek(targetTime);
@@ -799,47 +764,8 @@ export function useClipPlayer({
   const initializeStreamAndPlayback = useCallback(
     async (initialActiveClip: ClipItem | null, existingDownloadMap: Record<string, boolean>) => {
       const firstClipStart = initialActiveClip ? initialActiveClip.start : 0;
-      const isFirstClipLocal = Boolean(
-        initialActiveClip &&
-          initialActiveClip.status === 'done' &&
-          existingDownloadMap[initialActiveClip.id]
-      );
 
-      // 1. Jika klip pertama sudah selesai di-cut secara lokal
-      if (isFirstClipLocal && initialActiveClip) {
-        const { fileUri } = getClipOutputFilePath(
-          videoId,
-          initialActiveClip.start,
-          initialActiveClip.end,
-          initialActiveClip.rank
-        );
-        currentSourceUriRef.current = fileUri;
-        setPendingSeek(0);
-        isSourceSwitchingRef.current = true;
-        player.replace(fileUri);
-        if (isFacecamActiveRef.current && facecamPlayer) {
-          try {
-            facecamPlayer.replace(fileUri);
-            facecamPlayer.muted = true;
-            facecamPlayer.currentTime = 0;
-            facecamPlayer.play();
-          } catch (e) {}
-        }
-        try {
-          player.currentTime = 0;
-          player.play();
-        } catch (playErr) {
-          console.log('[Feed] Auto-play initial local clip error:', playErr);
-        }
-        ToastManager.show({
-          type: 'success',
-          title: 'Memutar File Lokal',
-          duration: 2500,
-        });
-        return;
-      }
-
-      // 2. Prioritas Kedua: Cek apakah file fisik full video lokal sudah ada di shared storage (HANYA jika playMode !== 'stream')
+      // 1. Prioritas Utama: Cek apakah file fisik full video lokal sudah ada di shared storage (HANYA jika playMode !== 'stream')
       if (playMode !== 'stream') {
         try {
           const fullVideoUri = await resolvePlayableFullVideoUri(videoId);

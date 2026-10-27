@@ -14,7 +14,43 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Decouple Stream and Download URL Retrieval with Confirmation Modal
+## [Unreleased] - Millisecond Filename Precision, Deferred File Checking, and Open Editor Before Download
+- **Konteks Struktural**:
+  1. Kepresisian Nama File hingga Milidetik ([api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts), [file_utils.py](file:///d:/projects/clipping/mobile/scripts/utils/file_utils.py)):
+     - Menjawab kebutuhan pembedaan file klip saat pengguna hanya menggeser atau mengubah milidetik tanpa mengubah detik bulat: format nama file diperluas dari `mm.ss` / `hh.mm.ss` menjadi `mm.ss.mmm` / `hh.mm.ss.mmm` (contoh: `00.12.350 - 01.35.000.mp4`).
+     - Seluruh aset terkait (`.mp4`, `(Subtitled).mp4`, `.json`, `(Template).json`) otomatis mewarisi presisi milidetik melalui `formatTimeForFilename`.
+     - Ditambahkan helper `formatLegacyTimeForFilename` serta fallback berlapis pada `resolvePlayableClipUri`, `loadClipSubtitle`, dan `loadClipTemplate` untuk mendeteksi file lama tanpa milidetik agar aset yang sudah ada tidak terputus (*backward compatible*).
+  2. Pengecekan File Ringan & Penundaan Scan Direktori ([useClipData.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipData.ts), [useClipDownload.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipDownload.ts)):
+     - Menghapus proses scan direktori storage dan perulangan `checkClipFileExists` menyeluruh saat inisialisasi kamar workshop clipping (`init kamar clipping`). Inisialisasi kini instan 0ms I/O.
+     - Pengecekan keberadaan file fisik dialihkan hanya saat klip berada dalam `mode done` (atau di-toggle ke `done`), dan murni memeriksa nama file/stat (`checkClipFileExists`) tanpa memuat (*load*) file video ke memory.
+  3. Pemutaran Video Bebas Lag & Posisi Absolut Terjaga ([useClipPlayer.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipPlayer.ts)):
+     - Menghapus penggantian sumber video player (`player.replace(fileUri)`) ke file klip hasil potong individual (kualitas prime 1080p).
+     - Pemutar video kini konsisten memutar video proxy utuh (`full_proxy.mp4`) atau streaming progressive (480p) pada posisi absolut `clip.start`, sehingga tidak membebani hardware decoder ponsel dan bebas lag.
+  4. Mode Editor Terbuka Sebelum Unduhan & Relokasi Tombol Unduh ([FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx), [useClipTemplate.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipTemplate.ts)):
+     - Membuka akses kontrol editor subtitle dan template segera setelah klip ditandai `done`, meskipun file video klip belum diunduh.
+     - Merelokasi tombol **Unduh** ke slot posisi tombol **Ekspor** (kiri atas). Jika klip belum diunduh, tombol Unduh (dengan progress unduhan) muncul di sana dan tombol ekspor terkunci. Setelah unduhan tuntas, tombol Unduh otomatis berganti menjadi tombol Ekspor.
+     - Menyederhanakan grup tombol kanan atas saat `mode done` sehingga hanya menyisakan tombol centang *Done*.
+     - Menghilangkan syarat `isDownloaded` pada pratinjau kanvas portrait `isPortrait` di `useClipTemplate.ts` agar layout 9:16 dapat langsung diatur dan dipratinjau sebelum klip diunduh.
+- **Perubahan Kode Penting**:
+  - `mobile/src/services/api.ts`:
+    - Memperbarui `formatTimeForFilename` dengan presisi 3 digit milidetik (`.mmm`).
+    - Menambahkan `formatLegacyTimeForFilename` dan mekanisme pengecekan fallback format warisan pada `resolvePlayableClipUri`, `loadClipSubtitle`, dan `loadClipTemplate`.
+  - `mobile/scripts/utils/file_utils.py`:
+    - Memperbarui `format_time_filename` Python dengan presisi `.mmm`.
+  - `mobile/src/hooks/useClipData.ts`:
+    - Menghapus perulangan pre-scan direktori storage pada saat inisialisasi klip.
+    - Menyesuaikan `handleToggleDone` agar hanya memeriksa keberadaan file ke `downloadedClips` tanpa mengganti sumber pemutar video.
+  - `mobile/src/hooks/useClipPlayer.ts`:
+    - Menghilangkan `player.replace` untuk file klip potong individual pada `syncPlayerSourceForClip` dan `initializeStreamAndPlayback`.
+  - `mobile/src/hooks/useClipDownload.ts`:
+    - Menambahkan pengecekan fallback nama lama pada `useEffect` mode done dan menghapus pemaksaan pergantian sumber pemutar ke file lokal saat unduhan selesai.
+  - `mobile/src/components/feed/FeedTopControls.tsx`:
+    - Memindahkan tombol Unduh ke posisi tombol Ekspor saat klip belum diunduh.
+    - Menghapus pengondisian `isDownloaded` pada rendering baris kontrol editor Subtitle dan Template.
+  - `mobile/src/hooks/useClipTemplate.ts`:
+    - Menghapus batasan `!isDownloaded` dari kalkulasi memo `isPortrait`.
+
+## [42c1993] - Decouple Stream and Download URL Retrieval with Confirmation Modal
 - **Konteks Struktural**:
   1. Pemisahan Total Ekstraksi URL dari Konsumsi Stream & Download ([UrlConfirmModal.tsx](file:///d:/projects/clipping/mobile/src/components/UrlConfirmModal.tsx), [api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts)):
      - Menjawab kendala pemborosan kuota data seluler saat pengguna mengalami rate limit/blokir IP YouTube pada koneksi Wi-Fi: ekstraksi metadata URL YouTube (~100 KB) kini dipisahkan sepenuhnya menjadi fungsi mandiri dari proses pengunduhan atau pemutaran video multi-megabyte.

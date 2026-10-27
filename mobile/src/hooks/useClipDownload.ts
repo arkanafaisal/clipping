@@ -4,6 +4,7 @@ import {
   ClipItem,
   downloadClip,
   getClipOutputFilePath,
+  resolvePlayableClipUri,
   checkClipFileExists,
   hasCachedDownloadStreamUrl,
   fetchAndCacheDownloadStreamUrl,
@@ -56,13 +57,19 @@ export function useClipDownload({
     };
   }, []);
 
-  // Deteksi keberadaan file video saat klip aktif berstatus 'done'
+  // Deteksi keberadaan file video saat klip aktif berstatus 'done' (cek nama file tanpa load video)
   useEffect(() => {
     if (activeClip && activeClip.status === 'done') {
       const { fileUri } = getClipOutputFilePath(videoId, activeClip.start, activeClip.end, activeClip.rank);
-      checkClipFileExists(fileUri).then((exists) => {
+      checkClipFileExists(fileUri).then(async (exists) => {
         if (exists) {
           setDownloadedClips((prev) => ({ ...prev, [activeClip.id]: true }));
+        } else {
+          const legacyUri = await resolvePlayableClipUri(videoId, activeClip.start, activeClip.end, activeClip.rank);
+          const legacyExists = await checkClipFileExists(legacyUri);
+          if (legacyExists) {
+            setDownloadedClips((prev) => ({ ...prev, [activeClip.id]: true }));
+          }
         }
       });
     }
@@ -193,11 +200,6 @@ export function useClipDownload({
       const doneCount = updated.filter((c) => c.status === 'done').length;
       onUpdateWorkshopDone?.(videoId, doneCount);
 
-      // Jika klip yang baru selesai diunduh adalah klip yang sedang aktif ditonton, langsung switch ke local playback
-      const currentActiveId = activeClipIdRef.current || activeClipId;
-      if (currentActiveId === clipId) {
-        syncPlayerSourceForClip?.({ ...activeClip, status: 'done' }, true);
-      }
 
       ToastManager.show({
         type: 'success',

@@ -1,15 +1,10 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import * as FileSystem from 'expo-file-system/legacy';
 import {
   ClipItem,
   fetchHeatmap,
   getClipOutputFilePath,
-  getClipFilename,
-  formatTimeForFilename,
   resolvePlayableClipUri,
   checkClipFileExists,
-  SHARED_CLIPPING_OUTPUT_DIR,
-  INTERNAL_CLIPPING_OUTPUT_DIR,
 } from '../services/api';
 import { LocalStorage } from '../services/storage';
 import { ToastManager } from '../components/Toast';
@@ -215,84 +210,15 @@ export function useClipData({
         }
 
         if (isMounted) {
-          setClips(loadedClips);
+          setClips([...loadedClips]);
+          clipsRef.current = loadedClips;
+          setDownloadedClips({});
+          downloadedClipsRef.current = {};
           setLoading(false);
         }
 
-        // Pre-scan keberadaan file klip di shared dan internal sandbox storage untuk SEMUA klip
-        const existingDownloadMap: Record<string, boolean> = {};
-        let hasNewDone = false;
-
-        const videoDirUri = `file://${SHARED_CLIPPING_OUTPUT_DIR}/${videoId}`;
-        const internalVideoDirUri = `file://${INTERNAL_CLIPPING_OUTPUT_DIR}/${videoId}`;
-        let dirFiles: string[] = [];
-        try {
-          const dirInfo = await FileSystem.getInfoAsync(videoDirUri);
-          if (dirInfo.exists && dirInfo.isDirectory) {
-            dirFiles = await FileSystem.readDirectoryAsync(videoDirUri);
-          }
-        } catch {}
-        try {
-          const internalDirInfo = await FileSystem.getInfoAsync(internalVideoDirUri);
-          if (internalDirInfo.exists && internalDirInfo.isDirectory) {
-            const internalFiles = await FileSystem.readDirectoryAsync(internalVideoDirUri);
-            dirFiles = [...dirFiles, ...internalFiles];
-          }
-        } catch {}
-
-        for (let i = 0; i < loadedClips.length; i++) {
-          const clip = loadedClips[i];
-          const filename = getClipFilename(clip.start, clip.end);
-          const startStr = Math.round(clip.start).toString();
-          const endStr = Math.round(clip.end).toString();
-          const startFormatted = formatTimeForFilename(clip.start);
-          const endFormatted = formatTimeForFilename(clip.end);
-
-          // 1. Pencocokan nama file di direktori (Format baru: "00.12 - 01.35.mp4", atau format lama)
-          const fileMatchInDir = dirFiles.find((f) => {
-            if (!f.endsWith('.mp4') || f === 'full.mp4' || f === 'full_video.mp4' || f === 'full_proxy.mp4') return false;
-            if (f === filename || (f.includes(startFormatted) && f.includes(endFormatted))) {
-              return true;
-            }
-            return f.includes(`_${startStr}_${endStr}.mp4`);
-          });
-
-          let exists = false;
-          if (fileMatchInDir) {
-            exists = true;
-          } else {
-            // 2. Pencocokan langsung format baru & fallback
-            const { fileUri } = getClipOutputFilePath(videoId, clip.start, clip.end, clip.rank);
-            exists = await checkClipFileExists(fileUri);
-            if (!exists) {
-              const legacyUri = await resolvePlayableClipUri(videoId, clip.start, clip.end, clip.rank);
-              exists = await checkClipFileExists(legacyUri);
-            }
-          }
-
-          if (exists) {
-            existingDownloadMap[clip.id] = true;
-            if (clip.status !== 'done') {
-              loadedClips[i] = { ...clip, status: 'done' };
-              hasNewDone = true;
-            }
-          }
-        }
-
-        if (hasNewDone) {
-          await LocalStorage.setItem(DRAFT_KEY, JSON.stringify(loadedClips));
-          onUpdateWorkshopDone?.(videoId, loadedClips.filter((c) => c.status === 'done').length);
-        }
-
-        if (isMounted) {
-          setClips([...loadedClips]);
-          clipsRef.current = loadedClips;
-          setDownloadedClips(existingDownloadMap);
-          downloadedClipsRef.current = existingDownloadMap;
-        }
-
         if (isMounted && onClipsLoaded) {
-          onClipsLoaded(loadedClips, existingDownloadMap, initialActiveClip);
+          onClipsLoaded(loadedClips, {}, initialActiveClip);
         }
       } catch (err: any) {
         if (isMounted) {
@@ -634,32 +560,20 @@ export function useClipData({
 
     if (!targetClip) return;
 
-    // Jika berubah jadi done, cek apakah filenya sudah pernah diunduh
+    // Jika berubah jadi done, cek apakah filenya sudah pernah diunduh (hanya cek file tanpa me-load video yang membebani memori)
     if (nextStatus === 'done') {
       const { fileUri } = getClipOutputFilePath(videoId, targetClip.start, targetClip.end, targetClip.rank);
-      const exists = await checkClipFileExists(fileUri);
+      let exists = await checkClipFileExists(fileUri);
+      if (!exists) {
+        const legacyUri = await resolvePlayableClipUri(videoId, targetClip.start, targetClip.end, targetClip.rank);
+        exists = await checkClipFileExists(legacyUri);
+      }
       if (exists) {
         setDownloadedClips((prev) => ({ ...prev, [targetClip!.id]: true }));
         downloadedClipsRef.current[targetClip.id] = true;
-        syncPlayerSourceForClip(targetClip, true);
-        ToastManager.show({
-          type: 'success',
-          title: 'Memutar File Lokal',
-          duration: 2500,
-        });
-      }
-    } else {
-      // Jika di-toggle off dari done ke none, kembali ke stream YouTube jika sebelumnya memutar file lokal
-      if (currentSourceUriRef.current.startsWith('file://')) {
-        syncPlayerSourceForClip(targetClip, true);
-        ToastManager.show({
-          type: 'info',
-          title: 'Mode Stream YouTube',
-          duration: 2000,
-        });
       }
     }
-  }, [activeClipId, videoId, onUpdateWorkshopDone, setClips, setActiveClipId, syncPlayerSourceForClip, currentSourceUriRef, downloadedClipsRef, setDownloadedClips, clipsRef, activeClipIdRef]);
+  }, [activeClipId, videoId, onUpdateWorkshopDone, setClips, setActiveClipId, downloadedClipsRef, setDownloadedClips, clipsRef, activeClipIdRef]);
 
   // Toggle clip Trash/Skip status (merah)
   const handleToggleTrash = useCallback(() => {

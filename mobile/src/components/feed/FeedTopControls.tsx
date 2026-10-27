@@ -525,8 +525,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = React.memo(({
           </View>
         ) : (
           <View style={styles.leftActionGroup}>
-            {/* Tombol Ekspor (jika sudah terunduh) */}
-            {isDownloaded && (
+            {isDownloaded ? (
               <Pressable
                 style={({ pressed }) => [
                   styles.statusBtn,
@@ -541,6 +540,28 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = React.memo(({
                   <ActivityIndicator size="small" color="#38bdf8" />
                 ) : (
                   <Film size={18} color="#38bdf8" />
+                )}
+              </Pressable>
+            ) : (
+              <Pressable
+                style={({ pressed }) => [
+                  styles.statusBtn,
+                  styles.downloadBtn,
+                  isDownloading && styles.downloadBtnActive,
+                  pressed && { opacity: 0.7 },
+                ]}
+                onPress={onDownloadClip}
+                disabled={isDownloading}
+              >
+                {isDownloading ? (
+                  <View style={styles.downloadLoadingRow}>
+                    <ActivityIndicator size="small" color="#38bdf8" />
+                    <Text style={styles.downloadProgressText}>
+                      {getDownloadProgressLabel(downloadProgressInfo)}
+                    </Text>
+                  </View>
+                ) : (
+                  <Download size={18} color="#38bdf8" />
                 )}
               </Pressable>
             )}
@@ -619,45 +640,19 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = React.memo(({
           )}
         </View>
 
-        {/* SISI KANAN: Trash & Done / Download & Done */}
+        {/* SISI KANAN: Trash & Done / Done */}
         <View style={styles.rightActionGroup}>
           {activeClip.status === 'done' ? (
-            <>
-              {!isDownloaded && (
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.statusBtn,
-                    styles.downloadBtn,
-                    isDownloading && styles.downloadBtnActive,
-                    pressed && { opacity: 0.7 },
-                  ]}
-                  onPress={onDownloadClip}
-                  disabled={isDownloading}
-                >
-                  {isDownloading ? (
-                    <View style={styles.downloadLoadingRow}>
-                      <ActivityIndicator size="small" color="#38bdf8" />
-                      <Text style={styles.downloadProgressText}>
-                        {getDownloadProgressLabel(downloadProgressInfo)}
-                      </Text>
-                    </View>
-                  ) : (
-                    <Download size={18} color="#38bdf8" />
-                  )}
-                </Pressable>
-              )}
-
-              <Pressable
-                style={({ pressed }) => [
-                  styles.statusBtn,
-                  styles.doneBtnActive,
-                  pressed && { opacity: 0.7 },
-                ]}
-                onPressIn={onToggleDone}
-              >
-                <CheckCircle2 size={18} color="#ffffff" />
-              </Pressable>
-            </>
+            <Pressable
+              style={({ pressed }) => [
+                styles.statusBtn,
+                styles.doneBtnActive,
+                pressed && { opacity: 0.7 },
+              ]}
+              onPressIn={onToggleDone}
+            >
+              <CheckCircle2 size={18} color="#ffffff" />
+            </Pressable>
           ) : (
             <>
               <Pressable
@@ -762,7 +757,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = React.memo(({
             </View>
           </View>
         </>
-      ) : isDownloaded ? (
+      ) : (
         <>
           {/* Row 2: Mode Switcher Row */}
           <View style={styles.editorModeRow}>
@@ -1091,7 +1086,7 @@ export const FeedTopControls: React.FC<FeedTopControlsProps> = React.memo(({
             )}
           </View>
     </>
-  ) : null}
+  )}
 
       {/* MODAL 1: Language Selection Modal */}
       <Modal

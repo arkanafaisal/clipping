@@ -289,7 +289,7 @@ export function useClipTemplate({ videoId, activeClip, isDownloaded }: UseClipTe
     // 2. Video klip harus sudah selesai diunduh secara lokal
     // 3. Elemen facecam dinyalakan, konteks dinyalakan, atau gameplay dinonaktifkan (facecam only)
     const isDone = activeClip?.status === 'done';
-    if (!isDone || !isDownloaded) {
+    if (!isDone) {
       return false;
     }
     return Boolean(
@@ -299,7 +299,6 @@ export function useClipTemplate({ videoId, activeClip, isDownloaded }: UseClipTe
     );
   }, [
     activeClip?.status,
-    isDownloaded,
     templateConfig.facecam.enabled,
     templateConfig.context.enabled,
     templateConfig.mainVideo.enabled,
