@@ -14,7 +14,19 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Uniform Louder Countdown Beeps Across 3, 2, and 1
+## [Unreleased] - Upgrade Video Encoding Pipeline to Prime 1080p 60 FPS
+- **Konteks Struktural**:
+  1. Penyelarasan Framerate 60 FPS & Peningkatan Ketajaman Video ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [README.md](file:///d:/projects/clipping/scheduler-uploader/README.md)):
+     - Mengubah target framerate dari 30 FPS menjadi 60 FPS murni (`-r 60`) pada seluruh pipeline rendering (normalisasi klip `cut.mp4`, pembuatan video *freeze kuis*, dan render video full) untuk mempertahankan kehalusan gerakan (*ultra-smooth*) 60 FPS bawaan gameplay/video sumber asli.
+     - Meningkatkan kualitas ketajaman visual video dengan menurunkan CRF dari 22 menjadi `crf 20` pada encoder libx264 guna menjaga detail resolusi prime 1080x1920 tetap tajam dan jernih tanpa artefak kompresi.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/compile_doksli.js`:
+     - Memperbarui fungsi `normalizeVideo` dengan parameter `fps = 60` dan `-crf 20`.
+     - Mengubah perintah FFmpeg pada segmen render freeze frame kuis menjadi `-r 60` dan `-crf 20`.
+  - `scheduler-uploader/README.md`:
+     - Memperbarui spesifikasi hasil video akhir menjadi 1080x1920 60 FPS.
+
+## [16f5063] - Uniform Louder Countdown Beeps Across 3, 2, and 1
 - **Konteks Struktural**:
   1. Penyeragaman Nada & Peningkatan Volume Countdown Beep ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
      - Menyeragamkan frekuensi nada countdown beep menjadi identik (880Hz / A5) pada kemunculan angka 3 ($t = 0.0s$), angka 2 ($t = 1.0s$), dan angka 1 ($t = 2.0s$), menghapus disparitas pitch sebelumnya pada angka 1.

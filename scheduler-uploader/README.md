@@ -57,7 +57,7 @@ Fitur mandiri untuk mengotomatisasi pengeditan video kompilasi kuis interaktif t
    - **Bagian 3 (Full Video + Overlay Judul 1/4 Atas)**:
      - Video full diputar dengan overlay teks judul file di area **1/4 atas kanvas** (`Y = 480`), sehingga tidak menabrak atau menutupi subtitle bawaan video yang ada di tengah layar.
      - *Dukungan Line Break Manual*: Jika judul file mengandung `\n` (contoh: `Ketika Lu Lagi Khusyuk Main\nTiba-tiba Mati Lampu.mp4`), teks otomatis dipisah baris sesuai letak `\n` tanpa auto-wrapping sembarangan.
-3. **Hasil Akhir**: Seluruh momen digabungkan secara *seamless* menjadi 1 video vertikal 9:16 (**1080x1920, 30 FPS**) siap posting di folder `output_kompilasi/`.
+3. **Hasil Akhir**: Seluruh momen digabungkan secara *seamless* menjadi 1 video vertikal 9:16 (**1080x1920, 60 FPS**) siap posting di folder `output_kompilasi/`.
 
 ### 🚀 Cara Menjalankan Kompilasi:
 ```bash

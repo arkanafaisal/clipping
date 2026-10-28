@@ -449,10 +449,10 @@ Dialogue: 0,0:00:00.00,${durStr},MemeTitle,,0,0,0,,{\\pos(540,${posY})\\an5\\bor
 }
 
 /**
- * Normalisasi video klip ke format 1080x1920 30FPS AAC 44.1kHz stereo
+ * Normalisasi video klip ke format prime 1080x1920 60FPS AAC 44.1kHz stereo
  * (Dilengkapi penanganan audio hening jika video asli tidak memiliki stream suara)
  */
-function normalizeVideo({ inputPath, outputPath, assSubtitlePath = null }) {
+function normalizeVideo({ inputPath, outputPath, assSubtitlePath = null, fps = 60 }) {
   let vf = 'scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1';
   if (assSubtitlePath) {
     const escapedAss = assSubtitlePath.replace(/\\/g, '/').replace(/:/g, '\\:');
@@ -461,13 +461,13 @@ function normalizeVideo({ inputPath, outputPath, assSubtitlePath = null }) {
 
   try {
     execSync(
-      `"${FFMPEG_BIN}" -y -i "${inputPath}" -vf "${vf}" -c:v libx264 -preset veryfast -crf 22 -c:a aac -ar 44100 -ac 2 -r 30 -pix_fmt yuv420p "${outputPath}"`,
+      `"${FFMPEG_BIN}" -y -i "${inputPath}" -vf "${vf}" -c:v libx264 -preset veryfast -crf 20 -c:a aac -ar 44100 -ac 2 -r ${fps} -pix_fmt yuv420p "${outputPath}"`,
       { stdio: 'pipe' }
     );
   } catch (err) {
     // Fallback jika video mentah tidak memiliki stream audio
     execSync(
-      `"${FFMPEG_BIN}" -y -i "${inputPath}" -f lavfi -i "anullsrc=r=44100:cl=stereo" -vf "${vf}" -c:v libx264 -preset veryfast -crf 22 -c:a aac -ar 44100 -ac 2 -r 30 -pix_fmt yuv420p -shortest "${outputPath}"`,
+      `"${FFMPEG_BIN}" -y -i "${inputPath}" -f lavfi -i "anullsrc=r=44100:cl=stereo" -vf "${vf}" -c:v libx264 -preset veryfast -crf 20 -c:a aac -ar 44100 -ac 2 -r ${fps} -pix_fmt yuv420p -shortest "${outputPath}"`,
       { stdio: 'ignore' }
     );
   }
@@ -681,7 +681,7 @@ async function runQuizCompiler() {
     const freezeVideoPath = path.join(workDir, `freeze_vid_${momentIndex}.mp4`);
     const escapedQuizAss = quizAssPath.replace(/\\/g, '/').replace(/:/g, '\\:');
     execSync(
-      `"${FFMPEG_BIN}" -y -loop 1 -i "${freezeFramePng}" -i "${sfxWavPath}" -vf "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,ass='${escapedQuizAss}'" -t 4 -c:v libx264 -preset veryfast -c:a aac -ar 44100 -ac 2 -r 30 -pix_fmt yuv420p "${freezeVideoPath}"`,
+      `"${FFMPEG_BIN}" -y -loop 1 -i "${freezeFramePng}" -i "${sfxWavPath}" -vf "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,ass='${escapedQuizAss}'" -t 4 -c:v libx264 -preset veryfast -crf 20 -c:a aac -ar 44100 -ac 2 -r 60 -pix_fmt yuv420p "${freezeVideoPath}"`,
       { stdio: 'ignore' }
     );
 
