@@ -14,7 +14,16 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Accelerated Fast Quiz Pacing and Pure Audio Passthrough
+## [Unreleased] - Full Write Drive Scope for Auto-Upload
+- **Konteks Struktural**:
+  1. Penegasan Scope Izin Tulis Penuh Google Drive ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
+     - Menghapus scope `drive.readonly` pada inisialisasi client API Google Drive dan menegaskan scope penuh `https://www.googleapis.com/auth/drive`.
+     - Memastikan permintaan otorisasi API ke Google Drive mendukung operasi unggah berkas (`POST /upload/drive/v3/files`) untuk upload otomatis hasil kompilasi ke folder target.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/compile_doksli.js`:
+     - Menghapus `'https://www.googleapis.com/auth/drive.readonly'` dari parameter scopes `getGoogleAuth()`.
+
+## [b49e8cb] - Accelerated Fast Quiz Pacing and Pure Audio Passthrough
 - **Konteks Struktural**:
   1. Percepatan Ritme Kuis (*Fast Quiz Pacing*) ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example)):
      - Menyingkat durasi freeze frame kuis agar retensi penonton tidak anjlok akibat layar diam terlalu lama di TikTok/Reels/Shorts, dengan prinsip jika penonton butuh waktu membaca lebih lama mereka dapat melakukan pause video.

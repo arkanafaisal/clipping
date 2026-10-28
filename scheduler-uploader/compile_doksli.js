@@ -598,7 +598,6 @@ async function runQuizCompiler() {
   }
 
   const driveAuth = getGoogleAuth(gdriveToken, [
-    'https://www.googleapis.com/auth/drive.readonly',
     'https://www.googleapis.com/auth/drive',
   ]);
   const drive = google.drive({ version: 'v3', auth: driveAuth });
