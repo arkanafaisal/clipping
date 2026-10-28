@@ -14,7 +14,23 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Mandatory Black Screen Closer and High-Presence TikTok Core Remaster
+## [Unreleased] - 60 FPS Image Demuxer Framerate and Sample-Accurate Audio Boundary Alignment
+- **Konteks Struktural**:
+  1. Penyelarasan Framerate Elemen Kuis Gambar & Standar Ekspor Mobile ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
+     - Memperbaiki akar penyebab framerate turun ke `59.83 FPS`: input frame freeze kuis (`freezeFramePng`) sebelumnya diproses menggunakan `-loop 1` tanpa parameter input `-framerate 60`, sehingga demuxer gambar bawaan FFmpeg mengasumsikan framerate default `25 FPS`. Konversi 25 FPS ke 60 FPS pada segmen kuis menghasilkan interval PTS non-uniform yang merusak timecode saat digabung via `-c copy`.
+     - Menambahkan parameter input `-framerate 60` secara eksplisit sebelum `-loop 1 -i "${freezeFramePng}"` agar elemen kuis terlahir murni pada basis 60.000 FPS.
+     - Mengadopsi profil video standar mobile export ([subtitle_burner.py](file:///d:/projects/clipping/mobile/scripts/utils/subtitle_burner.py)): `-profile:v high -level 4.2 -movflags +faststart`.
+  2. Penguncian Durasi Audio-Video Presisi Sampel (*Sample-Accurate Boundary*) ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
+     - Menambahkan filter sinkronisasi audio `-af "apad,aresample=async=1:first_pts=0" -shortest` pada seluruh tahapan render ([normalizeVideo](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), freeze kuis, dan transisi layar hitam) untuk mengeliminasi sisa audio 10-30 milidetik yang sebelumnya membuat durasi kontainer MP4 lebih panjang daripada durasi frame video aktual ($4607 \text{ frame} / 76.99 \text{ s} = 59.83\text{ FPS}$).
+     - Menambahkan opsi `-video_track_timescale 60000 -movflags +faststart` pada eksekusi concat segmen dan final output.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/compile_doksli.js`:
+     - Menambahkan filter `-af "apad,aresample=async=1:first_pts=0" -shortest` dan flag `-profile:v high -level 4.2 -movflags +faststart` pada `normalizeVideo`.
+     - Menambahkan flag `-framerate 60` pada input `freezeFramePng`, filter `apad,aresample`, `-shortest`, dan flag profil mobile pada `freezeVideoPath`.
+     - Menambahkan `apad,aresample`, `-shortest`, dan flag profil mobile pada `transitionClipPath`.
+     - Menambahkan `-video_track_timescale 60000 -movflags +faststart` pada `execSync` concat segmen dan final output kompilasi.
+
+## [b3c3773] - Mandatory Black Screen Closer and High-Presence TikTok Core Remaster
 - **Konteks Struktural**:
   1. Penutupan Wajib Layar Hitam & Sound TikTok Core di Setiap Momen ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
      - Mengubah logika penggabungan klip akhir sehingga layar hitam dan sound TikTok Core kini tidak hanya disisipkan sebagai transisi antar momen, melainkan menjadi penutup wajib setelah bagian full video reveal di SETIAP momen (termasuk momen terakhir / ke-X).

@@ -478,13 +478,13 @@ function normalizeVideo({ inputPath, outputPath, assSubtitlePath = null, fps = 6
 
   try {
     execSync(
-      `"${FFMPEG_BIN}" -y -i "${inputPath}" -vf "${vf}" -c:v libx264 -preset fast -crf 16 -c:a aac -ar 44100 -ac 2 -r ${fps} -fps_mode cfr -video_track_timescale 60000 -pix_fmt yuv420p "${outputPath}"`,
+      `"${FFMPEG_BIN}" -y -i "${inputPath}" -vf "${vf}" -af "apad,aresample=async=1:first_pts=0" -shortest -c:v libx264 -preset fast -crf 16 -profile:v high -level 4.2 -c:a aac -ar 44100 -ac 2 -r ${fps} -fps_mode cfr -video_track_timescale 60000 -movflags +faststart -pix_fmt yuv420p "${outputPath}"`,
       { stdio: 'pipe' }
     );
   } catch (err) {
     // Fallback jika video mentah tidak memiliki stream audio
     execSync(
-      `"${FFMPEG_BIN}" -y -i "${inputPath}" -f lavfi -i "anullsrc=r=44100:cl=stereo" -vf "${vf}" -c:v libx264 -preset fast -crf 16 -c:a aac -ar 44100 -ac 2 -r ${fps} -fps_mode cfr -video_track_timescale 60000 -pix_fmt yuv420p -shortest "${outputPath}"`,
+      `"${FFMPEG_BIN}" -y -i "${inputPath}" -f lavfi -i "anullsrc=r=44100:cl=stereo" -vf "${vf}" -af "apad,aresample=async=1:first_pts=0" -shortest -c:v libx264 -preset fast -crf 16 -profile:v high -level 4.2 -c:a aac -ar 44100 -ac 2 -r ${fps} -fps_mode cfr -video_track_timescale 60000 -movflags +faststart -pix_fmt yuv420p "${outputPath}"`,
       { stdio: 'ignore' }
     );
   }
@@ -705,7 +705,7 @@ async function runQuizCompiler() {
       const transFrames = Math.max(1, Math.round(sfxDur * 60));
       const transDurSec = (transFrames / 60).toFixed(4);
       execSync(
-        `"${FFMPEG_BIN}" -y -f lavfi -i "color=c=black:s=1080x1920:r=60" -i "${transitionSfxPath}" -af "volume=${transitionVolume},alimiter=limit=0.98" -t ${transDurSec} -vframes ${transFrames} -c:v libx264 -preset fast -crf 16 -c:a aac -ar 44100 -ac 2 -r 60 -fps_mode cfr -video_track_timescale 60000 -pix_fmt yuv420p "${transitionClipPath}"`,
+        `"${FFMPEG_BIN}" -y -f lavfi -i "color=c=black:s=1080x1920:r=60" -i "${transitionSfxPath}" -af "volume=${transitionVolume},alimiter=limit=0.98,apad,aresample=async=1:first_pts=0" -t ${transDurSec} -vframes ${transFrames} -shortest -c:v libx264 -preset fast -crf 16 -profile:v high -level 4.2 -c:a aac -ar 44100 -ac 2 -r 60 -fps_mode cfr -video_track_timescale 60000 -movflags +faststart -pix_fmt yuv420p "${transitionClipPath}"`,
         { stdio: 'ignore' }
       );
       console.log(`   ✅ Klip transisi layar hitam siap disisipkan antar momen (${transFrames} frame / ${transDurSec}s, Volume: ${Math.round(transitionVolume * 100)}%).`);
@@ -758,7 +758,7 @@ async function runQuizCompiler() {
     const freezeVideoPath = path.join(workDir, `freeze_vid_${momentIndex}.mp4`);
     const escapedQuizAss = quizAssPath.replace(/\\/g, '/').replace(/:/g, '\\:');
     execSync(
-      `"${FFMPEG_BIN}" -y -loop 1 -i "${freezeFramePng}" -i "${sfxWavPath}" -vf "scale=1080:1920:force_original_aspect_ratio=decrease:flags=lanczos,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,ass='${escapedQuizAss}'" -t 4 -vframes 240 -c:v libx264 -preset fast -crf 16 -c:a aac -ar 44100 -ac 2 -r 60 -fps_mode cfr -video_track_timescale 60000 -pix_fmt yuv420p "${freezeVideoPath}"`,
+      `"${FFMPEG_BIN}" -y -framerate 60 -loop 1 -i "${freezeFramePng}" -i "${sfxWavPath}" -vf "scale=1080:1920:force_original_aspect_ratio=decrease:flags=lanczos,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1,ass='${escapedQuizAss}'" -af "apad,aresample=async=1:first_pts=0" -t 4 -vframes 240 -shortest -c:v libx264 -preset fast -crf 16 -profile:v high -level 4.2 -c:a aac -ar 44100 -ac 2 -r 60 -fps_mode cfr -video_track_timescale 60000 -movflags +faststart -pix_fmt yuv420p "${freezeVideoPath}"`,
       { stdio: 'ignore' }
     );
 
@@ -798,7 +798,7 @@ async function runQuizCompiler() {
       `file '${normCutPath.replace(/\\/g, '/')}'\nfile '${freezeVideoPath.replace(/\\/g, '/')}'\nfile '${normFullPath.replace(/\\/g, '/')}'\n`,
       'utf8'
     );
-    execSync(`"${FFMPEG_BIN}" -y -f concat -safe 0 -i "${concatTxt}" -c copy "${segmentOut}"`, { stdio: 'ignore' });
+    execSync(`"${FFMPEG_BIN}" -y -f concat -safe 0 -i "${concatTxt}" -c copy -video_track_timescale 60000 -movflags +faststart "${segmentOut}"`, { stdio: 'ignore' });
 
     finalSegmentPaths.push(segmentOut);
     console.log(`   ✅ Momen #${momentIndex} tuntas dirangkai.`);
@@ -829,7 +829,7 @@ async function runQuizCompiler() {
     'utf8'
   );
 
-  execSync(`"${FFMPEG_BIN}" -y -f concat -safe 0 -i "${mainConcatList}" -c copy "${finalOutputPath}"`, { stdio: 'ignore' });
+  execSync(`"${FFMPEG_BIN}" -y -f concat -safe 0 -i "${mainConcatList}" -c copy -video_track_timescale 60000 -movflags +faststart "${finalOutputPath}"`, { stdio: 'ignore' });
 
   // Bersihkan temporary work directory
   console.log('\n[BERSIH-BERSIH] Menghapus cache temporary video mentah...');
