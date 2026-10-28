@@ -14,7 +14,28 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - 60 FPS Image Demuxer Framerate and Sample-Accurate Audio Boundary Alignment
+## [Unreleased] - Accelerated Fast Quiz Pacing and Pure Audio Passthrough
+- **Konteks Struktural**:
+  1. Percepatan Ritme Kuis (*Fast Quiz Pacing*) ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example)):
+     - Menyingkat durasi freeze frame kuis agar retensi penonton tidak anjlok akibat layar diam terlalu lama di TikTok/Reels/Shorts, dengan prinsip jika penonton butuh waktu membaca lebih lama mereka dapat melakukan pause video.
+     - Mempertahankan struktur 4 ketukan utuh (3 countdown beat + 1 reveal beat), namun mempercepat tick interval dari 1.0 detik menjadi default 0.5 detik (total durasi kuis dipersingkat dari 4.0 detik menjadi 2.0 detik / 120 frame pada CFR 60 FPS).
+     - Menambahkan helper `formatAssTime()` untuk menghitung timecode centisecond format ASS (`H:MM:SS.cs`) secara dinamis dan presisi sesuai nilai `tickDuration`.
+     - Mengadaptasi generator audio PCM stereo `generateQuizSoundWav()` agar mensintesis 3 beep countdown (t=0.0s, 0.5s, 1.0s) dan 1 reveal chime (t=1.5s s/d 2.0s) dengan decay eksponensial proporsional sehingga audio meluruh tuntas bebas klik.
+     - Menyediakan konfigurasi `QUIZ_TICK_SECONDS` pada `.env.example` dan argumen CLI `--tick=...` untuk fleksibilitas pengaturan ritme kuis.
+  2. Penghapusan Mekanisme Pengubah Volume Audio di Kode (*Pure Audio Passthrough*) ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example)):
+     - Menghapus variabel konfigurasi `TRANSITION_VOLUME`, argumen CLI `--transition-volume=`, serta filter audio `volume=...` dan `alimiter=...` pada pembuatan klip layar hitam penutup momen.
+     - Memberikan kendali 100% kepada berkas audio fisik `tiktok core.mp3` hasil mastering/editing manual pengguna tanpa campur tangan kode FFmpeg, menyisakan hanya filter penjamin sinkronisasi frame `-af "apad,aresample=async=1:first_pts=0"`.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/compile_doksli.js`:
+     - Menambahkan fungsi helper `formatAssTime(sec)`.
+     - Memodifikasi fungsi `generateQuizSoundWav(outputPath, tickDuration, totalDuration)` dan `generateQuizASS({...})` agar mendukung perhitungan dinamis berbasis `tickDuration`.
+     - Mengganti pembacaan `TRANSITION_VOLUME` menjadi `QUIZ_TICK_SECONDS` (default: 0.5s) dan menambahkan parser argumen `--tick=...`.
+     - Menghapus filter `volume=${transitionVolume},alimiter=limit=0.98` pada execSync `transitionClipPath`.
+     - Memperbarui perhitungan frame `freezeVideoPath` menjadi `totalQuizFrames = Math.max(1, Math.round(4 * quizTickSeconds * 60))` dan durasi `-t ${totalQuizSec} -vframes ${totalQuizFrames}`.
+  - `scheduler-uploader/.env.example`:
+     - Menghapus opsi `TRANSITION_VOLUME=3.0` dan menambahkan dokumentasi `QUIZ_TICK_SECONDS=0.5`.
+
+## [6e5e140] - 60 FPS Image Demuxer Framerate and Sample-Accurate Audio Boundary Alignment
 - **Konteks Struktural**:
   1. Penyelarasan Framerate Elemen Kuis Gambar & Standar Ekspor Mobile ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
      - Memperbaiki akar penyebab framerate turun ke `59.83 FPS`: input frame freeze kuis (`freezeFramePng`) sebelumnya diproses menggunakan `-loop 1` tanpa parameter input `-framerate 60`, sehingga demuxer gambar bawaan FFmpeg mengasumsikan framerate default `25 FPS`. Konversi 25 FPS ke 60 FPS pada segmen kuis menghasilkan interval PTS non-uniform yang merusak timecode saat digabung via `-c copy`.

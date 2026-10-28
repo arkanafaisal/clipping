@@ -244,17 +244,29 @@ function getAudioDuration(filePath) {
 }
 
 /**
- * Generator Efek Suara WAV 4 Detik (Countdown Beep & Correct Chime)
- * Menghasilkan file PCM WAV stereo 44.1kHz murni tanpa aset audio eksternal:
- * - t = 0.0s : Beep 880Hz (Countdown 3) - Volume kencang & mantap (amp 0.70)
- * - t = 1.0s : Beep 880Hz (Countdown 2) - Identik dengan countdown 3
- * - t = 2.0s : Beep 880Hz (Countdown 1) - Identik dengan countdown 3 & 2
- * - t = 3.0s : Correct Chime (Rising Major Arpeggio C6-E6-G6 + bell harmonic)
+ * Helper format detik ke timecode ASS (H:MM:SS.cs)
  */
-function generateQuizSoundWav(outputPath) {
+function formatAssTime(sec) {
+  const totalCs = Math.round(sec * 100);
+  const cs = String(totalCs % 100).padStart(2, '0');
+  const totalSec = Math.floor(totalCs / 100);
+  const s = String(totalSec % 60).padStart(2, '0');
+  const m = String(Math.floor(totalSec / 60) % 60).padStart(2, '0');
+  const h = String(Math.floor(totalSec / 3600));
+  return `${h}:${m}:${s}.${cs}`;
+}
+
+/**
+ * Generator Efek Suara WAV Kuis (3 Countdown Beep & 1 Correct Chime)
+ * Menghasilkan file PCM WAV stereo 44.1kHz murni tanpa aset audio eksternal:
+ * - t = 0 * tick : Beep 880Hz (Countdown 3)
+ * - t = 1 * tick : Beep 880Hz (Countdown 2)
+ * - t = 2 * tick : Beep 880Hz (Countdown 1)
+ * - t = 3 * tick : Correct Chime (Rising Major Arpeggio C6-E6-G6 + harmoni lonceng)
+ */
+function generateQuizSoundWav(outputPath, tickDuration = 0.5, totalDuration = 2.0) {
   const sampleRate = 44100;
-  const durationSec = 4.0;
-  const numSamples = Math.floor(sampleRate * durationSec);
+  const numSamples = Math.round(sampleRate * totalDuration);
   const numChannels = 2;
   const bytesPerSample = 2; // 16-bit
   const blockAlign = numChannels * bytesPerSample;
@@ -283,53 +295,59 @@ function generateQuizSoundWav(outputPath) {
   buffer.writeUInt32LE(dataSize, 40);
 
   // Parameter Countdown Beep Identik (3, 2, 1)
-  const beepTimes = [0.0, 1.0, 2.0];
-  const beepDuration = 0.14; // 140ms per beep
+  const beepTimes = [0.0 * tickDuration, 1.0 * tickDuration, 2.0 * tickDuration];
+  const beepDuration = Math.min(0.11, tickDuration * 0.25);
   const beepFreq = 880; // 880Hz (A5) seragam untuk semua countdown
   const beepPeakAmp = 0.70; // Volume kencang dan bertenaga
+
+  const chimeStart = 3.0 * tickDuration;
+  const chimeDuration = Math.max(0.2, totalDuration - chimeStart);
 
   // Sintesis audio gelombang
   for (let i = 0; i < numSamples; i++) {
     const t = i / sampleRate;
     let sample = 0;
 
-    // 1. Countdown Beep Identik di t = 0.0s, 1.0s, dan 2.0s
+    // 1. Countdown Beep Identik di t = 0 * tick, 1 * tick, dan 2 * tick
     for (const t0 of beepTimes) {
       if (t >= t0 && t < t0 + beepDuration) {
         const dt = t - t0;
         let env = 1.0;
         if (dt < 0.005) {
           env = dt / 0.005; // 5ms attack halus bebas klik
-        } else if (dt > 0.08) {
-          env = Math.max(0, 1.0 - (dt - 0.08) / (beepDuration - 0.08)); // release lembut
+        } else if (dt > 0.06) {
+          env = Math.max(0, 1.0 - (dt - 0.06) / (beepDuration - 0.06)); // release lembut
         }
         sample += beepPeakAmp * Math.sin(2 * Math.PI * beepFreq * dt) * env;
       }
     }
 
-    // 4. Correct Chime di t = 3.0s (C6 -> E6 -> G6)
-    if (t >= 3.0) {
-      const dt = t - 3.0;
+    // 2. Correct Chime di t = 3 * tick (C6 -> E6 -> G6)
+    if (t >= chimeStart) {
+      const dt = t - chimeStart;
+      const decayRate = Math.max(6, 4.0 / chimeDuration);
 
-      // Note 1: C6 (1046.5 Hz) di t=3.00s
-      if (dt >= 0.0 && dt < 0.7) {
-        const env1 = Math.exp(-dt * 6);
+      // Note 1: C6 (1046.5 Hz)
+      if (dt >= 0.0 && dt < chimeDuration * 0.8) {
+        const env1 = Math.exp(-dt * decayRate);
         sample += 0.25 * Math.sin(2 * Math.PI * 1046.5 * dt) * env1;
       }
 
-      // Note 2: E6 (1318.5 Hz) di t=3.08s
-      if (dt >= 0.08 && dt < 0.78) {
-        const dt2 = dt - 0.08;
-        const env2 = Math.exp(-dt2 * 6);
+      // Note 2: E6 (1318.5 Hz)
+      const note2Offset = Math.min(0.06, chimeDuration * 0.12);
+      if (dt >= note2Offset && dt < chimeDuration * 0.9) {
+        const dt2 = dt - note2Offset;
+        const env2 = Math.exp(-dt2 * decayRate);
         sample += 0.28 * Math.sin(2 * Math.PI * 1318.5 * dt2) * env2;
       }
 
-      // Note 3: G6 (1568 Hz) + harmonic di t=3.16s
-      if (dt >= 0.16 && dt < 0.95) {
-        const dt3 = dt - 0.16;
-        const env3 = Math.exp(-dt3 * 5);
+      // Note 3: G6 (1568 Hz) + harmoni lonceng cerah
+      const note3Offset = Math.min(0.12, chimeDuration * 0.24);
+      if (dt >= note3Offset && dt < chimeDuration) {
+        const dt3 = dt - note3Offset;
+        const env3 = Math.exp(-dt3 * (decayRate * 0.9));
         sample += 0.35 * Math.sin(2 * Math.PI * 1567.98 * dt3) * env3;
-        sample += 0.15 * Math.sin(2 * Math.PI * 3135.96 * dt3) * env3; // Harmoni lonceng cerah
+        sample += 0.15 * Math.sin(2 * Math.PI * 3135.96 * dt3) * env3;
       }
     }
 
@@ -356,6 +374,8 @@ function generateQuizASS({
   options = [],
   correctIndex = 0,
   offsetY = 0,
+  tickDuration = 0.5,
+  totalDuration = 2.0,
 }) {
   const cardW = 920;
   const leftX = (1080 - cardW) / 2; // 80
@@ -371,25 +391,31 @@ function generateQuizASS({
   // Path vektor rounded rectangle (920 x 110 dengan radius 20px)
   const roundRect = `m 0 20 b 0 9 9 0 20 0 l 900 0 b 911 0 920 9 920 20 l 920 90 b 920 101 911 110 900 110 l 20 110 b 9 110 0 101 0 90`;
 
+  const str0 = formatAssTime(0);
+  const str1 = formatAssTime(1 * tickDuration);
+  const str2 = formatAssTime(2 * tickDuration);
+  const str3 = formatAssTime(3 * tickDuration);
+  const str4 = formatAssTime(totalDuration);
+
   const events = [];
 
   // 1. Fullscreen Dark Overlay (Gelapkan frame video asli sekitar 70%)
-  events.push(`Dialogue: 0,0:00:00.00,0:00:04.00,Default,,0,0,0,,{\\pos(0,0)\\an7\\p1\\1a&H45&\\1c&H000000&\\3a&HFF&}m 0 0 l 1080 0 l 1080 1920 l 0 1920{\\p0}`);
+  events.push(`Dialogue: 0,${str0},${str4},Default,,0,0,0,,{\\pos(0,0)\\an7\\p1\\1a&H45&\\1c&H000000&\\3a&HFF&}m 0 0 l 1080 0 l 1080 1920 l 0 1920{\\p0}`);
 
   // 2. Question Header
-  events.push(`Dialogue: 1,0:00:00.00,0:00:04.00,Default,,0,0,0,,{\\pos(540,${headerY})\\an5\\fs38\\b1\\c&H00D4FF&}TEBAK DOKSLI`);
-  events.push(`Dialogue: 1,0:00:00.00,0:00:04.00,Default,,0,0,0,,{\\pos(540,${questionY})\\an5\\fs64\\b1\\c&HFFFFFF&\\bord4\\3c&H000000&}${question}`);
+  events.push(`Dialogue: 1,${str0},${str4},Default,,0,0,0,,{\\pos(540,${headerY})\\an5\\fs38\\b1\\c&H00D4FF&}TEBAK DOKSLI`);
+  events.push(`Dialogue: 1,${str0},${str4},Default,,0,0,0,,{\\pos(540,${questionY})\\an5\\fs64\\b1\\c&HFFFFFF&\\bord4\\3c&H000000&}${question}`);
 
   // 3. Countdown Display (3, 2, 1, dan JAWABAN BENAR)
-  events.push(`Dialogue: 2,0:00:00.00,0:00:01.00,Default,,0,0,0,,{\\pos(540,${countdownY})\\an5\\fs120\\b1\\c&H00E5FF&\\bord6\\3c&H000000&}3`);
-  events.push(`Dialogue: 2,0:00:01.00,0:00:02.00,Default,,0,0,0,,{\\pos(540,${countdownY})\\an5\\fs120\\b1\\c&H00E5FF&\\bord6\\3c&H000000&}2`);
-  events.push(`Dialogue: 2,0:00:02.00,0:00:03.00,Default,,0,0,0,,{\\pos(540,${countdownY})\\an5\\fs130\\b1\\c&H0099FF&\\bord6\\3c&H000000&}1`);
-  events.push(`Dialogue: 2,0:00:03.00,0:00:04.00,Default,,0,0,0,,{\\pos(540,${countdownY})\\an5\\fs64\\b1\\c&H00E65C&\\bord4\\3c&H000000&}JAWABAN BENAR:`);
+  events.push(`Dialogue: 2,${str0},${str1},Default,,0,0,0,,{\\pos(540,${countdownY})\\an5\\fs120\\b1\\c&H00E5FF&\\bord6\\3c&H000000&}3`);
+  events.push(`Dialogue: 2,${str1},${str2},Default,,0,0,0,,{\\pos(540,${countdownY})\\an5\\fs120\\b1\\c&H00E5FF&\\bord6\\3c&H000000&}2`);
+  events.push(`Dialogue: 2,${str2},${str3},Default,,0,0,0,,{\\pos(540,${countdownY})\\an5\\fs130\\b1\\c&H0099FF&\\bord6\\3c&H000000&}1`);
+  events.push(`Dialogue: 2,${str3},${str4},Default,,0,0,0,,{\\pos(540,${countdownY})\\an5\\fs64\\b1\\c&H00E65C&\\bord4\\3c&H000000&}JAWABAN BENAR:`);
 
-  // Progress Bar (Mengecil selama 3 detik)
-  events.push(`Dialogue: 1,0:00:00.00,0:00:01.00,Default,,0,0,0,,{\\pos(140,${progressY})\\an7\\p1\\1c&H00E65C&\\3a&HFF&}m 0 0 l 800 0 l 800 12 l 0 12{\\p0}`);
-  events.push(`Dialogue: 1,0:00:01.00,0:00:02.00,Default,,0,0,0,,{\\pos(140,${progressY})\\an7\\p1\\1c&H00D4FF&\\3a&HFF&}m 0 0 l 530 0 l 530 12 l 0 12{\\p0}`);
-  events.push(`Dialogue: 1,0:00:02.00,0:00:03.00,Default,,0,0,0,,{\\pos(140,${progressY})\\an7\\p1\\1c&H0077FF&\\3a&HFF&}m 0 0 l 260 0 l 260 12 l 0 12{\\p0}`);
+  // Progress Bar (Mengecil selama 3 tick countdown)
+  events.push(`Dialogue: 1,${str0},${str1},Default,,0,0,0,,{\\pos(140,${progressY})\\an7\\p1\\1c&H00E65C&\\3a&HFF&}m 0 0 l 800 0 l 800 12 l 0 12{\\p0}`);
+  events.push(`Dialogue: 1,${str1},${str2},Default,,0,0,0,,{\\pos(140,${progressY})\\an7\\p1\\1c&H00D4FF&\\3a&HFF&}m 0 0 l 530 0 l 530 12 l 0 12{\\p0}`);
+  events.push(`Dialogue: 1,${str2},${str3},Default,,0,0,0,,{\\pos(140,${progressY})\\an7\\p1\\1c&H0077FF&\\3a&HFF&}m 0 0 l 260 0 l 260 12 l 0 12{\\p0}`);
 
   // 4. Opsi Pilihan Ganda (A, B, C, D)
   const letters = ['A', 'B', 'C', 'D'];
@@ -402,19 +428,19 @@ function generateQuizASS({
     const fontSize = 42;
     const label = `${letters[i]}. ${text}`;
 
-    // --- FASE 1: Detik 0.0 s/d 3.0 (Semua Opsi Netral) ---
-    events.push(`Dialogue: 1,0:00:00.00,0:00:03.00,Default,,0,0,0,,{\\pos(${leftX},${yTop})\\an7\\p1\\1a&H35&\\1c&H251D18&\\3a&H20&\\3c&H605040&\\bord3}${roundRect}{\\p0}`);
-    events.push(`Dialogue: 2,0:00:00.00,0:00:03.00,Default,,0,0,0,,{\\pos(140,${yMid})\\an4\\fs${fontSize}\\b1\\c&HFFFFFF&\\bord2\\3c&H000000&}${label}`);
+    // --- FASE 1: Detik 0.0 s/d 3 * tick (Semua Opsi Netral) ---
+    events.push(`Dialogue: 1,${str0},${str3},Default,,0,0,0,,{\\pos(${leftX},${yTop})\\an7\\p1\\1a&H35&\\1c&H251D18&\\3a&H20&\\3c&H605040&\\bord3}${roundRect}{\\p0}`);
+    events.push(`Dialogue: 2,${str0},${str3},Default,,0,0,0,,{\\pos(140,${yMid})\\an4\\fs${fontSize}\\b1\\c&HFFFFFF&\\bord2\\3c&H000000&}${label}`);
 
-    // --- FASE 2: Detik 3.0 s/d 4.0 (Jawaban Terbuka Tanpa [V], Opsi Benar Hijau Emerald) ---
+    // --- FASE 2: Detik 3 * tick s/d 4 * tick (Jawaban Terbuka Tanpa [V], Opsi Benar Hijau Emerald) ---
     if (isCorrect) {
       // HIJAU EMERALD (#22C55E -> BGR: &H30A020&)
-      events.push(`Dialogue: 1,0:00:03.00,0:00:04.00,Default,,0,0,0,,{\\pos(${leftX},${yTop})\\an7\\p1\\1a&H00&\\1c&H30A020&\\3a&H00&\\3c&H60F040&\\bord5}${roundRect}{\\p0}`);
-      events.push(`Dialogue: 2,0:00:03.00,0:00:04.00,Default,,0,0,0,,{\\pos(140,${yMid})\\an4\\fs${fontSize}\\b1\\c&HFFFFFF&\\bord3\\3c&H104010&}${label}`);
+      events.push(`Dialogue: 1,${str3},${str4},Default,,0,0,0,,{\\pos(${leftX},${yTop})\\an7\\p1\\1a&H00&\\1c&H30A020&\\3a&H00&\\3c&H60F040&\\bord5}${roundRect}{\\p0}`);
+      events.push(`Dialogue: 2,${str3},${str4},Default,,0,0,0,,{\\pos(140,${yMid})\\an4\\fs${fontSize}\\b1\\c&HFFFFFF&\\bord3\\3c&H104010&}${label}`);
     } else {
       // Opsi salah dibuat redup
-      events.push(`Dialogue: 1,0:00:03.00,0:00:04.00,Default,,0,0,0,,{\\pos(${leftX},${yTop})\\an7\\p1\\1a&H75&\\1c&H101010&\\3a&H85&\\3c&H303030&\\bord2}${roundRect}{\\p0}`);
-      events.push(`Dialogue: 2,0:00:03.00,0:00:04.00,Default,,0,0,0,,{\\pos(140,${yMid})\\an4\\fs${fontSize}\\b0\\c&H888888&\\bord2\\3c&H000000&}${label}`);
+      events.push(`Dialogue: 1,${str3},${str4},Default,,0,0,0,,{\\pos(${leftX},${yTop})\\an7\\p1\\1a&H75&\\1c&H101010&\\3a&H85&\\3c&H303030&\\bord2}${roundRect}{\\p0}`);
+      events.push(`Dialogue: 2,${str3},${str4},Default,,0,0,0,,{\\pos(140,${yMid})\\an4\\fs${fontSize}\\b0\\c&H888888&\\bord2\\3c&H000000&}${label}`);
     }
   }
 
@@ -505,14 +531,14 @@ async function runQuizCompiler() {
     process.env.GDRIVE_UNUSED_FOLDER_ID ||
     process.env.GDRIVE_ROOT_FOLDER_ID;
 
-  // Cek argumen CLI (misal: node compile_doksli.js --folder=1xyz --count=7 --offset-y=-50 --question="Momen apakah ini?")
+  // Cek argumen CLI (misal: node compile_doksli.js --folder=1xyz --count=7 --offset-y=-50 --tick=0.5 --question="Momen apakah ini?")
   let clipCountTarget = parseInt(process.env.QUIZ_CLIP_COUNT || '5', 10);
   let quizOffsetY = parseInt(process.env.QUIZ_OFFSET_Y || '0', 10);
   let memeTextY = parseInt(process.env.MEME_TEXT_Y || '480', 10);
   let quizQuestion = process.env.QUIZ_QUESTION || 'Momen manakah itu?';
+  let quizTickSeconds = parseFloat(process.env.QUIZ_TICK_SECONDS || '0.5');
+  if (isNaN(quizTickSeconds) || quizTickSeconds <= 0.1) quizTickSeconds = 0.5;
   let customTransitionSfx = process.env.TRANSITION_SFX_PATH || null;
-  let transitionVolume = parseFloat(process.env.TRANSITION_VOLUME || '1.0');
-  if (isNaN(transitionVolume) || transitionVolume <= 0) transitionVolume = 1.0;
   let resultFolderId =
     process.env.GDRIVE_RESULT_FOLDER_ID ||
     process.env.GDRIVE_OUTPUT_FOLDER_ID ||
@@ -523,9 +549,9 @@ async function runQuizCompiler() {
     if (arg.startsWith('--count=')) clipCountTarget = parseInt(arg.split('=')[1], 10);
     if (arg.startsWith('--offset-y=')) quizOffsetY = parseInt(arg.split('=')[1], 10);
     if (arg.startsWith('--meme-y=')) memeTextY = parseInt(arg.split('=')[1], 10);
+    if (arg.startsWith('--tick=')) quizTickSeconds = parseFloat(arg.split('=')[1]);
     if (arg.startsWith('--question=')) quizQuestion = arg.slice(arg.indexOf('=') + 1);
     if (arg.startsWith('--transition-sfx=')) customTransitionSfx = arg.slice(arg.indexOf('=') + 1);
-    if (arg.startsWith('--transition-volume=')) transitionVolume = parseFloat(arg.split('=')[1]);
     if (arg.startsWith('--result-folder=')) resultFolderId = arg.slice(arg.indexOf('=') + 1);
   }
 
@@ -552,8 +578,9 @@ async function runQuizCompiler() {
   console.log(` - ID Folder Google Drive : ${doksliFolderId}`);
   console.log(` - Target Momen Terpilih  : ${clipCountTarget} momen`);
   console.log(` - Format Output          : Vertikal 9:16 (1080x1920) 60 FPS`);
+  console.log(` - Durasi Freeze Kuis     : ${(4 * quizTickSeconds).toFixed(2)}s (Tick: ${quizTickSeconds}s x 4 beat)`);
   console.log(` - Pertanyaan Kuis        : "${quizQuestion}"`);
-  console.log(` - Audio Penutup Momen  : ${transitionSfxPath ? path.basename(transitionSfxPath) : 'Tidak aktif (file tidak ditemukan)'}`);
+  console.log(` - Audio Penutup Momen    : ${transitionSfxPath ? path.basename(transitionSfxPath) : 'Tidak aktif (file tidak ditemukan)'}`);
   console.log(` - Auto-Upload Hasil      : ${resultFolderId ? 'Aktif (Folder: ' + resultFolderId + ', auto-hapus lokal)' : 'Nonaktif (tersimpan di lokal)'}`);
   console.log(` - Posisi Freeze Kuis     : Terpusat matematis (Y ~ 960px, Offset: ${quizOffsetY}px)`);
   console.log(` - Posisi Teks Video Full : 1/4 tinggi kanvas (Y = ${memeTextY}px)\n`);
@@ -705,10 +732,10 @@ async function runQuizCompiler() {
       const transFrames = Math.max(1, Math.round(sfxDur * 60));
       const transDurSec = (transFrames / 60).toFixed(4);
       execSync(
-        `"${FFMPEG_BIN}" -y -f lavfi -i "color=c=black:s=1080x1920:r=60" -i "${transitionSfxPath}" -af "volume=${transitionVolume},alimiter=limit=0.98,apad,aresample=async=1:first_pts=0" -t ${transDurSec} -vframes ${transFrames} -shortest -c:v libx264 -preset fast -crf 16 -profile:v high -level 4.2 -c:a aac -ar 44100 -ac 2 -r 60 -fps_mode cfr -video_track_timescale 60000 -movflags +faststart -pix_fmt yuv420p "${transitionClipPath}"`,
+        `"${FFMPEG_BIN}" -y -f lavfi -i "color=c=black:s=1080x1920:r=60" -i "${transitionSfxPath}" -af "apad,aresample=async=1:first_pts=0" -t ${transDurSec} -vframes ${transFrames} -shortest -c:v libx264 -preset fast -crf 16 -profile:v high -level 4.2 -c:a aac -ar 44100 -ac 2 -r 60 -fps_mode cfr -video_track_timescale 60000 -movflags +faststart -pix_fmt yuv420p "${transitionClipPath}"`,
         { stdio: 'ignore' }
       );
-      console.log(`   ✅ Klip transisi layar hitam siap disisipkan antar momen (${transFrames} frame / ${transDurSec}s, Volume: ${Math.round(transitionVolume * 100)}%).`);
+      console.log(`   ✅ Klip transisi layar hitam siap disisipkan antar momen (${transFrames} frame / ${transDurSec}s).`);
     } catch (e) {
       console.warn(`   ⚠️ Gagal membuat klip transisi layar hitam: ${e.message}`);
       transitionClipPath = null;
@@ -734,8 +761,11 @@ async function runQuizCompiler() {
     const normCutPath = path.join(workDir, `norm_cut_${momentIndex}.mp4`);
     normalizeVideo({ inputPath: rawCutPath, outputPath: normCutPath });
 
-    // --- BAGIAN 2: FREEZE FRAME KUIS (4 DETIK) ---
-    console.log(`   2. Mengekstrak frame terakhir & membuat freeze kuis 4 detik...`);
+    // --- BAGIAN 2: FREEZE FRAME KUIS (3 COUNTDOWN + 1 REVEAL) ---
+    const totalQuizFrames = Math.max(1, Math.round(4 * quizTickSeconds * 60));
+    const totalQuizSec = (totalQuizFrames / 60).toFixed(4);
+
+    console.log(`   2. Mengekstrak frame terakhir & membuat freeze kuis (${totalQuizSec}s / ${totalQuizFrames} frame, tick: ${quizTickSeconds}s)...`);
     const freezeFramePng = path.join(workDir, `freeze_${momentIndex}.png`);
     execSync(`"${FFMPEG_BIN}" -y -sseof -0.1 -i "${rawCutPath}" -update 1 -q:v 1 "${freezeFramePng}"`, { stdio: 'ignore' });
 
@@ -747,18 +777,20 @@ async function runQuizCompiler() {
         options: moment.options,
         correctIndex: moment.correctIndex,
         offsetY: quizOffsetY,
+        tickDuration: quizTickSeconds,
+        totalDuration: parseFloat(totalQuizSec),
       }),
       'utf8'
     );
 
-    // Buat file audio efek suara 4 detik (beep 3-2-1 dan correct chime di detik 3)
+    // Buat file audio efek suara (3 countdown beep + 1 reveal chime)
     const sfxWavPath = path.join(workDir, `sfx_${momentIndex}.wav`);
-    generateQuizSoundWav(sfxWavPath);
+    generateQuizSoundWav(sfxWavPath, quizTickSeconds, parseFloat(totalQuizSec));
 
     const freezeVideoPath = path.join(workDir, `freeze_vid_${momentIndex}.mp4`);
     const escapedQuizAss = quizAssPath.replace(/\\/g, '/').replace(/:/g, '\\:');
     execSync(
-      `"${FFMPEG_BIN}" -y -framerate 60 -loop 1 -i "${freezeFramePng}" -i "${sfxWavPath}" -vf "scale=1080:1920:force_original_aspect_ratio=decrease:flags=lanczos,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1,ass='${escapedQuizAss}'" -af "apad,aresample=async=1:first_pts=0" -t 4 -vframes 240 -shortest -c:v libx264 -preset fast -crf 16 -profile:v high -level 4.2 -c:a aac -ar 44100 -ac 2 -r 60 -fps_mode cfr -video_track_timescale 60000 -movflags +faststart -pix_fmt yuv420p "${freezeVideoPath}"`,
+      `"${FFMPEG_BIN}" -y -framerate 60 -loop 1 -i "${freezeFramePng}" -i "${sfxWavPath}" -vf "scale=1080:1920:force_original_aspect_ratio=decrease:flags=lanczos,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1,ass='${escapedQuizAss}'" -af "apad,aresample=async=1:first_pts=0" -t ${totalQuizSec} -vframes ${totalQuizFrames} -shortest -c:v libx264 -preset fast -crf 16 -profile:v high -level 4.2 -c:a aac -ar 44100 -ac 2 -r 60 -fps_mode cfr -video_track_timescale 60000 -movflags +faststart -pix_fmt yuv420p "${freezeVideoPath}"`,
       { stdio: 'ignore' }
     );
 
