@@ -14,7 +14,19 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Millisecond Filename Precision, Deferred File Checking, and Open Editor Before Download
+## [Unreleased] - Remove Legacy Non-Millisecond Backward Compatibility
+- **Konteks Struktural**:
+  1. Penegasan Format Presisi Milidetik Tunggal ([api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts), [useClipData.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipData.ts), [useClipDownload.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipDownload.ts)):
+     - Menghapus lapisan *backward compatibility* pencarian file format lama tanpa milidetik (`mm.ss` / `hh.mm.ss`) yang sebelumnya ditambahkan pada fungsi resolusi file klip, subtitle, dan template.
+     - Seluruh penamaan dan pembacaan file kini 100% konsisten berorientasi pada format presisi milidetik tunggal (`mm.ss.mmm`), menghilangkan overhead disk I/O sekunder saat mengecek keberadaan file fisik.
+- **Perubahan Kode Penting**:
+  - `mobile/src/services/api.ts`:
+    - Menghapus fungsi `formatLegacyTimeForFilename`.
+    - Menghapus pengecekan format warisan tanpa milidetik dari `resolvePlayableClipUri`, `loadClipSubtitle`, dan `loadClipTemplate`.
+  - `mobile/src/hooks/useClipData.ts` & `mobile/src/hooks/useClipDownload.ts`:
+    - Menghapus pemanggilan fallback `resolvePlayableClipUri` pada pengecekan file klip saat `mode done`.
+
+## [dfeb345] - Millisecond Filename Precision, Deferred File Checking, and Open Editor Before Download
 - **Konteks Struktural**:
   1. Kepresisian Nama File hingga Milidetik ([api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts), [file_utils.py](file:///d:/projects/clipping/mobile/scripts/utils/file_utils.py)):
      - Menjawab kebutuhan pembedaan file klip saat pengguna hanya menggeser atau mengubah milidetik tanpa mengubah detik bulat: format nama file diperluas dari `mm.ss` / `hh.mm.ss` menjadi `mm.ss.mmm` / `hh.mm.ss.mmm` (contoh: `00.12.350 - 01.35.000.mp4`).

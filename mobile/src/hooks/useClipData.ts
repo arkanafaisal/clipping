@@ -3,7 +3,6 @@ import {
   ClipItem,
   fetchHeatmap,
   getClipOutputFilePath,
-  resolvePlayableClipUri,
   checkClipFileExists,
 } from '../services/api';
 import { LocalStorage } from '../services/storage';
@@ -563,11 +562,7 @@ export function useClipData({
     // Jika berubah jadi done, cek apakah filenya sudah pernah diunduh (hanya cek file tanpa me-load video yang membebani memori)
     if (nextStatus === 'done') {
       const { fileUri } = getClipOutputFilePath(videoId, targetClip.start, targetClip.end, targetClip.rank);
-      let exists = await checkClipFileExists(fileUri);
-      if (!exists) {
-        const legacyUri = await resolvePlayableClipUri(videoId, targetClip.start, targetClip.end, targetClip.rank);
-        exists = await checkClipFileExists(legacyUri);
-      }
+      const exists = await checkClipFileExists(fileUri);
       if (exists) {
         setDownloadedClips((prev) => ({ ...prev, [targetClip!.id]: true }));
         downloadedClipsRef.current[targetClip.id] = true;

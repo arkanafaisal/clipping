@@ -4,7 +4,6 @@ import {
   ClipItem,
   downloadClip,
   getClipOutputFilePath,
-  resolvePlayableClipUri,
   checkClipFileExists,
   hasCachedDownloadStreamUrl,
   fetchAndCacheDownloadStreamUrl,
@@ -61,15 +60,9 @@ export function useClipDownload({
   useEffect(() => {
     if (activeClip && activeClip.status === 'done') {
       const { fileUri } = getClipOutputFilePath(videoId, activeClip.start, activeClip.end, activeClip.rank);
-      checkClipFileExists(fileUri).then(async (exists) => {
+      checkClipFileExists(fileUri).then((exists) => {
         if (exists) {
           setDownloadedClips((prev) => ({ ...prev, [activeClip.id]: true }));
-        } else {
-          const legacyUri = await resolvePlayableClipUri(videoId, activeClip.start, activeClip.end, activeClip.rank);
-          const legacyExists = await checkClipFileExists(legacyUri);
-          if (legacyExists) {
-            setDownloadedClips((prev) => ({ ...prev, [activeClip.id]: true }));
-          }
         }
       });
     }
