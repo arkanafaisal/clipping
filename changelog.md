@@ -14,7 +14,24 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Static Fallback Distractors for Testing and Guaranteed Unique Quiz Options
+## [Unreleased] - Mathematical Vertical Centering for Quiz and Top-Quarter Positioning for Full Video Title
+- **Konteks Struktural**:
+  1. Penataan Posisi Kuis Terpusat Matematis & Dukungan Offset ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example), [README.md](file:///d:/projects/clipping/scheduler-uploader/README.md)):
+     - Menghitung ulang seluruh koordinat vertikal elemen kuis (header, judul, countdown, progress bar, dan 4 kartu pilihan ganda) agar terpusat secara matematis di tengah layar kanvas portrait 1080x1920 ($Y_{center} \approx 960px$, rentang $Y = 520$ s/d $1390$). Hal ini mengangkat kartu kuis agar tidak terlalu bawah dan aman dari elemen antarmuka (UI) TikTok/Reels/Shorts.
+     - Menambahkan parameter manual offset vertikal `offsetY` yang dapat disesuaikan melalui opsi CLI `--offset-y=<px>` atau environment variable `QUIZ_OFFSET_Y`.
+  2. Relokasi Overlay Judul Video Full ke 1/4 Atas Kanvas ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
+     - Merelokasi overlay judul dinamis video full dari tengah kanvas ($Y = 960$) ke area 1/4 atas kanvas ($Y = 480$, konfigurabel via `MEME_TEXT_Y`) agar tidak menabrak atau menutupi subtitle video bawaan yang berada tepat di tengah layar.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/compile_doksli.js`:
+     - Memperbarui fungsi `generateQuizASS` dengan koordinat Y baru yang terpusat matematis ($Y = 520, 600, 735, 815$, kartu $875, 1010, 1145, 1280$) serta penambahan parameter `offsetY`.
+     - Memperbarui fungsi `generateFullVideoASS` dengan posisi default $Y = 480$ (`posY = 480`).
+     - Menambahkan parsing CLI `--offset-y` dan `--meme-y`.
+  - `scheduler-uploader/.env.example`:
+     - Menambahkan variabel lingkungan `QUIZ_OFFSET_Y` dan `MEME_TEXT_Y`.
+  - `scheduler-uploader/README.md`:
+     - Memperbarui penjelasan posisi teks video full pada 1/4 kanvas atas serta contoh perintah pengujian dengan offset vertikal.
+
+## [ba7cac6] - Static Fallback Distractors for Testing and Guaranteed Unique Quiz Options
 - **Konteks Struktural**:
   1. Opsi Cadangan Statis & Validasi Keunikan Opsi Kuis ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
      - Menambahkan bank opsi pengecoh cadangan statis (`STATIC_FALLBACK_DISTRACTORS`) berisi pilihan bertema gaming/meme populer agar pengguna dapat langsung menguji script meskipun folder Google Drive baru berisi 1 folder (atau di bawah 4 folder).

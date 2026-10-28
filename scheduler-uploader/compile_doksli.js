@@ -228,15 +228,24 @@ function cleanText(str) {
 
 /**
  * Pembuat Subtitle ASS Dinamis untuk Overlay Kuis & Animasi Pilihan Ganda (Freeze Frame)
+ * Terpusat secara matematis di tengah layar (Y ~ 960px) dan mendukung manual offset vertikal (offsetY)
  */
 function generateQuizASS({
   question = 'Momen manakah itu?',
   options = [],
   correctIndex = 0,
+  offsetY = 0,
 }) {
-  const cardY = [1120, 1270, 1420, 1570];
   const cardW = 920;
   const leftX = (1080 - cardW) / 2; // 80
+
+  // Koordinat Y Terpusat Secara Matematis (Midpoint ~960px pada kanvas 1080x1920)
+  // Menjaga elemen kuis tidak terlalu bawah dan aman dari tombol UI TikTok/Reels di bagian bawah
+  const headerY = 520 + offsetY;
+  const questionY = 600 + offsetY;
+  const countdownY = 735 + offsetY;
+  const progressY = 815 + offsetY;
+  const cardY = [875 + offsetY, 1010 + offsetY, 1145 + offsetY, 1280 + offsetY];
 
   // Path vektor rounded rectangle (920 x 110 dengan radius 20px)
   const roundRect = `m 0 20 b 0 9 9 0 20 0 l 900 0 b 911 0 920 9 920 20 l 920 90 b 920 101 911 110 900 110 l 20 110 b 9 110 0 101 0 90`;
@@ -247,19 +256,19 @@ function generateQuizASS({
   events.push(`Dialogue: 0,0:00:00.00,0:00:04.00,Default,,0,0,0,,{\\pos(0,0)\\an7\\p1\\1a&H45&\\1c&H000000&\\3a&HFF&}m 0 0 l 1080 0 l 1080 1920 l 0 1920{\\p0}`);
 
   // 2. Question Header
-  events.push(`Dialogue: 1,0:00:00.00,0:00:04.00,Default,,0,0,0,,{\\pos(540,560)\\an5\\fs38\\b1\\c&H00D4FF&}TEBAK DOKSLI`);
-  events.push(`Dialogue: 1,0:00:00.00,0:00:04.00,Default,,0,0,0,,{\\pos(540,660)\\an5\\fs64\\b1\\c&HFFFFFF&\\bord4\\3c&H000000&}${question}`);
+  events.push(`Dialogue: 1,0:00:00.00,0:00:04.00,Default,,0,0,0,,{\\pos(540,${headerY})\\an5\\fs38\\b1\\c&H00D4FF&}TEBAK DOKSLI`);
+  events.push(`Dialogue: 1,0:00:00.00,0:00:04.00,Default,,0,0,0,,{\\pos(540,${questionY})\\an5\\fs64\\b1\\c&HFFFFFF&\\bord4\\3c&H000000&}${question}`);
 
   // 3. Countdown Display (3, 2, 1, dan JAWABAN BENAR)
-  events.push(`Dialogue: 2,0:00:00.00,0:00:01.00,Default,,0,0,0,,{\\pos(540,840)\\an5\\fs120\\b1\\c&H00E5FF&\\bord6\\3c&H000000&}3`);
-  events.push(`Dialogue: 2,0:00:01.00,0:00:02.00,Default,,0,0,0,,{\\pos(540,840)\\an5\\fs120\\b1\\c&H00E5FF&\\bord6\\3c&H000000&}2`);
-  events.push(`Dialogue: 2,0:00:02.00,0:00:03.00,Default,,0,0,0,,{\\pos(540,840)\\an5\\fs130\\b1\\c&H0099FF&\\bord6\\3c&H000000&}1`);
-  events.push(`Dialogue: 2,0:00:03.00,0:00:04.00,Default,,0,0,0,,{\\pos(540,840)\\an5\\fs64\\b1\\c&H00E65C&\\bord4\\3c&H000000&}JAWABAN BENAR:`);
+  events.push(`Dialogue: 2,0:00:00.00,0:00:01.00,Default,,0,0,0,,{\\pos(540,${countdownY})\\an5\\fs120\\b1\\c&H00E5FF&\\bord6\\3c&H000000&}3`);
+  events.push(`Dialogue: 2,0:00:01.00,0:00:02.00,Default,,0,0,0,,{\\pos(540,${countdownY})\\an5\\fs120\\b1\\c&H00E5FF&\\bord6\\3c&H000000&}2`);
+  events.push(`Dialogue: 2,0:00:02.00,0:00:03.00,Default,,0,0,0,,{\\pos(540,${countdownY})\\an5\\fs130\\b1\\c&H0099FF&\\bord6\\3c&H000000&}1`);
+  events.push(`Dialogue: 2,0:00:03.00,0:00:04.00,Default,,0,0,0,,{\\pos(540,${countdownY})\\an5\\fs64\\b1\\c&H00E65C&\\bord4\\3c&H000000&}JAWABAN BENAR:`);
 
   // Progress Bar (Mengecil selama 3 detik)
-  events.push(`Dialogue: 1,0:00:00.00,0:00:01.00,Default,,0,0,0,,{\\pos(140,940)\\an7\\p1\\1c&H00E65C&\\3a&HFF&}m 0 0 l 800 0 l 800 12 l 0 12{\\p0}`);
-  events.push(`Dialogue: 1,0:00:01.00,0:00:02.00,Default,,0,0,0,,{\\pos(140,940)\\an7\\p1\\1c&H00D4FF&\\3a&HFF&}m 0 0 l 530 0 l 530 12 l 0 12{\\p0}`);
-  events.push(`Dialogue: 1,0:00:02.00,0:00:03.00,Default,,0,0,0,,{\\pos(140,940)\\an7\\p1\\1c&H0077FF&\\3a&HFF&}m 0 0 l 260 0 l 260 12 l 0 12{\\p0}`);
+  events.push(`Dialogue: 1,0:00:00.00,0:00:01.00,Default,,0,0,0,,{\\pos(140,${progressY})\\an7\\p1\\1c&H00E65C&\\3a&HFF&}m 0 0 l 800 0 l 800 12 l 0 12{\\p0}`);
+  events.push(`Dialogue: 1,0:00:01.00,0:00:02.00,Default,,0,0,0,,{\\pos(140,${progressY})\\an7\\p1\\1c&H00D4FF&\\3a&HFF&}m 0 0 l 530 0 l 530 12 l 0 12{\\p0}`);
+  events.push(`Dialogue: 1,0:00:02.00,0:00:03.00,Default,,0,0,0,,{\\pos(140,${progressY})\\an7\\p1\\1c&H0077FF&\\3a&HFF&}m 0 0 l 260 0 l 260 12 l 0 12{\\p0}`);
 
   // 4. Opsi Pilihan Ganda (A, B, C, D)
   const letters = ['A', 'B', 'C', 'D'];
@@ -305,10 +314,10 @@ ${events.join('\n')}
 }
 
 /**
- * Pembuat Subtitle ASS untuk Overlay Teks Nama File Full di Tengah Video
- * (Mendukung manual \n -> \N tanpa auto-break)
+ * Pembuat Subtitle ASS untuk Overlay Teks Nama File Full di 1/4 Atas Video Portrait
+ * (Y = 480 agar tidak menabrak subtitle bawaan video di tengah Y = 960)
  */
-function generateFullVideoASS({ text, durationSeconds = 600 }) {
+function generateFullVideoASS({ text, durationSeconds = 600, posY = 480 }) {
   // Bersihkan ekstensi file (.mp4 dll), dan ganti \n atau \\n menjadi \N
   const formattedText = text
     .replace(/\.[a-zA-Z0-9]+$/i, '')
@@ -331,7 +340,7 @@ Style: MemeTitle, Arial, 54, &H00FFFFFF, &H000000FF, &H00000000, &H00000000, 1, 
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-Dialogue: 0,0:00:00.00,${durStr},MemeTitle,,0,0,0,,{\\pos(540,960)\\an5\\bord6\\3c&H000000&}${formattedText}
+Dialogue: 0,0:00:00.00,${durStr},MemeTitle,,0,0,0,,{\\pos(540,${posY})\\an5\\bord6\\3c&H000000&}${formattedText}
 `;
 }
 
@@ -375,11 +384,16 @@ async function runQuizCompiler() {
     process.env.GDRIVE_UNUSED_FOLDER_ID ||
     process.env.GDRIVE_ROOT_FOLDER_ID;
 
-  // Cek argumen CLI (misal: node compile_doksli.js --folder=1xyz --count=7)
+  // Cek argumen CLI (misal: node compile_doksli.js --folder=1xyz --count=7 --offset-y=-50)
   let clipCountTarget = parseInt(process.env.QUIZ_CLIP_COUNT || '5', 10);
+  let quizOffsetY = parseInt(process.env.QUIZ_OFFSET_Y || '0', 10);
+  let memeTextY = parseInt(process.env.MEME_TEXT_Y || '480', 10);
+
   for (const arg of process.argv.slice(2)) {
     if (arg.startsWith('--folder=')) doksliFolderId = arg.split('=')[1];
     if (arg.startsWith('--count=')) clipCountTarget = parseInt(arg.split('=')[1], 10);
+    if (arg.startsWith('--offset-y=')) quizOffsetY = parseInt(arg.split('=')[1], 10);
+    if (arg.startsWith('--meme-y=')) memeTextY = parseInt(arg.split('=')[1], 10);
   }
 
   if (!doksliFolderId) {
@@ -389,14 +403,15 @@ async function runQuizCompiler() {
   }
 
   // Batasi jumlah klip yang wajar (5 s/d 10)
-  if (isNaN(clipCountTarget) || clipCountTarget < 2) clipCountTarget = 5;
+  if (isNaN(clipCountTarget) || clipCountTarget < 1) clipCountTarget = 5;
   if (clipCountTarget > 15) clipCountTarget = 10;
 
   console.log(`\nKonfigurasi:`);
   console.log(` - ID Folder Google Drive : ${doksliFolderId}`);
   console.log(` - Target Momen Terpilih  : ${clipCountTarget} momen`);
   console.log(` - Format Output          : Vertikal 9:16 (1080x1920) 30 FPS`);
-  console.log(` - Alur Segmen per Momen  : cut.mp4 -> Freeze Kuis (4s) -> Full Video (Center Text)\n`);
+  console.log(` - Posisi Freeze Kuis     : Terpusat matematis (Y ~ 960px, Offset: ${quizOffsetY}px)`);
+  console.log(` - Posisi Teks Video Full : 1/4 tinggi kanvas (Y = ${memeTextY}px)\n`);
 
   // 2. Hubungkan ke Google Drive API
   const gdriveToken =
@@ -550,6 +565,7 @@ async function runQuizCompiler() {
         question: 'Momen manakah itu?',
         options: moment.options,
         correctIndex: moment.correctIndex,
+        offsetY: quizOffsetY,
       }),
       'utf8'
     );
@@ -561,7 +577,7 @@ async function runQuizCompiler() {
       { stdio: 'ignore' }
     );
 
-    // --- BAGIAN 3: VIDEO FULL DENGAN OVERLAY TEKS DI TENGAH ---
+    // --- BAGIAN 3: VIDEO FULL DENGAN OVERLAY TEKS DI 1/4 ATAS KANVAS ---
     console.log(`   3. Mengunduh & merender video full ("${moment.fullFile.name}")...`);
     const rawFullPath = path.join(workDir, `raw_full_${momentIndex}.mp4`);
     const fullStream = await drive.files.get(
@@ -576,6 +592,7 @@ async function runQuizCompiler() {
       generateFullVideoASS({
         text: moment.fullFile.name,
         durationSeconds: 600,
+        posY: memeTextY,
       }),
       'utf8'
     );

@@ -50,8 +50,8 @@ Fitur mandiri untuk mengotomatisasi pengeditan video kompilasi kuis interaktif t
        - *Aturan 1 Baris Pasti*: Nama subfolder folder wajib 1 baris tanpa line break, menggunakan ukuran font tetap (42px) yang seragam di semua opsi untuk menjaga konsistensi tinggi kartu.
      - **Countdown Timer**: Hitung mundur 3 detik (angka `3`, `2`, `1` dan progress bar).
      - **Reveal Jawaban**: Pada detik ke-3 s/d 4, kartu jawaban yang benar berubah menjadi **HIJAU EMERALD** (`B. <Nama Momen>`), sementara opsi salah meredup.
-   - **Bagian 3 (Full Video + Center Overlay)**:
-     - Video full diputar dengan overlay teks judul file di tengah layar (vertikal dan horizontal center).
+   - **Bagian 3 (Full Video + Overlay Judul 1/4 Atas)**:
+     - Video full diputar dengan overlay teks judul file di area **1/4 atas kanvas** (`Y = 480`), sehingga tidak menabrak atau menutupi subtitle bawaan video yang ada di tengah layar.
      - *Dukungan Line Break Manual*: Jika judul file mengandung `\n` (contoh: `Ketika Lu Lagi Khusyuk Main\nTiba-tiba Mati Lampu.mp4`), teks otomatis dipisah baris sesuai letak `\n` tanpa auto-wrapping sembarangan.
 3. **Hasil Akhir**: Seluruh momen digabungkan secara *seamless* menjadi 1 video vertikal 9:16 (**1080x1920, 30 FPS**) siap posting di folder `output_kompilasi/`.
 
@@ -62,11 +62,11 @@ cd scheduler-uploader
 # Menjalankan dengan target default (5 klip dari folder .env)
 npm run doksli
 
-# Menjalankan dengan custom jumlah klip (misal 7 atau 10 klip)
-node compile_doksli.js --count=10
+# Menjalankan untuk uji coba 1 momen / folder saja:
+node compile_doksli.js --count=1
 
-# Menjalankan dengan override folder dan jumlah klip spesifik
-node compile_doksli.js --folder=1xyz_ID_FOLDER_DOKSLI --count=5
+# Menjalankan dengan override folder, jumlah klip, dan offset kuis (misal geser kuis naik 50px):
+node compile_doksli.js --folder=1xyz_ID_FOLDER_DOKSLI --count=1 --offset-y=-50
 ```
 
 ---
