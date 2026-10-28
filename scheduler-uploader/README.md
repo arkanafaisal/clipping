@@ -25,6 +25,42 @@ Script CLI Node.js statis murni (bukan web server) yang didesain khusus untuk di
 
 ---
 
+## 🎮 Auto Edit Kompilasi Tebak-Tebakan Doksli (Quiz Compilation)
+
+Fitur mandiri untuk mengotomatisasi pengeditan video kompilasi kuis interaktif tanpa perlu aplikasi video editor manual:
+
+### 🧩 Konsep & Alur Kerja:
+1. **Sumber Google Drive**: Mengambil seluruh video dari satu folder Google Drive flat (`GDRIVE_DOKSLI_FOLDER_ID`) yang berisi kumpulan rekaman doksli.
+2. **Pengacakan Klip**: Memilih secara acak 5 hingga 10 video klip (`--count=5` atau konfigurasi `QUIZ_CLIP_COUNT`).
+3. **Mekanisme Kuis per Klip**:
+   - Video klip diputar normal dari awal hingga akhir.
+   - Pada frame detik terakhir, video di-*freeze* selama **4 detik total**:
+     - **Overlay Gelap Semi-Transparan**: Teks header `"Momen manakah itu?"`.
+     - **Pilihan Ganda A, B, C, D**:
+       - 1 jawaban benar = nama file klip saat ini (dibersihkan dari ekstensi `.mp4`).
+       - 3 jawaban pengecoh = nama file acak dari pool video Google Drive.
+       - Urutan A/B/C/D diacak dinamis di setiap klip.
+     - **Countdown Timer**: Hitung mundur 3 detik (angka `3`, `2`, `1` dan progress bar mengecil).
+     - **Reveal Jawaban**: Pada detik ke-3, kartu jawaban yang benar berubah styling menjadi **HIJAU EMERALD** (`[V] B. <Nama File>`) selama 1 detik.
+   - Langsung berpindah ke video berikutnya lengkap dengan kuisnya masing-masing.
+4. **Hasil Akhir**: Semua segmen digabungkan secara *seamless* menjadi 1 video vertikal 9:16 (**1080x1920, 30 FPS**) siap posting di folder `output_kompilasi/`.
+
+### 🚀 Cara Menjalankan Kompilasi:
+```bash
+cd scheduler-uploader
+
+# Menjalankan dengan target default (5 klip dari folder .env)
+npm run doksli
+
+# Menjalankan dengan custom jumlah klip (misal 7 atau 10 klip)
+node compile_doksli.js --count=10
+
+# Menjalankan dengan override folder dan jumlah klip spesifik
+node compile_doksli.js --folder=1xyz_ID_FOLDER_DOKSLI --count=5
+```
+
+---
+
 ## ⚡ Panduan Setup Interaktif (Sangat Direkomendasikan)
 
 Jika Anda ingin dibimbing langkah demi langkah (instalasi modul, link Google Drive, hashtag, hingga cek akun), cukup jalankan:

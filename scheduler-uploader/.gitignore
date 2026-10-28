@@ -5,6 +5,8 @@ node_modules/
 token*.json
 credentials*.json
 temp_video.mp4
+temp_*
+output_kompilasi/
 *.mp4
 *.log
 .DS_Store

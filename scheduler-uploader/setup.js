@@ -244,16 +244,26 @@ async function runSetup() {
   const usedInput = await askQuestion(`   Masukkan Link URL atau ID Folder USED ${currentUsed ? `[Tekan ENTER jika tetap]: ` : `: `}`);
   const finalUsed = usedInput ? extractFolderId(usedInput) : currentUsed;
 
+  console.log('\n3. Folder DOKSLI (Opsional: Folder berisi klip doksli untuk auto-edit kompilasi tebak-tebakan)');
+  const currentDoksli = currentEnv.GDRIVE_DOKSLI_FOLDER_ID || '';
+  if (currentDoksli) {
+    console.log(`   ID saat ini: ${currentDoksli}`);
+  }
+  const doksliInput = await askQuestion(`   Masukkan Link URL atau ID Folder DOKSLI ${currentDoksli ? `[Tekan ENTER jika tetap]: ` : `[Tekan ENTER untuk lewati]: `}`);
+  const finalDoksli = doksliInput ? extractFolderId(doksliInput) : currentDoksli;
+
   // Simpan ke file .env
   updateEnv({
     GDRIVE_UNUSED_FOLDER_ID: finalUnused,
     GDRIVE_USED_FOLDER_ID: finalUsed,
+    GDRIVE_DOKSLI_FOLDER_ID: finalDoksli,
     QUEUE_MODE: 'random',
   });
 
   console.log('\n✅ Konfigurasi folder Google Drive tersimpan:');
   console.log(` - GDRIVE_UNUSED_FOLDER_ID : ${finalUnused || '(Belum diisi)'}`);
-  console.log(` - GDRIVE_USED_FOLDER_ID   : ${finalUsed || '(Belum diisi)'}\n`);
+  console.log(` - GDRIVE_USED_FOLDER_ID   : ${finalUsed || '(Belum diisi)'}`);
+  console.log(` - GDRIVE_DOKSLI_FOLDER_ID : ${finalDoksli || '(Belum diisi)'}\n`);
 
   await askQuestion('👉 Apakah Tahap 3 sudah selesai dan siap lanjut ke pengaturan Hashtag? (Tekan ENTER) ');
 

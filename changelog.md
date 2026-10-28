@@ -14,6 +14,27 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
+## [Unreleased] - Doksli Video Quiz Auto-Editing Compilation Pipeline
+- **Konteks Struktural**:
+  1. Auto-Edit Kompilasi Tebak-Tebakan Doksli ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [package.json](file:///d:/projects/clipping/scheduler-uploader/package.json)):
+     - Mengembangkan pipeline CLI mandiri yang mengotomatisasi pengambilan 5–10 klip secara acak dari 1 folder Google Drive flat (tanpa subfolder), lalu merangkainya menjadi 1 video vertikal 9:16 (1080x1920 30fps) dengan format interaktif kuis tebak momen.
+     - Setiap klip di-freeze pada frame terakhir selama 4 detik dengan DirectWrite ASS subtitle overlay: judul pertanyaan "Momen manakah itu?", pilihan ganda A/B/C/D (1 jawaban benar dari nama file + 3 pengecoh acak dari pool video), hitung mundur 3 detik dengan animasi progress bar, dan reveal jawaban benar berubah warna menjadi hijau emerald selama 1 detik sebelum berganti ke klip berikutnya.
+     - Memanfaatkan binary static `ffmpeg-static` mandiri dan penggabungan stream tanpa desync audio/video menggunakan normalisasi parameter dan filter concat FFmpeg.
+  2. Integrasi Konfigurasi & Setup Wizard ([setup.js](file:///d:/projects/clipping/scheduler-uploader/setup.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example), [README.md](file:///d:/projects/clipping/scheduler-uploader/README.md)):
+     - Menambahkan konfigurasi `GDRIVE_DOKSLI_FOLDER_ID` dan `QUIZ_CLIP_COUNT` pada `.env.example` serta opsi input interaktif pada wizard `setup.js`.
+     - Mendokumentasikan alur eksekusi, opsi command line (`--count`, `--folder`), dan cara menjalankan (`npm run doksli`) pada `README.md`.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/compile_doksli.js`:
+     - Membuat script kompilasi video lengkap: otentikasi Google Drive, ekstraksi freeze frame akhir, generator ASS vector overlay kuis, normalisasi resolusi 1080x1920 dan audio 44.1kHz aac, perakitan segmen klip + kuis, dan penggabungan akhir ke folder `output_kompilasi/`.
+  - `scheduler-uploader/package.json`:
+     - Menambahkan dependency `ffmpeg-static` dan npm script shortcut `"doksli"` serta `"compile:doksli"`.
+  - `scheduler-uploader/setup.js`:
+     - Menambahkan prompt konfigurasi ID/link folder Doksli pada Tahap 3 setup wizard.
+  - `scheduler-uploader/.env.example`:
+     - Menambahkan variabel lingkungan `GDRIVE_DOKSLI_FOLDER_ID` dan `QUIZ_CLIP_COUNT`.
+  - `scheduler-uploader/README.md`:
+     - Menambahkan dokumentasi fitur, alur kerja kuis per klip, dan instruksi eksekusi kompilasi doksli.
+
 ## [Unreleased] - Remove Legacy Non-Millisecond Backward Compatibility
 - **Konteks Struktural**:
   1. Penegasan Format Presisi Milidetik Tunggal ([api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts), [useClipData.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipData.ts), [useClipDownload.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipDownload.ts)):
