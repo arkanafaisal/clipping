@@ -14,7 +14,26 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Uniform Layout Aspect Ratio with Gameplay Censor on Cut and Quiz Freeze
+## [Unreleased] - Prefix Skip Code Filter for Folders and Files
+- **Konteks Struktural**:
+  1. Mekanisme Penyaringan Berkas & Folder Rusak/Karantina Berbasis Kode Awalan ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example)):
+     - Menambahkan fungsi helper `isSkippedItem(name, customPrefix)` untuk mendeteksi kode awalan skip (default: tanda seru `!`, misal `!Minecraft`, `!eps 1`, `!cut.mp4`, atau variasi `]]`, `[skip]`, `[x]`, serta dapat dikonfigurasi melalui `.env` `SKIP_PREFIX` atau CLI `--skip-prefix=`).
+     - Pemilihan simbol `!` sebagai standar utama: karakter `!` tidak pernah menjadi awalan judul game resmi, nomor episode, atau detail video; sangat ergonomis diketik di HP (1 tap) maupun PC (Shift+1); dan dalam pengurutan alfabetis/ASCII Google Drive & Windows Explorer, `!` (ASCII 33) otomatis menempatkan folder/file yang rusak di posisi paling atas, memudahkan manajemen karantina.
+  2. Filter Multi-Level pada Pipeline Kompilasi ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
+     - **Level Game (Folder Terluar)**: Folder game yang diawali kode skip langsung diabaikan dan tidak dimasukkan ke dalam `allGameNamesPool`, mencegah judul game yang sedang rusak/diedit ulang terpilih sebagai opsi kuis (kunci maupun pengecoh).
+     - **Level Episode ("eps x")**: Subfolder episode yang berawalan skip dilewati. Jika game memiliki episode valid lain, episode tersebut tetap dapat dipilih.
+     - **Level Berkas Video (`cut.mp4` / Video Full)**: Pada tahap pencarian berkas, jika `cut` atau `full` berawalan kode skip, episode tersebut diabaikan.
+     - **Level Runtime Failsafe & Auto-Cleanup**: Jika pada Tahap 3 (unduh/render) ditemukan berkas yang memiliki kode skip (misal terlewat di awal atau baru ditandai), script seketika menghentikan proses klip momen tersebut (`cleanupMomentTempFiles()`), menghapus seluruh berkas sementara yang sempat diunduh/dibuat, mencatat log peringatan, dan melanjutkan ke momen berikutnya tanpa merusak alur kompilasi.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/compile_doksli.js`:
+     - Menambahkan helper `isSkippedItem` dan `cleanText`, serta mengekspornya ke `module.exports`.
+     - Memperbarui `runQuizCompiler()` dengan parsing `SKIP_PREFIX` dan argumen CLI `--skip-prefix=`.
+     - Menyaring `allGameFolders`, `epsFolders`, dan `vidFiles` menggunakan `isSkippedItem`.
+     - Menambahkan pengaman runtime di loop momen Tahap 3 beserta pembersihan berkas sementara jika proses klip dibatalkan di tengah jalan.
+  - `scheduler-uploader/.env.example`:
+     - Menambahkan dokumentasi variabel `SKIP_PREFIX="!"`.
+
+## [fc31972] - Uniform Layout Aspect Ratio with Gameplay Censor on Cut and Quiz Freeze
 - **Konteks Struktural**:
   1. Penyelarasan Rasio Visual & Pencegahan *Layout Jumping* ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example)):
      - Menyamakan rasio dan geometri visual antara video potongan `cut.mp4` dengan video full: keduanya mengadopsi susunan kanvas portrait 1080x1920 yang identik (Facecam 4:3 di atas pada $Y=196$ s/d $1006$, dan Gameplay 3:2 di bawah pada $Y=1006$ s/d $1726$).

@@ -145,6 +145,33 @@ function shuffleArray(arr) {
 }
 
 /**
+ * Membersihkan teks untuk overlay: menghapus ekstensi berkas, newline/enter, dan normalisasi spasi
+ */
+function cleanText(str) {
+  if (!str || typeof str !== 'string') return '';
+  return str
+    .replace(/\.[a-zA-Z0-9]+$/i, '')
+    .replace(/\\n/gi, ' ')
+    .replace(/[\r\n]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Memeriksa apakah nama folder atau file memiliki kode awalan 'skip'
+ * (Default kode: tanda seru '!' seperti '!Minecraft', '!eps 1', '!cut.mp4',
+ * ']]' atau tag kurung '[skip]' / '[x]', serta dapat dikonfigurasi via SKIP_PREFIX)
+ */
+function isSkippedItem(name, customPrefix = null) {
+  if (!name || typeof name !== 'string') return false;
+  const trimmed = name.trim();
+  const prefix = (customPrefix || process.env.SKIP_PREFIX || '!').trim();
+  if (prefix && trimmed.startsWith(prefix)) return true;
+  // Pola skip umum: diawali '!', '[skip]', '[x]', atau ']]'
+  return /^(!|\[skip\]|\[x\]|\]\])/i.test(trimmed);
+}
+
+/**
  * Bank Opsi Pengecoh Cadangan Statis (Digunakan jika subfolder di Google Drive kurang dari 4)
  */
 const STATIC_FALLBACK_DISTRACTORS = [
@@ -595,6 +622,8 @@ async function runQuizCompiler() {
     process.env.GDRIVE_OUTPUT_FOLDER_ID ||
     null;
 
+  let skipPrefix = process.env.SKIP_PREFIX || '!';
+
   let censorGameplay = process.env.CENSOR_GAMEPLAY !== 'false';
   let censorMode = (process.env.CENSOR_MODE || process.env.CENSOR_GAMEPLAY_MODE || 'pixelate').toLowerCase();
   let censorY = parseInt(process.env.CENSOR_GAMEPLAY_Y || '1006', 10);
@@ -611,6 +640,7 @@ async function runQuizCompiler() {
     if (arg.startsWith('--question=')) quizQuestion = arg.slice(arg.indexOf('=') + 1);
     if (arg.startsWith('--transition-sfx=')) customTransitionSfx = arg.slice(arg.indexOf('=') + 1);
     if (arg.startsWith('--result-folder=')) resultFolderId = arg.slice(arg.indexOf('=') + 1);
+    if (arg.startsWith('--skip-prefix=')) skipPrefix = arg.slice(arg.indexOf('=') + 1);
     if (arg.startsWith('--censor-mode=')) censorMode = arg.split('=')[1].toLowerCase();
     if (arg.startsWith('--censor-y=')) censorY = parseInt(arg.split('=')[1], 10);
     if (arg.startsWith('--censor-h=')) censorH = parseInt(arg.split('=')[1], 10);
@@ -644,6 +674,7 @@ async function runQuizCompiler() {
   console.log(` - Format Output          : Vertikal 9:16 (1080x1920) 60 FPS`);
   console.log(` - Durasi Freeze Kuis     : ${(4 * quizTickSeconds).toFixed(2)}s (Tick: ${quizTickSeconds}s x 4 beat)`);
   console.log(` - Pertanyaan Kuis        : "${quizQuestion}"`);
+  console.log(` - Prefix Abaikan/Skip    : "${skipPrefix}" (folder/file diawali prefix ini otomatis dilewati)`);
   console.log(` - Audio Penutup Momen    : ${transitionSfxPath ? path.basename(transitionSfxPath) : 'Tidak aktif (file tidak ditemukan)'}`);
   console.log(` - Auto-Upload Hasil      : ${resultFolderId ? 'Aktif (Folder: ' + resultFolderId + ', auto-hapus lokal)' : 'Nonaktif (tersimpan di lokal)'}`);
   console.log(` - Posisi Freeze Kuis     : Terpusat matematis (Y ~ 960px, Offset: ${quizOffsetY}px)`);
@@ -677,21 +708,29 @@ async function runQuizCompiler() {
     includeItemsFromAllDrives: true,
   });
 
-  const allGameFolders = res.data.files || [];
+  const rawGameFolders = res.data.files || [];
+  const allGameFolders = rawGameFolders.filter((f) => {
+    if (isSkippedItem(f.name, skipPrefix)) {
+      console.log(` ⏭️ [SKIP] Folder game "${f.name}" dilewati (diawali kode skip "${skipPrefix}").`);
+      return false;
+    }
+    return true;
+  });
+
   if (allGameFolders.length === 0) {
-    console.error('❌ [ERROR] Tidak ada folder game yang ditemukan di folder Google Drive tersebut.');
+    console.error('❌ [ERROR] Tidak ada folder game yang ditemukan di folder Google Drive tersebut (atau seluruh folder di-skip).');
     console.error('   Konsep berlapis: Folder Doksli berisi folder Game (nama game = jawaban kuis).');
     console.error('   Di dalam folder Game terdapat subfolder episode ("eps x") yang berisi cut.mp4 dan video full.');
     process.exit(1);
   }
 
-  console.log(`✅ Berhasil menemukan ${allGameFolders.length} folder game di Google Drive.`);
+  console.log(`✅ Berhasil menemukan ${allGameFolders.length} folder game valid di Google Drive (dari total ${rawGameFolders.length} folder).`);
   if (allGameFolders.length < 4) {
-    console.log(`ℹ️ [INFO] Folder Google Drive saat ini memiliki ${allGameFolders.length} folder game (kurang dari 4).`);
+    console.log(`ℹ️ [INFO] Folder Google Drive saat ini memiliki ${allGameFolders.length} folder game valid (kurang dari 4).`);
     console.log(`   Opsi pengecoh kuis lainnya otomatis dilengkapi secara unik dari bank judul game statis.`);
   }
 
-  // Pool seluruh nama game untuk distractor pilihan ganda kuis
+  // Pool seluruh nama game untuk distractor pilihan ganda kuis (hanya game valid yang tidak di-skip)
   const allGameNamesPool = allGameFolders.map((f) => f.name.trim());
 
   // 4. Acak dan validasi isi folder game (mencari subfolder "eps x" yang berisi cut.mp4 & video full, anti-duplikat game)
@@ -725,7 +764,14 @@ async function runQuizCompiler() {
     });
 
     const children = childrenRes.data.files || [];
-    const epsFolders = children.filter((c) => c.mimeType === 'application/vnd.google-apps.folder');
+    const allEpsFolders = children.filter((c) => c.mimeType === 'application/vnd.google-apps.folder');
+    const epsFolders = allEpsFolders.filter((c) => {
+      if (isSkippedItem(c.name, skipPrefix)) {
+        console.log(`   ⏭️ [SKIP] Subfolder episode "${c.name}" pada game "${gameName}" dilewati (diawali kode skip).`);
+        return false;
+      }
+      return true;
+    });
 
     let chosenEps = null;
 
@@ -743,7 +789,15 @@ async function runQuizCompiler() {
           includeItemsFromAllDrives: true,
         });
 
-        const vidFiles = vidRes.data.files || [];
+        const rawVidFiles = vidRes.data.files || [];
+        const vidFiles = rawVidFiles.filter((f) => {
+          if (isSkippedItem(f.name, skipPrefix)) {
+            console.log(`   ⏭️ [SKIP] Berkas video "${f.name}" di episode "${epsFolder.name}" dilewati (diawali kode skip).`);
+            return false;
+          }
+          return true;
+        });
+
         if (vidFiles.length === 2) {
           const cutFile = vidFiles.find((f) => {
             const base = f.name.toLowerCase().replace(/\.[^.]+$/, '');
@@ -762,11 +816,19 @@ async function runQuizCompiler() {
       }
     } else {
       // Fallback kompatibilitas: jika video diletakkan langsung di dalam folder game
-      const vidFiles = children.filter(
+      const rawVidFiles = children.filter(
         (f) =>
           (f.mimeType && f.mimeType.startsWith('video/')) ||
           /\.(mp4|mkv|mov|webm)$/i.test(f.name)
       );
+      const vidFiles = rawVidFiles.filter((f) => {
+        if (isSkippedItem(f.name, skipPrefix)) {
+          console.log(`   ⏭️ [SKIP] Berkas video "${f.name}" pada game "${gameName}" dilewati (diawali kode skip).`);
+          return false;
+        }
+        return true;
+      });
+
       if (vidFiles.length === 2) {
         const cutFile = vidFiles.find((f) => {
           const base = f.name.toLowerCase().replace(/\.[^.]+$/, '');
@@ -784,7 +846,7 @@ async function runQuizCompiler() {
     }
 
     if (!chosenEps) {
-      console.log(` ⚠️ Game "${gameName}" dilewati (tidak ada subfolder episode yang memiliki cut.mp4 dan video full).`);
+      console.log(` ⚠️ Game "${gameName}" dilewati (tidak ada subfolder episode valid yang memiliki cut.mp4 dan video full).`);
       continue;
     }
 
@@ -866,96 +928,145 @@ async function runQuizCompiler() {
     const momentIndex = i + 1;
     console.log(`\n🎬 [MEMPROSES MOMEN ${momentIndex}/${validMoments.length}]: "${moment.momentName}"...`);
 
-    // --- BAGIAN 1: VIDEO POTONGAN (cut.mp4) ---
-    console.log(`   1. Mengunduh dan menormalisasi cut.mp4${censorGameplay ? ` (Sensor Gameplay: ${censorMode})` : ''}...`);
-    const rawCutPath = path.join(workDir, `raw_cut_${momentIndex}.mp4`);
-    const cutStream = await drive.files.get(
-      { fileId: moment.cutFile.id, alt: 'media', supportsAllDrives: true },
-      { responseType: 'stream' }
-    );
-    await pipeline(cutStream.data, fs.createWriteStream(rawCutPath));
+    const momentTempFiles = [];
+    const cleanupMomentTempFiles = () => {
+      for (const p of momentTempFiles) {
+        try {
+          if (fs.existsSync(p)) fs.unlinkSync(p);
+        } catch (_) {}
+      }
+    };
 
-    const normCutPath = path.join(workDir, `norm_cut_${momentIndex}.mp4`);
-    normalizeVideo({
-      inputPath: rawCutPath,
-      outputPath: normCutPath,
-      censorGameplay,
-      censorMode,
-      censorY,
-      censorH,
-      censorPixelSize,
-      censorBlurRadius,
-    });
-
-    // --- BAGIAN 2: FREEZE FRAME KUIS (3 COUNTDOWN + 1 REVEAL) ---
-    const totalQuizFrames = Math.max(1, Math.round(4 * quizTickSeconds * 60));
-    const totalQuizSec = (totalQuizFrames / 60).toFixed(4);
-
-    console.log(`   2. Mengekstrak frame terakhir & membuat freeze kuis (${totalQuizSec}s / ${totalQuizFrames} frame, tick: ${quizTickSeconds}s)...`);
-    const freezeFramePng = path.join(workDir, `freeze_${momentIndex}.png`);
-    execSync(`"${FFMPEG_BIN}" -y -sseof -0.1 -i "${normCutPath}" -update 1 -q:v 1 "${freezeFramePng}"`, { stdio: 'ignore' });
-
-    const quizAssPath = path.join(workDir, `quiz_${momentIndex}.ass`);
-    fs.writeFileSync(
-      quizAssPath,
-      generateQuizASS({
-        question: quizQuestion,
-        options: moment.options,
-        correctIndex: moment.correctIndex,
-        offsetY: quizOffsetY,
-        tickDuration: quizTickSeconds,
-        totalDuration: parseFloat(totalQuizSec),
-      }),
-      'utf8'
-    );
-
-    // Buat file audio efek suara (3 countdown beep + 1 reveal chime)
-    const sfxWavPath = path.join(workDir, `sfx_${momentIndex}.wav`);
-    generateQuizSoundWav(sfxWavPath, quizTickSeconds, parseFloat(totalQuizSec));
-
-    const freezeVideoPath = path.join(workDir, `freeze_vid_${momentIndex}.mp4`);
-    const escapedQuizAss = quizAssPath.replace(/\\/g, '/').replace(/:/g, '\\:');
-    execSync(
-      `"${FFMPEG_BIN}" -y -framerate 60 -loop 1 -i "${freezeFramePng}" -i "${sfxWavPath}" -vf "scale=1080:1920:force_original_aspect_ratio=decrease:flags=lanczos,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1,ass='${escapedQuizAss}'" -af "apad,aresample=async=1:first_pts=0" -t ${totalQuizSec} -vframes ${totalQuizFrames} -shortest -c:v libx264 -preset fast -crf 16 -profile:v high -level 4.2 -c:a aac -ar 44100 -ac 2 -r 60 -fps_mode cfr -video_track_timescale 60000 -movflags +faststart -pix_fmt yuv420p "${freezeVideoPath}"`,
-      { stdio: 'ignore' }
-    );
-
-    // --- BAGIAN 3: VIDEO FULL DENGAN OVERLAY TEKS DI 1/4 ATAS KANVAS ---
-    console.log(`   3. Mengunduh & merender video full ("${moment.fullVideoDisplayText}")...`);
-    const rawFullPath = path.join(workDir, `raw_full_${momentIndex}.mp4`);
-    const fullStream = await drive.files.get(
-      { fileId: moment.fullFile.id, alt: 'media', supportsAllDrives: true },
-      { responseType: 'stream' }
-    );
-    await pipeline(fullStream.data, fs.createWriteStream(rawFullPath));
-
-    const memeAssPath = path.join(workDir, `meme_${momentIndex}.ass`);
-    fs.writeFileSync(
-      memeAssPath,
-      generateFullVideoASS({
-        text: moment.fullVideoDisplayText,
-        durationSeconds: 600,
-        posY: memeTextY,
-      }),
-      'utf8'
-    );
-
-    const normFullPath = path.join(workDir, `norm_full_${momentIndex}.mp4`);
-    normalizeVideo({
-      inputPath: rawFullPath,
-      outputPath: normFullPath,
-      assSubtitlePath: memeAssPath,
-    });
-
-    // Masukkan ketiga bagian alur momen langsung ke list kompilasi
-    allCompilationClips.push(normCutPath, freezeVideoPath, normFullPath);
-
-    // Sisipkan klip layar hitam dan sound TikTok Core setelah setiap momen (termasuk momen terakhir / ke-X)
-    if (transitionClipPath) {
-      allCompilationClips.push(transitionClipPath);
+    // Pengecekan runtime sebelum mengunduh: hentikan dan lewati jika ada berkas yang berawalan kode skip
+    if (isSkippedItem(moment.cutFile?.name, skipPrefix) || isSkippedItem(moment.fullFile?.name, skipPrefix)) {
+      console.warn(`   ⚠️ [STOP & SKIP] Berkas video pada momen "${moment.momentName}" memiliki kode skip ("${moment.cutFile?.name}" / "${moment.fullFile?.name}"). Momen ini dilewati.`);
+      continue;
     }
 
-    console.log(`   ✅ Seluruh bagian momen #${momentIndex} siap dirangkai.`);
+    try {
+      // --- BAGIAN 1: VIDEO POTONGAN (cut.mp4) ---
+      console.log(`   1. Mengunduh dan menormalisasi cut.mp4${censorGameplay ? ` (Sensor Gameplay: ${censorMode})` : ''}...`);
+      const rawCutPath = path.join(workDir, `raw_cut_${momentIndex}.mp4`);
+      momentTempFiles.push(rawCutPath);
+
+      const cutStream = await drive.files.get(
+        { fileId: moment.cutFile.id, alt: 'media', supportsAllDrives: true },
+        { responseType: 'stream' }
+      );
+      await pipeline(cutStream.data, fs.createWriteStream(rawCutPath));
+
+      // Failsafe: Jika cut.mp4 ternyata berawalan skip
+      if (isSkippedItem(moment.cutFile?.name, skipPrefix)) {
+        console.warn(`   ⚠️ [STOP PROSES] Berkas cut.mp4 ("${moment.cutFile.name}") memiliki kode skip. Menghentikan proses klip ini dan membersihkan berkas.`);
+        cleanupMomentTempFiles();
+        continue;
+      }
+
+      const normCutPath = path.join(workDir, `norm_cut_${momentIndex}.mp4`);
+      momentTempFiles.push(normCutPath);
+      normalizeVideo({
+        inputPath: rawCutPath,
+        outputPath: normCutPath,
+        censorGameplay,
+        censorMode,
+        censorY,
+        censorH,
+        censorPixelSize,
+        censorBlurRadius,
+      });
+
+      // --- BAGIAN 2: FREEZE FRAME KUIS (3 COUNTDOWN + 1 REVEAL) ---
+      const totalQuizFrames = Math.max(1, Math.round(4 * quizTickSeconds * 60));
+      const totalQuizSec = (totalQuizFrames / 60).toFixed(4);
+
+      console.log(`   2. Mengekstrak frame terakhir & membuat freeze kuis (${totalQuizSec}s / ${totalQuizFrames} frame, tick: ${quizTickSeconds}s)...`);
+      const freezeFramePng = path.join(workDir, `freeze_${momentIndex}.png`);
+      momentTempFiles.push(freezeFramePng);
+      execSync(`"${FFMPEG_BIN}" -y -sseof -0.1 -i "${normCutPath}" -update 1 -q:v 1 "${freezeFramePng}"`, { stdio: 'ignore' });
+
+      const quizAssPath = path.join(workDir, `quiz_${momentIndex}.ass`);
+      momentTempFiles.push(quizAssPath);
+      fs.writeFileSync(
+        quizAssPath,
+        generateQuizASS({
+          question: quizQuestion,
+          options: moment.options,
+          correctIndex: moment.correctIndex,
+          offsetY: quizOffsetY,
+          tickDuration: quizTickSeconds,
+          totalDuration: parseFloat(totalQuizSec),
+        }),
+        'utf8'
+      );
+
+      // Buat file audio efek suara (3 countdown beep + 1 reveal chime)
+      const sfxWavPath = path.join(workDir, `sfx_${momentIndex}.wav`);
+      momentTempFiles.push(sfxWavPath);
+      generateQuizSoundWav(sfxWavPath, quizTickSeconds, parseFloat(totalQuizSec));
+
+      const freezeVideoPath = path.join(workDir, `freeze_vid_${momentIndex}.mp4`);
+      momentTempFiles.push(freezeVideoPath);
+      const escapedQuizAss = quizAssPath.replace(/\\/g, '/').replace(/:/g, '\\:');
+      execSync(
+        `"${FFMPEG_BIN}" -y -framerate 60 -loop 1 -i "${freezeFramePng}" -i "${sfxWavPath}" -vf "scale=1080:1920:force_original_aspect_ratio=decrease:flags=lanczos,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1,ass='${escapedQuizAss}'" -af "apad,aresample=async=1:first_pts=0" -t ${totalQuizSec} -vframes ${totalQuizFrames} -shortest -c:v libx264 -preset fast -crf 16 -profile:v high -level 4.2 -c:a aac -ar 44100 -ac 2 -r 60 -fps_mode cfr -video_track_timescale 60000 -movflags +faststart -pix_fmt yuv420p "${freezeVideoPath}"`,
+        { stdio: 'ignore' }
+      );
+
+      // Failsafe: Jika fullFile ternyata berawalan skip setelah cut & freeze selesai
+      if (isSkippedItem(moment.fullFile?.name, skipPrefix)) {
+        console.warn(`   ⚠️ [STOP PROSES] Berkas full video ("${moment.fullFile.name}") memiliki kode skip setelah klip potongan diolah. Menghentikan proses klip ini dan membersihkan berkas sementara.`);
+        cleanupMomentTempFiles();
+        continue;
+      }
+
+      // --- BAGIAN 3: VIDEO FULL DENGAN OVERLAY TEKS DI 1/4 ATAS KANVAS ---
+      console.log(`   3. Mengunduh & merender video full ("${moment.fullVideoDisplayText}")...`);
+      const rawFullPath = path.join(workDir, `raw_full_${momentIndex}.mp4`);
+      momentTempFiles.push(rawFullPath);
+      const fullStream = await drive.files.get(
+        { fileId: moment.fullFile.id, alt: 'media', supportsAllDrives: true },
+        { responseType: 'stream' }
+      );
+      await pipeline(fullStream.data, fs.createWriteStream(rawFullPath));
+
+      const memeAssPath = path.join(workDir, `meme_${momentIndex}.ass`);
+      momentTempFiles.push(memeAssPath);
+      fs.writeFileSync(
+        memeAssPath,
+        generateFullVideoASS({
+          text: moment.fullVideoDisplayText,
+          durationSeconds: 600,
+          posY: memeTextY,
+        }),
+        'utf8'
+      );
+
+      const normFullPath = path.join(workDir, `norm_full_${momentIndex}.mp4`);
+      momentTempFiles.push(normFullPath);
+      normalizeVideo({
+        inputPath: rawFullPath,
+        outputPath: normFullPath,
+        assSubtitlePath: memeAssPath,
+      });
+
+      // Masukkan ketiga bagian alur momen langsung ke list kompilasi
+      allCompilationClips.push(normCutPath, freezeVideoPath, normFullPath);
+
+      // Sisipkan klip layar hitam dan sound TikTok Core setelah setiap momen (termasuk momen terakhir / ke-X)
+      if (transitionClipPath) {
+        allCompilationClips.push(transitionClipPath);
+      }
+
+      console.log(`   ✅ Seluruh bagian momen #${momentIndex} siap dirangkai.`);
+    } catch (momentErr) {
+      console.warn(`   ⚠️ [ERROR MOMEN #${momentIndex}] Gagal memproses momen "${moment.momentName}": ${momentErr.message}`);
+      cleanupMomentTempFiles();
+    }
+  }
+
+  if (allCompilationClips.length === 0) {
+    console.error('❌ Tidak ada klip video yang berhasil diproses untuk kompilasi (seluruh momen di-skip atau gagal).');
+    process.exit(1);
   }
 
   // 6. Gabungkan seluruh segmen klip menjadi 1 video kompilasi utuh dalam 1 single-pass concat
@@ -1042,5 +1153,7 @@ module.exports = {
   generateFullVideoASS,
   generateQuizSoundWav,
   getAudioDuration,
+  cleanText,
+  isSkippedItem,
   STATIC_FALLBACK_DISTRACTORS,
 };
