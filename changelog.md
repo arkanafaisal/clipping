@@ -14,7 +14,22 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - CFR 60 FPS Lock and High-Fidelity Video Encoding
+## [Unreleased] - Mandatory Black Screen Closer and High-Presence TikTok Core Remaster
+- **Konteks Struktural**:
+  1. Penutupan Wajib Layar Hitam & Sound TikTok Core di Setiap Momen ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
+     - Mengubah logika penggabungan klip akhir sehingga layar hitam dan sound TikTok Core kini tidak hanya disisipkan sebagai transisi antar momen, melainkan menjadi penutup wajib setelah bagian full video reveal di SETIAP momen (termasuk momen terakhir / ke-X).
+     - Menjamin video kompilasi selalu diakhiri dengan layar hitam + audio TikTok Core yang konsisten, terlepas dari berapa pun jumlah momen unik yang tersedia (target tercapai maupun klip unik terbatas).
+  2. Remaster Berkas Fisik `tiktok core.mp3` dengan Kehadiran Frekuensi Menengah & Kompresi Agresif ([tiktok core.mp3](file:///d:/projects/clipping/scheduler-uploader/tiktok%20core.mp3), [compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
+     - Menulis ulang berkas fisik `tiktok core.mp3` secara permanen dengan teknik mastering meme: analog *soft-clipping* (`asoftclip=type=atan`), penguatan frekuensi midrange 1.2 kHz (+6 dB) dan punch 100 Hz (+8 dB), serta *heavy compression* (`acompressor`).
+     - Mengatasi masalah suara pelan pada speaker HP/laptop akibat dominasi sub-bass tak terdengar menjadi suara yang renyah, menggelegar, dan punchy secara fisik di berkas MP3 itu sendiri.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/compile_doksli.js`:
+     - Menghapus batasan `i < finalSegmentPaths.length - 1` pada iterasi `concatItems` sehingga `transitionClipPath` selalu ditambahkan setelah setiap `finalSegmentPaths[i]`.
+     - Memperbarui label log konfigurasi menjadi `Audio Penutup Momen`.
+  - `scheduler-uploader/tiktok core.mp3`:
+     - Berkas MP3 fisik di-remaster dengan penguatan analog softclip, EQ presence, dan kompresi dinamik agresif.
+
+## [7432b1d] - CFR 60 FPS Lock and High-Fidelity Video Encoding
 - **Konteks Struktural**:
   1. Penguncian Constant Frame Rate (CFR 60 FPS) & Timescale Timebase ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
      - Menghilangkan degradasi frame rate ke `58.xx / 59.83 FPS` akibat timestamp drift pada FFmpeg concat demuxer (`-c copy`) dengan menyematkan flag `-fps_mode cfr` dan `-video_track_timescale 60000` di setiap proses render segmen video.

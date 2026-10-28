@@ -553,7 +553,7 @@ async function runQuizCompiler() {
   console.log(` - Target Momen Terpilih  : ${clipCountTarget} momen`);
   console.log(` - Format Output          : Vertikal 9:16 (1080x1920) 60 FPS`);
   console.log(` - Pertanyaan Kuis        : "${quizQuestion}"`);
-  console.log(` - Audio Transisi Antara  : ${transitionSfxPath ? path.basename(transitionSfxPath) + ' (Volume: ' + Math.round(transitionVolume * 100) + '%)' : 'Tidak aktif (file tidak ditemukan)'}`);
+  console.log(` - Audio Penutup Momen  : ${transitionSfxPath ? path.basename(transitionSfxPath) : 'Tidak aktif (file tidak ditemukan)'}`);
   console.log(` - Auto-Upload Hasil      : ${resultFolderId ? 'Aktif (Folder: ' + resultFolderId + ', auto-hapus lokal)' : 'Nonaktif (tersimpan di lokal)'}`);
   console.log(` - Posisi Freeze Kuis     : Terpusat matematis (Y ~ 960px, Offset: ${quizOffsetY}px)`);
   console.log(` - Posisi Teks Video Full : 1/4 tinggi kanvas (Y = ${memeTextY}px)\n`);
@@ -816,8 +816,8 @@ async function runQuizCompiler() {
   const concatItems = [];
   for (let i = 0; i < finalSegmentPaths.length; i++) {
     concatItems.push(finalSegmentPaths[i]);
-    // Sisipkan klip transisi layar hitam di antara setiap momen (tidak di akhir klip)
-    if (i < finalSegmentPaths.length - 1 && transitionClipPath) {
+    // Sisipkan klip layar hitam dan sound TikTok Core setelah setiap momen (termasuk momen terakhir / ke-X)
+    if (transitionClipPath) {
       concatItems.push(transitionClipPath);
     }
   }
