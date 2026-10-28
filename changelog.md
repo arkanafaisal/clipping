@@ -14,7 +14,19 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Fixed Font Size and Strict Single-Line Quiz Option Rule
+## [Unreleased] - Static Fallback Distractors for Testing and Guaranteed Unique Quiz Options
+- **Konteks Struktural**:
+  1. Opsi Cadangan Statis & Validasi Keunikan Opsi Kuis ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
+     - Menambahkan bank opsi pengecoh cadangan statis (`STATIC_FALLBACK_DISTRACTORS`) berisi pilihan bertema gaming/meme populer agar pengguna dapat langsung menguji script meskipun folder Google Drive baru berisi 1 folder (atau di bawah 4 folder).
+     - Menghapus syarat batas minimal 4 folder untuk keluar dengan error; script kini otomatis melengkapi opsi yang kurang dari bank statis tanpa memblokir proses kompilasi.
+     - Mengembangkan fungsi `createUniqueQuizOptions` menggunakan struktur data `Set` dan pencocokan case-insensitive untuk menjamin 100% tidak akan pernah ada teks duplikat di antara opsi A, B, C, dan D.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/compile_doksli.js`:
+     - Menambahkan konstanta `STATIC_FALLBACK_DISTRACTORS`.
+     - Menambahkan fungsi `createUniqueQuizOptions(correctAnswer, folderPool)` yang mengumpulkan 4 opsi unik tanpa duplikasi.
+     - Menyesuaikan penanganan jumlah subfolder di Google Drive agar menampilkan informasi informatif saat folder < 4 alih-alih melempar error `process.exit(1)`.
+
+## [83bff31] - Fixed Font Size and Strict Single-Line Quiz Option Rule
 - **Konteks Struktural**:
   1. Penegasan Ukuran Font Statis & Aturan 1 Baris Pasti ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [GEMINI.md](file:///d:/projects/clipping/GEMINI.md), [README.md](file:///d:/projects/clipping/scheduler-uploader/README.md)):
      - Menghapus mekanisme auto font-scaling dan perbedaan ukuran font pada kartu pilihan kuis kuis untuk menjaga konsistensi tinggi kartu dan baseline vertikal teks.

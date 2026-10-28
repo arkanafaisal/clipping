@@ -145,6 +145,79 @@ function shuffleArray(arr) {
 }
 
 /**
+ * Bank Opsi Pengecoh Cadangan Statis (Digunakan jika subfolder di Google Drive kurang dari 4)
+ */
+const STATIC_FALLBACK_DISTRACTORS = [
+  'Momen Kena Prank Creeper',
+  'Refleks Lempar Headset',
+  'Ketiduran Saat Live Stream',
+  'PC Tiba-tiba Mati Lampu',
+  'Salah Pencet Tombol Ulti',
+  'Panik Dikejar Musuh Sekampung',
+  'Momen Comeback Paling Epik',
+  'Ketawa Sampai Batuk Kering',
+  'Ngantuk Berat di Late Game',
+  'Disurprise Bokong Lawan',
+  'Terbawa Emosi Banting Mouse',
+  'Lupa Mute Mic Pas Nyanyi',
+  'Momen Kepleset Jatuh ke Void',
+  'Kaget Ada Jumpscare Tak Terduga',
+  'Tangan Licin Kebanyakan Keringat',
+  'Kena Snipe dari Jarak 1 Kilometer',
+  'Salah Lempar Granat ke Teman',
+  'Koneksi Internet Mendadak RTO',
+];
+
+/**
+ * Helper menghasilkan 4 opsi pilihan ganda unik (1 jawaban benar + 3 pengecoh).
+ * Menggunakan Set dan validasi case-insensitive sehingga DIJAMIN 100% TIDAK AKAN PERNAH DUPLIKAT.
+ */
+function createUniqueQuizOptions(correctAnswer, folderPool = []) {
+  const correctClean = correctAnswer.trim();
+  const selectedSet = new Set([correctClean]);
+
+  // 1. Ambil kandidat dari subfolder Google Drive lain jika ada
+  const candidatesFromDrive = shuffleArray(
+    folderPool
+      .map((f) => (typeof f === 'string' ? f : f.name || '').trim())
+      .filter((name) => name && name.toLowerCase() !== correctClean.toLowerCase())
+  );
+
+  for (const name of candidatesFromDrive) {
+    if (selectedSet.size >= 4) break;
+    const alreadyExists = Array.from(selectedSet).some(
+      (existing) => existing.toLowerCase() === name.toLowerCase()
+    );
+    if (!alreadyExists) {
+      selectedSet.add(name);
+    }
+  }
+
+  // 2. Jika opsi belum mencapai 4 (misal baru ada 1 folder), lengkapi dari bank statis
+  if (selectedSet.size < 4) {
+    const candidatesFromStatic = shuffleArray(
+      STATIC_FALLBACK_DISTRACTORS.filter(
+        (name) => !Array.from(selectedSet).some((existing) => existing.toLowerCase() === name.toLowerCase())
+      )
+    );
+
+    for (const name of candidatesFromStatic) {
+      if (selectedSet.size >= 4) break;
+      selectedSet.add(name);
+    }
+  }
+
+  // Acak urutan 4 opsi (A, B, C, D)
+  const shuffledOptions = shuffleArray(Array.from(selectedSet));
+  const correctIndex = shuffledOptions.indexOf(correctClean);
+
+  return {
+    options: shuffledOptions,
+    correctIndex,
+  };
+}
+
+/**
  * Helper membersihkan nama untuk display
  */
 function cleanText(str) {
@@ -363,8 +436,8 @@ async function runQuizCompiler() {
 
   console.log(`✅ Berhasil menemukan ${allFolders.length} subfolder momen di Google Drive.`);
   if (allFolders.length < 4) {
-    console.error('❌ Diperlukan minimal 4 folder momen untuk membuat 4 pilihan ganda (A, B, C, D).');
-    process.exit(1);
+    console.log(`ℹ️ [INFO] Folder Google Drive saat ini memiliki ${allFolders.length} subfolder (kurang dari 4).`);
+    console.log(`   Opsi pengecoh kuis lainnya otomatis dilengkapi secara unik dari bank pilihan statis.`);
   }
 
   // Pool seluruh nama momen untuk distractor kuis
@@ -410,12 +483,9 @@ async function runQuizCompiler() {
     // File video kedua adalah full video
     const fullFile = vidFiles.find((f) => f.id !== cutFile.id);
 
-    // Siapkan pilihan ganda kuis
+    // Siapkan pilihan ganda kuis (100% unik tanpa duplikat via Set & fallback statis)
     const correctName = folder.name.trim();
-    const wrongCandidates = shuffleArray(allFolderNamesPool.filter((name) => name !== correctName));
-    const wrongOptions = wrongCandidates.slice(0, 3);
-    const options = shuffleArray([correctName, ...wrongOptions]);
-    const correctIndex = options.indexOf(correctName);
+    const { options, correctIndex } = createUniqueQuizOptions(correctName, allFolderNamesPool);
 
     validMoments.push({
       folderId: folder.id,
@@ -562,9 +632,18 @@ async function runQuizCompiler() {
   console.log('================================================================\n');
 }
 
-// Jalankan script
-runQuizCompiler().catch((err) => {
-  console.error('\n❌ Terjadi kesalahan saat memproses kompilasi kuis doksli:');
-  console.error(err.message || err);
-  process.exit(1);
-});
+// Jalankan script jika dipanggil langsung
+if (require.main === module) {
+  runQuizCompiler().catch((err) => {
+    console.error('\n❌ Terjadi kesalahan saat memproses kompilasi kuis doksli:');
+    console.error(err.message || err);
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  createUniqueQuizOptions,
+  generateQuizASS,
+  generateFullVideoASS,
+  STATIC_FALLBACK_DISTRACTORS,
+};
