@@ -14,7 +14,16 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Prefix Skip Code Filter for Folders and Files
+## [Unreleased] - Deduplicate cleanText Helper Definition
+- **Konteks Struktural**:
+  - Penghapusan Definisi Redundan `cleanText` ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
+     - Menghapus deklarasi fungsi `cleanText` duplikat di baris bawah yang sebelumnya menimpa fungsi `cleanText` utama di baris 150.
+     - Memastikan fungsi `cleanText` yang aktif adalah versi komprehensif yang membersihkan ekstensi berkas, string literal `\n`, karakter enter/newline (`\r`, `\n`), serta menormalisasi spasi ganda menjadi spasi tunggal.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/compile_doksli.js`:
+     - Menghapus fungsi `cleanText(str)` redundan pada baris 249-256.
+
+## [1893007] - Prefix Skip Code Filter for Folders and Files
 - **Konteks Struktural**:
   1. Mekanisme Penyaringan Berkas & Folder Rusak/Karantina Berbasis Kode Awalan ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example)):
      - Menambahkan fungsi helper `isSkippedItem(name, customPrefix)` untuk mendeteksi kode awalan skip (default: tanda seru `!`, misal `!Minecraft`, `!eps 1`, `!cut.mp4`, atau variasi `]]`, `[skip]`, `[x]`, serta dapat dikonfigurasi melalui `.env` `SKIP_PREFIX` atau CLI `--skip-prefix=`).

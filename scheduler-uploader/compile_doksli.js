@@ -246,14 +246,6 @@ function createUniqueQuizOptions(correctAnswer, folderPool = []) {
   };
 }
 
-/**
- * Helper membersihkan nama untuk display
- */
-function cleanText(str) {
-  return str
-    .replace(/\.[a-zA-Z0-9]+$/i, '')
-    .trim();
-}
 
 /**
  * Helper mendapatkan durasi file audio secara presisi (detik)
