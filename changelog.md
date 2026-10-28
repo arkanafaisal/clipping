@@ -14,7 +14,23 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Customizable Quiz Question via QUIZ_QUESTION Env and CLI Flag
+## [Unreleased] - Black Screen Inter-Moment Transition with TikTok Core Sound Effect
+- **Konteks Struktural**:
+  1. Transisi Layar Hitam Dinamis Antar Momen ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example), [README.md](file:///d:/projects/clipping/scheduler-uploader/README.md)):
+     - Menambahkan klip transisi layar hitam pekat beresolusi 1080x1920 60 FPS yang disisipkan di antara setiap momen (antara akhir video full momen sebelumnya menuju awal video cut momen berikutnya).
+     - Mengintegrasikan deteksi file efek suara transisi otomatis (`tiktok core.mp3`, `assets/transition.mp3`, atau path kustom melalui environment variable `TRANSITION_SFX_PATH` dan argumen CLI `--transition-sfx=`).
+     - Durasi klip transisi otomatis menyesuaikan secara presisi dengan panjang file audio transisi (contoh: 0.67 detik untuk `tiktok core.mp3`), memberi jeda dramatis yang rapi dan memikat penonton tanpa memperlambat alur video.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/compile_doksli.js`:
+     - Menambahkan deteksi file efek suara transisi dari argumen CLI, `.env`, dan path lokal (`tiktok core.mp3`).
+     - Merender `transition_clip.mp4` berbasis generator `color=c=black:s=1080x1920:r=60` dengan stream audio yang dinormalisasi ke 44.1kHz AAC stereo.
+     - Menyisipkan klip transisi ke dalam daftar urutan penggabungan `final_concat_list.txt` di antara setiap segmen momen (kecuali di akhir kompilasi).
+  - `scheduler-uploader/.env.example`:
+     - Menambahkan dokumentasi variabel lingkungan `TRANSITION_SFX_PATH="tiktok core.mp3"`.
+  - `scheduler-uploader/README.md`:
+     - Memperbarui penjelasan alur momen kompilasi dengan menyertakan transisi layar hitam dan efek suara TikTok Core.
+
+## [e3d13eb] - Customizable Quiz Question via QUIZ_QUESTION Env and CLI Flag
 - **Konteks Struktural**:
   1. Fleksibilitas Teks Pertanyaan Kuis ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example), [README.md](file:///d:/projects/clipping/scheduler-uploader/README.md)):
      - Menjadikan teks pertanyaan kuis dinamis dan dapat dikustomisasi oleh pengguna melalui variabel lingkungan `QUIZ_QUESTION` (misal di `.env`: `QUIZ_QUESTION="Momen apakah ini?"`) atau opsi CLI `--question="<pertanyaan>"`.

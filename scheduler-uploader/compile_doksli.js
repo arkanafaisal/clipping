@@ -493,6 +493,7 @@ async function runQuizCompiler() {
   let quizOffsetY = parseInt(process.env.QUIZ_OFFSET_Y || '0', 10);
   let memeTextY = parseInt(process.env.MEME_TEXT_Y || '480', 10);
   let quizQuestion = process.env.QUIZ_QUESTION || 'Momen manakah itu?';
+  let customTransitionSfx = process.env.TRANSITION_SFX_PATH || null;
 
   for (const arg of process.argv.slice(2)) {
     if (arg.startsWith('--folder=')) doksliFolderId = arg.split('=')[1];
@@ -500,7 +501,17 @@ async function runQuizCompiler() {
     if (arg.startsWith('--offset-y=')) quizOffsetY = parseInt(arg.split('=')[1], 10);
     if (arg.startsWith('--meme-y=')) memeTextY = parseInt(arg.split('=')[1], 10);
     if (arg.startsWith('--question=')) quizQuestion = arg.slice(arg.indexOf('=') + 1);
+    if (arg.startsWith('--transition-sfx=')) customTransitionSfx = arg.slice(arg.indexOf('=') + 1);
   }
+
+  // Deteksi audio transisi (prioritas: custom CLI/env -> tiktok core.mp3 -> assets/)
+  const candidateSfxPaths = [
+    customTransitionSfx,
+    path.resolve(__dirname, 'tiktok core.mp3'),
+    path.resolve(__dirname, 'assets/transition.mp3'),
+    path.resolve(__dirname, 'assets/transition.wav'),
+  ].filter(Boolean);
+  const transitionSfxPath = candidateSfxPaths.find((p) => fs.existsSync(p)) || null;
 
   if (!doksliFolderId) {
     console.error('❌ [ERROR] ID Folder Google Drive (GDRIVE_DOKSLI_FOLDER_ID) belum diatur di .env!');
@@ -517,6 +528,7 @@ async function runQuizCompiler() {
   console.log(` - Target Momen Terpilih  : ${clipCountTarget} momen`);
   console.log(` - Format Output          : Vertikal 9:16 (1080x1920) 60 FPS`);
   console.log(` - Pertanyaan Kuis        : "${quizQuestion}"`);
+  console.log(` - Audio Transisi Antara  : ${transitionSfxPath ? path.basename(transitionSfxPath) : 'Tidak aktif (file tidak ditemukan)'}`);
   console.log(` - Posisi Freeze Kuis     : Terpusat matematis (Y ~ 960px, Offset: ${quizOffsetY}px)`);
   console.log(` - Posisi Teks Video Full : 1/4 tinggi kanvas (Y = ${memeTextY}px)\n`);
 
@@ -641,6 +653,23 @@ async function runQuizCompiler() {
   }
   fs.mkdirSync(workDir, { recursive: true });
 
+  // Siapkan klip transisi layar hitam jika audio transisi tersedia
+  let transitionClipPath = null;
+  if (transitionSfxPath) {
+    console.log(`\n🎞️ [TRANSISI] Menyiapkan klip transisi layar hitam dengan audio "${path.basename(transitionSfxPath)}"...`);
+    transitionClipPath = path.join(workDir, 'transition_clip.mp4');
+    try {
+      execSync(
+        `"${FFMPEG_BIN}" -y -f lavfi -i "color=c=black:s=1080x1920:r=60" -i "${transitionSfxPath}" -c:v libx264 -preset veryfast -crf 20 -c:a aac -ar 44100 -ac 2 -r 60 -pix_fmt yuv420p -shortest "${transitionClipPath}"`,
+        { stdio: 'ignore' }
+      );
+      console.log(`   ✅ Klip transisi layar hitam siap disisipkan antar momen.`);
+    } catch (e) {
+      console.warn(`   ⚠️ Gagal membuat klip transisi layar hitam: ${e.message}`);
+      transitionClipPath = null;
+    }
+  }
+
   const finalSegmentPaths = [];
 
   for (let i = 0; i < validMoments.length; i++) {
@@ -739,10 +768,19 @@ async function runQuizCompiler() {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
   const finalOutputPath = path.join(outputDir, `kompilasi_tebak_doksli_${timestamp}.mp4`);
 
+  const concatItems = [];
+  for (let i = 0; i < finalSegmentPaths.length; i++) {
+    concatItems.push(finalSegmentPaths[i]);
+    // Sisipkan klip transisi layar hitam di antara setiap momen (tidak di akhir klip)
+    if (i < finalSegmentPaths.length - 1 && transitionClipPath) {
+      concatItems.push(transitionClipPath);
+    }
+  }
+
   const mainConcatList = path.join(workDir, 'final_concat_list.txt');
   fs.writeFileSync(
     mainConcatList,
-    finalSegmentPaths.map((p) => `file '${p.replace(/\\/g, '/')}'`).join('\n') + '\n',
+    concatItems.map((p) => `file '${p.replace(/\\/g, '/')}'`).join('\n') + '\n',
     'utf8'
   );
 
