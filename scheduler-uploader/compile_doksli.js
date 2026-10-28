@@ -494,8 +494,8 @@ async function runQuizCompiler() {
   let memeTextY = parseInt(process.env.MEME_TEXT_Y || '480', 10);
   let quizQuestion = process.env.QUIZ_QUESTION || 'Momen manakah itu?';
   let customTransitionSfx = process.env.TRANSITION_SFX_PATH || null;
-  let transitionVolume = parseFloat(process.env.TRANSITION_VOLUME || '3.0');
-  if (isNaN(transitionVolume) || transitionVolume <= 0) transitionVolume = 3.0;
+  let transitionVolume = parseFloat(process.env.TRANSITION_VOLUME || '1.0');
+  if (isNaN(transitionVolume) || transitionVolume <= 0) transitionVolume = 1.0;
   let resultFolderId =
     process.env.GDRIVE_RESULT_FOLDER_ID ||
     process.env.GDRIVE_OUTPUT_FOLDER_ID ||

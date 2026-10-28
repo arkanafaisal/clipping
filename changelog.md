@@ -14,7 +14,19 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Auto-Upload Compilation to Google Drive and Local Cleanup
+## [Unreleased] - Source Audio 10x Boost for TikTok Core SFX
+- **Konteks Struktural**:
+  1. Penguatan Amplitudo Berkas Audio Sumber ([tiktok core.mp3](file:///d:/projects/clipping/scheduler-uploader/tiktok%20core.mp3), [compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
+     - Memperbarui berkas fisik `tiktok core.mp3` secara permanen dengan penguatan amplitudo 10x (+20 dB) dan brickwall limiter sehingga volume rata-rata naik drastis dari `-14.8 dB` menjadi `-3.3 dB` (peak `-0.1 dB`).
+     - Mengubah berkas langsung pada sumbernya agar pengguna dapat mendengarkan (*preview*) secara langsung di pemutar media komputer dengan kenyaringan penuh tanpa harus bergantung pada filter pengali dinamis FFmpeg saat render.
+     - Menyesuaikan nilai *default* `TRANSITION_VOLUME` di kode menjadi `1.0` (100% dari berkas sumber yang sudah diperkuat).
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/tiktok core.mp3`:
+     - Di-remaster dengan gain 10x lipat dan limiter bebas distorsi.
+  - `scheduler-uploader/compile_doksli.js`:
+     - Menyesuaikan fallback `TRANSITION_VOLUME` menjadi `1.0`.
+
+## [4652b6d] - Auto-Upload Compilation to Google Drive and Local Cleanup
 - **Konteks Struktural**:
   1. Pengunggahan Otomatis ke Google Drive & Pembersihan Disk Lokal ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example), [README.md](file:///d:/projects/clipping/scheduler-uploader/README.md)):
      - Menambahkan fitur auto-upload video hasil kompilasi langsung ke folder Google Drive tujuan melalui variabel lingkungan `GDRIVE_RESULT_FOLDER_ID` (atau `GDRIVE_OUTPUT_FOLDER_ID`) serta argumen CLI `--result-folder=<id>`.
