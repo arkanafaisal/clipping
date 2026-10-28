@@ -14,7 +14,30 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Full Write Drive Scope for Auto-Upload
+## [Unreleased] - Nested Game-Episode Hierarchy and Single-Line Video Overlay
+- **Konteks Struktural**:
+  1. Penataan Struktur Folder Bertingkat (Game -> Episode -> Klip) ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
+     - Mengubah arsitektur pengacakan dan validasi momen doksli menjadi 2 lapis: folder terluar adalah **Folder Game** dan subfolder di dalamnya adalah **Folder Episode ("eps x")** yang menampung 2 berkas video (`cut.mp4` dan video full).
+     - Menjamin keunikan (*uniqueness*) jangka panjang pada tingkat Game: setiap momen yang terpilih dalam satu video kompilasi berasal dari judul Game yang berbeda (tidak ada game duplikat), dan 4 opsi pilihan ganda kuis (1 kunci + 3 pengecoh) merupakan nama Game terluar.
+     - Jika sebuah Game memiliki beberapa subfolder episode, script mengacak dan memilih salah satu episode valid secara dinamis.
+     - Menjaga kompatibilitas mundur (*backward compatibility*): jika berkas video diletakkan langsung di dalam folder game tanpa subfolder episode, script tetap mengenalinya secara otomatis.
+  2. Overlay Teks Full Video 1 Baris Ketat (*Strict Single-Line*) ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
+     - Menggabungkan nama folder episode dengan nama berkas video full menjadi format ringkas (misal: `"eps 1 menit 10 detik 15"`) yang ditampilkan di 1/4 atas video.
+     - Menghapus mekanisme pemecah baris `\n` -> `\N` serta menormalisasi seluruh karakter enter/newline menjadi spasi tunggal dan menyematkan tag `\q2` pada subtitle ASS agar teks selalu berada pada satu baris rapi tanpa menutupi visual konten gameplay.
+  3. Peremajaan Bank Judul Game Statis & Pertanyaan Default ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example)):
+     - Mengubah bank pengecoh statis `STATIC_FALLBACK_DISTRACTORS` dari deskripsi momen umum menjadi judul-judul game legendaris/populer Windah Basudara (Minecraft, RE4, GTA San Andreas, dll).
+     - Menyesuaikan default `QUIZ_QUESTION` menjadi `"Game apakah ini?"`.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/compile_doksli.js`:
+     - Memperbarui `STATIC_FALLBACK_DISTRACTORS` dengan 20 judul game populer.
+     - Menghapus konversi `\n` ke `\N` pada `generateFullVideoASS()`, membersihkan karakter newline, mengubah ukuran font menjadi 42, dan menambahkan tag wrapping `\q2`.
+     - Mengubah default `quizQuestion` menjadi `'Game apakah ini?'`.
+     - Memperbarui Tahap 1 dan Tahap 2 untuk memindai folder terluar sebagai Game dan memeriksa subfolder episode di dalamnya.
+     - Memformat `fullVideoDisplayText` sebagai kombinasi `cleanEps` dan `cleanFull` satu baris.
+  - `scheduler-uploader/.env.example`:
+     - Memperbarui default `QUIZ_QUESTION="Game apakah ini?"`.
+
+## [c58afbe] - Full Write Drive Scope for Auto-Upload
 - **Konteks Struktural**:
   1. Penegasan Scope Izin Tulis Penuh Google Drive ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
      - Menghapus scope `drive.readonly` pada inisialisasi client API Google Drive dan menegaskan scope penuh `https://www.googleapis.com/auth/drive`.

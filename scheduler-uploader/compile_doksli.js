@@ -148,24 +148,26 @@ function shuffleArray(arr) {
  * Bank Opsi Pengecoh Cadangan Statis (Digunakan jika subfolder di Google Drive kurang dari 4)
  */
 const STATIC_FALLBACK_DISTRACTORS = [
-  'Momen Kena Prank Creeper',
-  'Refleks Lempar Headset',
-  'Ketiduran Saat Live Stream',
-  'PC Tiba-tiba Mati Lampu',
-  'Salah Pencet Tombol Ulti',
-  'Panik Dikejar Musuh Sekampung',
-  'Momen Comeback Paling Epik',
-  'Ketawa Sampai Batuk Kering',
-  'Ngantuk Berat di Late Game',
-  'Disurprise Bokong Lawan',
-  'Terbawa Emosi Banting Mouse',
-  'Lupa Mute Mic Pas Nyanyi',
-  'Momen Kepleset Jatuh ke Void',
-  'Kaget Ada Jumpscare Tak Terduga',
-  'Tangan Licin Kebanyakan Keringat',
-  'Kena Snipe dari Jarak 1 Kilometer',
-  'Salah Lempar Granat ke Teman',
-  'Koneksi Internet Mendadak RTO',
+  'Minecraft',
+  'Resident Evil 4',
+  'GTA San Andreas',
+  'Grand Theft Auto V',
+  'Only Up!',
+  'Mobile Legends',
+  'Roblox',
+  'Subway Surfers',
+  'Stumble Guys',
+  'God of War',
+  'Outlast',
+  'Elden Ring',
+  'Clash of Clans',
+  'Cat Mario',
+  'Getting Over It',
+  'Silent Hill',
+  'DreadOut',
+  'Valorant',
+  'The Last of Us',
+  'Dark Souls',
 ];
 
 /**
@@ -462,13 +464,16 @@ ${events.join('\n')}
 
 /**
  * Pembuat Subtitle ASS untuk Overlay Teks Nama File Full di 1/4 Atas Video Portrait
- * (Y = 480 agar tidak menabrak subtitle bawaan video di tengah Y = 960)
+ * Tampil 1 baris ketat tanpa mekanisme line break (\n) agar tidak menutupi visual konten
  */
 function generateFullVideoASS({ text, durationSeconds = 600, posY = 480 }) {
-  // Bersihkan ekstensi file (.mp4 dll), dan ganti \n atau \\n menjadi \N
+  // Bersihkan ekstensi berkas (.mp4 dll), hapus semua karakter enter/newline (\n, \r), dan normalisasi spasi
   const formattedText = text
     .replace(/\.[a-zA-Z0-9]+$/i, '')
-    .replace(/\\n/gi, '\\N');
+    .replace(/\\n/gi, ' ')
+    .replace(/[\r\n]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 
   const hh = String(Math.floor(durationSeconds / 3600)).padStart(1, '0');
   const mm = String(Math.floor((durationSeconds % 3600) / 60)).padStart(2, '0');
@@ -476,18 +481,18 @@ function generateFullVideoASS({ text, durationSeconds = 600, posY = 480 }) {
   const durStr = `${hh}:${mm}:${ss}.00`;
 
   return `[Script Info]
-Title: Full Video Meme Overlay
+Title: Full Video Episode Overlay
 ScriptType: v4.00+
 PlayResX: 1080
 PlayResY: 1920
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: MemeTitle, Arial, 54, &H00FFFFFF, &H000000FF, &H00000000, &H00000000, 1, 0, 0, 0, 100, 100, 0, 0, 1, 5, 2, 5, 60, 60, 60, 1
+Style: MemeTitle, Arial, 42, &H00FFFFFF, &H000000FF, &H00000000, &H00000000, 1, 0, 0, 0, 100, 100, 0, 0, 1, 4, 2, 5, 40, 40, 40, 1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-Dialogue: 0,0:00:00.00,${durStr},MemeTitle,,0,0,0,,{\\pos(540,${posY})\\an5\\bord6\\3c&H000000&}${formattedText}
+Dialogue: 0,0:00:00.00,${durStr},MemeTitle,,0,0,0,,{\\pos(540,${posY})\\an5\\bord5\\3c&H000000&\\q2}${formattedText}
 `;
 }
 
@@ -602,8 +607,8 @@ async function runQuizCompiler() {
   ]);
   const drive = google.drive({ version: 'v3', auth: driveAuth });
 
-  // 3. Ambil daftar seluruh subfolder momen di Google Drive
-  console.log('[TAHAP 1/4] Mengambil daftar folder-folder momen di Google Drive...');
+  // 3. Ambil daftar seluruh folder Game di Google Drive
+  console.log('[TAHAP 1/4] Mengambil daftar folder game di Google Drive...');
   const res = await drive.files.list({
     q: `'${doksliFolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
     fields: 'files(id, name)',
@@ -613,103 +618,157 @@ async function runQuizCompiler() {
     includeItemsFromAllDrives: true,
   });
 
-  const allFolders = res.data.files || [];
-  if (allFolders.length === 0) {
-    console.error('❌ [ERROR] Tidak ada subfolder yang ditemukan di folder Google Drive tersebut.');
-    console.error('   Konsep baru: Folder Doksli harus berisi subfolder-subfolder momen (nama folder = jawaban kuis).');
+  const allGameFolders = res.data.files || [];
+  if (allGameFolders.length === 0) {
+    console.error('❌ [ERROR] Tidak ada folder game yang ditemukan di folder Google Drive tersebut.');
+    console.error('   Konsep berlapis: Folder Doksli berisi folder Game (nama game = jawaban kuis).');
+    console.error('   Di dalam folder Game terdapat subfolder episode ("eps x") yang berisi cut.mp4 dan video full.');
     process.exit(1);
   }
 
-  console.log(`✅ Berhasil menemukan ${allFolders.length} subfolder momen di Google Drive.`);
-  if (allFolders.length < 4) {
-    console.log(`ℹ️ [INFO] Folder Google Drive saat ini memiliki ${allFolders.length} subfolder (kurang dari 4).`);
-    console.log(`   Opsi pengecoh kuis lainnya otomatis dilengkapi secara unik dari bank pilihan statis.`);
+  console.log(`✅ Berhasil menemukan ${allGameFolders.length} folder game di Google Drive.`);
+  if (allGameFolders.length < 4) {
+    console.log(`ℹ️ [INFO] Folder Google Drive saat ini memiliki ${allGameFolders.length} folder game (kurang dari 4).`);
+    console.log(`   Opsi pengecoh kuis lainnya otomatis dilengkapi secara unik dari bank judul game statis.`);
   }
 
-  // Pool seluruh nama momen untuk distractor kuis
-  const allFolderNamesPool = allFolders.map((f) => f.name.trim());
+  // Pool seluruh nama game untuk distractor pilihan ganda kuis
+  const allGameNamesPool = allGameFolders.map((f) => f.name.trim());
 
-  // 4. Acak dan validasi isi subfolder (harus tepat 2 video: cut.mp4 dan video full, serta nama momen tidak boleh duplikat)
-  console.log('\n[TAHAP 2/4] Mengacak dan memvalidasi isi subfolder (mencari cut.mp4 & video full, anti-duplikat nama)...');
-  const shuffledFolders = shuffleArray(allFolders);
+  // 4. Acak dan validasi isi folder game (mencari subfolder "eps x" yang berisi cut.mp4 & video full, anti-duplikat game)
+  console.log('\n[TAHAP 2/4] Mengacak dan memvalidasi isi folder game (mencari subfolder eps, cut.mp4 & video full, anti-duplikat game)...');
+  const shuffledGameFolders = shuffleArray(allGameFolders);
   const validMoments = [];
-  const selectedMomentNames = new Set();
+  const selectedGameNames = new Set();
 
-  for (const folder of shuffledFolders) {
+  for (const gameFolder of shuffledGameFolders) {
     if (validMoments.length >= clipCountTarget) break;
 
-    const folderNameTrimmed = folder.name.trim();
+    const gameName = gameFolder.name.trim();
 
-    // Aturan Anti-Duplikat Momen: Klip yang dipilih untuk kompilasi tidak boleh memiliki nama kembar (case-insensitive)
-    const isDuplicateName = Array.from(selectedMomentNames).some(
-      (existing) => existing.toLowerCase() === folderNameTrimmed.toLowerCase()
+    // Aturan Uniqueness Game: Klip yang dipilih untuk kompilasi tidak boleh berasal dari game yang sama (case-insensitive)
+    const isDuplicateGame = Array.from(selectedGameNames).some(
+      (existing) => existing.toLowerCase() === gameName.toLowerCase()
     );
-    if (isDuplicateName) {
-      console.log(` ⚠️ Folder "${folder.name}" dilewati (nama momen sudah terpilih di kompilasi ini).`);
+    if (isDuplicateGame) {
+      console.log(` ⚠️ Game "${gameName}" dilewati (game ini sudah terpilih di kompilasi ini).`);
       continue;
     }
 
-    // Ambil daftar file video di dalam subfolder ini
-    const filesRes = await drive.files.list({
-      q: `'${folder.id}' in parents and (mimeType contains 'video/' or name contains '.mp4' or name contains '.mkv' or name contains '.mov' or name contains '.webm') and trashed = false`,
-      fields: 'files(id, name, size, mimeType)',
+    // Ambil daftar item di dalam folder game (mencari subfolder episode "eps x" atau fallback berkas langsung)
+    const childrenRes = await drive.files.list({
+      q: `'${gameFolder.id}' in parents and trashed = false`,
+      fields: 'files(id, name, mimeType)',
       spaces: 'drive',
-      pageSize: 20,
+      pageSize: 100,
       supportsAllDrives: true,
       includeItemsFromAllDrives: true,
     });
 
-    const vidFiles = filesRes.data.files || [];
+    const children = childrenRes.data.files || [];
+    const epsFolders = children.filter((c) => c.mimeType === 'application/vnd.google-apps.folder');
 
-    // Validasi aturan: HARUS TEPAT 2 FILE VIDEO
-    if (vidFiles.length !== 2) {
-      console.log(` ⚠️ Folder "${folder.name}" dilewati (berisi ${vidFiles.length} file video, bukan 2 file).`);
+    let chosenEps = null;
+
+    if (epsFolders.length > 0) {
+      // Acak urutan episode agar pilihan klip bervariasi jika game memiliki banyak episode
+      const shuffledEps = shuffleArray(epsFolders);
+
+      for (const epsFolder of shuffledEps) {
+        const vidRes = await drive.files.list({
+          q: `'${epsFolder.id}' in parents and (mimeType contains 'video/' or name contains '.mp4' or name contains '.mkv' or name contains '.mov' or name contains '.webm') and trashed = false`,
+          fields: 'files(id, name, size, mimeType)',
+          spaces: 'drive',
+          pageSize: 20,
+          supportsAllDrives: true,
+          includeItemsFromAllDrives: true,
+        });
+
+        const vidFiles = vidRes.data.files || [];
+        if (vidFiles.length === 2) {
+          const cutFile = vidFiles.find((f) => {
+            const base = f.name.toLowerCase().replace(/\.[^.]+$/, '');
+            return base === 'cut';
+          });
+          const fullFile = vidFiles.find((f) => f.id !== cutFile?.id);
+          if (cutFile && fullFile) {
+            chosenEps = {
+              epsName: epsFolder.name.trim(),
+              cutFile,
+              fullFile,
+            };
+            break;
+          }
+        }
+      }
+    } else {
+      // Fallback kompatibilitas: jika video diletakkan langsung di dalam folder game
+      const vidFiles = children.filter(
+        (f) =>
+          (f.mimeType && f.mimeType.startsWith('video/')) ||
+          /\.(mp4|mkv|mov|webm)$/i.test(f.name)
+      );
+      if (vidFiles.length === 2) {
+        const cutFile = vidFiles.find((f) => {
+          const base = f.name.toLowerCase().replace(/\.[^.]+$/, '');
+          return base === 'cut';
+        });
+        const fullFile = vidFiles.find((f) => f.id !== cutFile?.id);
+        if (cutFile && fullFile) {
+          chosenEps = {
+            epsName: '',
+            cutFile,
+            fullFile,
+          };
+        }
+      }
+    }
+
+    if (!chosenEps) {
+      console.log(` ⚠️ Game "${gameName}" dilewati (tidak ada subfolder episode yang memiliki cut.mp4 dan video full).`);
       continue;
     }
 
-    // Cari file cut.mp4 (case-insensitive)
-    const cutFile = vidFiles.find((f) => {
-      const base = f.name.toLowerCase().replace(/\.[^.]+$/, '');
-      return base === 'cut';
-    });
+    // Siapkan pilihan ganda kuis berbasis Game (100% unik tanpa duplikat via Set & fallback statis)
+    const { options, correctIndex } = createUniqueQuizOptions(gameName, allGameNamesPool);
 
-    if (!cutFile) {
-      console.log(` ⚠️ Folder "${folder.name}" dilewati (tidak ada file "cut.mp4").`);
-      continue;
-    }
-
-    // File video kedua adalah full video
-    const fullFile = vidFiles.find((f) => f.id !== cutFile.id);
-
-    // Siapkan pilihan ganda kuis (100% unik tanpa duplikat via Set & fallback statis)
-    const correctName = folderNameTrimmed;
-    const { options, correctIndex } = createUniqueQuizOptions(correctName, allFolderNamesPool);
+    // Format display text untuk overlay full video: "nama folder eps x + nama file full vid", 1 baris ketat tanpa \n
+    const cleanEps = chosenEps.epsName ? cleanText(chosenEps.epsName) : '';
+    const cleanFull = cleanText(chosenEps.fullFile.name);
+    const fullVideoDisplayText = cleanEps ? `${cleanEps} ${cleanFull}`.trim() : cleanFull;
 
     validMoments.push({
-      folderId: folder.id,
-      momentName: correctName,
-      cutFile,
-      fullFile,
+      folderId: gameFolder.id,
+      momentName: gameName,
+      gameName,
+      epsName: chosenEps.epsName,
+      cutFile: chosenEps.cutFile,
+      fullFile: chosenEps.fullFile,
+      fullVideoDisplayText,
       options,
       correctIndex,
     });
-    selectedMomentNames.add(correctName);
+    selectedGameNames.add(gameName);
 
     const letter = ['A', 'B', 'C', 'D'][correctIndex];
-    console.log(` ✅ Terpilih #${validMoments.length}: "${correctName}"`);
-    console.log(`    - Cut Video  : ${cutFile.name}`);
-    console.log(`    - Full Video : ${fullFile.name}`);
+    console.log(` ✅ Terpilih #${validMoments.length}: Game "${gameName}"`);
+    if (chosenEps.epsName) {
+      console.log(`    - Episode    : ${chosenEps.epsName}`);
+    }
+    console.log(`    - Cut Video  : ${chosenEps.cutFile.name}`);
+    console.log(`    - Full Video : ${chosenEps.fullFile.name}`);
+    console.log(`    - Overlay    : "${fullVideoDisplayText}" (1 baris)`);
     console.log(`    - Kunci Kuis : [${letter}]`);
   }
 
   if (validMoments.length === 0) {
-    console.error('❌ Tidak ada folder momen yang memenuhi syarat (harus tepat 2 video: cut.mp4 & video full).');
+    console.error('❌ Tidak ada folder game/momen yang memenuhi syarat (harus berisi subfolder episode dengan cut.mp4 & video full).');
     process.exit(1);
   }
 
-  console.log(`\n🎉 Berhasil mengumpulkan ${validMoments.length} momen unik untuk kompilasi!`);
+  console.log(`\n🎉 Berhasil mengumpulkan ${validMoments.length} game unik untuk kompilasi!`);
   if (validMoments.length < clipCountTarget) {
-    console.log(`ℹ️ [INFO] Target diminta ${clipCountTarget} klip, namun momen unik dan valid yang tersedia hanya ${validMoments.length} klip.`);
+    console.log(`ℹ️ [INFO] Target diminta ${clipCountTarget} klip, namun game unik yang valid dan tersedia hanya ${validMoments.length} game.`);
   }
 
   // 5. Download dan proses pengeditan tiap momen
@@ -794,7 +853,7 @@ async function runQuizCompiler() {
     );
 
     // --- BAGIAN 3: VIDEO FULL DENGAN OVERLAY TEKS DI 1/4 ATAS KANVAS ---
-    console.log(`   3. Mengunduh & merender video full ("${moment.fullFile.name}")...`);
+    console.log(`   3. Mengunduh & merender video full ("${moment.fullVideoDisplayText}")...`);
     const rawFullPath = path.join(workDir, `raw_full_${momentIndex}.mp4`);
     const fullStream = await drive.files.get(
       { fileId: moment.fullFile.id, alt: 'media', supportsAllDrives: true },
@@ -806,7 +865,7 @@ async function runQuizCompiler() {
     fs.writeFileSync(
       memeAssPath,
       generateFullVideoASS({
-        text: moment.fullFile.name,
+        text: moment.fullVideoDisplayText,
         durationSeconds: 600,
         posY: memeTextY,
       }),
