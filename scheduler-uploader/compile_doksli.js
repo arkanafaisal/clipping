@@ -34,7 +34,7 @@
 const fs = require('fs');
 const path = require('path');
 const { pipeline } = require('stream/promises');
-const { execSync } = require('child_process');
+const { execSync, spawnSync } = require('child_process');
 const dotenv = require('dotenv');
 const { google } = require('googleapis');
 
@@ -224,6 +224,23 @@ function cleanText(str) {
   return str
     .replace(/\.[a-zA-Z0-9]+$/i, '')
     .trim();
+}
+
+/**
+ * Helper mendapatkan durasi file audio secara presisi (detik)
+ */
+function getAudioDuration(filePath) {
+  try {
+    const res = spawnSync(FFMPEG_BIN, ['-i', filePath], { encoding: 'utf8' });
+    const match = res.stderr.match(/Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/);
+    if (match) {
+      const hours = parseFloat(match[1]);
+      const mins = parseFloat(match[2]);
+      const secs = parseFloat(match[3]);
+      return hours * 3600 + mins * 60 + secs;
+    }
+  } catch (e) {}
+  return 0.7; // default fallback
 }
 
 /**
@@ -453,7 +470,7 @@ Dialogue: 0,0:00:00.00,${durStr},MemeTitle,,0,0,0,,{\\pos(540,${posY})\\an5\\bor
  * (Dilengkapi penanganan audio hening jika video asli tidak memiliki stream suara)
  */
 function normalizeVideo({ inputPath, outputPath, assSubtitlePath = null, fps = 60 }) {
-  let vf = 'scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1';
+  let vf = 'scale=1080:1920:force_original_aspect_ratio=decrease:flags=lanczos,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1';
   if (assSubtitlePath) {
     const escapedAss = assSubtitlePath.replace(/\\/g, '/').replace(/:/g, '\\:');
     vf += `,ass='${escapedAss}'`;
@@ -461,13 +478,13 @@ function normalizeVideo({ inputPath, outputPath, assSubtitlePath = null, fps = 6
 
   try {
     execSync(
-      `"${FFMPEG_BIN}" -y -i "${inputPath}" -vf "${vf}" -c:v libx264 -preset veryfast -crf 20 -c:a aac -ar 44100 -ac 2 -r ${fps} -pix_fmt yuv420p "${outputPath}"`,
+      `"${FFMPEG_BIN}" -y -i "${inputPath}" -vf "${vf}" -c:v libx264 -preset fast -crf 16 -c:a aac -ar 44100 -ac 2 -r ${fps} -fps_mode cfr -video_track_timescale 60000 -pix_fmt yuv420p "${outputPath}"`,
       { stdio: 'pipe' }
     );
   } catch (err) {
     // Fallback jika video mentah tidak memiliki stream audio
     execSync(
-      `"${FFMPEG_BIN}" -y -i "${inputPath}" -f lavfi -i "anullsrc=r=44100:cl=stereo" -vf "${vf}" -c:v libx264 -preset veryfast -crf 20 -c:a aac -ar 44100 -ac 2 -r ${fps} -pix_fmt yuv420p -shortest "${outputPath}"`,
+      `"${FFMPEG_BIN}" -y -i "${inputPath}" -f lavfi -i "anullsrc=r=44100:cl=stereo" -vf "${vf}" -c:v libx264 -preset fast -crf 16 -c:a aac -ar 44100 -ac 2 -r ${fps} -fps_mode cfr -video_track_timescale 60000 -pix_fmt yuv420p -shortest "${outputPath}"`,
       { stdio: 'ignore' }
     );
   }
@@ -684,11 +701,14 @@ async function runQuizCompiler() {
     console.log(`\n🎞️ [TRANSISI] Menyiapkan klip transisi layar hitam dengan audio "${path.basename(transitionSfxPath)}"...`);
     transitionClipPath = path.join(workDir, 'transition_clip.mp4');
     try {
+      const sfxDur = getAudioDuration(transitionSfxPath);
+      const transFrames = Math.max(1, Math.round(sfxDur * 60));
+      const transDurSec = (transFrames / 60).toFixed(4);
       execSync(
-        `"${FFMPEG_BIN}" -y -f lavfi -i "color=c=black:s=1080x1920:r=60" -i "${transitionSfxPath}" -af "volume=${transitionVolume},alimiter=limit=0.98" -c:v libx264 -preset veryfast -crf 20 -c:a aac -ar 44100 -ac 2 -r 60 -pix_fmt yuv420p -shortest "${transitionClipPath}"`,
+        `"${FFMPEG_BIN}" -y -f lavfi -i "color=c=black:s=1080x1920:r=60" -i "${transitionSfxPath}" -af "volume=${transitionVolume},alimiter=limit=0.98" -t ${transDurSec} -vframes ${transFrames} -c:v libx264 -preset fast -crf 16 -c:a aac -ar 44100 -ac 2 -r 60 -fps_mode cfr -video_track_timescale 60000 -pix_fmt yuv420p "${transitionClipPath}"`,
         { stdio: 'ignore' }
       );
-      console.log(`   ✅ Klip transisi layar hitam siap disisipkan antar momen (Volume: ${Math.round(transitionVolume * 100)}%).`);
+      console.log(`   ✅ Klip transisi layar hitam siap disisipkan antar momen (${transFrames} frame / ${transDurSec}s, Volume: ${Math.round(transitionVolume * 100)}%).`);
     } catch (e) {
       console.warn(`   ⚠️ Gagal membuat klip transisi layar hitam: ${e.message}`);
       transitionClipPath = null;
@@ -738,7 +758,7 @@ async function runQuizCompiler() {
     const freezeVideoPath = path.join(workDir, `freeze_vid_${momentIndex}.mp4`);
     const escapedQuizAss = quizAssPath.replace(/\\/g, '/').replace(/:/g, '\\:');
     execSync(
-      `"${FFMPEG_BIN}" -y -loop 1 -i "${freezeFramePng}" -i "${sfxWavPath}" -vf "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,ass='${escapedQuizAss}'" -t 4 -c:v libx264 -preset veryfast -crf 20 -c:a aac -ar 44100 -ac 2 -r 60 -pix_fmt yuv420p "${freezeVideoPath}"`,
+      `"${FFMPEG_BIN}" -y -loop 1 -i "${freezeFramePng}" -i "${sfxWavPath}" -vf "scale=1080:1920:force_original_aspect_ratio=decrease:flags=lanczos,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,ass='${escapedQuizAss}'" -t 4 -vframes 240 -c:v libx264 -preset fast -crf 16 -c:a aac -ar 44100 -ac 2 -r 60 -fps_mode cfr -video_track_timescale 60000 -pix_fmt yuv420p "${freezeVideoPath}"`,
       { stdio: 'ignore' }
     );
 

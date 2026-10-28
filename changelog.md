@@ -14,7 +14,24 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Source Audio 10x Boost for TikTok Core SFX
+## [Unreleased] - CFR 60 FPS Lock and High-Fidelity Video Encoding
+- **Konteks Struktural**:
+  1. Penguncian Constant Frame Rate (CFR 60 FPS) & Timescale Timebase ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
+     - Menghilangkan degradasi frame rate ke `58.xx / 59.83 FPS` akibat timestamp drift pada FFmpeg concat demuxer (`-c copy`) dengan menyematkan flag `-fps_mode cfr` dan `-video_track_timescale 60000` di setiap proses render segmen video.
+     - Menghitung durasi audio transisi secara presisi lewat helper `getAudioDuration()` dan membulatkan ke frame bulat terdekat (`-vframes Math.round(dur * 60)`), mencegah pemotongan fraksional di tengah-tengah frame yang sebelumnya dipicu oleh flag `-shortest`.
+     - Mengunci freeze frame kuis 4 detik secara eksak pada `-vframes 240` sehingga seluruh segmen momen memiliki timebase yang 100% selaras tanpa celah micro-stutter.
+  2. Peningkatan Kualitas Visual & Eliminasi Noise Semut (*Mosquito Noise*) ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
+     - Mengganti parameter encoding cepat `-preset veryfast -crf 20` menjadi `-preset fast -crf 16` dan menambahkan interpolasi scaling tajam `flags=lanczos`.
+     - Mengembalikan alokasi bit density video kembali ke ~9.2 Mbps (sebelumnya terkompresi secara brutal menjadi 4.7 Mbps) sehingga bebas dari artefak de-kuantisasi, bintik semut di sekitar teks, maupun degradasi kompresi bertingkat (*generation loss*).
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/compile_doksli.js`:
+     - Mengimpor `spawnSync` dari `child_process`.
+     - Menambahkan fungsi `getAudioDuration(filePath)` untuk mendeteksi durasi presisi file audio eksternal.
+     - Mengubah filter video `scale` di `normalizeVideo` dan freeze kuis dengan `flags=lanczos`.
+     - Mengganti `-preset veryfast -crf 20` dengan `-preset fast -crf 16 -fps_mode cfr -video_track_timescale 60000` di `normalizeVideo`, `freezeVideoPath`, dan `transitionClipPath`.
+     - Mengganti `-shortest` pada `transitionClipPath` dengan `-vframes ${transFrames}` dan `-t ${transDurSec}`.
+
+## [4d75c12] - Source Audio 10x Boost for TikTok Core SFX
 - **Konteks Struktural**:
   1. Penguatan Amplitudo Berkas Audio Sumber ([tiktok core.mp3](file:///d:/projects/clipping/scheduler-uploader/tiktok%20core.mp3), [compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
      - Memperbarui berkas fisik `tiktok core.mp3` secara permanen dengan penguatan amplitudo 10x (+20 dB) dan brickwall limiter sehingga volume rata-rata naik drastis dari `-14.8 dB` menjadi `-3.3 dB` (peak `-0.1 dB`).
