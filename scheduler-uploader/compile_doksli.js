@@ -496,6 +496,10 @@ async function runQuizCompiler() {
   let customTransitionSfx = process.env.TRANSITION_SFX_PATH || null;
   let transitionVolume = parseFloat(process.env.TRANSITION_VOLUME || '3.0');
   if (isNaN(transitionVolume) || transitionVolume <= 0) transitionVolume = 3.0;
+  let resultFolderId =
+    process.env.GDRIVE_RESULT_FOLDER_ID ||
+    process.env.GDRIVE_OUTPUT_FOLDER_ID ||
+    null;
 
   for (const arg of process.argv.slice(2)) {
     if (arg.startsWith('--folder=')) doksliFolderId = arg.split('=')[1];
@@ -505,6 +509,7 @@ async function runQuizCompiler() {
     if (arg.startsWith('--question=')) quizQuestion = arg.slice(arg.indexOf('=') + 1);
     if (arg.startsWith('--transition-sfx=')) customTransitionSfx = arg.slice(arg.indexOf('=') + 1);
     if (arg.startsWith('--transition-volume=')) transitionVolume = parseFloat(arg.split('=')[1]);
+    if (arg.startsWith('--result-folder=')) resultFolderId = arg.slice(arg.indexOf('=') + 1);
   }
 
   // Deteksi audio transisi (prioritas: custom CLI/env -> tiktok core.mp3 -> assets/)
@@ -532,6 +537,7 @@ async function runQuizCompiler() {
   console.log(` - Format Output          : Vertikal 9:16 (1080x1920) 60 FPS`);
   console.log(` - Pertanyaan Kuis        : "${quizQuestion}"`);
   console.log(` - Audio Transisi Antara  : ${transitionSfxPath ? path.basename(transitionSfxPath) + ' (Volume: ' + Math.round(transitionVolume * 100) + '%)' : 'Tidak aktif (file tidak ditemukan)'}`);
+  console.log(` - Auto-Upload Hasil      : ${resultFolderId ? 'Aktif (Folder: ' + resultFolderId + ', auto-hapus lokal)' : 'Nonaktif (tersimpan di lokal)'}`);
   console.log(` - Posisi Freeze Kuis     : Terpusat matematis (Y ~ 960px, Offset: ${quizOffsetY}px)`);
   console.log(` - Posisi Teks Video Full : 1/4 tinggi kanvas (Y = ${memeTextY}px)\n`);
 
@@ -815,6 +821,44 @@ async function runQuizCompiler() {
   console.log('🎉 KOMPILASI TEBAK-TEBAKAN DOKSLI BERHASIL DIBUAT!');
   console.log(`📁 Lokasi Video Final : ${finalOutputPath}`);
   console.log('================================================================\n');
+
+  // 7. Auto-Upload ke Google Drive (jika GDRIVE_RESULT_FOLDER_ID diatur)
+  if (resultFolderId) {
+    console.log('[TAHAP 5/5] Mengunggah video kompilasi ke Google Drive...');
+    console.log(` - Target Folder ID : ${resultFolderId}`);
+    try {
+      const uploadFileName = path.basename(finalOutputPath);
+      const fileMetadata = {
+        name: uploadFileName,
+        parents: [resultFolderId],
+      };
+      const media = {
+        mimeType: 'video/mp4',
+        body: fs.createReadStream(finalOutputPath),
+      };
+
+      const uploadRes = await drive.files.create({
+        requestBody: fileMetadata,
+        media: media,
+        fields: 'id, name, webViewLink',
+        supportsAllDrives: true,
+      });
+
+      console.log(`✅ Berhasil mengunggah video ke Google Drive!`);
+      console.log(` - File ID     : ${uploadRes.data.id}`);
+      if (uploadRes.data.webViewLink) {
+        console.log(` - Link GDrive : ${uploadRes.data.webViewLink}`);
+      }
+
+      // Hapus file video lokal setelah sukses upload
+      console.log(`\n[CLEANUP] Menghapus video lokal setelah sukses diunggah ke Google Drive...`);
+      fs.unlinkSync(finalOutputPath);
+      console.log(`✅ File video lokal berhasil dihapus (${uploadFileName}).`);
+    } catch (uploadErr) {
+      console.error(`❌ Gagal mengunggah video ke Google Drive:`, uploadErr.message);
+      console.log(`ℹ️ File video lokal tetap aman tersimpan di: ${finalOutputPath}`);
+    }
+  }
 }
 
 // Jalankan script jika dipanggil langsung

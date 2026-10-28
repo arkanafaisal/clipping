@@ -71,8 +71,8 @@ npm run doksli
 # Menjalankan untuk uji coba 1 momen / folder saja:
 node compile_doksli.js --count=1
 
-# Menjalankan dengan override folder, jumlah klip, offset kuis, dan kustom teks pertanyaan:
-node compile_doksli.js --folder=1xyz_ID_FOLDER_DOKSLI --count=1 --offset-y=-50 --question="Momen apakah ini?"
+# Menjalankan dengan override folder, jumlah klip, offset kuis, dan auto-upload ke folder Google Drive tujuan:
+node compile_doksli.js --folder=1xyz_ID_FOLDER_DOKSLI --count=1 --result-folder=1abc_ID_FOLDER_HASIL
 ```
 
 ---

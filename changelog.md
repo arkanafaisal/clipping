@@ -14,7 +14,23 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Strict Deduplication of Selected Moment Names in Video Compilation
+## [Unreleased] - Auto-Upload Compilation to Google Drive and Local Cleanup
+- **Konteks Struktural**:
+  1. Pengunggahan Otomatis ke Google Drive & Pembersihan Disk Lokal ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example), [README.md](file:///d:/projects/clipping/scheduler-uploader/README.md)):
+     - Menambahkan fitur auto-upload video hasil kompilasi langsung ke folder Google Drive tujuan melalui variabel lingkungan `GDRIVE_RESULT_FOLDER_ID` (atau `GDRIVE_OUTPUT_FOLDER_ID`) serta argumen CLI `--result-folder=<id>`.
+     - Mengotomatiskan penghapusan file video lokal (`output_kompilasi/*.mp4`) segera setelah video sukses terunggah ke Google Drive guna menghemat kapasitas penyimpanan disk lokal/server.
+     - Mempertahankan video lokal dengan aman apabila variabel `GDRIVE_RESULT_FOLDER_ID` tidak diatur atau apabila proses pengunggahan ke Google Drive mengalami kegagalan jaringan.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/compile_doksli.js`:
+     - Membaca `resultFolderId` dari `process.env.GDRIVE_RESULT_FOLDER_ID` dan opsi CLI `--result-folder=`.
+     - Mengimplementasikan `[TAHAP 5/5]` untuk mengunggah `finalOutputPath` via `drive.files.create` dengan stream `fs.createReadStream`.
+     - Menjalankan `fs.unlinkSync(finalOutputPath)` saat respons upload Google Drive berhasil.
+  - `scheduler-uploader/.env.example`:
+     - Menambahkan dokumentasi variabel lingkungan `GDRIVE_RESULT_FOLDER_ID=`.
+  - `scheduler-uploader/README.md`:
+     - Menambahkan contoh eksekusi CLI dengan parameter `--result-folder=`.
+
+## [323ab8c] - Strict Deduplication of Selected Moment Names in Video Compilation
 - **Konteks Struktural**:
   1. Penegakan Keunikan Nama Momen Terpilih ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
      - Menambahkan aturan anti-duplikat nama momen pada pemilihan klip kompilasi (`selectedMomentNames` berbasis `Set` case-insensitive).
