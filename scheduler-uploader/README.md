@@ -48,8 +48,12 @@ Fitur mandiri untuk mengotomatisasi pengeditan video kompilasi kuis interaktif t
        - 3 jawaban pengecoh = nama subfolder acak dari pool momen lainnya.
        - Urutan A/B/C/D diacak dinamis di setiap klip.
        - *Aturan 1 Baris Pasti*: Nama subfolder folder wajib 1 baris tanpa line break, menggunakan ukuran font tetap (42px) yang seragam di semua opsi untuk menjaga konsistensi tinggi kartu.
-     - **Countdown Timer**: Hitung mundur 3 detik (angka `3`, `2`, `1` dan progress bar).
-     - **Reveal Jawaban**: Pada detik ke-3 s/d 4, kartu jawaban yang benar berubah menjadi **HIJAU EMERALD** (`B. <Nama Momen>`), sementara opsi salah meredup.
+     - **Countdown Timer & Sound Effect Beep**:
+       - Hitung mundur 3 detik (angka `3`, `2`, `1` dan progress bar mengecil).
+       - Efek suara audio beep sinkron saat angka 3 muncul (0.0s), angka 2 (1.0s), dan angka 1 (2.0s).
+     - **Reveal Jawaban & Sound Effect Correct**:
+       - Pada detik ke-3 s/d 4, kartu jawaban yang benar berubah menjadi **HIJAU EMERALD** (`B. <Nama Momen>`), sementara opsi salah meredup.
+       - Efek suara nada lonceng kemenangan (*cheerful rising arpeggio chime*) terdengar sinkron saat jawaban benar terungkap.
    - **Bagian 3 (Full Video + Overlay Judul 1/4 Atas)**:
      - Video full diputar dengan overlay teks judul file di area **1/4 atas kanvas** (`Y = 480`), sehingga tidak menabrak atau menutupi subtitle bawaan video yang ada di tengah layar.
      - *Dukungan Line Break Manual*: Jika judul file mengandung `\n` (contoh: `Ketika Lu Lagi Khusyuk Main\nTiba-tiba Mati Lampu.mp4`), teks otomatis dipisah baris sesuai letak `\n` tanpa auto-wrapping sembarangan.

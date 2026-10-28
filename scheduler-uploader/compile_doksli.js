@@ -227,6 +227,111 @@ function cleanText(str) {
 }
 
 /**
+ * Generator Efek Suara WAV 4 Detik (Countdown Beep & Correct Chime)
+ * Menghasilkan file PCM WAV stereo 44.1kHz murni tanpa aset audio eksternal:
+ * - t = 0.0s : Beep 800Hz (Countdown 3)
+ * - t = 1.0s : Beep 800Hz (Countdown 2)
+ * - t = 2.0s : Beep 1000Hz (Countdown 1)
+ * - t = 3.0s : Correct Chime (Rising Major Arpeggio C6-E6-G6 + bell harmonic)
+ */
+function generateQuizSoundWav(outputPath) {
+  const sampleRate = 44100;
+  const durationSec = 4.0;
+  const numSamples = Math.floor(sampleRate * durationSec);
+  const numChannels = 2;
+  const bytesPerSample = 2; // 16-bit
+  const blockAlign = numChannels * bytesPerSample;
+  const byteRate = sampleRate * blockAlign;
+  const dataSize = numSamples * blockAlign;
+
+  const buffer = Buffer.alloc(44 + dataSize);
+
+  // RIFF Header
+  buffer.write('RIFF', 0);
+  buffer.writeUInt32LE(36 + dataSize, 4);
+  buffer.write('WAVE', 8);
+
+  // Subchunk 1 (fmt)
+  buffer.write('fmt ', 12);
+  buffer.writeUInt32LE(16, 16); // PCM chunk size
+  buffer.writeUInt16LE(1, 20);  // Format 1 = PCM
+  buffer.writeUInt16LE(numChannels, 22);
+  buffer.writeUInt32LE(sampleRate, 24);
+  buffer.writeUInt32LE(byteRate, 28);
+  buffer.writeUInt16LE(blockAlign, 32);
+  buffer.writeUInt16LE(16, 34); // 16 bits per sample
+
+  // Subchunk 2 (data)
+  buffer.write('data', 36);
+  buffer.writeUInt32LE(dataSize, 40);
+
+  // Sintesis audio gelombang
+  for (let i = 0; i < numSamples; i++) {
+    const t = i / sampleRate;
+    let sample = 0;
+
+    // 1. Beep di t = 0.0s (Countdown 3)
+    if (t >= 0.0 && t < 0.15) {
+      const dt = t - 0.0;
+      const env = Math.exp(-dt * 20);
+      sample += 0.35 * Math.sin(2 * Math.PI * 800 * dt) * env;
+    }
+
+    // 2. Beep di t = 1.0s (Countdown 2)
+    if (t >= 1.0 && t < 1.15) {
+      const dt = t - 1.0;
+      const env = Math.exp(-dt * 20);
+      sample += 0.35 * Math.sin(2 * Math.PI * 800 * dt) * env;
+    }
+
+    // 3. Beep di t = 2.0s (Countdown 1 - pitch 1000 Hz)
+    if (t >= 2.0 && t < 2.18) {
+      const dt = t - 2.0;
+      const env = Math.exp(-dt * 18);
+      sample += 0.40 * Math.sin(2 * Math.PI * 1000 * dt) * env;
+    }
+
+    // 4. Correct Chime di t = 3.0s (C6 -> E6 -> G6)
+    if (t >= 3.0) {
+      const dt = t - 3.0;
+
+      // Note 1: C6 (1046.5 Hz) di t=3.00s
+      if (dt >= 0.0 && dt < 0.7) {
+        const env1 = Math.exp(-dt * 6);
+        sample += 0.25 * Math.sin(2 * Math.PI * 1046.5 * dt) * env1;
+      }
+
+      // Note 2: E6 (1318.5 Hz) di t=3.08s
+      if (dt >= 0.08 && dt < 0.78) {
+        const dt2 = dt - 0.08;
+        const env2 = Math.exp(-dt2 * 6);
+        sample += 0.28 * Math.sin(2 * Math.PI * 1318.5 * dt2) * env2;
+      }
+
+      // Note 3: G6 (1568 Hz) + harmonic di t=3.16s
+      if (dt >= 0.16 && dt < 0.95) {
+        const dt3 = dt - 0.16;
+        const env3 = Math.exp(-dt3 * 5);
+        sample += 0.35 * Math.sin(2 * Math.PI * 1567.98 * dt3) * env3;
+        sample += 0.15 * Math.sin(2 * Math.PI * 3135.96 * dt3) * env3; // Harmoni lonceng cerah
+      }
+    }
+
+    // Soft limiter pencegah distorsi
+    if (sample > 0.95) sample = 0.95;
+    if (sample < -0.95) sample = -0.95;
+
+    const intSample = Math.floor(sample * 32767);
+    const offset = 44 + i * 4;
+    buffer.writeInt16LE(intSample, offset);
+    buffer.writeInt16LE(intSample, offset + 2);
+  }
+
+  fs.writeFileSync(outputPath, buffer);
+  return outputPath;
+}
+
+/**
  * Pembuat Subtitle ASS Dinamis untuk Overlay Kuis & Animasi Pilihan Ganda (Freeze Frame)
  * Terpusat secara matematis di tengah layar (Y ~ 960px) dan mendukung manual offset vertikal (offsetY)
  */
@@ -570,10 +675,14 @@ async function runQuizCompiler() {
       'utf8'
     );
 
+    // Buat file audio efek suara 4 detik (beep 3-2-1 dan correct chime di detik 3)
+    const sfxWavPath = path.join(workDir, `sfx_${momentIndex}.wav`);
+    generateQuizSoundWav(sfxWavPath);
+
     const freezeVideoPath = path.join(workDir, `freeze_vid_${momentIndex}.mp4`);
     const escapedQuizAss = quizAssPath.replace(/\\/g, '/').replace(/:/g, '\\:');
     execSync(
-      `"${FFMPEG_BIN}" -y -loop 1 -i "${freezeFramePng}" -f lavfi -i "anullsrc=r=44100:cl=stereo" -vf "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,ass='${escapedQuizAss}'" -t 4 -c:v libx264 -preset veryfast -c:a aac -ar 44100 -ac 2 -r 30 -pix_fmt yuv420p "${freezeVideoPath}"`,
+      `"${FFMPEG_BIN}" -y -loop 1 -i "${freezeFramePng}" -i "${sfxWavPath}" -vf "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,ass='${escapedQuizAss}'" -t 4 -c:v libx264 -preset veryfast -c:a aac -ar 44100 -ac 2 -r 30 -pix_fmt yuv420p "${freezeVideoPath}"`,
       { stdio: 'ignore' }
     );
 
@@ -662,5 +771,6 @@ module.exports = {
   createUniqueQuizOptions,
   generateQuizASS,
   generateFullVideoASS,
+  generateQuizSoundWav,
   STATIC_FALLBACK_DISTRACTORS,
 };

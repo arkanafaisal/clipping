@@ -14,7 +14,22 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Mathematical Vertical Centering for Quiz and Top-Quarter Positioning for Full Video Title
+## [Unreleased] - Synthesized Countdown Beep and Correct Answer Sound Effects
+- **Konteks Struktural**:
+  1. Generator Efek Suara Audio Sintesis Mandiri ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [README.md](file:///d:/projects/clipping/scheduler-uploader/README.md)):
+     - Menambahkan fungsi sintesis audio gelombang murni `generateQuizSoundWav` untuk menghasilkan file audio WAV 16-bit PCM stereo 44.1kHz sepanjang 4 detik secara instan di memori/disk tanpa ketergantungan file audio eksternal atau download internet.
+     - Menyinkronkan efek suara countdown beep audio secara presisi pada kemunculan angka 3 ($t = 0.0s$, 800Hz), angka 2 ($t = 1.0s$, 800Hz), dan angka 1 ($t = 2.0s$, 1000Hz) dengan envelope decay lembut tanpa suara letup (*pop/click*).
+     - Menambahkan efek suara nada lonceng kemenangan cerah (*rising major arpeggio chime* C6-E6-G6 dengan harmonik lonceng) tepat pada saat kartu jawaban benar terungkap di detik ke-3 ($t = 3.0s$).
+     - Menggantikan stream audio hening `anullsrc` pada video freeze kuis dengan file audio efek suara tersintesis tersebut sehingga video kuis memiliki tata suara yang hidup dan interaktif.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/compile_doksli.js`:
+     - Membuat fungsi `generateQuizSoundWav(outputPath)`.
+     - Mengintegrasikan file WAV hasil sintesis ke proses rendering video freeze kuis FFmpeg (`-i "${sfxWavPath}"`).
+     - Mengekspor `generateQuizSoundWav` pada `module.exports`.
+  - `scheduler-uploader/README.md`:
+     - Mendokumentasikan efek suara countdown beep dan chime correct answer pada alur kuis.
+
+## [4897f92] - Mathematical Vertical Centering for Quiz and Top-Quarter Positioning for Full Video Title
 - **Konteks Struktural**:
   1. Penataan Posisi Kuis Terpusat Matematis & Dukungan Offset ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example), [README.md](file:///d:/projects/clipping/scheduler-uploader/README.md)):
      - Menghitung ulang seluruh koordinat vertikal elemen kuis (header, judul, countdown, progress bar, dan 4 kartu pilihan ganda) agar terpusat secara matematis di tengah layar kanvas portrait 1080x1920 ($Y_{center} \approx 960px$, rentang $Y = 520$ s/d $1390$). Hal ini mengangkat kartu kuis agar tidak terlalu bawah dan aman dari elemen antarmuka (UI) TikTok/Reels/Shorts.
