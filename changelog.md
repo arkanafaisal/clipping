@@ -14,7 +14,20 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Black Screen Inter-Moment Transition with TikTok Core Sound Effect
+## [Unreleased] - 300% Volume Boost with Brickwall Limiter for Transition SFX
+- **Konteks Struktural**:
+  1. Penguatan Amplitudo Audio Transisi ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example)):
+     - Meningkatkan volume efek suara transisi (TikTok Core) sebesar 3 kali lipat (300% / +9.54 dB) dengan filter audio FFmpeg `volume=3.0` agar terdengar mantap, tegas, dan kontras saat jeda transisi layar hitam.
+     - Memasang *brickwall lookahead limiter* (`alimiter=limit=0.98`) untuk mencegah *harsh clipping* dan distorsi audio pada frekuensi puncak saat volume dinaikkan 300%.
+     - Menambahkan konfigurasi variabel lingkungan `TRANSITION_VOLUME` dan argumen CLI `--transition-volume=<pengali>` (default: 3.0).
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/compile_doksli.js`:
+     - Membaca `process.env.TRANSITION_VOLUME || '3.0'` dan argumen CLI `--transition-volume`.
+     - Menambahkan rantai filter audio `-af "volume=${transitionVolume},alimiter=limit=0.98"` pada eksekusi render klip transisi layar hitam.
+  - `scheduler-uploader/.env.example`:
+     - Menambahkan dokumentasi variabel lingkungan `TRANSITION_VOLUME=3.0`.
+
+## [27b518f] - Black Screen Inter-Moment Transition with TikTok Core Sound Effect
 - **Konteks Struktural**:
   1. Transisi Layar Hitam Dinamis Antar Momen ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example), [README.md](file:///d:/projects/clipping/scheduler-uploader/README.md)):
      - Menambahkan klip transisi layar hitam pekat beresolusi 1080x1920 60 FPS yang disisipkan di antara setiap momen (antara akhir video full momen sebelumnya menuju awal video cut momen berikutnya).

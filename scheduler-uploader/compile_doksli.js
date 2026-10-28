@@ -494,6 +494,8 @@ async function runQuizCompiler() {
   let memeTextY = parseInt(process.env.MEME_TEXT_Y || '480', 10);
   let quizQuestion = process.env.QUIZ_QUESTION || 'Momen manakah itu?';
   let customTransitionSfx = process.env.TRANSITION_SFX_PATH || null;
+  let transitionVolume = parseFloat(process.env.TRANSITION_VOLUME || '3.0');
+  if (isNaN(transitionVolume) || transitionVolume <= 0) transitionVolume = 3.0;
 
   for (const arg of process.argv.slice(2)) {
     if (arg.startsWith('--folder=')) doksliFolderId = arg.split('=')[1];
@@ -502,6 +504,7 @@ async function runQuizCompiler() {
     if (arg.startsWith('--meme-y=')) memeTextY = parseInt(arg.split('=')[1], 10);
     if (arg.startsWith('--question=')) quizQuestion = arg.slice(arg.indexOf('=') + 1);
     if (arg.startsWith('--transition-sfx=')) customTransitionSfx = arg.slice(arg.indexOf('=') + 1);
+    if (arg.startsWith('--transition-volume=')) transitionVolume = parseFloat(arg.split('=')[1]);
   }
 
   // Deteksi audio transisi (prioritas: custom CLI/env -> tiktok core.mp3 -> assets/)
@@ -528,7 +531,7 @@ async function runQuizCompiler() {
   console.log(` - Target Momen Terpilih  : ${clipCountTarget} momen`);
   console.log(` - Format Output          : Vertikal 9:16 (1080x1920) 60 FPS`);
   console.log(` - Pertanyaan Kuis        : "${quizQuestion}"`);
-  console.log(` - Audio Transisi Antara  : ${transitionSfxPath ? path.basename(transitionSfxPath) : 'Tidak aktif (file tidak ditemukan)'}`);
+  console.log(` - Audio Transisi Antara  : ${transitionSfxPath ? path.basename(transitionSfxPath) + ' (Volume: ' + Math.round(transitionVolume * 100) + '%)' : 'Tidak aktif (file tidak ditemukan)'}`);
   console.log(` - Posisi Freeze Kuis     : Terpusat matematis (Y ~ 960px, Offset: ${quizOffsetY}px)`);
   console.log(` - Posisi Teks Video Full : 1/4 tinggi kanvas (Y = ${memeTextY}px)\n`);
 
@@ -660,10 +663,10 @@ async function runQuizCompiler() {
     transitionClipPath = path.join(workDir, 'transition_clip.mp4');
     try {
       execSync(
-        `"${FFMPEG_BIN}" -y -f lavfi -i "color=c=black:s=1080x1920:r=60" -i "${transitionSfxPath}" -c:v libx264 -preset veryfast -crf 20 -c:a aac -ar 44100 -ac 2 -r 60 -pix_fmt yuv420p -shortest "${transitionClipPath}"`,
+        `"${FFMPEG_BIN}" -y -f lavfi -i "color=c=black:s=1080x1920:r=60" -i "${transitionSfxPath}" -af "volume=${transitionVolume},alimiter=limit=0.98" -c:v libx264 -preset veryfast -crf 20 -c:a aac -ar 44100 -ac 2 -r 60 -pix_fmt yuv420p -shortest "${transitionClipPath}"`,
         { stdio: 'ignore' }
       );
-      console.log(`   ✅ Klip transisi layar hitam siap disisipkan antar momen.`);
+      console.log(`   ✅ Klip transisi layar hitam siap disisipkan antar momen (Volume: ${Math.round(transitionVolume * 100)}%).`);
     } catch (e) {
       console.warn(`   ⚠️ Gagal membuat klip transisi layar hitam: ${e.message}`);
       transitionClipPath = null;
