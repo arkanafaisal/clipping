@@ -69,8 +69,8 @@ npm run doksli
 # Menjalankan untuk uji coba 1 momen / folder saja:
 node compile_doksli.js --count=1
 
-# Menjalankan dengan override folder, jumlah klip, dan offset kuis (misal geser kuis naik 50px):
-node compile_doksli.js --folder=1xyz_ID_FOLDER_DOKSLI --count=1 --offset-y=-50
+# Menjalankan dengan override folder, jumlah klip, offset kuis, dan kustom teks pertanyaan:
+node compile_doksli.js --folder=1xyz_ID_FOLDER_DOKSLI --count=1 --offset-y=-50 --question="Momen apakah ini?"
 ```
 
 ---

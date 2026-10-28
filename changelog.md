@@ -14,7 +14,22 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Upgrade Video Encoding Pipeline to Prime 1080p 60 FPS
+## [Unreleased] - Customizable Quiz Question via QUIZ_QUESTION Env and CLI Flag
+- **Konteks Struktural**:
+  1. Fleksibilitas Teks Pertanyaan Kuis ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example), [README.md](file:///d:/projects/clipping/scheduler-uploader/README.md)):
+     - Menjadikan teks pertanyaan kuis dinamis dan dapat dikustomisasi oleh pengguna melalui variabel lingkungan `QUIZ_QUESTION` (misal di `.env`: `QUIZ_QUESTION="Momen apakah ini?"`) atau opsi CLI `--question="<pertanyaan>"`.
+     - Memberikan nilai bawaan (*default*) `"Momen manakah itu?"` apabila variabel lingkungan atau opsi CLI tidak ditentukan, sehingga tetap menjaga kompatibilitas penuh dengan alur yang sudah ada.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/compile_doksli.js`:
+     - Membaca `process.env.QUIZ_QUESTION || 'Momen manakah itu?'` ke variabel `quizQuestion`.
+     - Menambahkan parsing argumen CLI `--question=...`.
+     - Meneruskan `quizQuestion` ke dalam fungsi `generateQuizASS`.
+  - `scheduler-uploader/.env.example`:
+     - Menambahkan dokumentasi variabel lingkungan `QUIZ_QUESTION="Momen manakah itu?"`.
+  - `scheduler-uploader/README.md`:
+     - Menambahkan contoh opsi CLI `--question` pada panduan eksekusi.
+
+## [d2335a0] - Upgrade Video Encoding Pipeline to Prime 1080p 60 FPS
 - **Konteks Struktural**:
   1. Penyelarasan Framerate 60 FPS & Peningkatan Ketajaman Video ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [README.md](file:///d:/projects/clipping/scheduler-uploader/README.md)):
      - Mengubah target framerate dari 30 FPS menjadi 60 FPS murni (`-r 60`) pada seluruh pipeline rendering (normalisasi klip `cut.mp4`, pembuatan video *freeze kuis*, dan render video full) untuk mempertahankan kehalusan gerakan (*ultra-smooth*) 60 FPS bawaan gameplay/video sumber asli.

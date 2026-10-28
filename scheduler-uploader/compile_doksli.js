@@ -488,16 +488,18 @@ async function runQuizCompiler() {
     process.env.GDRIVE_UNUSED_FOLDER_ID ||
     process.env.GDRIVE_ROOT_FOLDER_ID;
 
-  // Cek argumen CLI (misal: node compile_doksli.js --folder=1xyz --count=7 --offset-y=-50)
+  // Cek argumen CLI (misal: node compile_doksli.js --folder=1xyz --count=7 --offset-y=-50 --question="Momen apakah ini?")
   let clipCountTarget = parseInt(process.env.QUIZ_CLIP_COUNT || '5', 10);
   let quizOffsetY = parseInt(process.env.QUIZ_OFFSET_Y || '0', 10);
   let memeTextY = parseInt(process.env.MEME_TEXT_Y || '480', 10);
+  let quizQuestion = process.env.QUIZ_QUESTION || 'Momen manakah itu?';
 
   for (const arg of process.argv.slice(2)) {
     if (arg.startsWith('--folder=')) doksliFolderId = arg.split('=')[1];
     if (arg.startsWith('--count=')) clipCountTarget = parseInt(arg.split('=')[1], 10);
     if (arg.startsWith('--offset-y=')) quizOffsetY = parseInt(arg.split('=')[1], 10);
     if (arg.startsWith('--meme-y=')) memeTextY = parseInt(arg.split('=')[1], 10);
+    if (arg.startsWith('--question=')) quizQuestion = arg.slice(arg.indexOf('=') + 1);
   }
 
   if (!doksliFolderId) {
@@ -513,7 +515,8 @@ async function runQuizCompiler() {
   console.log(`\nKonfigurasi:`);
   console.log(` - ID Folder Google Drive : ${doksliFolderId}`);
   console.log(` - Target Momen Terpilih  : ${clipCountTarget} momen`);
-  console.log(` - Format Output          : Vertikal 9:16 (1080x1920) 30 FPS`);
+  console.log(` - Format Output          : Vertikal 9:16 (1080x1920) 60 FPS`);
+  console.log(` - Pertanyaan Kuis        : "${quizQuestion}"`);
   console.log(` - Posisi Freeze Kuis     : Terpusat matematis (Y ~ 960px, Offset: ${quizOffsetY}px)`);
   console.log(` - Posisi Teks Video Full : 1/4 tinggi kanvas (Y = ${memeTextY}px)\n`);
 
@@ -666,7 +669,7 @@ async function runQuizCompiler() {
     fs.writeFileSync(
       quizAssPath,
       generateQuizASS({
-        question: 'Momen manakah itu?',
+        question: quizQuestion,
         options: moment.options,
         correctIndex: moment.correctIndex,
         offsetY: quizOffsetY,
