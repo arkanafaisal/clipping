@@ -580,13 +580,25 @@ async function runQuizCompiler() {
   // Pool seluruh nama momen untuk distractor kuis
   const allFolderNamesPool = allFolders.map((f) => f.name.trim());
 
-  // 4. Acak dan validasi isi subfolder (harus tepat 2 video: cut.mp4 dan video full)
-  console.log('\n[TAHAP 2/4] Mengacak dan memvalidasi isi subfolder (mencari cut.mp4 & video full)...');
+  // 4. Acak dan validasi isi subfolder (harus tepat 2 video: cut.mp4 dan video full, serta nama momen tidak boleh duplikat)
+  console.log('\n[TAHAP 2/4] Mengacak dan memvalidasi isi subfolder (mencari cut.mp4 & video full, anti-duplikat nama)...');
   const shuffledFolders = shuffleArray(allFolders);
   const validMoments = [];
+  const selectedMomentNames = new Set();
 
   for (const folder of shuffledFolders) {
     if (validMoments.length >= clipCountTarget) break;
+
+    const folderNameTrimmed = folder.name.trim();
+
+    // Aturan Anti-Duplikat Momen: Klip yang dipilih untuk kompilasi tidak boleh memiliki nama kembar (case-insensitive)
+    const isDuplicateName = Array.from(selectedMomentNames).some(
+      (existing) => existing.toLowerCase() === folderNameTrimmed.toLowerCase()
+    );
+    if (isDuplicateName) {
+      console.log(` ⚠️ Folder "${folder.name}" dilewati (nama momen sudah terpilih di kompilasi ini).`);
+      continue;
+    }
 
     // Ambil daftar file video di dalam subfolder ini
     const filesRes = await drive.files.list({
@@ -621,7 +633,7 @@ async function runQuizCompiler() {
     const fullFile = vidFiles.find((f) => f.id !== cutFile.id);
 
     // Siapkan pilihan ganda kuis (100% unik tanpa duplikat via Set & fallback statis)
-    const correctName = folder.name.trim();
+    const correctName = folderNameTrimmed;
     const { options, correctIndex } = createUniqueQuizOptions(correctName, allFolderNamesPool);
 
     validMoments.push({
@@ -632,6 +644,7 @@ async function runQuizCompiler() {
       options,
       correctIndex,
     });
+    selectedMomentNames.add(correctName);
 
     const letter = ['A', 'B', 'C', 'D'][correctIndex];
     console.log(` ✅ Terpilih #${validMoments.length}: "${correctName}"`);
@@ -645,7 +658,10 @@ async function runQuizCompiler() {
     process.exit(1);
   }
 
-  console.log(`\n🎉 Berhasil mengumpulkan ${validMoments.length} momen valid untuk kompilasi!`);
+  console.log(`\n🎉 Berhasil mengumpulkan ${validMoments.length} momen unik untuk kompilasi!`);
+  if (validMoments.length < clipCountTarget) {
+    console.log(`ℹ️ [INFO] Target diminta ${clipCountTarget} klip, namun momen unik dan valid yang tersedia hanya ${validMoments.length} klip.`);
+  }
 
   // 5. Download dan proses pengeditan tiap momen
   console.log('\n[TAHAP 3/4] Mengunduh dan merangkai alur klip (Cut -> Freeze Kuis -> Full Meme)...');

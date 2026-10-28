@@ -14,7 +14,20 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - 300% Volume Boost with Brickwall Limiter for Transition SFX
+## [Unreleased] - Strict Deduplication of Selected Moment Names in Video Compilation
+- **Konteks Struktural**:
+  1. Penegakan Keunikan Nama Momen Terpilih ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
+     - Menambahkan aturan anti-duplikat nama momen pada pemilihan klip kompilasi (`selectedMomentNames` berbasis `Set` case-insensitive).
+     - Menjamin dalam satu video kompilasi final tidak akan pernah ada momen dengan judul/nama folder yang kembar, meskipun di Google Drive terdapat beberapa folder dengan nama teks yang sama.
+     - Mengadaptasi batas jumlah target secara elegan: jika pengguna menargetkan 10 klip namun hanya tersedia 3 folder dengan nama unik dan valid, sistem akan langsung memproses 3 klip unik tersebut tanpa memaksakan folder duplikat.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/compile_doksli.js`:
+     - Membuat `selectedMomentNames = new Set()` sebelum perulangan pemilihan folder.
+     - Menambahkan pemeriksaan `isDuplicateName` sebelum memanggil Drive API untuk menghemat kuota dan melewati folder dengan nama kembar.
+     - Menyimpan `selectedMomentNames.add(correctName)` saat momen berhasil divalidasi.
+     - Menambahkan log informatif jika jumlah klip unik yang ditemukan lebih sedikit dari target yang diminta.
+
+## [6a3452c] - 300% Volume Boost with Brickwall Limiter for Transition SFX
 - **Konteks Struktural**:
   1. Penguatan Amplitudo Audio Transisi ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example)):
      - Meningkatkan volume efek suara transisi (TikTok Core) sebesar 3 kali lipat (300% / +9.54 dB) dengan filter audio FFmpeg `volume=3.0` agar terdengar mantap, tegas, dan kontras saat jeda transisi layar hitam.
