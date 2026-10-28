@@ -229,9 +229,9 @@ function cleanText(str) {
 /**
  * Generator Efek Suara WAV 4 Detik (Countdown Beep & Correct Chime)
  * Menghasilkan file PCM WAV stereo 44.1kHz murni tanpa aset audio eksternal:
- * - t = 0.0s : Beep 800Hz (Countdown 3)
- * - t = 1.0s : Beep 800Hz (Countdown 2)
- * - t = 2.0s : Beep 1000Hz (Countdown 1)
+ * - t = 0.0s : Beep 880Hz (Countdown 3) - Volume kencang & mantap (amp 0.70)
+ * - t = 1.0s : Beep 880Hz (Countdown 2) - Identik dengan countdown 3
+ * - t = 2.0s : Beep 880Hz (Countdown 1) - Identik dengan countdown 3 & 2
  * - t = 3.0s : Correct Chime (Rising Major Arpeggio C6-E6-G6 + bell harmonic)
  */
 function generateQuizSoundWav(outputPath) {
@@ -265,30 +265,29 @@ function generateQuizSoundWav(outputPath) {
   buffer.write('data', 36);
   buffer.writeUInt32LE(dataSize, 40);
 
+  // Parameter Countdown Beep Identik (3, 2, 1)
+  const beepTimes = [0.0, 1.0, 2.0];
+  const beepDuration = 0.14; // 140ms per beep
+  const beepFreq = 880; // 880Hz (A5) seragam untuk semua countdown
+  const beepPeakAmp = 0.70; // Volume kencang dan bertenaga
+
   // Sintesis audio gelombang
   for (let i = 0; i < numSamples; i++) {
     const t = i / sampleRate;
     let sample = 0;
 
-    // 1. Beep di t = 0.0s (Countdown 3)
-    if (t >= 0.0 && t < 0.15) {
-      const dt = t - 0.0;
-      const env = Math.exp(-dt * 20);
-      sample += 0.35 * Math.sin(2 * Math.PI * 800 * dt) * env;
-    }
-
-    // 2. Beep di t = 1.0s (Countdown 2)
-    if (t >= 1.0 && t < 1.15) {
-      const dt = t - 1.0;
-      const env = Math.exp(-dt * 20);
-      sample += 0.35 * Math.sin(2 * Math.PI * 800 * dt) * env;
-    }
-
-    // 3. Beep di t = 2.0s (Countdown 1 - pitch 1000 Hz)
-    if (t >= 2.0 && t < 2.18) {
-      const dt = t - 2.0;
-      const env = Math.exp(-dt * 18);
-      sample += 0.40 * Math.sin(2 * Math.PI * 1000 * dt) * env;
+    // 1. Countdown Beep Identik di t = 0.0s, 1.0s, dan 2.0s
+    for (const t0 of beepTimes) {
+      if (t >= t0 && t < t0 + beepDuration) {
+        const dt = t - t0;
+        let env = 1.0;
+        if (dt < 0.005) {
+          env = dt / 0.005; // 5ms attack halus bebas klik
+        } else if (dt > 0.08) {
+          env = Math.max(0, 1.0 - (dt - 0.08) / (beepDuration - 0.08)); // release lembut
+        }
+        sample += beepPeakAmp * Math.sin(2 * Math.PI * beepFreq * dt) * env;
+      }
     }
 
     // 4. Correct Chime di t = 3.0s (C6 -> E6 -> G6)

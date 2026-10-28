@@ -14,7 +14,17 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Synthesized Countdown Beep and Correct Answer Sound Effects
+## [Unreleased] - Uniform Louder Countdown Beeps Across 3, 2, and 1
+- **Konteks Struktural**:
+  1. Penyeragaman Nada & Peningkatan Volume Countdown Beep ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
+     - Menyeragamkan frekuensi nada countdown beep menjadi identik (880Hz / A5) pada kemunculan angka 3 ($t = 0.0s$), angka 2 ($t = 1.0s$), dan angka 1 ($t = 2.0s$), menghapus disparitas pitch sebelumnya pada angka 1.
+     - Meningkatkan volume (*peak amplitude*) countdown beep dari 0.35 menjadi 0.70 dengan kurva envelope mantap (5ms attack, 75ms solid hold, dan 60ms decay lembut) sehingga suara beep terdengar lebih bertenaga, tegas, dan jelas tanpa distorsi/clipping.
+     - Mempertahankan tata suara efek *correct chime* pada detik ke-3 ($t = 3.0s$) yang sudah sesuai preferensi pengguna.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/compile_doksli.js`:
+     - Memperbarui fungsi `generateQuizSoundWav` dengan array parameter waktu beep `[0.0, 1.0, 2.0]`, frekuensi seragam `880Hz`, durasi 140ms, dan peak amplitude `0.70`.
+
+## [ff8f94a] - Synthesized Countdown Beep and Correct Answer Sound Effects
 - **Konteks Struktural**:
   1. Generator Efek Suara Audio Sintesis Mandiri ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [README.md](file:///d:/projects/clipping/scheduler-uploader/README.md)):
      - Menambahkan fungsi sintesis audio gelombang murni `generateQuizSoundWav` untuk menghasilkan file audio WAV 16-bit PCM stereo 44.1kHz sepanjang 4 detik secara instan di memori/disk tanpa ketergantungan file audio eksternal atau download internet.
