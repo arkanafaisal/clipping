@@ -14,7 +14,24 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Doksli Video Quiz Auto-Editing Compilation Pipeline
+## [Unreleased] - Subfolder Two-File Doksli Flow, Clean Green Reveal, and Centered Meme Overlay
+- **Konteks Struktural**:
+  1. Arsitektur Momen Subfolder 2 File ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [README.md](file:///d:/projects/clipping/scheduler-uploader/README.md)):
+     - Menyesuaikan arsitektur Google Drive ke model subfolder momen: setiap subfolder mewakili satu momen dan namanya adalah kunci jawaban kuis.
+     - Setiap subfolder momen wajib berisi tepat 2 file video: `cut.mp4` (video potongan epik/facecam diawal) dan `<nama_meme>.mp4` (video full). Script otomatis memvalidasi dan melewati folder yang tidak memiliki tepat 2 file video atau tidak memiliki `cut.mp4`.
+  2. Alur 3 Bagian per Momen & Overlay Teks Tengah ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
+     - Mengubah alur per segmen menjadi 3 tahap: `cut.mp4` diputar utuh -> freeze frame akhir 4 detik (kuis overlay dengan countdown 3 detik dan reveal hijau emerald bersih tanpa simbol `[V]`) -> video full diputar dengan overlay teks judul file di tengah layar (vertikal & horizontal) dengan dukungan manual line break `\n` -> `\N` tanpa auto line-wrapping.
+     - Menerapkan auto font-scaling pada kartu pilihan ganda agar opsi jawaban tetap muat rapi dalam 1 baris.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/compile_doksli.js`:
+     - Memperbarui pengambilan pool momen dari subfolder Google Drive dan menambahkan fungsi validasi ketat 2 file per folder.
+     - Menghapus simbol `[V]` pada kartu reveal kuis, hanya menonjolkan warna hijau emerald pada kartu dan teks jawaban benar.
+     - Menambahkan fungsi `generateFullVideoASS` untuk merender judul file full di tengah layar secara vertikal dan horizontal dengan konversi `\n` menjadi `\N`.
+     - Menambahkan helper `normalizeVideo` dengan fallback audio hening otomatis untuk video tanpa stream suara.
+  - `scheduler-uploader/README.md`:
+     - Memperbarui dokumentasi struktur folder subfolder momen, aturan 2 file video (`cut.mp4` & full), dan alur 3 bagian kuis.
+
+## [0b407fd] - Doksli Video Quiz Auto-Editing Compilation Pipeline
 - **Konteks Struktural**:
   1. Auto-Edit Kompilasi Tebak-Tebakan Doksli ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [package.json](file:///d:/projects/clipping/scheduler-uploader/package.json)):
      - Mengembangkan pipeline CLI mandiri yang mengotomatisasi pengambilan 5–10 klip secara acak dari 1 folder Google Drive flat (tanpa subfolder), lalu merangkainya menjadi 1 video vertikal 9:16 (1080x1920 30fps) dengan format interaktif kuis tebak momen.

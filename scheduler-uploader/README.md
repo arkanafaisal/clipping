@@ -30,20 +30,30 @@ Script CLI Node.js statis murni (bukan web server) yang didesain khusus untuk di
 Fitur mandiri untuk mengotomatisasi pengeditan video kompilasi kuis interaktif tanpa perlu aplikasi video editor manual:
 
 ### 🧩 Konsep & Alur Kerja:
-1. **Sumber Google Drive**: Mengambil seluruh video dari satu folder Google Drive flat (`GDRIVE_DOKSLI_FOLDER_ID`) yang berisi kumpulan rekaman doksli.
-2. **Pengacakan Klip**: Memilih secara acak 5 hingga 10 video klip (`--count=5` atau konfigurasi `QUIZ_CLIP_COUNT`).
-3. **Mekanisme Kuis per Klip**:
-   - Video klip diputar normal dari awal hingga akhir.
-   - Pada frame detik terakhir, video di-*freeze* selama **4 detik total**:
+1. **Struktur Folder Google Drive**:
+   - Di dalam folder `GDRIVE_DOKSLI_FOLDER_ID`, terdapat subfolder-subfolder momen (contoh: `Momen Savage Alucard di Lord`, `Kena Prank Creeper`, dll).
+   - **Nama Subfolder = Kunci Jawaban Kuis** (disarankan 1 baris, maksimal ~40 karakter).
+   - Di dalam masing-masing subfolder, **wajib berisi tepat 2 file video**:
+     - `cut.mp4` : Video potongan epik (misal rekaman facecam saja).
+     - `<judul_meme>.mp4` : Video full meme yang lebih panjang (nama dinamis).
+   - *Validasi Otomatis*: Jika jumlah file video tidak tepat 2 atau tidak ada `cut.mp4`, folder tersebut otomatis dilewati dan memilih folder acak lainnya.
+
+2. **Alur Tiap Momen**:
+   - **Bagian 1 (Cut Video)**: Video `cut.mp4` diputar normal.
+   - **Bagian 2 (Freeze Kuis 4 Detik)**:
+     - Frame terakhir `cut.mp4` di-*freeze*.
      - **Overlay Gelap Semi-Transparan**: Teks header `"Momen manakah itu?"`.
      - **Pilihan Ganda A, B, C, D**:
-       - 1 jawaban benar = nama file klip saat ini (dibersihkan dari ekstensi `.mp4`).
-       - 3 jawaban pengecoh = nama file acak dari pool video Google Drive.
+       - 1 jawaban benar = nama subfolder momen saat ini.
+       - 3 jawaban pengecoh = nama subfolder acak dari pool momen lainnya.
        - Urutan A/B/C/D diacak dinamis di setiap klip.
-     - **Countdown Timer**: Hitung mundur 3 detik (angka `3`, `2`, `1` dan progress bar mengecil).
-     - **Reveal Jawaban**: Pada detik ke-3, kartu jawaban yang benar berubah styling menjadi **HIJAU EMERALD** (`[V] B. <Nama File>`) selama 1 detik.
-   - Langsung berpindah ke video berikutnya lengkap dengan kuisnya masing-masing.
-4. **Hasil Akhir**: Semua segmen digabungkan secara *seamless* menjadi 1 video vertikal 9:16 (**1080x1920, 30 FPS**) siap posting di folder `output_kompilasi/`.
+       - *Auto Font-Scaling*: Menyesuaikan ukuran font (44px -> 36px -> 32px) agar teks tetap muat rapi dalam 1 baris.
+     - **Countdown Timer**: Hitung mundur 3 detik (angka `3`, `2`, `1` dan progress bar).
+     - **Reveal Jawaban**: Pada detik ke-3 s/d 4, kartu jawaban yang benar berubah menjadi **HIJAU EMERALD** (`B. <Nama Momen>`), sementara opsi salah meredup.
+   - **Bagian 3 (Full Video + Center Overlay)**:
+     - Video full diputar dengan overlay teks judul file di tengah layar (vertikal dan horizontal center).
+     - *Dukungan Line Break Manual*: Jika judul file mengandung `\n` (contoh: `Ketika Lu Lagi Khusyuk Main\nTiba-tiba Mati Lampu.mp4`), teks otomatis dipisah baris sesuai letak `\n` tanpa auto-wrapping sembarangan.
+3. **Hasil Akhir**: Seluruh momen digabungkan secara *seamless* menjadi 1 video vertikal 9:16 (**1080x1920, 30 FPS**) siap posting di folder `output_kompilasi/`.
 
 ### 🚀 Cara Menjalankan Kompilasi:
 ```bash

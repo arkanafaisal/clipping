@@ -2,19 +2,27 @@
  * ============================================================================
  * AUTO EDIT KOMPILASI TEBAK-TEBAKAN DOKSLI (VIDEO QUIZ COMPILER)
  * ============================================================================
- * Script mandiri yang mengambil 5-10 video klip secara acak dari 1 folder
- * Google Drive (tanpa subfolder), lalu secara otomatis mengeditnya menjadi
- * 1 video kompilasi vertikal (Shorts / Reels / TikTok) dengan format kuis:
+ * Script mandiri yang mengambil 5-10 momen secara acak dari folder induk
+ * Google Drive. Folder induk berisi subfolder-subfolder momen (nama folder
+ * adalah kunci jawaban kuis).
  *
- * Alur Tiap Klip:
- * 1. Video klip diputar normal.
- * 2. Di frame terakhir video, klip di-freeze selama 4 detik:
+ * Di dalam masing-masing subfolder momen, terdapat tepat 2 video file:
+ * 1. cut.mp4           : Klip potongan epik (misal facecam saja).
+ * 2. <nama_momen>.mp4  : Video full meme yang lebih panjang (nama dinamis).
+ *
+ * Jika jumlah file video di dalam folder tidak tepat 2 atau tidak ada cut.mp4,
+ * folder tersebut otomatis dilewati dan memilih folder acak lainnya.
+ *
+ * Alur Tiap Momen:
+ * 1. Video 'cut.mp4' diputar normal.
+ * 2. Frame terakhir 'cut.mp4' di-freeze selama 4 detik:
  *    - Overlay gelap semi-transparan dengan judul "Momen manakah itu?".
- *    - Pilihan ganda A, B, C, D (1 nama file benar + 3 nama file acak dari pool).
+ *    - Pilihan ganda A, B, C, D (1 nama folder benar + 3 nama folder acak lain).
  *    - Hitung mundur 3 detik (angka 3, 2, 1 + progress bar).
- *    - Setelah 3 detik: Opsi yang benar berubah menjadi HIJAU EMERALD (selama 1 detik).
- * 3. Langsung berpindah ke video berikutnya lengkap dengan kuisnya.
- * 4. Seluruh video digabungkan secara seamless menjadi 1 file output .mp4.
+ *    - Detik ke-3 s/d 4: Opsi yang benar berubah menjadi HIJAU EMERALD (tanpa [V]).
+ * 3. Video full diputar dengan overlay teks judul file full di tengah layar
+ *    (vertikal & horizontal) dengan dukungan manual line break (\n).
+ * 4. Seluruh momen digabungkan secara seamless menjadi 1 video vertikal .mp4.
  *
  * Jalankan dengan:
  *   node compile_doksli.js
@@ -30,7 +38,7 @@ const { execSync } = require('child_process');
 const dotenv = require('dotenv');
 const { google } = require('googleapis');
 
-// Path binary FFmpeg (menggunakan ffmpeg-static yang sudah terpasang)
+// Path binary FFmpeg (menggunakan ffmpeg-static)
 let FFMPEG_BIN = 'ffmpeg';
 try {
   FFMPEG_BIN = require('ffmpeg-static') || 'ffmpeg';
@@ -137,19 +145,16 @@ function shuffleArray(arr) {
 }
 
 /**
- * Helper membersihkan nama file untuk dijadikan jawaban kuis
+ * Helper membersihkan nama untuk display
  */
-function cleanMomentName(filename) {
-  return filename
-    .replace(/\.[a-zA-Z0-9]+$/i, '') // Hapus ekstensi (.mp4, .mkv, dll)
-    .replace(/^[0-9]+[_\-\s]+/i, '') // Hapus angka prefix penomoran jika ada
-    .replace(/[_\-]+/g, ' ')         // Ubah underscore / dash menjadi spasi
-    .replace(/\s+/g, ' ')            // Rapikan spasi ganda
+function cleanText(str) {
+  return str
+    .replace(/\.[a-zA-Z0-9]+$/i, '')
     .trim();
 }
 
 /**
- * Pembuat Subtitle ASS Dinamis untuk Overlay Kuis & Animasi Pilihan Ganda
+ * Pembuat Subtitle ASS Dinamis untuk Overlay Kuis & Animasi Pilihan Ganda (Freeze Frame)
  */
 function generateQuizASS({
   question = 'Momen manakah itu?',
@@ -158,7 +163,6 @@ function generateQuizASS({
 }) {
   const cardY = [1120, 1270, 1420, 1570];
   const cardW = 920;
-  const cardH = 110;
   const leftX = (1080 - cardW) / 2; // 80
 
   // Path vektor rounded rectangle (920 x 110 dengan radius 20px)
@@ -177,7 +181,7 @@ function generateQuizASS({
   events.push(`Dialogue: 2,0:00:00.00,0:00:01.00,Default,,0,0,0,,{\\pos(540,840)\\an5\\fs120\\b1\\c&H00E5FF&\\bord6\\3c&H000000&}3`);
   events.push(`Dialogue: 2,0:00:01.00,0:00:02.00,Default,,0,0,0,,{\\pos(540,840)\\an5\\fs120\\b1\\c&H00E5FF&\\bord6\\3c&H000000&}2`);
   events.push(`Dialogue: 2,0:00:02.00,0:00:03.00,Default,,0,0,0,,{\\pos(540,840)\\an5\\fs130\\b1\\c&H0099FF&\\bord6\\3c&H000000&}1`);
-  events.push(`Dialogue: 2,0:00:03.00,0:00:04.00,Default,,0,0,0,,{\\pos(540,840)\\an5\\fs68\\b1\\c&H00E65C&\\bord4\\3c&H000000&}JAWABAN BENAR:`);
+  events.push(`Dialogue: 2,0:00:03.00,0:00:04.00,Default,,0,0,0,,{\\pos(540,840)\\an5\\fs64\\b1\\c&H00E65C&\\bord4\\3c&H000000&}JAWABAN BENAR:`);
 
   // Progress Bar (Mengecil selama 3 detik)
   events.push(`Dialogue: 1,0:00:00.00,0:00:01.00,Default,,0,0,0,,{\\pos(140,940)\\an7\\p1\\1c&H00E65C&\\3a&HFF&}m 0 0 l 800 0 l 800 12 l 0 12{\\p0}`);
@@ -190,27 +194,32 @@ function generateQuizASS({
     const yTop = cardY[i];
     const yMid = yTop + 55;
     const isCorrect = i === correctIndex;
-    
-    // Potong teks jika terlalu panjang agar tidak keluar batas kartu
+
     let text = options[i] || `Pilihan ${letters[i]}`;
-    if (text.length > 36) {
-      text = text.substring(0, 33) + '...';
+
+    // Auto font-scaling untuk opsi teks yang agak panjang agar pas 1 baris
+    let fontSize = 42;
+    if (text.length > 38) {
+      fontSize = 32;
+    } else if (text.length > 28) {
+      fontSize = 36;
     }
+
     const label = `${letters[i]}. ${text}`;
 
     // --- FASE 1: Detik 0.0 s/d 3.0 (Semua Opsi Netral) ---
     events.push(`Dialogue: 1,0:00:00.00,0:00:03.00,Default,,0,0,0,,{\\pos(${leftX},${yTop})\\an7\\p1\\1a&H35&\\1c&H251D18&\\3a&H20&\\3c&H605040&\\bord3}${roundRect}{\\p0}`);
-    events.push(`Dialogue: 2,0:00:00.00,0:00:03.00,Default,,0,0,0,,{\\pos(140,${yMid})\\an4\\fs44\\b1\\c&HFFFFFF&\\bord2\\3c&H000000&}${label}`);
+    events.push(`Dialogue: 2,0:00:00.00,0:00:03.00,Default,,0,0,0,,{\\pos(140,${yMid})\\an4\\fs${fontSize}\\b1\\c&HFFFFFF&\\bord2\\3c&H000000&}${label}`);
 
-    // --- FASE 2: Detik 3.0 s/d 4.0 (Jawaban Terbuka) ---
+    // --- FASE 2: Detik 3.0 s/d 4.0 (Jawaban Terbuka Tanpa [V], Opsi Benar Hijau Emerald) ---
     if (isCorrect) {
-      // HIJAU EMERALD TERANG (#22C55E)
+      // HIJAU EMERALD (#22C55E -> BGR: &H30A020&)
       events.push(`Dialogue: 1,0:00:03.00,0:00:04.00,Default,,0,0,0,,{\\pos(${leftX},${yTop})\\an7\\p1\\1a&H00&\\1c&H30A020&\\3a&H00&\\3c&H60F040&\\bord5}${roundRect}{\\p0}`);
-      events.push(`Dialogue: 2,0:00:03.00,0:00:04.00,Default,,0,0,0,,{\\pos(140,${yMid})\\an4\\fs48\\b1\\c&HFFFFFF&\\bord3\\3c&H104010&}[V]  ${label}`);
+      events.push(`Dialogue: 2,0:00:03.00,0:00:04.00,Default,,0,0,0,,{\\pos(140,${yMid})\\an4\\fs${fontSize + 2}\\b1\\c&HFFFFFF&\\bord3\\3c&H104010&}${label}`);
     } else {
       // Opsi salah dibuat redup
       events.push(`Dialogue: 1,0:00:03.00,0:00:04.00,Default,,0,0,0,,{\\pos(${leftX},${yTop})\\an7\\p1\\1a&H75&\\1c&H101010&\\3a&H85&\\3c&H303030&\\bord2}${roundRect}{\\p0}`);
-      events.push(`Dialogue: 2,0:00:03.00,0:00:04.00,Default,,0,0,0,,{\\pos(140,${yMid})\\an4\\fs42\\b0\\c&H888888&\\bord2\\3c&H000000&}${label}`);
+      events.push(`Dialogue: 2,0:00:03.00,0:00:04.00,Default,,0,0,0,,{\\pos(140,${yMid})\\an4\\fs${fontSize}\\b0\\c&H888888&\\bord2\\3c&H000000&}${label}`);
     }
   }
 
@@ -228,6 +237,62 @@ Style: Default, Arial, 48, &H00FFFFFF, &H000000FF, &H00000000, &H00000000, 1, 0,
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 ${events.join('\n')}
 `;
+}
+
+/**
+ * Pembuat Subtitle ASS untuk Overlay Teks Nama File Full di Tengah Video
+ * (Mendukung manual \n -> \N tanpa auto-break)
+ */
+function generateFullVideoASS({ text, durationSeconds = 600 }) {
+  // Bersihkan ekstensi file (.mp4 dll), dan ganti \n atau \\n menjadi \N
+  const formattedText = text
+    .replace(/\.[a-zA-Z0-9]+$/i, '')
+    .replace(/\\n/gi, '\\N');
+
+  const hh = String(Math.floor(durationSeconds / 3600)).padStart(1, '0');
+  const mm = String(Math.floor((durationSeconds % 3600) / 60)).padStart(2, '0');
+  const ss = String(Math.floor(durationSeconds % 60)).padStart(2, '0');
+  const durStr = `${hh}:${mm}:${ss}.00`;
+
+  return `[Script Info]
+Title: Full Video Meme Overlay
+ScriptType: v4.00+
+PlayResX: 1080
+PlayResY: 1920
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: MemeTitle, Arial, 54, &H00FFFFFF, &H000000FF, &H00000000, &H00000000, 1, 0, 0, 0, 100, 100, 0, 0, 1, 5, 2, 5, 60, 60, 60, 1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:00.00,${durStr},MemeTitle,,0,0,0,,{\\pos(540,960)\\an5\\bord6\\3c&H000000&}${formattedText}
+`;
+}
+
+/**
+ * Normalisasi video klip ke format 1080x1920 30FPS AAC 44.1kHz stereo
+ * (Dilengkapi penanganan audio hening jika video asli tidak memiliki stream suara)
+ */
+function normalizeVideo({ inputPath, outputPath, assSubtitlePath = null }) {
+  let vf = 'scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1';
+  if (assSubtitlePath) {
+    const escapedAss = assSubtitlePath.replace(/\\/g, '/').replace(/:/g, '\\:');
+    vf += `,ass='${escapedAss}'`;
+  }
+
+  try {
+    execSync(
+      `"${FFMPEG_BIN}" -y -i "${inputPath}" -vf "${vf}" -c:v libx264 -preset veryfast -crf 22 -c:a aac -ar 44100 -ac 2 -r 30 -pix_fmt yuv420p "${outputPath}"`,
+      { stdio: 'pipe' }
+    );
+  } catch (err) {
+    // Fallback jika video mentah tidak memiliki stream audio
+    execSync(
+      `"${FFMPEG_BIN}" -y -i "${inputPath}" -f lavfi -i "anullsrc=r=44100:cl=stereo" -vf "${vf}" -c:v libx264 -preset veryfast -crf 22 -c:a aac -ar 44100 -ac 2 -r 30 -pix_fmt yuv420p -shortest "${outputPath}"`,
+      { stdio: 'ignore' }
+    );
+  }
 }
 
 /**
@@ -264,9 +329,9 @@ async function runQuizCompiler() {
 
   console.log(`\nKonfigurasi:`);
   console.log(` - ID Folder Google Drive : ${doksliFolderId}`);
-  console.log(` - Target Klip Kompilasi  : ${clipCountTarget} video`);
+  console.log(` - Target Momen Terpilih  : ${clipCountTarget} momen`);
   console.log(` - Format Output          : Vertikal 9:16 (1080x1920) 30 FPS`);
-  console.log(` - Durasi Freeze Kuis     : 3 detik tebak + 1 detik jawaban hijau (4 detik total)\n`);
+  console.log(` - Alur Segmen per Momen  : cut.mp4 -> Freeze Kuis (4s) -> Full Video (Center Text)\n`);
 
   // 2. Hubungkan ke Google Drive API
   const gdriveToken =
@@ -286,64 +351,105 @@ async function runQuizCompiler() {
   ]);
   const drive = google.drive({ version: 'v3', auth: driveAuth });
 
-  // 3. Ambil daftar file video di dalam folder DokSli
-  console.log('[TAHAP 1/4] Mengambil seluruh daftar file video di Google Drive...');
+  // 3. Ambil daftar seluruh subfolder momen di Google Drive
+  console.log('[TAHAP 1/4] Mengambil daftar folder-folder momen di Google Drive...');
   const res = await drive.files.list({
-    q: `'${doksliFolderId}' in parents and (mimeType contains 'video/' or name contains '.mp4' or name contains '.mkv' or name contains '.mov') and trashed = false`,
-    fields: 'files(id, name, size, mimeType)',
+    q: `'${doksliFolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+    fields: 'files(id, name)',
     spaces: 'drive',
     pageSize: 500,
     supportsAllDrives: true,
     includeItemsFromAllDrives: true,
   });
 
-  const allFiles = res.data.files || [];
-  if (allFiles.length === 0) {
-    console.error('❌ [ERROR] Tidak ada file video yang ditemukan di folder Google Drive tersebut.');
+  const allFolders = res.data.files || [];
+  if (allFolders.length === 0) {
+    console.error('❌ [ERROR] Tidak ada subfolder yang ditemukan di folder Google Drive tersebut.');
+    console.error('   Konsep baru: Folder Doksli harus berisi subfolder-subfolder momen (nama folder = jawaban kuis).');
     process.exit(1);
   }
 
-  console.log(`✅ Berhasil menemukan ${allFiles.length} file video di dalam pool Google Drive.`);
-  if (allFiles.length < 4) {
-    console.error('❌ Diperlukan minimal 4 video di dalam folder untuk membuat 4 pilihan ganda (A, B, C, D).');
+  console.log(`✅ Berhasil menemukan ${allFolders.length} subfolder momen di Google Drive.`);
+  if (allFolders.length < 4) {
+    console.error('❌ Diperlukan minimal 4 folder momen untuk membuat 4 pilihan ganda (A, B, C, D).');
     process.exit(1);
   }
 
-  // 4. Pilih klip secara acak dan susun kuis
-  console.log('\n[TAHAP 2/4] Mengacak pemilihan video dan merangkai tebak-tebakan pilihan ganda...');
-  const countToPick = Math.min(clipCountTarget, allFiles.length);
-  const shuffledPool = shuffleArray(allFiles);
-  const selectedClips = shuffledPool.slice(0, countToPick);
+  // Pool seluruh nama momen untuk distractor kuis
+  const allFolderNamesPool = allFolders.map((f) => f.name.trim());
 
-  // Buat pool nama seluruh momen
-  const allMomentNames = allFiles.map((f) => cleanMomentName(f.name));
+  // 4. Acak dan validasi isi subfolder (harus tepat 2 video: cut.mp4 dan video full)
+  console.log('\n[TAHAP 2/4] Mengacak dan memvalidasi isi subfolder (mencari cut.mp4 & video full)...');
+  const shuffledFolders = shuffleArray(allFolders);
+  const validMoments = [];
 
-  const quizSegments = [];
-  for (let i = 0; i < selectedClips.length; i++) {
-    const currentClip = selectedClips[i];
-    const correctName = cleanMomentName(currentClip.name);
+  for (const folder of shuffledFolders) {
+    if (validMoments.length >= clipCountTarget) break;
 
-    // Ambil 3 nama momen salah yang unik dari pool
-    const wrongCandidates = shuffleArray(allMomentNames.filter((name) => name !== correctName));
+    // Ambil daftar file video di dalam subfolder ini
+    const filesRes = await drive.files.list({
+      q: `'${folder.id}' in parents and (mimeType contains 'video/' or name contains '.mp4' or name contains '.mkv' or name contains '.mov' or name contains '.webm') and trashed = false`,
+      fields: 'files(id, name, size, mimeType)',
+      spaces: 'drive',
+      pageSize: 20,
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
+    });
+
+    const vidFiles = filesRes.data.files || [];
+
+    // Validasi aturan: HARUS TEPAT 2 FILE VIDEO
+    if (vidFiles.length !== 2) {
+      console.log(` ⚠️ Folder "${folder.name}" dilewati (berisi ${vidFiles.length} file video, bukan 2 file).`);
+      continue;
+    }
+
+    // Cari file cut.mp4 (case-insensitive)
+    const cutFile = vidFiles.find((f) => {
+      const base = f.name.toLowerCase().replace(/\.[^.]+$/, '');
+      return base === 'cut';
+    });
+
+    if (!cutFile) {
+      console.log(` ⚠️ Folder "${folder.name}" dilewati (tidak ada file "cut.mp4").`);
+      continue;
+    }
+
+    // File video kedua adalah full video
+    const fullFile = vidFiles.find((f) => f.id !== cutFile.id);
+
+    // Siapkan pilihan ganda kuis
+    const correctName = folder.name.trim();
+    const wrongCandidates = shuffleArray(allFolderNamesPool.filter((name) => name !== correctName));
     const wrongOptions = wrongCandidates.slice(0, 3);
-
-    // Gabungkan dan acak posisi jawaban benar di antara A, B, C, D
     const options = shuffleArray([correctName, ...wrongOptions]);
     const correctIndex = options.indexOf(correctName);
 
-    quizSegments.push({
-      fileInfo: currentClip,
-      correctName,
+    validMoments.push({
+      folderId: folder.id,
+      momentName: correctName,
+      cutFile,
+      fullFile,
       options,
       correctIndex,
     });
 
     const letter = ['A', 'B', 'C', 'D'][correctIndex];
-    console.log(` 📌 Klip #${i + 1}: "${correctName}" -> Kunci Jawaban: [${letter}]`);
+    console.log(` ✅ Terpilih #${validMoments.length}: "${correctName}"`);
+    console.log(`    - Cut Video  : ${cutFile.name}`);
+    console.log(`    - Full Video : ${fullFile.name}`);
+    console.log(`    - Kunci Kuis : [${letter}]`);
   }
 
-  // 5. Download dan proses pengeditan segmen video
-  console.log('\n[TAHAP 3/4] Mengunduh dan memproses klip dengan freeze frame & overlay kuis...');
+  if (validMoments.length === 0) {
+    console.error('❌ Tidak ada folder momen yang memenuhi syarat (harus tepat 2 video: cut.mp4 & video full).');
+    process.exit(1);
+  }
+
+  console.log(`\n🎉 Berhasil mengumpulkan ${validMoments.length} momen valid untuk kompilasi!`);
+
+  // 5. Download dan proses pengeditan tiap momen
+  console.log('\n[TAHAP 3/4] Mengunduh dan merangkai alur klip (Cut -> Freeze Kuis -> Full Meme)...');
 
   const workDir = path.resolve(__dirname, 'temp_doksli_work');
   if (fs.existsSync(workDir)) {
@@ -353,71 +459,88 @@ async function runQuizCompiler() {
 
   const finalSegmentPaths = [];
 
-  for (let i = 0; i < quizSegments.length; i++) {
-    const segment = quizSegments[i];
-    const clipIndex = i + 1;
-    console.log(`\n🎬 [MEMPROSES KLIP ${clipIndex}/${quizSegments.length}]: "${segment.correctName}"...`);
+  for (let i = 0; i < validMoments.length; i++) {
+    const moment = validMoments[i];
+    const momentIndex = i + 1;
+    console.log(`\n🎬 [MEMPROSES MOMEN ${momentIndex}/${validMoments.length}]: "${moment.momentName}"...`);
 
-    // a. Unduh video dari Google Drive
-    const rawPath = path.join(workDir, `raw_${clipIndex}.mp4`);
-    console.log(`   - Mengunduh dari GDrive...`);
-    const driveStream = await drive.files.get(
-      { fileId: segment.fileInfo.id, alt: 'media', supportsAllDrives: true },
+    // --- BAGIAN 1: VIDEO POTONGAN (cut.mp4) ---
+    console.log(`   1. Mengunduh dan menormalisasi cut.mp4...`);
+    const rawCutPath = path.join(workDir, `raw_cut_${momentIndex}.mp4`);
+    const cutStream = await drive.files.get(
+      { fileId: moment.cutFile.id, alt: 'media', supportsAllDrives: true },
       { responseType: 'stream' }
     );
-    await pipeline(driveStream.data, fs.createWriteStream(rawPath));
+    await pipeline(cutStream.data, fs.createWriteStream(rawCutPath));
 
-    // b. Ekstrak frame terakhir video
-    console.log(`   - Mengekstrak frame terakhir untuk freeze frame...`);
-    const freezeFramePng = path.join(workDir, `freeze_${clipIndex}.png`);
-    execSync(`"${FFMPEG_BIN}" -y -sseof -0.1 -i "${rawPath}" -update 1 -q:v 1 "${freezeFramePng}"`, { stdio: 'ignore' });
+    const normCutPath = path.join(workDir, `norm_cut_${momentIndex}.mp4`);
+    normalizeVideo({ inputPath: rawCutPath, outputPath: normCutPath });
 
-    // c. Buat file ASS subtitle untuk kuis
-    console.log(`   - Men-generate overlay kuis (DirectWrite vector ASS)...`);
-    const assPath = path.join(workDir, `quiz_${clipIndex}.ass`);
+    // --- BAGIAN 2: FREEZE FRAME KUIS (4 DETIK) ---
+    console.log(`   2. Mengekstrak frame terakhir & membuat freeze kuis 4 detik...`);
+    const freezeFramePng = path.join(workDir, `freeze_${momentIndex}.png`);
+    execSync(`"${FFMPEG_BIN}" -y -sseof -0.1 -i "${rawCutPath}" -update 1 -q:v 1 "${freezeFramePng}"`, { stdio: 'ignore' });
+
+    const quizAssPath = path.join(workDir, `quiz_${momentIndex}.ass`);
     fs.writeFileSync(
-      assPath,
+      quizAssPath,
       generateQuizASS({
         question: 'Momen manakah itu?',
-        options: segment.options,
-        correctIndex: segment.correctIndex,
+        options: moment.options,
+        correctIndex: moment.correctIndex,
       }),
       'utf8'
     );
 
-    // d. Render video freeze 4 detik dengan overlay ASS dan audio hening stereo
-    const freezeVideoPath = path.join(workDir, `freeze_vid_${clipIndex}.mp4`);
-    const escapedAss = assPath.replace(/\\/g, '/').replace(/:/g, '\\:');
-    console.log(`   - Merender 4 detik freeze kuis...`);
+    const freezeVideoPath = path.join(workDir, `freeze_vid_${momentIndex}.mp4`);
+    const escapedQuizAss = quizAssPath.replace(/\\/g, '/').replace(/:/g, '\\:');
     execSync(
-      `"${FFMPEG_BIN}" -y -loop 1 -i "${freezeFramePng}" -f lavfi -i "anullsrc=r=44100:cl=stereo" -vf "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,ass='${escapedAss}'" -t 4 -c:v libx264 -preset veryfast -c:a aac -ar 44100 -ac 2 -r 30 -pix_fmt yuv420p "${freezeVideoPath}"`,
+      `"${FFMPEG_BIN}" -y -loop 1 -i "${freezeFramePng}" -f lavfi -i "anullsrc=r=44100:cl=stereo" -vf "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,ass='${escapedQuizAss}'" -t 4 -c:v libx264 -preset veryfast -c:a aac -ar 44100 -ac 2 -r 30 -pix_fmt yuv420p "${freezeVideoPath}"`,
       { stdio: 'ignore' }
     );
 
-    // e. Normalisasi video asli (format 1080x1920 30fps dan audio 44100Hz stereo agar cocok di-concat)
-    console.log(`   - Menormalisasi video klip utama...`);
-    const normClipPath = path.join(workDir, `norm_clip_${clipIndex}.mp4`);
-    execSync(
-      `"${FFMPEG_BIN}" -y -i "${rawPath}" -vf "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2" -c:v libx264 -preset veryfast -c:a aac -ar 44100 -ac 2 -r 30 -pix_fmt yuv420p "${normClipPath}"`,
-      { stdio: 'ignore' }
+    // --- BAGIAN 3: VIDEO FULL DENGAN OVERLAY TEKS DI TENGAH ---
+    console.log(`   3. Mengunduh & merender video full ("${moment.fullFile.name}")...`);
+    const rawFullPath = path.join(workDir, `raw_full_${momentIndex}.mp4`);
+    const fullStream = await drive.files.get(
+      { fileId: moment.fullFile.id, alt: 'media', supportsAllDrives: true },
+      { responseType: 'stream' }
     );
+    await pipeline(fullStream.data, fs.createWriteStream(rawFullPath));
 
-    // f. Gabungkan klip asli + freeze kuis menjadi 1 segmen
-    console.log(`   - Menggabungkan klip + freeze kuis...`);
-    const segmentOut = path.join(workDir, `segment_${clipIndex}.mp4`);
-    const concatListTxt = path.join(workDir, `concat_clip_${clipIndex}.txt`);
+    const memeAssPath = path.join(workDir, `meme_${momentIndex}.ass`);
     fs.writeFileSync(
-      concatListTxt,
-      `file '${normClipPath.replace(/\\/g, '/')}'\nfile '${freezeVideoPath.replace(/\\/g, '/')}'\n`,
+      memeAssPath,
+      generateFullVideoASS({
+        text: moment.fullFile.name,
+        durationSeconds: 600,
+      }),
       'utf8'
     );
-    execSync(`"${FFMPEG_BIN}" -y -f concat -safe 0 -i "${concatListTxt}" -c copy "${segmentOut}"`, { stdio: 'ignore' });
+
+    const normFullPath = path.join(workDir, `norm_full_${momentIndex}.mp4`);
+    normalizeVideo({
+      inputPath: rawFullPath,
+      outputPath: normFullPath,
+      assSubtitlePath: memeAssPath,
+    });
+
+    // --- GABUNGKAN CUT + FREEZE + FULL MENJADI 1 SEGMEN MOMEN ---
+    console.log(`   4. Menggabungkan alur momen: Cut -> Freeze Kuis -> Full Meme...`);
+    const segmentOut = path.join(workDir, `segment_${momentIndex}.mp4`);
+    const concatTxt = path.join(workDir, `concat_${momentIndex}.txt`);
+    fs.writeFileSync(
+      concatTxt,
+      `file '${normCutPath.replace(/\\/g, '/')}'\nfile '${freezeVideoPath.replace(/\\/g, '/')}'\nfile '${normFullPath.replace(/\\/g, '/')}'\n`,
+      'utf8'
+    );
+    execSync(`"${FFMPEG_BIN}" -y -f concat -safe 0 -i "${concatTxt}" -c copy "${segmentOut}"`, { stdio: 'ignore' });
 
     finalSegmentPaths.push(segmentOut);
-    console.log(`   ✅ Segmen #${clipIndex} selesai.`);
+    console.log(`   ✅ Momen #${momentIndex} tuntas dirangkai.`);
   }
 
-  // 6. Gabungkan seluruh segmen menjadi 1 video kompilasi final
+  // 6. Gabungkan seluruh segmen momen menjadi 1 video kompilasi final
   console.log('\n[TAHAP 4/4] Menggabungkan seluruh segmen menjadi 1 video kompilasi utuh...');
 
   const outputDir = path.resolve(__dirname, 'output_kompilasi');
@@ -441,19 +564,15 @@ async function runQuizCompiler() {
     fs.rmSync(workDir, { recursive: true, force: true });
   } catch (e) {}
 
-  const finalStats = fs.statSync(finalOutputPath);
-  const sizeMb = (finalStats.size / (1024 * 1024)).toFixed(2);
-
   console.log('\n================================================================');
-  console.log('🎉 KOMPILASI TEBAK DOKSLI BERHASIL DIBUAT!');
-  console.log('================================================================');
-  console.log(`📁 File Output : ${finalOutputPath}`);
-  console.log(`📊 Ukuran File : ${sizeMb} MB`);
-  console.log(`🎞️ Total Klip  : ${quizSegments.length} momen kuis`);
+  console.log('🎉 KOMPILASI TEBAK-TEBAKAN DOKSLI BERHASIL DIBUAT!');
+  console.log(`📁 Lokasi Video Final : ${finalOutputPath}`);
   console.log('================================================================\n');
 }
 
+// Jalankan script
 runQuizCompiler().catch((err) => {
-  console.error('\n❌ Terjadi kesalahan saat memproses kompilasi doksli:', err);
+  console.error('\n❌ Terjadi kesalahan saat memproses kompilasi kuis doksli:');
+  console.error(err.message || err);
   process.exit(1);
 });
