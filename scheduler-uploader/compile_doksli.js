@@ -498,10 +498,36 @@ Dialogue: 0,0:00:00.00,${durStr},MemeTitle,,0,0,0,,{\\pos(540,${posY})\\an5\\bor
 
 /**
  * Normalisasi video klip ke format prime 1080x1920 60FPS AAC 44.1kHz stereo
- * (Dilengkapi penanganan audio hening jika video asli tidak memiliki stream suara)
+ * (Dilengkapi penanganan audio hening serta opsi sensor/blur gameplay untuk video cut kuis)
  */
-function normalizeVideo({ inputPath, outputPath, assSubtitlePath = null, fps = 60 }) {
-  let vf = 'scale=1080:1920:force_original_aspect_ratio=decrease:flags=lanczos,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1';
+function normalizeVideo({
+  inputPath,
+  outputPath,
+  assSubtitlePath = null,
+  fps = 60,
+  censorGameplay = false,
+  censorMode = 'pixelate',
+  censorY = 1006,
+  censorH = 720,
+  censorPixelSize = 24,
+  censorBlurRadius = 28,
+}) {
+  const baseFilter = 'scale=1080:1920:force_original_aspect_ratio=decrease:flags=lanczos,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1';
+  let vf = baseFilter;
+
+  if (censorGameplay) {
+    let censorChain = '';
+    if (censorMode === 'blur') {
+      const radius = Math.max(5, parseInt(censorBlurRadius, 10) || 28);
+      censorChain = `boxblur=${radius}:5`;
+    } else {
+      // Default: sensor piksel rendah (pixelate / mosaic)
+      const px = Math.max(4, parseInt(censorPixelSize, 10) || 24);
+      censorChain = `scale=1080/${px}:${censorH}/${px}:flags=neighbor,scale=1080:${censorH}:flags=neighbor`;
+    }
+    vf = `${baseFilter},split[main][gp];[gp]crop=1080:${censorH}:0:${censorY},${censorChain}[censored];[main][censored]overlay=0:${censorY}`;
+  }
+
   if (assSubtitlePath) {
     const escapedAss = assSubtitlePath.replace(/\\/g, '/').replace(/:/g, '\\:');
     vf += `,ass='${escapedAss}'`;
@@ -569,6 +595,13 @@ async function runQuizCompiler() {
     process.env.GDRIVE_OUTPUT_FOLDER_ID ||
     null;
 
+  let censorGameplay = process.env.CENSOR_GAMEPLAY !== 'false';
+  let censorMode = (process.env.CENSOR_MODE || process.env.CENSOR_GAMEPLAY_MODE || 'pixelate').toLowerCase();
+  let censorY = parseInt(process.env.CENSOR_GAMEPLAY_Y || '1006', 10);
+  let censorH = parseInt(process.env.CENSOR_GAMEPLAY_H || '720', 10);
+  let censorPixelSize = parseInt(process.env.CENSOR_PIXEL_SIZE || '24', 10);
+  let censorBlurRadius = parseInt(process.env.CENSOR_BLUR_RADIUS || '28', 10);
+
   for (const arg of process.argv.slice(2)) {
     if (arg.startsWith('--folder=')) doksliFolderId = arg.split('=')[1];
     if (arg.startsWith('--count=')) clipCountTarget = parseInt(arg.split('=')[1], 10);
@@ -578,6 +611,12 @@ async function runQuizCompiler() {
     if (arg.startsWith('--question=')) quizQuestion = arg.slice(arg.indexOf('=') + 1);
     if (arg.startsWith('--transition-sfx=')) customTransitionSfx = arg.slice(arg.indexOf('=') + 1);
     if (arg.startsWith('--result-folder=')) resultFolderId = arg.slice(arg.indexOf('=') + 1);
+    if (arg.startsWith('--censor-mode=')) censorMode = arg.split('=')[1].toLowerCase();
+    if (arg.startsWith('--censor-y=')) censorY = parseInt(arg.split('=')[1], 10);
+    if (arg.startsWith('--censor-h=')) censorH = parseInt(arg.split('=')[1], 10);
+    if (arg.startsWith('--censor-size=')) censorPixelSize = parseInt(arg.split('=')[1], 10);
+    if (arg.startsWith('--censor-blur=')) censorBlurRadius = parseInt(arg.split('=')[1], 10);
+    if (arg === '--no-censor') censorGameplay = false;
   }
 
   // Deteksi audio transisi (prioritas: custom CLI/env -> tiktok core.mp3 -> assets/)
@@ -828,7 +867,7 @@ async function runQuizCompiler() {
     console.log(`\n🎬 [MEMPROSES MOMEN ${momentIndex}/${validMoments.length}]: "${moment.momentName}"...`);
 
     // --- BAGIAN 1: VIDEO POTONGAN (cut.mp4) ---
-    console.log(`   1. Mengunduh dan menormalisasi cut.mp4...`);
+    console.log(`   1. Mengunduh dan menormalisasi cut.mp4${censorGameplay ? ` (Sensor Gameplay: ${censorMode})` : ''}...`);
     const rawCutPath = path.join(workDir, `raw_cut_${momentIndex}.mp4`);
     const cutStream = await drive.files.get(
       { fileId: moment.cutFile.id, alt: 'media', supportsAllDrives: true },
@@ -837,7 +876,16 @@ async function runQuizCompiler() {
     await pipeline(cutStream.data, fs.createWriteStream(rawCutPath));
 
     const normCutPath = path.join(workDir, `norm_cut_${momentIndex}.mp4`);
-    normalizeVideo({ inputPath: rawCutPath, outputPath: normCutPath });
+    normalizeVideo({
+      inputPath: rawCutPath,
+      outputPath: normCutPath,
+      censorGameplay,
+      censorMode,
+      censorY,
+      censorH,
+      censorPixelSize,
+      censorBlurRadius,
+    });
 
     // --- BAGIAN 2: FREEZE FRAME KUIS (3 COUNTDOWN + 1 REVEAL) ---
     const totalQuizFrames = Math.max(1, Math.round(4 * quizTickSeconds * 60));
@@ -845,7 +893,7 @@ async function runQuizCompiler() {
 
     console.log(`   2. Mengekstrak frame terakhir & membuat freeze kuis (${totalQuizSec}s / ${totalQuizFrames} frame, tick: ${quizTickSeconds}s)...`);
     const freezeFramePng = path.join(workDir, `freeze_${momentIndex}.png`);
-    execSync(`"${FFMPEG_BIN}" -y -sseof -0.1 -i "${rawCutPath}" -update 1 -q:v 1 "${freezeFramePng}"`, { stdio: 'ignore' });
+    execSync(`"${FFMPEG_BIN}" -y -sseof -0.1 -i "${normCutPath}" -update 1 -q:v 1 "${freezeFramePng}"`, { stdio: 'ignore' });
 
     const quizAssPath = path.join(workDir, `quiz_${momentIndex}.ass`);
     fs.writeFileSync(

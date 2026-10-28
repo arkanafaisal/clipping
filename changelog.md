@@ -14,7 +14,26 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Single-Pass Concat Pipeline for Exact 60 FPS CFR and Transition Audio Probe Fix
+## [Unreleased] - Uniform Layout Aspect Ratio with Gameplay Censor on Cut and Quiz Freeze
+- **Konteks Struktural**:
+  1. Penyelarasan Rasio Visual & Pencegahan *Layout Jumping* ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example)):
+     - Menyamakan rasio dan geometri visual antara video potongan `cut.mp4` dengan video full: keduanya mengadopsi susunan kanvas portrait 1080x1920 yang identik (Facecam 4:3 di atas pada $Y=196$ s/d $1006$, dan Gameplay 3:2 di bawah pada $Y=1006$ s/d $1726$).
+     - Mengeliminasi efek *jumping* (perubahan drastis tinggi visual dari facecam-only pendek ke facecam+gameplay panjang) saat video berpindah dari `cut.mp4` ke freeze kuis dan video full.
+  2. Filter Sensor / Mosaik Piksel Rendah pada Area Gameplay Kuis ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
+     - Menerapkan filter sensor otomatis pada bagian gameplay ($Y \ge 1006$) selama klip `cut.mp4` diputar dan selama frame diam kuis (*freeze frame*), sehingga visual gameplay tersamarkan dan tidak menjadi contekan jawaban kuis bagi penonton.
+     - Mendukung 2 mode sensor: `pixelate` (mosaik piksel kotak-kotak ala sensor misteri) dan `blur` (`boxblur` halus), dapat diatur melalui `.env` (`CENSOR_MODE=pixelate|blur`, `CENSOR_GAMEPLAY_Y`, `CENSOR_GAMEPLAY_H`, `CENSOR_PIXEL_SIZE`, `CENSOR_BLUR_RADIUS`) serta argumen CLI (`--censor-mode=`, dll).
+     - Menjamin bagian facecam di area atas ($Y=196$ s/d $1006$) tetap 100% jernih dan tajam (*untouched*).
+     - Mengekstrak `freezeFramePng` langsung dari `normCutPath` (bukan dari berkas mentah `rawCutPath`), memastikan frame diam kuis memiliki gameplay yang tersensor secara serasi sebelum kartu pertanyaan kuis dirender di atasnya.
+     - Pada tahap akhir (*reveal* / video full `normFullPath`), sensor dinonaktifkan (`censorGameplay: false`) sehingga gameplay terbuka penuh tanpa sensor bersamaan dengan overlay nama video.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/compile_doksli.js`:
+     - Memperbarui `normalizeVideo()` dengan parameter sensor (`censorGameplay`, `censorMode`, `censorY`, `censorH`, `censorPixelSize`, `censorBlurRadius`) menggunakan filter `split[main][gp];[gp]crop=...,...[censored];[main][censored]overlay=...`.
+     - Mengonfigurasi pembacaan opsi sensor dari `process.env` dan argumen CLI.
+     - Mengubah ekstraksi `freezeFramePng` agar mengambil frame dari `normCutPath`.
+  - `scheduler-uploader/.env.example`:
+     - Menambahkan dokumentasi konfigurasi `CENSOR_GAMEPLAY`, `CENSOR_MODE`, `CENSOR_GAMEPLAY_Y`, `CENSOR_GAMEPLAY_H`, `CENSOR_PIXEL_SIZE`, dan `CENSOR_BLUR_RADIUS`.
+
+## [1e0f098] - Single-Pass Concat Pipeline for Exact 60 FPS CFR and Transition Audio Probe Fix
 - **Konteks Struktural**:
   1. Penyatuan Pipeline Rangkaian Klip Kompilasi Menjadi *Single-Pass Flat Concat* ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
      - Mengubah arsitektur penggabungan video kompilasi dari metode bertingkat (*nested 2-stage concat copy*) menjadi satu kesatuan daftar datar (*single-pass flat concat list*).
