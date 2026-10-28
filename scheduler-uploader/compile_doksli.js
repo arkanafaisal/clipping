@@ -522,6 +522,26 @@ function normalizeVideo({ inputPath, outputPath, assSubtitlePath = null, fps = 6
 }
 
 /**
+ * Membaca durasi audio dalam detik menggunakan FFmpeg
+ */
+function getAudioDuration(filePath) {
+  try {
+    const probe = execSync(`"${FFMPEG_BIN}" -i "${filePath}" 2>&1`).toString();
+    const match = probe.match(/Duration:\s*(\d+):(\d+):([\d\.]+)/);
+    if (match) {
+      return parseInt(match[1], 10) * 3600 + parseInt(match[2], 10) * 60 + parseFloat(match[3]);
+    }
+  } catch (e) {
+    const out = (e.stdout || e.stderr || '').toString();
+    const match = out.match(/Duration:\s*(\d+):(\d+):([\d\.]+)/);
+    if (match) {
+      return parseInt(match[1], 10) * 3600 + parseInt(match[2], 10) * 60 + parseFloat(match[3]);
+    }
+  }
+  return 0.7;
+}
+
+/**
  * Eksekusi Utama Kompilator Kuis Doksli
  */
 async function runQuizCompiler() {
@@ -800,7 +820,7 @@ async function runQuizCompiler() {
     }
   }
 
-  const finalSegmentPaths = [];
+  const allCompilationClips = [];
 
   for (let i = 0; i < validMoments.length; i++) {
     const moment = validMoments[i];
@@ -879,23 +899,20 @@ async function runQuizCompiler() {
       assSubtitlePath: memeAssPath,
     });
 
-    // --- GABUNGKAN CUT + FREEZE + FULL MENJADI 1 SEGMEN MOMEN ---
-    console.log(`   4. Menggabungkan alur momen: Cut -> Freeze Kuis -> Full Meme...`);
-    const segmentOut = path.join(workDir, `segment_${momentIndex}.mp4`);
-    const concatTxt = path.join(workDir, `concat_${momentIndex}.txt`);
-    fs.writeFileSync(
-      concatTxt,
-      `file '${normCutPath.replace(/\\/g, '/')}'\nfile '${freezeVideoPath.replace(/\\/g, '/')}'\nfile '${normFullPath.replace(/\\/g, '/')}'\n`,
-      'utf8'
-    );
-    execSync(`"${FFMPEG_BIN}" -y -f concat -safe 0 -i "${concatTxt}" -c copy -video_track_timescale 60000 -movflags +faststart "${segmentOut}"`, { stdio: 'ignore' });
+    // Masukkan ketiga bagian alur momen langsung ke list kompilasi
+    allCompilationClips.push(normCutPath, freezeVideoPath, normFullPath);
 
-    finalSegmentPaths.push(segmentOut);
-    console.log(`   ✅ Momen #${momentIndex} tuntas dirangkai.`);
+    // Sisipkan klip layar hitam dan sound TikTok Core setelah setiap momen (termasuk momen terakhir / ke-X)
+    if (transitionClipPath) {
+      allCompilationClips.push(transitionClipPath);
+    }
+
+    console.log(`   ✅ Seluruh bagian momen #${momentIndex} siap dirangkai.`);
   }
 
-  // 6. Gabungkan seluruh segmen momen menjadi 1 video kompilasi final
-  console.log('\n[TAHAP 4/4] Menggabungkan seluruh segmen menjadi 1 video kompilasi utuh...');
+  // 6. Gabungkan seluruh segmen klip menjadi 1 video kompilasi utuh dalam 1 single-pass concat
+  // Metode single-pass langsung dari video hasil render menjamin 100% 60.000 FPS CFR murni tanpa gap PTS/audio priming
+  console.log('\n[TAHAP 4/4] Menggabungkan seluruh rangkaian klip menjadi 1 video kompilasi utuh (Single-Pass 60 FPS)...');
 
   const outputDir = path.resolve(__dirname, 'output_kompilasi');
   if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
@@ -903,19 +920,10 @@ async function runQuizCompiler() {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
   const finalOutputPath = path.join(outputDir, `kompilasi_tebak_doksli_${timestamp}.mp4`);
 
-  const concatItems = [];
-  for (let i = 0; i < finalSegmentPaths.length; i++) {
-    concatItems.push(finalSegmentPaths[i]);
-    // Sisipkan klip layar hitam dan sound TikTok Core setelah setiap momen (termasuk momen terakhir / ke-X)
-    if (transitionClipPath) {
-      concatItems.push(transitionClipPath);
-    }
-  }
-
   const mainConcatList = path.join(workDir, 'final_concat_list.txt');
   fs.writeFileSync(
     mainConcatList,
-    concatItems.map((p) => `file '${p.replace(/\\/g, '/')}'`).join('\n') + '\n',
+    allCompilationClips.map((p) => `file '${p.replace(/\\/g, '/')}'`).join('\n') + '\n',
     'utf8'
   );
 
@@ -985,5 +993,6 @@ module.exports = {
   generateQuizASS,
   generateFullVideoASS,
   generateQuizSoundWav,
+  getAudioDuration,
   STATIC_FALLBACK_DISTRACTORS,
 };

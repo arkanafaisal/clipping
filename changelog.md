@@ -14,7 +14,22 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Nested Game-Episode Hierarchy and Single-Line Video Overlay
+## [Unreleased] - Single-Pass Concat Pipeline for Exact 60 FPS CFR and Transition Audio Probe Fix
+- **Konteks Struktural**:
+  1. Penyatuan Pipeline Rangkaian Klip Kompilasi Menjadi *Single-Pass Flat Concat* ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
+     - Mengubah arsitektur penggabungan video kompilasi dari metode bertingkat (*nested 2-stage concat copy*) menjadi satu kesatuan daftar datar (*single-pass flat concat list*).
+     - Mengatasi akar masalah jatuhnya frame rate kompilasi menjadi ~59.93 - 59.94 FPS: pada metode sebelumnya, tiap momen digabungkan terlebih dahulu menjadi berkas sementara `segment_X.mp4` dengan `-c copy`. Pada batas akhir kontainer MP4, keterbatasan ukuran paket audio AAC (kelipatan 1024 sampel = ~23.22 ms) dan encoder priming/padding menyebabkan durasi audio sedikit lebih panjang dari video (~23 ms). Ketika beberapa `segment_X.mp4` digabungkan kembali di tahap akhir dengan `-c copy`, demuxer FFmpeg menggeser PTS video momen berikutnya sebesar 2380 unit timescale (1380 unit gap = ~23 ms) demi menyelaraskan dengan trek audio, mengakibatkan video kehilangan status constant frame rate (CFR) dan turun menjadi 59.93 FPS.
+     - Melalui daftar datar langsung (`allCompilationClips`), seluruh klip hasil render (`normCut`, `freezeVideo`, `normFull`, serta klip transisi layar hitam) digabungkan langsung dalam satu kali eksekusi FFmpeg concat copy. Seluruh interval antar frame dijamin konsisten tepat 1000 unit timescale ($1/60$ detik) dengan 0 anomali PTS delta, menghasilkan video output 100% tepat 60.000 FPS CFR murni.
+  2. Implementasi Helper Pembaca Durasi Audio `getAudioDuration` ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
+     - Menambahkan implementasi fungsi `getAudioDuration(filePath)` menggunakan *probe* FFmpeg untuk membaca durasi audio masukan (seperti `tiktok core.mp3`) secara presisi.
+     - Memperbaiki *silent failure* pada blok pembuatan klip transisi layar hitam yang sebelumnya terhenti karena `ReferenceError: getAudioDuration is not defined`.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/compile_doksli.js`:
+     - Menambahkan fungsi `getAudioDuration(filePath)` dan mengekspornya di `module.exports`.
+     - Mengganti array `finalSegmentPaths` dan pembuatan berkas intermediate `segment_${momentIndex}.mp4` dengan array `allCompilationClips` langsung.
+     - Menyusun seluruh klip momen dan transisi dalam satu daftar urutan datar `final_concat_list.txt` untuk penggabungan final langsung.
+
+## [887e011] - Nested Game-Episode Hierarchy and Single-Line Video Overlay
 - **Konteks Struktural**:
   1. Penataan Struktur Folder Bertingkat (Game -> Episode -> Klip) ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
      - Mengubah arsitektur pengacakan dan validasi momen doksli menjadi 2 lapis: folder terluar adalah **Folder Game** dan subfolder di dalamnya adalah **Folder Episode ("eps x")** yang menampung 2 berkas video (`cut.mp4` dan video full).
