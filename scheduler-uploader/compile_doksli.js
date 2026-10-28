@@ -195,16 +195,8 @@ function generateQuizASS({
     const yMid = yTop + 55;
     const isCorrect = i === correctIndex;
 
-    let text = options[i] || `Pilihan ${letters[i]}`;
-
-    // Auto font-scaling untuk opsi teks yang agak panjang agar pas 1 baris
-    let fontSize = 42;
-    if (text.length > 38) {
-      fontSize = 32;
-    } else if (text.length > 28) {
-      fontSize = 36;
-    }
-
+    const text = options[i] || `Pilihan ${letters[i]}`;
+    const fontSize = 42;
     const label = `${letters[i]}. ${text}`;
 
     // --- FASE 1: Detik 0.0 s/d 3.0 (Semua Opsi Netral) ---
@@ -215,7 +207,7 @@ function generateQuizASS({
     if (isCorrect) {
       // HIJAU EMERALD (#22C55E -> BGR: &H30A020&)
       events.push(`Dialogue: 1,0:00:03.00,0:00:04.00,Default,,0,0,0,,{\\pos(${leftX},${yTop})\\an7\\p1\\1a&H00&\\1c&H30A020&\\3a&H00&\\3c&H60F040&\\bord5}${roundRect}{\\p0}`);
-      events.push(`Dialogue: 2,0:00:03.00,0:00:04.00,Default,,0,0,0,,{\\pos(140,${yMid})\\an4\\fs${fontSize + 2}\\b1\\c&HFFFFFF&\\bord3\\3c&H104010&}${label}`);
+      events.push(`Dialogue: 2,0:00:03.00,0:00:04.00,Default,,0,0,0,,{\\pos(140,${yMid})\\an4\\fs${fontSize}\\b1\\c&HFFFFFF&\\bord3\\3c&H104010&}${label}`);
     } else {
       // Opsi salah dibuat redup
       events.push(`Dialogue: 1,0:00:03.00,0:00:04.00,Default,,0,0,0,,{\\pos(${leftX},${yTop})\\an7\\p1\\1a&H75&\\1c&H101010&\\3a&H85&\\3c&H303030&\\bord2}${roundRect}{\\p0}`);

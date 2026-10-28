@@ -14,7 +14,21 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Subfolder Two-File Doksli Flow, Clean Green Reveal, and Centered Meme Overlay
+## [Unreleased] - Fixed Font Size and Strict Single-Line Quiz Option Rule
+- **Konteks Struktural**:
+  1. Penegasan Ukuran Font Statis & Aturan 1 Baris Pasti ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [GEMINI.md](file:///d:/projects/clipping/GEMINI.md), [README.md](file:///d:/projects/clipping/scheduler-uploader/README.md)):
+     - Menghapus mekanisme auto font-scaling dan perbedaan ukuran font pada kartu pilihan kuis kuis untuk menjaga konsistensi tinggi kartu dan baseline vertikal teks.
+     - Menetapkan ukuran font statis seragam (42px) pada seluruh kartu (baik fase netral maupun fase reveal hijau) serta mencatat Learned Rule 23 bahwa kartu kuis dan subtitle tidak boleh menerapkan auto-scaling atau auto-break dinamis.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/compile_doksli.js`:
+     - Menghapus kalkulasi dynamic font-scaling (`fontSize = 42/36/32`) dan menjadikannya konstan `fontSize = 42`.
+     - Menghilangkan lonjakan font size (`fontSize + 2`) pada kartu jawaban benar agar posisi vertikal teks tetap 100% stabil.
+  - `scheduler-uploader/README.md`:
+     - Memperbarui dokumentasi dengan menegaskan aturan 1 baris pasti tanpa auto font-scaling.
+  - `GEMINI.md`:
+     - Menambahkan Learned Rule 23 tentang larangan auto line-breaking dan dynamic font-scaling pada komponen kuis/meme.
+
+## [2daa104] - Subfolder Two-File Doksli Flow, Clean Green Reveal, and Centered Meme Overlay
 - **Konteks Struktural**:
   1. Arsitektur Momen Subfolder 2 File ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [README.md](file:///d:/projects/clipping/scheduler-uploader/README.md)):
      - Menyesuaikan arsitektur Google Drive ke model subfolder momen: setiap subfolder mewakili satu momen dan namanya adalah kunci jawaban kuis.
