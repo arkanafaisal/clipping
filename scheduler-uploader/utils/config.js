@@ -114,9 +114,19 @@ function getConfig() {
   if (isNaN(quizTickSeconds) || quizTickSeconds <= 0.1) quizTickSeconds = 0.5;
 
   let customTransitionSfx = process.env.TRANSITION_SFX_PATH || null;
-  let showTransitionCounter = process.env.TRANSITION_SHOW_COUNTER !== 'false';
+  let transitionMode = (process.env.TRANSITION_MODE || '').trim().toLowerCase();
+  if (!['off', 'number', 'meme'].includes(transitionMode)) {
+    if (process.env.TRANSITION_SHOW_COUNTER === 'false' || process.env.TRANSITION_FONT_SIZE === '0') {
+      transitionMode = 'off';
+    } else {
+      transitionMode = 'number';
+    }
+  }
+
+  let showTransitionCounter = transitionMode === 'number';
   let transitionFontSize = parseInt(process.env.TRANSITION_FONT_SIZE || '72', 10);
   if (transitionFontSize === 0) {
+    transitionMode = 'off';
     showTransitionCounter = false;
   }
   if (isNaN(transitionFontSize) || transitionFontSize <= 0) {
@@ -156,15 +166,29 @@ function getConfig() {
     if (arg.startsWith('--tick=')) quizTickSeconds = parseFloat(arg.split('=')[1]);
     if (arg.startsWith('--question=')) quizQuestion = arg.slice(arg.indexOf('=') + 1);
     if (arg.startsWith('--transition-sfx=')) customTransitionSfx = arg.slice(arg.indexOf('=') + 1);
-    if (arg === '--no-transition-counter' || arg === '--no-counter' || arg === '--transition-counter=false') {
+    if (arg.startsWith('--transition-mode=') || arg.startsWith('--trans-mode=')) {
+      const mode = arg.split('=')[1].trim().toLowerCase();
+      if (['off', 'number', 'meme'].includes(mode)) {
+        transitionMode = mode;
+        showTransitionCounter = mode === 'number';
+      }
+    }
+    if (arg === '--meme' || arg === '--transition-meme') {
+      transitionMode = 'meme';
       showTransitionCounter = false;
     }
-    if (arg === '--transition-counter=true' || arg === '--transition-counter') {
+    if (arg === '--no-transition-counter' || arg === '--no-counter' || arg === '--transition-counter=false' || arg === '--trans-off') {
+      transitionMode = 'off';
+      showTransitionCounter = false;
+    }
+    if (arg === '--transition-counter=true' || arg === '--transition-counter' || arg === '--trans-number') {
+      transitionMode = 'number';
       showTransitionCounter = true;
     }
     if (arg.startsWith('--transition-fs=') || arg.startsWith('--transition-fontsize=')) {
       const fsVal = parseInt(arg.split('=')[1], 10);
       if (fsVal === 0) {
+        transitionMode = 'off';
         showTransitionCounter = false;
       } else if (!isNaN(fsVal) && fsVal > 0) {
         transitionFontSize = fsVal;
@@ -217,6 +241,7 @@ function getConfig() {
     quizQuestion,
     quizTickSeconds,
     customTransitionSfx,
+    transitionMode,
     showTransitionCounter,
     transitionFontSize,
     isFullVideoAutoSpeed,
@@ -246,6 +271,18 @@ function printConfigBanner(config, transitionSfxPath = null) {
     speedDesc = `${config.fullVideoSpeed}x (Tetap, Audio Cempreng)`;
   }
 
+  let transDesc = 'Tidak aktif (file tidak ditemukan)';
+  if (transitionSfxPath) {
+    const sfxName = path.basename(transitionSfxPath);
+    if (config.transitionMode === 'meme') {
+      transDesc = `${sfxName} [Mode: MEME (Gambar Facecam 1:1 selebar 540x540px jika tersedia)]`;
+    } else if (config.transitionMode === 'number') {
+      transDesc = `${sfxName} [Mode: NUMBER (Teks counter "x / y", Font: ${config.transitionFontSize}px)]`;
+    } else {
+      transDesc = `${sfxName} [Mode: OFF (Layar hitam polos tanpa overlay)]`;
+    }
+  }
+
   console.log(`\nKonfigurasi:`);
   console.log(` - ID Folder Google Drive : ${config.doksliFolderId}`);
   console.log(` - Target Momen Terpilih  : ${config.clipCountTarget} momen`);
@@ -253,7 +290,7 @@ function printConfigBanner(config, transitionSfxPath = null) {
   console.log(` - Durasi Freeze Kuis     : ${(4 * config.quizTickSeconds).toFixed(2)}s (Tick: ${config.quizTickSeconds}s x 4 beat)`);
   console.log(` - Pertanyaan Kuis        : "${config.quizQuestion}"`);
   console.log(` - Prefix Abaikan/Skip    : "${config.skipPrefix}" (folder/file diawali prefix ini otomatis dilewati)`);
-  console.log(` - Audio Penutup Momen    : ${transitionSfxPath ? path.basename(transitionSfxPath) + (config.showTransitionCounter ? ' (Teks Counter: x/y, Font: ' + config.transitionFontSize + 'px)' : ' (Layar hitam polos tanpa counter)') : 'Tidak aktif (file tidak ditemukan)'}`);
+  console.log(` - Ending Transisi        : ${transDesc}`);
   console.log(` - Kecepatan Video Full   : ${speedDesc}`);
   console.log(` - Auto-Upload Hasil      : ${config.resultFolderId ? 'Aktif (Folder: ' + config.resultFolderId + ', auto-hapus lokal)' : 'Nonaktif (tersimpan di lokal)'}`);
   console.log(` - Posisi Freeze Kuis     : Area Gameplay 2:3 (Y = ${config.censorY}px s/d ${config.censorY + config.censorH}px, Grid 2x2, Offset: ${config.quizOffsetY}px)`);

@@ -1,4 +1,5 @@
 const fs = require('fs');
+const path = require('path');
 const { pipeline } = require('stream/promises');
 const { isSkippedItem } = require('./selector');
 
@@ -15,8 +16,8 @@ async function downloadDriveFile(drive, fileId, destPath) {
 }
 
 /**
- * Mengunduh kedua berkas video (cut.mp4 dan video full) untuk suatu momen tertentu,
- * disertai pengecekan runtime terhadap kode awalan skip.
+ * Mengunduh berkas video (cut.mp4 dan video full) serta gambar meme opsional
+ * untuk suatu momen tertentu, disertai pengecekan runtime terhadap kode awalan skip.
  */
 async function downloadMomentVideos(drive, moment, workDir, momentIndex, skipPrefix = '!') {
   // 1. Pengecekan sebelum download
@@ -39,9 +40,25 @@ async function downloadMomentVideos(drive, moment, workDir, momentIndex, skipPre
     throw new Error(`Berkas full video ("${moment.fullFile.name}") memiliki kode skip.`);
   }
 
+  // Unduh meme facecam image jika ada (opsional)
+  let rawMemeImgPath = null;
+  if (moment.memeImageFile && moment.memeImageFile.id) {
+    if (!isSkippedItem(moment.memeImageFile.name, skipPrefix)) {
+      const ext = path.extname(moment.memeImageFile.name) || '.png';
+      rawMemeImgPath = `${workDir}/raw_meme_${momentIndex}${ext}`;
+      try {
+        await downloadDriveFile(drive, moment.memeImageFile.id, rawMemeImgPath);
+      } catch (e) {
+        console.warn(`   ⚠️ Gagal mengunduh meme facecam ("${moment.memeImageFile.name}"): ${e.message}`);
+        rawMemeImgPath = null;
+      }
+    }
+  }
+
   return {
     rawCutPath,
     rawFullPath,
+    rawMemeImgPath,
   };
 }
 

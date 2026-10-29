@@ -7,14 +7,15 @@ const {
   renderQuizFreezeClip,
   renderFullMemeClip,
 } = require('./videoEditor');
+const { renderTransitionClip } = require('./transition');
 
 /**
  * Memproses 1 momen kuis secara utuh:
- * - Mengunduh berkas video mentah (cut & full)
+ * - Mengunduh berkas video mentah (cut & full) serta gambar meme facecam (opsional)
  * - Merender Bagian 1: Cut clip (dengan sensor gameplay beku & dark overlay)
  * - Merender Bagian 2: Freeze frame kuis (smooth progress bar & reveal jawaban)
  * - Merender Bagian 3: Full meme video (overlay teks 1 baris & audio cempreng/speed)
- * - Menyisipkan klip transisi (jika ada)
+ * - Merender/menyisipkan klip transisi (mode 'meme' 1:1, 'number', atau 'off')
  *
  * Mengembalikan array daftar jalur berkas klip hasil render untuk digabungkan.
  */
@@ -26,6 +27,7 @@ async function processSingleMoment({
   config,
   workDir,
   transitionClipPath = null,
+  transitionSfxPath = null,
 }) {
   console.log(`\n🎬 [MEMPROSES MOMEN ${momentIndex}/${totalMoments}]: "${moment.momentName}"...`);
 
@@ -39,9 +41,10 @@ async function processSingleMoment({
   };
 
   try {
-    // 1. Mengunduh video potongan (cut.mp4) dan video full
-    console.log(`   1. Mengunduh dan menormalisasi cut.mp4${config.censorGameplay ? ` (Sensor Gameplay Beku: ${config.censorMode})` : ''}...`);
-    const { rawCutPath, rawFullPath } = await downloadMomentVideos(
+    // 1. Mengunduh video potongan (cut.mp4), video full, serta gambar meme facecam (jika ada)
+    const memeNote = moment.memeImageFile ? ' + Gambar Meme 1:1' : '';
+    console.log(`   1. Mengunduh dan menormalisasi berkas video${memeNote}${config.censorGameplay ? ` (Sensor Gameplay Beku: ${config.censorMode})` : ''}...`);
+    const { rawCutPath, rawFullPath, rawMemeImgPath } = await downloadMomentVideos(
       drive,
       moment,
       workDir,
@@ -49,6 +52,7 @@ async function processSingleMoment({
       config.skipPrefix
     );
     momentTempFiles.push(rawCutPath, rawFullPath);
+    if (rawMemeImgPath) momentTempFiles.push(rawMemeImgPath);
 
     // 2. Merender Bagian 1: Video Cut
     const normCutPath = path.join(workDir, `norm_cut_${momentIndex}.mp4`);
@@ -89,10 +93,28 @@ async function processSingleMoment({
       tempFilesTracker: momentTempFiles,
     });
 
-    // 5. Susun klip-klip momen
+    // 5. Menyiapkan klip transisi (TikTok Core: meme 1:1 / number / off)
+    let finalTransitionPath = transitionClipPath;
+    if (!finalTransitionPath && transitionSfxPath) {
+      finalTransitionPath = renderTransitionClip({
+        transitionSfxPath,
+        momentIndex,
+        totalMoments,
+        transitionMode: config.transitionMode,
+        memeImagePath: rawMemeImgPath,
+        transitionFontSize: config.transitionFontSize,
+        workDir,
+        ffmpegBin: config.ffmpegBin,
+      });
+      if (finalTransitionPath) {
+        momentTempFiles.push(finalTransitionPath);
+      }
+    }
+
+    // 6. Susun klip-klip momen
     const momentClips = [normCutPath, freezeVideoPath, normFullPath];
-    if (transitionClipPath) {
-      momentClips.push(transitionClipPath);
+    if (finalTransitionPath) {
+      momentClips.push(finalTransitionPath);
     }
 
     console.log(`   ✅ Seluruh bagian momen #${momentIndex} siap dirangkai.`);

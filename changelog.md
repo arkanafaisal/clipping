@@ -14,7 +14,41 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Modular Architecture with Dedicated Utils Sub-modules for Compiler Pipeline
+## [Unreleased] - Configurable Transition Modes (Centered 1:1 Meme Facecam, Number Counter, and Off)
+- **Konteks Struktural**:
+  - Fleksibilitas Visual Layar Transisi TikTok Core ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [config.js](file:///d:/projects/clipping/scheduler-uploader/utils/config.js), [transition.js](file:///d:/projects/clipping/scheduler-uploader/utils/transition.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example)):
+    - Menambahkan konfigurasi mode visual transisi layar hitam TikTok Core melalui variabel `.env` `TRANSITION_MODE` (pilihan: `meme`, `number`, `off`) dan argumen CLI (`--transition-mode=`, `--trans-mode=`, `--meme`, `--transition-meme`, `--no-counter`, dll):
+      1. **Mode `"meme"`**:
+         - Menampilkan gambar meme facecam berasio 1:1 di tengah layar hitam ($X=270, Y=690$) sepanjang durasi audio SFX TikTok Core.
+         - Sesuai instruksi pengguna, gambar 1:1 **tidak diregangkan full-width 9:16** agar tidak terlalu besar, tidak pecah, dan tidak mengubah rasio visual: ukuran dikunci tepat pada **setengah lebar portrait ($1080 / 2 = 540\text{px}$)** sehingga berdimensi $540 \times 540\text{px}$.
+         - Menggunakan filter FFmpeg `scale=540:540:force_original_aspect_ratio=decrease:flags=lanczos,pad=540:540:(540-iw)/2:(540-ih)/2:color=black@0` dan `overlay=270:690:format=auto` untuk penempatan sub-pixel yang presisi dan kompatibilitas format gambar dengan transparansi (PNG) maupun JPEG.
+         - Berkas gambar opsional (.png / .jpg / .jpeg / .webp) diletakkan di setiap subfolder momen di Google Drive.
+         - *Failsafe*: jika pada folder momen tertentu tidak ada berkas gambar meme, momen tersebut **sama sekali tidak diskip** dan proses tetap berjalan mulus dengan menampilkan layar hitam polos untuk jeda momen tersebut.
+      2. **Mode `"number"`**:
+         - Menampilkan teks counter urutan kuis `"x / y"` di tengah kanvas via subtitle ASS dinamis (perilaku standar sebelumnya).
+      3. **Mode `"off"`**:
+         - Menampilkan layar hitam polos murni tanpa overlay visual (hanya audio TikTok Core yang diputar).
+    - Memperbarui pipeline seleksi ([selector.js](file:///d:/projects/clipping/scheduler-uploader/utils/selector.js)) dengan fungsi pembantu `findMemeImage` untuk mendeteksi berkas gambar meme di folder momen tanpa mengganggu validasi 2 berkas video (`findVideoPair`).
+    - Memperbarui pipeline pengunduhan ([downloader.js](file:///d:/projects/clipping/scheduler-uploader/utils/downloader.js)) dan perakitan klip ([compiler.js](file:///d:/projects/clipping/scheduler-uploader/utils/compiler.js)) agar mengunduh gambar meme dan merender klip transisi dinamis per momen ketika mode meme aktif.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/utils/config.js`:
+    - Menambahkan inisialisasi `transitionMode` ('meme', 'number', 'off') dengan fallback kompatibilitas ke `TRANSITION_SHOW_COUNTER` dan parsing argumen CLI.
+    - Memperbarui banner informasi konsol untuk menampilkan mode transisi yang aktif.
+  - `scheduler-uploader/utils/selector.js`:
+    - Menambahkan helper `findMemeImage(files, skipPrefix)` dan menyematkan `memeImageFile` pada objek momen.
+  - `scheduler-uploader/utils/downloader.js`:
+    - Mengintegrasikan pengunduhan berkas gambar meme opsional ke dalam `downloadMomentVideos`.
+  - `scheduler-uploader/utils/transition.js`:
+    - Mengimplementasikan fungsi modular `renderTransitionClip` yang mengeksekusi filter 1:1 $540 \times 540\text{px}$ centered pada mode meme, subtitle counter pada mode number, atau canvas hitam polos pada mode off.
+    - Memperbarui `prepareTransitionClips` untuk mengoordinasikan perakitan transisi berdasarkan mode aktif.
+  - `scheduler-uploader/utils/compiler.js`:
+    - Meneruskan `transitionSfxPath` dan `rawMemeImgPath` ke dalam `processSingleMoment` untuk perakitan transisi individual per momen.
+  - `scheduler-uploader/compile_doksli.js`:
+    - Meneruskan konfigurasi `transitionMode` dan re-ekspor fungsi `findMemeImage` serta `renderTransitionClip`.
+  - `scheduler-uploader/.env.example`:
+    - Menambahkan dokumentasi variabel `TRANSITION_MODE=number` (opsi: `number`, `meme`, `off`).
+
+## [41bae24] - Modular Architecture with Dedicated Utils Sub-modules for Compiler Pipeline
 - **Konteks Struktural**:
   - Modularisasi dan Dekomposisi Pipeline Kompilator Doksli ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [utils/](file:///d:/projects/clipping/scheduler-uploader/utils/)):
     - Memecah berkas monolitik `compile_doksli.js` (~1450 baris) menjadi modul-modul terfokus dan independen di folder `scheduler-uploader/utils/` sesuai fungsi domain masing-masing:

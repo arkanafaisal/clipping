@@ -47,6 +47,8 @@ const {
   isSkippedItem,
   STATIC_FALLBACK_DISTRACTORS,
   createUniqueQuizOptions,
+  findVideoPair,
+  findMemeImage,
   selectQuizMoments,
 } = require('./utils/selector');
 
@@ -66,6 +68,7 @@ const {
 
 const {
   detectTransitionSfx,
+  renderTransitionClip,
   prepareTransitionClips,
 } = require('./utils/transition');
 
@@ -121,6 +124,7 @@ async function runQuizCompiler() {
   const transitionClips = prepareTransitionClips({
     transitionSfxPath,
     totalMoments: validMoments.length,
+    transitionMode: config.transitionMode,
     showTransitionCounter: config.showTransitionCounter,
     transitionFontSize: config.transitionFontSize,
     workDir,
@@ -142,6 +146,7 @@ async function runQuizCompiler() {
       config,
       workDir,
       transitionClipPath: transitionClips[momentIndex] || null,
+      transitionSfxPath,
     });
 
     if (momentClips && momentClips.length > 0) {
@@ -190,6 +195,14 @@ module.exports = {
   cleanText,
   isSkippedItem,
   STATIC_FALLBACK_DISTRACTORS,
+  findVideoPair,
+  findMemeImage,
+  detectTransitionSfx,
+  renderTransitionClip,
+  prepareTransitionClips,
+  processSingleMoment,
+  concatenateCompilation,
+  uploadCompilationToDrive,
   runQuizCompiler,
   normalizeVideo,
 };

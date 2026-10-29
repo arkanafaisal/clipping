@@ -139,11 +139,30 @@ function findVideoPair(files, skipPrefix) {
 }
 
 /**
+ * Helper mencari berkas gambar meme (.png, .jpg, .jpeg, .webp) dalam daftar berkas.
+ * Gambar ini bersifat opsional (jika tidak ada, mengembalikan null dan BUKAN dianggap skip).
+ */
+function findMemeImage(files, skipPrefix) {
+  if (!files || !Array.isArray(files)) return null;
+  return (
+    files.find((f) => {
+      const isImg =
+        (f.mimeType && f.mimeType.startsWith('image/')) ||
+        /\.(png|jpe?g|webp)$/i.test(f.name);
+      if (!isImg) return false;
+      if (isSkippedItem(f.name, skipPrefix)) return false;
+      return true;
+    }) || null
+  );
+}
+
+/**
  * Memilih secara acak momen kuis dari Google Drive berdasarkan konfigurasi:
  * - Mengambil folder Game (Layer 1)
  * - Memilih episode (Layer 2)
  * - Jika episode memiliki subfolder klip (Layer 3, misal folder "-"), memilih satu klip secara acak
  * - Memvalidasi ketersediaan tepat 2 video (cut.mp4 dan full video)
+ * - Mendeteksi gambar meme 1:1 opsional (facecam) jika ada
  * - Menghasilkan 4 opsi kuis unik
  * - Membentuk teks overlay full video dengan mengabaikan tanda "-"
  */
@@ -247,6 +266,7 @@ async function selectQuizMoments(drive, config) {
             clipFolderName: null,
             cutFile: directPair.cutFile,
             fullFile: directPair.fullFile,
+            memeImageFile: findMemeImage(epsItems, skipPrefix),
           };
           break;
         }
@@ -278,6 +298,7 @@ async function selectQuizMoments(drive, config) {
                 clipFolderName: l3Folder.name.trim(),
                 cutFile: l3Pair.cutFile,
                 fullFile: l3Pair.fullFile,
+                memeImageFile: findMemeImage(l3Items, skipPrefix) || findMemeImage(epsItems, skipPrefix),
               };
               break;
             }
@@ -297,6 +318,7 @@ async function selectQuizMoments(drive, config) {
           clipFolderName: null,
           cutFile: directPair.cutFile,
           fullFile: directPair.fullFile,
+          memeImageFile: findMemeImage(children, skipPrefix),
         };
       }
     }
@@ -327,6 +349,7 @@ async function selectQuizMoments(drive, config) {
       clipFolderName: chosenEps.clipFolderName || null,
       cutFile: chosenEps.cutFile,
       fullFile: chosenEps.fullFile,
+      memeImageFile: chosenEps.memeImageFile || null,
       fullVideoDisplayText,
       options,
       correctIndex,
@@ -343,6 +366,10 @@ async function selectQuizMoments(drive, config) {
     }
     console.log(`    - Cut Video  : ${chosenEps.cutFile.name}`);
     console.log(`    - Full Video : ${chosenEps.fullFile.name}`);
+    const memeLog = chosenEps.memeImageFile
+      ? `"${chosenEps.memeImageFile.name}" (1:1 meme facecam, lebar 540px)`
+      : '(Tidak ada - layar hitam jika mode meme)';
+    console.log(`    - Meme Image : ${memeLog}`);
     console.log(`    - Overlay    : "${fullVideoDisplayText}" (1 baris)`);
     console.log(`    - Kunci Kuis : [${letter}]`);
   }
@@ -367,5 +394,6 @@ module.exports = {
   STATIC_FALLBACK_DISTRACTORS,
   createUniqueQuizOptions,
   findVideoPair,
+  findMemeImage,
   selectQuizMoments,
 };
