@@ -400,6 +400,7 @@ function generateQuizASS({
   totalDuration = 2.0,
   gameplayY = 1006,
   gameplayH = 720,
+  isCutVersion = false,
 }) {
   const baseY = gameplayY + offsetY;
 
@@ -407,64 +408,89 @@ function generateQuizASS({
   const roundRectCard = `m 0 18 b 0 8 8 0 18 0 l 424 0 b 434 0 442 8 442 18 l 442 92 b 442 102 434 110 424 110 l 18 110 b 8 110 0 102 0 92`;
 
   const str0 = formatAssTime(0);
-  const str1 = formatAssTime(1 * tickDuration);
-  const str2 = formatAssTime(2 * tickDuration);
-  const str3 = formatAssTime(3 * tickDuration);
-  const str4 = formatAssTime(totalDuration);
-
   const events = [];
 
-  // 1. Dark Overlay HANYA di area gameplay 2:3 (Terkunci di gameplayY s/d gameplayY + gameplayH, tidak terpengaruh offsetY)
-  events.push(`Dialogue: 0,${str0},${str4},Default,,0,0,0,,{\\pos(0,${gameplayY})\\an7\\p1\\1a&H35&\\1c&H000000&\\3a&HFF&}m 0 0 l 1080 0 l 1080 ${gameplayH} l 0 ${gameplayH}{\\p0}`);
-
-  // 2. Tag & Pertanyaan Kuis (Kompak & rapi di bagian atas area gameplay)
-  events.push(`Dialogue: 1,${str0},${str4},Default,,0,0,0,,{\\pos(540,${baseY + 45})\\an5\\fs32\\b1\\c&H00D4FF&}TEBAK GAME`);
-  events.push(`Dialogue: 1,${str0},${str4},Default,,0,0,0,,{\\pos(540,${baseY + 95})\\an5\\fs46\\b1\\c&HFFFFFF&\\bord3\\3c&H000000&\\q2}${question}`);
-
-  // 3. Countdown Display & Teks Hasil Jawaban
-  events.push(`Dialogue: 2,${str0},${str1},Default,,0,0,0,,{\\pos(540,${baseY + 165})\\an5\\fs72\\b1\\c&H00E5FF&\\bord5\\3c&H000000&}3`);
-  events.push(`Dialogue: 2,${str1},${str2},Default,,0,0,0,,{\\pos(540,${baseY + 165})\\an5\\fs72\\b1\\c&H00E5FF&\\bord5\\3c&H000000&}2`);
-  events.push(`Dialogue: 2,${str2},${str3},Default,,0,0,0,,{\\pos(540,${baseY + 165})\\an5\\fs76\\b1\\c&H0099FF&\\bord5\\3c&H000000&}1`);
-  events.push(`Dialogue: 2,${str3},${str4},Default,,0,0,0,,{\\pos(540,${baseY + 165})\\an5\\fs52\\b1\\c&H00E65C&\\bord4\\3c&H000000&}JAWABAN BENAR:`);
-
-  // Progress Bar (Mengecil selama 3 tick countdown)
-  const barY = baseY + 215;
-  events.push(`Dialogue: 1,${str0},${str1},Default,,0,0,0,,{\\pos(190,${barY})\\an7\\p1\\1c&H00E65C&\\3a&HFF&}m 0 0 l 700 0 l 700 8 l 0 8{\\p0}`);
-  events.push(`Dialogue: 1,${str1},${str2},Default,,0,0,0,,{\\pos(190,${barY})\\an7\\p1\\1c&H00D4FF&\\3a&HFF&}m 0 0 l 466 0 l 466 8 l 0 8{\\p0}`);
-  events.push(`Dialogue: 1,${str2},${str3},Default,,0,0,0,,{\\pos(190,${barY})\\an7\\p1\\1c&H0077FF&\\3a&HFF&}m 0 0 l 233 0 l 233 8 l 0 8{\\p0}`);
-
-  // 4. Grid 2x2 Opsi Pilihan Ganda (Kolom Kiri: A & C, Kolom Kanan: B & D)
-  // Kolom 1 (Kiri): X = 70 s/d 512 | Kolom 2 (Kanan): X = 568 s/d 1010
-  // Baris 1: Y = baseY + 250 s/d baseY + 360 | Baris 2: Y = baseY + 385 s/d baseY + 495
   const colX = [70, 568, 70, 568];
   const rowY = [baseY + 250, baseY + 250, baseY + 385, baseY + 385];
   const textX = [95, 593, 95, 593];
   const letters = ['A', 'B', 'C', 'D'];
 
-  for (let i = 0; i < 4; i++) {
-    const cX = colX[i];
-    const cY = rowY[i];
-    const tX = textX[i];
-    const tY = cY + 55;
-    const isCorrect = i === correctIndex;
+  if (isCutVersion) {
+    // Mode statis disepanjang cut.mp4: layer gelap + tag + pertanyaan + 4 opsi netral (tanpa countdown/reveal)
+    const strEnd = formatAssTime(600); // 10 menit agar melingkupi seluruh durasi cut.mp4
 
-    const text = options[i] || `Pilihan ${letters[i]}`;
-    const fontSize = 34;
-    const label = `${letters[i]}. ${text}`;
+    // 1. Dark Overlay HANYA di area gameplay 2:3
+    events.push(`Dialogue: 0,${str0},${strEnd},Default,,0,0,0,,{\\pos(0,${gameplayY})\\an7\\p1\\1a&H35&\\1c&H000000&\\3a&HFF&}m 0 0 l 1080 0 l 1080 ${gameplayH} l 0 ${gameplayH}{\\p0}`);
 
-    // --- FASE 1: Detik 0.0 s/d 3 * tick (Semua Opsi Netral Elegan) ---
-    events.push(`Dialogue: 1,${str0},${str3},Default,,0,0,0,,{\\pos(${cX},${cY})\\an7\\p1\\1a&H35&\\1c&H251D18&\\3a&H20&\\3c&H605040&\\bord3}${roundRectCard}{\\p0}`);
-    events.push(`Dialogue: 2,${str0},${str3},Default,,0,0,0,,{\\pos(${tX},${tY})\\an4\\fs${fontSize}\\b1\\c&HFFFFFF&\\bord2\\3c&H000000&\\q2}${label}`);
+    // 2. Tag & Pertanyaan Kuis
+    events.push(`Dialogue: 1,${str0},${strEnd},Default,,0,0,0,,{\\pos(540,${baseY + 45})\\an5\\fs32\\b1\\c&H00D4FF&}TEBAK GAME`);
+    events.push(`Dialogue: 1,${str0},${strEnd},Default,,0,0,0,,{\\pos(540,${baseY + 95})\\an5\\fs46\\b1\\c&HFFFFFF&\\bord3\\3c&H000000&\\q2}${question}`);
 
-    // --- FASE 2: Detik 3 * tick s/d 4 * tick (Reveal: Opsi Benar Hijau Emerald, Salah Redup) ---
-    if (isCorrect) {
-      // HIJAU EMERALD (#22C55E -> BGR: &H30A020&)
-      events.push(`Dialogue: 1,${str3},${str4},Default,,0,0,0,,{\\pos(${cX},${cY})\\an7\\p1\\1a&H00&\\1c&H30A020&\\3a&H00&\\3c&H60F040&\\bord5}${roundRectCard}{\\p0}`);
-      events.push(`Dialogue: 2,${str3},${str4},Default,,0,0,0,,{\\pos(${tX},${tY})\\an4\\fs${fontSize}\\b1\\c&HFFFFFF&\\bord3\\3c&H104010&\\q2}${label}`);
-    } else {
-      // Opsi salah dibuat redup
-      events.push(`Dialogue: 1,${str3},${str4},Default,,0,0,0,,{\\pos(${cX},${cY})\\an7\\p1\\1a&H75&\\1c&H101010&\\3a&H85&\\3c&H303030&\\bord2}${roundRectCard}{\\p0}`);
-      events.push(`Dialogue: 2,${str3},${str4},Default,,0,0,0,,{\\pos(${tX},${tY})\\an4\\fs${fontSize}\\b0\\c&H888888&\\bord2\\3c&H000000&\\q2}${label}`);
+    // 3. 4 Kartu Opsi Pilihan Ganda (Tampil elegan selama cut.mp4 agar gameplay tersensor tidak memecah fokus)
+    for (let i = 0; i < 4; i++) {
+      const cX = colX[i];
+      const cY = rowY[i];
+      const tX = textX[i];
+      const tY = cY + 55;
+      const text = options[i] || `Pilihan ${letters[i]}`;
+      const fontSize = 34;
+      const label = `${letters[i]}. ${text}`;
+
+      events.push(`Dialogue: 1,${str0},${strEnd},Default,,0,0,0,,{\\pos(${cX},${cY})\\an7\\p1\\1a&H35&\\1c&H251D18&\\3a&H20&\\3c&H605040&\\bord3}${roundRectCard}{\\p0}`);
+      events.push(`Dialogue: 2,${str0},${strEnd},Default,,0,0,0,,{\\pos(${tX},${tY})\\an4\\fs${fontSize}\\b1\\c&HFFFFFF&\\bord2\\3c&H000000&\\q2}${label}`);
+    }
+  } else {
+    // Mode countdown & reveal pada freeze frame kuis
+    const str1 = formatAssTime(1 * tickDuration);
+    const str2 = formatAssTime(2 * tickDuration);
+    const str3 = formatAssTime(3 * tickDuration);
+    const str4 = formatAssTime(totalDuration);
+
+    // 1. Dark Overlay HANYA di area gameplay 2:3 (Terkunci di gameplayY s/d gameplayY + gameplayH, tidak terpengaruh offsetY)
+    events.push(`Dialogue: 0,${str0},${str4},Default,,0,0,0,,{\\pos(0,${gameplayY})\\an7\\p1\\1a&H35&\\1c&H000000&\\3a&HFF&}m 0 0 l 1080 0 l 1080 ${gameplayH} l 0 ${gameplayH}{\\p0}`);
+
+    // 2. Tag & Pertanyaan Kuis (Kompak & rapi di bagian atas area gameplay)
+    events.push(`Dialogue: 1,${str0},${str4},Default,,0,0,0,,{\\pos(540,${baseY + 45})\\an5\\fs32\\b1\\c&H00D4FF&}TEBAK GAME`);
+    events.push(`Dialogue: 1,${str0},${str4},Default,,0,0,0,,{\\pos(540,${baseY + 95})\\an5\\fs46\\b1\\c&HFFFFFF&\\bord3\\3c&H000000&\\q2}${question}`);
+
+    // 3. Countdown Display & Teks Hasil Jawaban
+    events.push(`Dialogue: 2,${str0},${str1},Default,,0,0,0,,{\\pos(540,${baseY + 165})\\an5\\fs72\\b1\\c&H00E5FF&\\bord5\\3c&H000000&}3`);
+    events.push(`Dialogue: 2,${str1},${str2},Default,,0,0,0,,{\\pos(540,${baseY + 165})\\an5\\fs72\\b1\\c&H00E5FF&\\bord5\\3c&H000000&}2`);
+    events.push(`Dialogue: 2,${str2},${str3},Default,,0,0,0,,{\\pos(540,${baseY + 165})\\an5\\fs76\\b1\\c&H0099FF&\\bord5\\3c&H000000&}1`);
+    events.push(`Dialogue: 2,${str3},${str4},Default,,0,0,0,,{\\pos(540,${baseY + 165})\\an5\\fs52\\b1\\c&H00E65C&\\bord4\\3c&H000000&}JAWABAN BENAR:`);
+
+    // Progress Bar (Mengecil selama 3 tick countdown)
+    const barY = baseY + 215;
+    events.push(`Dialogue: 1,${str0},${str1},Default,,0,0,0,,{\\pos(190,${barY})\\an7\\p1\\1c&H00E65C&\\3a&HFF&}m 0 0 l 700 0 l 700 8 l 0 8{\\p0}`);
+    events.push(`Dialogue: 1,${str1},${str2},Default,,0,0,0,,{\\pos(190,${barY})\\an7\\p1\\1c&H00D4FF&\\3a&HFF&}m 0 0 l 466 0 l 466 8 l 0 8{\\p0}`);
+    events.push(`Dialogue: 1,${str2},${str3},Default,,0,0,0,,{\\pos(190,${barY})\\an7\\p1\\1c&H0077FF&\\3a&HFF&}m 0 0 l 233 0 l 233 8 l 0 8{\\p0}`);
+
+    // 4. Grid 2x2 Opsi Pilihan Ganda (Kolom Kiri: A & C, Kolom Kanan: B & D)
+    for (let i = 0; i < 4; i++) {
+      const cX = colX[i];
+      const cY = rowY[i];
+      const tX = textX[i];
+      const tY = cY + 55;
+      const isCorrect = i === correctIndex;
+
+      const text = options[i] || `Pilihan ${letters[i]}`;
+      const fontSize = 34;
+      const label = `${letters[i]}. ${text}`;
+
+      // --- FASE 1: Detik 0.0 s/d 3 * tick (Semua Opsi Netral Elegan) ---
+      events.push(`Dialogue: 1,${str0},${str3},Default,,0,0,0,,{\\pos(${cX},${cY})\\an7\\p1\\1a&H35&\\1c&H251D18&\\3a&H20&\\3c&H605040&\\bord3}${roundRectCard}{\\p0}`);
+      events.push(`Dialogue: 2,${str0},${str3},Default,,0,0,0,,{\\pos(${tX},${tY})\\an4\\fs${fontSize}\\b1\\c&HFFFFFF&\\bord2\\3c&H000000&\\q2}${label}`);
+
+      // --- FASE 2: Detik 3 * tick s/d 4 * tick (Reveal: Opsi Benar Hijau Emerald, Salah Redup) ---
+      if (isCorrect) {
+        // HIJAU EMERALD (#22C55E -> BGR: &H30A020&)
+        events.push(`Dialogue: 1,${str3},${str4},Default,,0,0,0,,{\\pos(${cX},${cY})\\an7\\p1\\1a&H00&\\1c&H30A020&\\3a&H00&\\3c&H60F040&\\bord5}${roundRectCard}{\\p0}`);
+        events.push(`Dialogue: 2,${str3},${str4},Default,,0,0,0,,{\\pos(${tX},${tY})\\an4\\fs${fontSize}\\b1\\c&HFFFFFF&\\bord3\\3c&H104010&\\q2}${label}`);
+      } else {
+        // Opsi salah dibuat redup
+        events.push(`Dialogue: 1,${str3},${str4},Default,,0,0,0,,{\\pos(${cX},${cY})\\an7\\p1\\1a&H75&\\1c&H101010&\\3a&H85&\\3c&H303030&\\bord2}${roundRectCard}{\\p0}`);
+        events.push(`Dialogue: 2,${str3},${str4},Default,,0,0,0,,{\\pos(${tX},${tY})\\an4\\fs${fontSize}\\b0\\c&H888888&\\bord2\\3c&H000000&\\q2}${label}`);
+      }
     }
   }
 
@@ -523,10 +549,7 @@ Dialogue: 0,0:00:00.00,${durStr},MemeTitle,,0,0,0,,{\\pos(540,${posY})\\an5\\bor
  * Menampilkan teks "x / y" di tengah presisi (horizontal & vertikal)
  */
 function generateTransitionASS({ text, durationSeconds = 2.0, fontSize = 24 }) {
-  const hh = String(Math.floor(durationSeconds / 3600)).padStart(1, '0');
-  const mm = String(Math.floor((durationSeconds % 3600) / 60)).padStart(2, '0');
-  const ss = String(Math.floor(durationSeconds % 60)).padStart(2, '0');
-  const durStr = `${hh}:${mm}:${ss}.00`;
+  const durStr = formatAssTime(Math.max(durationSeconds + 5, 60));
 
   return `[Script Info]
 Title: Transition Counter Overlay
@@ -1011,11 +1034,29 @@ async function runQuizCompiler() {
         continue;
       }
 
+      // Subtitle kuis statis untuk dipasang di sepanjang video cut.mp4 (agar gameplay tersensor tidak memecah fokus)
+      const cutQuizAssPath = path.join(workDir, `cut_quiz_${momentIndex}.ass`);
+      momentTempFiles.push(cutQuizAssPath);
+      fs.writeFileSync(
+        cutQuizAssPath,
+        generateQuizASS({
+          question: quizQuestion,
+          options: moment.options,
+          correctIndex: moment.correctIndex,
+          offsetY: quizOffsetY,
+          gameplayY: censorY,
+          gameplayH: censorH,
+          isCutVersion: true,
+        }),
+        'utf8'
+      );
+
       const normCutPath = path.join(workDir, `norm_cut_${momentIndex}.mp4`);
       momentTempFiles.push(normCutPath);
       normalizeVideo({
         inputPath: rawCutPath,
         outputPath: normCutPath,
+        assSubtitlePath: cutQuizAssPath,
         censorGameplay,
         censorMode,
         censorY,
@@ -1031,7 +1072,22 @@ async function runQuizCompiler() {
       console.log(`   2. Mengekstrak frame terakhir & membuat freeze kuis (${totalQuizSec}s / ${totalQuizFrames} frame, tick: ${quizTickSeconds}s)...`);
       const freezeFramePng = path.join(workDir, `freeze_${momentIndex}.png`);
       momentTempFiles.push(freezeFramePng);
-      execSync(`"${FFMPEG_BIN}" -y -sseof -0.1 -i "${normCutPath}" -update 1 -q:v 1 "${freezeFramePng}"`, { stdio: 'ignore' });
+
+      // Ekstrak frame terakhir dari rawCutPath dengan filter sensor agar bersih dari subtitle ganda
+      let censorChain = '';
+      if (censorMode === 'blur') {
+        const radius = Math.max(5, parseInt(censorBlurRadius, 10) || 28);
+        censorChain = `boxblur=${radius}:5`;
+      } else {
+        const px = Math.max(4, parseInt(censorPixelSize, 10) || 45);
+        censorChain = `scale=1080/${px}:${censorH}/${px}:flags=neighbor,scale=1080:${censorH}:flags=neighbor`;
+      }
+      const freezeBaseVf = 'scale=1080:1920:force_original_aspect_ratio=decrease:flags=lanczos,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1';
+      const freezeVf = censorGameplay
+        ? `${freezeBaseVf},split[main][gp];[gp]crop=1080:${censorH}:0:${censorY},${censorChain}[censored];[main][censored]overlay=0:${censorY}`
+        : freezeBaseVf;
+
+      execSync(`"${FFMPEG_BIN}" -y -sseof -0.1 -i "${rawCutPath}" -vf "${freezeVf}" -update 1 -q:v 1 "${freezeFramePng}"`, { stdio: 'ignore' });
 
       const quizAssPath = path.join(workDir, `quiz_${momentIndex}.ass`);
       momentTempFiles.push(quizAssPath);
@@ -1046,6 +1102,7 @@ async function runQuizCompiler() {
           totalDuration: parseFloat(totalQuizSec),
           gameplayY: censorY,
           gameplayH: censorH,
+          isCutVersion: false,
         }),
         'utf8'
       );

@@ -14,7 +14,24 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Centered "x / y" Counter Overlay on Transition Screen
+## [Unreleased] - Display Quiz Layer Across cut.mp4 and Fix Transition Counter Timecode
+- **Konteks Struktural**:
+  1. Penayangan Layer Kuis Sepanjang Video Potongan `cut.mp4` ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
+     - Menampilkan layer kuis (background gelap area gameplay, tag `TEBAK GAME`, teks pertanyaan, dan 4 kartu opsi netral A, B, C, D) di atas gameplay tersensor secara kontinu sepanjang pemutaran `cut.mp4`.
+     - Solusi fokus penonton: sebelumnya gameplay mosaik/blur yang bergerak telanjang tanpa penutup memecah perhatian penonton dari ekspresi Facecam streamer di bagian atas. Dengan menaruh kartu kuis di atas area gameplay, mata penonton tetap nyaman membaca opsi dan mengamati Facecam.
+     - Countdown (3, 2, 1) dan efek suara tetap dimulai tepat saat `cut.mp4` selesai di frame beku (*freeze frame*), memberikan transisi visual yang 100% mulus dan identik tanpa sentakan/pergeseran posisi.
+     - Ekstraksi frame freeze langsung dilakukan dari berkas `rawCutPath` dengan filter sensor agar frame beku bersih dari resiko penumpukan/penebalan subtitle ganda (*double-drawing*).
+  2. Perbaikan Timecode Subtitle Transisi TikTok Core ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
+     - Memperbaiki kalkulasi waktu berakhir dialog subtitle pada `generateTransitionASS` menggunakan `formatAssTime`.
+     - Sebelumnya, pemotongan detik bulat (`Math.floor`) pada audio pendek (< 1 detik seperti `tiktok core.mp3` yang berdurasi 0.65 detik) menghasilkan timecode akhir `0:00:00.00` (durasi 0 detik) sehingga teks counter `"x / y"` tidak sempat muncul.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/compile_doksli.js`:
+    - Menambahkan opsi `isCutVersion` pada `generateQuizASS` untuk merender mode statis tanpa countdown/reveal.
+    - Menghubungkan pembuatan dan penempelan `cutQuizAssPath` ke dalam pemanggilan `normalizeVideo` untuk `normCutPath`.
+    - Menyesuaikan ekstraksi `freezeFramePng` agar menggunakan filter sensor langsung dari `rawCutPath`.
+    - Memperbaiki timecode dialog subtitle pada `generateTransitionASS`.
+
+## [1f8d929] - Centered "x / y" Counter Overlay on Transition Screen
 - **Konteks Struktural**:
   - Penambahan Teks Counter pada Klip Transisi TikTok Core ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example)):
     - Menyisipkan teks penanda nomor kuis `"x / y"` di tengah-tengah kanvas secara presisi ($X = 540$, $Y = 960$, alignment `\an5`) pada klip transisi layar hitam TikTok Core setelah setiap momen.
