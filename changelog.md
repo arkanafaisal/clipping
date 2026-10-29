@@ -14,7 +14,24 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Dynamic Auto Speed for Full Video Exceeding 5 Seconds
+## [Unreleased] - Simplified Quiz Display with Full-Width Smooth 60fps Progress Bar
+- **Konteks Struktural**:
+  - Penyederhanaan Visual Kuis Freeze Frame ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
+    - Menyederhanakan tata letak kuis gameplay agar bersih dari tumpukan elemen visual dan mudah dibaca penonton dalam durasi sangat singkat ($\le 4\text{ detik}$) atau video berkecepatan tinggi:
+      - Menghapus label/tag kuning `"TEBAK GAME"` di atas pertanyaan agar tidak memecah fokus audiens.
+      - Menghapus teks hitung mundur angka `"3, 2, 1"` dan teks `"JAWABAN BENAR:"` pada fase reveal.
+      - Mempertahankan pertanyaan kuis teks putih bersih (`${question}`) terpusat di bagian atas.
+      - Mengganti bilah countdown lama dengan **full-width continuous progress bar** sepanjang $940\text{px}$ (menjangkau dari ujung kiri kotak pilihan kolom 1 di $X=70$ hingga ujung kanan kotak pilihan kolom 2 di $X=1010$, melingkupi gap tengah):
+        - Menggunakan tag animasi ASS `\clip` dengan interpolasi linear kontinu `\t(0, countdownMs, \clip(...))` yang dirender secara sub-pixel pada kecepatan penuh 60 FPS oleh filter `ass` FFmpeg, menghasilkan animasi memendek yang sangat mulus tanpa patah-patah.
+        - Menyertakan track latar belakang gelap semi-transparan rounded pill selebar $940\text{px}$ yang tetap terlihat saat bar aktif menyusut ke kiri.
+      - Menata ulang koordinat vertikal (pertanyaan di `baseY + 85`, progress bar di `baseY + 145`, dan baris kartu opsi di `baseY + 195` serta `baseY + 330`) agar layout seimbang dan rapi.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/compile_doksli.js`:
+    - Mengubah fungsi `generateQuizASS` untuk menghilangkan teks angka countdown dan tag kategori kuning.
+    - Mengimplementasikan vektor path dan animasi `\clip` + `\t` pada bilah hitung mundur selebar opsi $940\text{px}$.
+    - Menyesuaikan offset vertikal `rowY` kartu pilihan ganda agar proporsional dan tidak bertumpukan.
+
+## [b15971b] - Dynamic Auto Speed for Full Video Exceeding 5 Seconds
 - **Konteks Struktural**:
   - Mode Otomatis Akselerasi Video Full Meme ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example)):
     - Menambahkan mode percepatan otomatis `auto` pada video full meme (`FULL_VIDEO_SPEED=auto` atau `--speed=auto`).

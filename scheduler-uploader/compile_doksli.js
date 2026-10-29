@@ -429,38 +429,40 @@ function generateQuizASS({
   // Path vektor rounded rectangle untuk kartu opsi (442 x 110 dengan radius 18px)
   const roundRectCard = `m 0 18 b 0 8 8 0 18 0 l 424 0 b 434 0 442 8 442 18 l 442 92 b 442 102 434 110 424 110 l 18 110 b 8 110 0 102 0 92`;
 
+  // Path vektor progress bar (lebar 940px, tinggi 12px dengan rounded radius 6px)
+  // Menutupi bentang dari sisi kiri Card A/C (X=70) s/d sisi kanan Card B/D (X=1010)
+  const barW = 940;
+  const barH = 12;
+  const barTrackPath = `m 6 0 l ${barW - 6} 0 b ${barW} 0 ${barW} 6 ${barW} 6 l ${barW} 6 b ${barW} ${barH} ${barW - 6} ${barH} ${barW - 6} ${barH} l 6 ${barH} b 0 ${barH} 0 6 0 6 l 0 6 b 0 0 6 0 6 0`;
+
   const str0 = formatAssTime(0);
   const events = [];
 
   const colX = [70, 568, 70, 568];
-  const rowY = [baseY + 250, baseY + 250, baseY + 385, baseY + 385];
+  const rowY = [baseY + 195, baseY + 195, baseY + 330, baseY + 330];
   const textX = [95, 593, 95, 593];
   const letters = ['A', 'B', 'C', 'D'];
 
   // Mode countdown & reveal pada freeze frame kuis
-  const str1 = formatAssTime(1 * tickDuration);
-  const str2 = formatAssTime(2 * tickDuration);
-  const str3 = formatAssTime(3 * tickDuration);
-  const str4 = formatAssTime(totalDuration);
+  const countdownSec = 3 * tickDuration;
+  const countdownMs = Math.round(countdownSec * 1000);
+  const strCountdown = formatAssTime(countdownSec);
+  const strEnd = formatAssTime(totalDuration);
 
   // 1. Dark Overlay HANYA di area gameplay 2:3 (Terkunci di gameplayY s/d gameplayY + gameplayH, tidak terpengaruh offsetY)
-  events.push(`Dialogue: 0,${str0},${str4},Default,,0,0,0,,{\\pos(0,${gameplayY})\\an7\\p1\\1a&H35&\\1c&H000000&\\3a&HFF&}m 0 0 l 1080 0 l 1080 ${gameplayH} l 0 ${gameplayH}{\\p0}`);
+  events.push(`Dialogue: 0,${str0},${strEnd},Default,,0,0,0,,{\\pos(0,${gameplayY})\\an7\\p1\\1a&H35&\\1c&H000000&\\3a&HFF&}m 0 0 l 1080 0 l 1080 ${gameplayH} l 0 ${gameplayH}{\\p0}`);
 
-  // 2. Tag & Pertanyaan Kuis (Kompak & rapi di bagian atas area gameplay)
-  events.push(`Dialogue: 1,${str0},${str4},Default,,0,0,0,,{\\pos(540,${baseY + 45})\\an5\\fs32\\b1\\c&H00D4FF&}TEBAK GAME`);
-  events.push(`Dialogue: 1,${str0},${str4},Default,,0,0,0,,{\\pos(540,${baseY + 95})\\an5\\fs46\\b1\\c&HFFFFFF&\\bord3\\3c&H000000&\\q2}${question}`);
+  // 2. Pertanyaan Kuis Saja (Teks putih tebal, bersih tanpa label/tag kuning di atasnya)
+  events.push(`Dialogue: 1,${str0},${strEnd},Default,,0,0,0,,{\\pos(540,${baseY + 85})\\an5\\fs48\\b1\\c&HFFFFFF&\\bord3\\3c&H000000&\\q2}${question}`);
 
-  // 3. Countdown Display & Teks Hasil Jawaban
-  events.push(`Dialogue: 2,${str0},${str1},Default,,0,0,0,,{\\pos(540,${baseY + 165})\\an5\\fs72\\b1\\c&H00E5FF&\\bord5\\3c&H000000&}3`);
-  events.push(`Dialogue: 2,${str1},${str2},Default,,0,0,0,,{\\pos(540,${baseY + 165})\\an5\\fs72\\b1\\c&H00E5FF&\\bord5\\3c&H000000&}2`);
-  events.push(`Dialogue: 2,${str2},${str3},Default,,0,0,0,,{\\pos(540,${baseY + 165})\\an5\\fs76\\b1\\c&H0099FF&\\bord5\\3c&H000000&}1`);
-  events.push(`Dialogue: 2,${str3},${str4},Default,,0,0,0,,{\\pos(540,${baseY + 165})\\an5\\fs52\\b1\\c&H00E65C&\\bord4\\3c&H000000&}JAWABAN BENAR:`);
-
-  // Progress Bar (Mengecil selama 3 tick countdown)
-  const barY = baseY + 215;
-  events.push(`Dialogue: 1,${str0},${str1},Default,,0,0,0,,{\\pos(190,${barY})\\an7\\p1\\1c&H00E65C&\\3a&HFF&}m 0 0 l 700 0 l 700 8 l 0 8{\\p0}`);
-  events.push(`Dialogue: 1,${str1},${str2},Default,,0,0,0,,{\\pos(190,${barY})\\an7\\p1\\1c&H00D4FF&\\3a&HFF&}m 0 0 l 466 0 l 466 8 l 0 8{\\p0}`);
-  events.push(`Dialogue: 1,${str2},${str3},Default,,0,0,0,,{\\pos(190,${barY})\\an7\\p1\\1c&H0077FF&\\3a&HFF&}m 0 0 l 233 0 l 233 8 l 0 8{\\p0}`);
+  // 3. Smooth Animated Progress Bar (Full width 940px, animasi menyusut halus 60 fps dari X=1010 ke X=70)
+  const barY = baseY + 145;
+  const barStartX = 70;
+  const barEndX = barStartX + barW; // 1010
+  // Track latar belakang gelap (tetap tampil selama countdown berlangsung)
+  events.push(`Dialogue: 1,${str0},${strCountdown},Default,,0,0,0,,{\\pos(${barStartX},${barY})\\an7\\p1\\1a&H70&\\1c&H201810&\\3a&HFF&}${barTrackPath}{\\p0}`);
+  // Bar aktif berwarna yang menyusut secara kontinu (smooth 60 fps) menggunakan tag \\clip + \\t
+  events.push(`Dialogue: 2,${str0},${strCountdown},Default,,0,0,0,,{\\pos(${barStartX},${barY})\\an7\\p1\\1c&H00D4FF&\\3a&HFF&\\clip(${barStartX},${barY},${barEndX},${barY + barH})\\t(0,${countdownMs},\\clip(${barStartX},${barY},${barStartX},${barY + barH}))}${barTrackPath}{\\p0}`);
 
   // 4. Grid 2x2 Opsi Pilihan Ganda (Kolom Kiri: A & C, Kolom Kanan: B & D)
   for (let i = 0; i < 4; i++) {
@@ -474,24 +476,24 @@ function generateQuizASS({
     const fontSize = 34;
     const label = `${letters[i]}. ${text}`;
 
-    // --- FASE 1: Detik 0.0 s/d 3 * tick (Semua Opsi Netral Elegan) ---
-    events.push(`Dialogue: 1,${str0},${str3},Default,,0,0,0,,{\\pos(${cX},${cY})\\an7\\p1\\1a&H35&\\1c&H251D18&\\3a&H20&\\3c&H605040&\\bord3}${roundRectCard}{\\p0}`);
-    events.push(`Dialogue: 2,${str0},${str3},Default,,0,0,0,,{\\pos(${tX},${tY})\\an4\\fs${fontSize}\\b1\\c&HFFFFFF&\\bord2\\3c&H000000&\\q2}${label}`);
+    // --- FASE 1: Detik 0.0 s/d Countdown Selesai (Semua Opsi Netral Elegan) ---
+    events.push(`Dialogue: 1,${str0},${strCountdown},Default,,0,0,0,,{\\pos(${cX},${cY})\\an7\\p1\\1a&H35&\\1c&H251D18&\\3a&H20&\\3c&H605040&\\bord3}${roundRectCard}{\\p0}`);
+    events.push(`Dialogue: 2,${str0},${strCountdown},Default,,0,0,0,,{\\pos(${tX},${tY})\\an4\\fs${fontSize}\\b1\\c&HFFFFFF&\\bord2\\3c&H000000&\\q2}${label}`);
 
-    // --- FASE 2: Detik 3 * tick s/d 4 * tick (Reveal: Opsi Benar Hijau Emerald, Salah Redup) ---
+    // --- FASE 2: Reveal (Opsi Benar Hijau Emerald, Salah Redup) ---
     if (isCorrect) {
       // HIJAU EMERALD (#22C55E -> BGR: &H30A020&)
-      events.push(`Dialogue: 1,${str3},${str4},Default,,0,0,0,,{\\pos(${cX},${cY})\\an7\\p1\\1a&H00&\\1c&H30A020&\\3a&H00&\\3c&H60F040&\\bord5}${roundRectCard}{\\p0}`);
-      events.push(`Dialogue: 2,${str3},${str4},Default,,0,0,0,,{\\pos(${tX},${tY})\\an4\\fs${fontSize}\\b1\\c&HFFFFFF&\\bord3\\3c&H104010&\\q2}${label}`);
+      events.push(`Dialogue: 1,${strCountdown},${strEnd},Default,,0,0,0,,{\\pos(${cX},${cY})\\an7\\p1\\1a&H00&\\1c&H30A020&\\3a&H00&\\3c&H60F040&\\bord5}${roundRectCard}{\\p0}`);
+      events.push(`Dialogue: 2,${strCountdown},${strEnd},Default,,0,0,0,,{\\pos(${tX},${tY})\\an4\\fs${fontSize}\\b1\\c&HFFFFFF&\\bord3\\3c&H104010&\\q2}${label}`);
     } else {
       // Opsi salah dibuat redup
-      events.push(`Dialogue: 1,${str3},${str4},Default,,0,0,0,,{\\pos(${cX},${cY})\\an7\\p1\\1a&H75&\\1c&H101010&\\3a&H85&\\3c&H303030&\\bord2}${roundRectCard}{\\p0}`);
-      events.push(`Dialogue: 2,${str3},${str4},Default,,0,0,0,,{\\pos(${tX},${tY})\\an4\\fs${fontSize}\\b0\\c&H888888&\\bord2\\3c&H000000&\\q2}${label}`);
+      events.push(`Dialogue: 1,${strCountdown},${strEnd},Default,,0,0,0,,{\\pos(${cX},${cY})\\an7\\p1\\1a&H75&\\1c&H101010&\\3a&H85&\\3c&H303030&\\bord2}${roundRectCard}{\\p0}`);
+      events.push(`Dialogue: 2,${strCountdown},${strEnd},Default,,0,0,0,,{\\pos(${tX},${tY})\\an4\\fs${fontSize}\\b0\\c&H888888&\\bord2\\3c&H000000&\\q2}${label}`);
     }
   }
 
   return `[Script Info]
-Title: Compact Quiz 2x2 Grid Overlay
+Title: Simplified Quiz 2x2 Grid Overlay
 ScriptType: v4.00+
 PlayResX: 1080
 PlayResY: 1920
