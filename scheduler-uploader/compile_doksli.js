@@ -678,8 +678,14 @@ async function runQuizCompiler() {
   let quizTickSeconds = parseFloat(process.env.QUIZ_TICK_SECONDS || '0.5');
   if (isNaN(quizTickSeconds) || quizTickSeconds <= 0.1) quizTickSeconds = 0.5;
   let customTransitionSfx = process.env.TRANSITION_SFX_PATH || null;
+  let showTransitionCounter = process.env.TRANSITION_SHOW_COUNTER !== 'false';
   let transitionFontSize = parseInt(process.env.TRANSITION_FONT_SIZE || '72', 10);
-  if (isNaN(transitionFontSize) || transitionFontSize <= 0) transitionFontSize = 72;
+  if (transitionFontSize === 0) {
+    showTransitionCounter = false;
+  }
+  if (isNaN(transitionFontSize) || transitionFontSize <= 0) {
+    transitionFontSize = 72;
+  }
   let resultFolderId =
     process.env.GDRIVE_RESULT_FOLDER_ID ||
     process.env.GDRIVE_OUTPUT_FOLDER_ID ||
@@ -702,8 +708,19 @@ async function runQuizCompiler() {
     if (arg.startsWith('--tick=')) quizTickSeconds = parseFloat(arg.split('=')[1]);
     if (arg.startsWith('--question=')) quizQuestion = arg.slice(arg.indexOf('=') + 1);
     if (arg.startsWith('--transition-sfx=')) customTransitionSfx = arg.slice(arg.indexOf('=') + 1);
+    if (arg === '--no-transition-counter' || arg === '--no-counter' || arg === '--transition-counter=false') {
+      showTransitionCounter = false;
+    }
+    if (arg === '--transition-counter=true' || arg === '--transition-counter') {
+      showTransitionCounter = true;
+    }
     if (arg.startsWith('--transition-fs=') || arg.startsWith('--transition-fontsize=')) {
-      transitionFontSize = parseInt(arg.split('=')[1], 10);
+      const fsVal = parseInt(arg.split('=')[1], 10);
+      if (fsVal === 0) {
+        showTransitionCounter = false;
+      } else if (!isNaN(fsVal) && fsVal > 0) {
+        transitionFontSize = fsVal;
+      }
     }
     if (arg.startsWith('--result-folder=')) resultFolderId = arg.slice(arg.indexOf('=') + 1);
     if (arg.startsWith('--skip-prefix=')) skipPrefix = arg.slice(arg.indexOf('=') + 1);
@@ -741,7 +758,7 @@ async function runQuizCompiler() {
   console.log(` - Durasi Freeze Kuis     : ${(4 * quizTickSeconds).toFixed(2)}s (Tick: ${quizTickSeconds}s x 4 beat)`);
   console.log(` - Pertanyaan Kuis        : "${quizQuestion}"`);
   console.log(` - Prefix Abaikan/Skip    : "${skipPrefix}" (folder/file diawali prefix ini otomatis dilewati)`);
-  console.log(` - Audio Penutup Momen    : ${transitionSfxPath ? path.basename(transitionSfxPath) + ' (Teks Counter: x/y, Font: ' + transitionFontSize + 'px)' : 'Tidak aktif (file tidak ditemukan)'}`);
+  console.log(` - Audio Penutup Momen    : ${transitionSfxPath ? path.basename(transitionSfxPath) + (showTransitionCounter ? ' (Teks Counter: x/y, Font: ' + transitionFontSize + 'px)' : ' (Layar hitam polos tanpa counter)') : 'Tidak aktif (file tidak ditemukan)'}`);
   console.log(` - Auto-Upload Hasil      : ${resultFolderId ? 'Aktif (Folder: ' + resultFolderId + ', auto-hapus lokal)' : 'Nonaktif (tersimpan di lokal)'}`);
   console.log(` - Posisi Freeze Kuis     : Area Gameplay 2:3 (Y = ${censorY}px s/d ${censorY + censorH}px, Grid 2x2, Offset: ${quizOffsetY}px)`);
   console.log(` - Posisi Teks Video Full : 1/4 tinggi kanvas (Y = ${memeTextY}px)\n`);
@@ -973,10 +990,13 @@ async function runQuizCompiler() {
   }
   fs.mkdirSync(workDir, { recursive: true });
 
-  // Siapkan klip transisi layar hitam dengan counter "x / y" jika audio transisi tersedia
+  // Siapkan klip transisi layar hitam (dengan opsi counter "x / y") jika audio transisi tersedia
   const transitionClips = {};
   if (transitionSfxPath) {
-    console.log(`\n🎞️ [TRANSISI] Menyiapkan ${validMoments.length} klip transisi layar hitam dengan counter "x / ${validMoments.length}" (audio: "${path.basename(transitionSfxPath)}", font: ${transitionFontSize}px)...`);
+    const counterDesc = showTransitionCounter
+      ? `dengan counter "x / ${validMoments.length}" (font: ${transitionFontSize}px)`
+      : 'layar hitam polos tanpa counter';
+    console.log(`\n🎞️ [TRANSISI] Menyiapkan ${validMoments.length} klip transisi ${counterDesc} (audio: "${path.basename(transitionSfxPath)}")...`);
     try {
       const sfxDur = getAudioDuration(transitionSfxPath);
       const transFrames = Math.max(1, Math.round(sfxDur * 60));
@@ -984,29 +1004,35 @@ async function runQuizCompiler() {
 
       for (let idx = 1; idx <= validMoments.length; idx++) {
         const transClipPath = path.join(workDir, `transition_${idx}.mp4`);
-        const transAssPath = path.join(workDir, `trans_${idx}.ass`);
-        const counterText = `${idx} / ${validMoments.length}`;
+        let vfOption = '';
 
-        fs.writeFileSync(
-          transAssPath,
-          generateTransitionASS({
-            text: counterText,
-            durationSeconds: parseFloat(transDurSec),
-            fontSize: transitionFontSize,
-          }),
-          'utf8'
-        );
+        if (showTransitionCounter) {
+          const transAssPath = path.join(workDir, `trans_${idx}.ass`);
+          const counterText = `${idx} / ${validMoments.length}`;
 
-        const escapedTransAss = transAssPath.replace(/\\/g, '/').replace(/:/g, '\\:');
+          fs.writeFileSync(
+            transAssPath,
+            generateTransitionASS({
+              text: counterText,
+              durationSeconds: parseFloat(transDurSec),
+              fontSize: transitionFontSize,
+            }),
+            'utf8'
+          );
+
+          const escapedTransAss = transAssPath.replace(/\\/g, '/').replace(/:/g, '\\:');
+          vfOption = `-vf "ass='${escapedTransAss}'" `;
+        }
+
         execSync(
-          `"${FFMPEG_BIN}" -y -f lavfi -i "color=c=black:s=1080x1920:r=60" -i "${transitionSfxPath}" -vf "ass='${escapedTransAss}'" -af "apad,aresample=async=1:first_pts=0" -t ${transDurSec} -vframes ${transFrames} -shortest -c:v libx264 -preset fast -crf 16 -profile:v high -level 4.2 -c:a aac -ar 44100 -ac 2 -r 60 -fps_mode cfr -video_track_timescale 60000 -movflags +faststart -pix_fmt yuv420p "${transClipPath}"`,
+          `"${FFMPEG_BIN}" -y -f lavfi -i "color=c=black:s=1080x1920:r=60" -i "${transitionSfxPath}" ${vfOption}-af "apad,aresample=async=1:first_pts=0" -t ${transDurSec} -vframes ${transFrames} -shortest -c:v libx264 -preset fast -crf 16 -profile:v high -level 4.2 -c:a aac -ar 44100 -ac 2 -r 60 -fps_mode cfr -video_track_timescale 60000 -movflags +faststart -pix_fmt yuv420p "${transClipPath}"`,
           { stdio: 'ignore' }
         );
         transitionClips[idx] = transClipPath;
       }
-      console.log(`   ✅ Seluruh ${validMoments.length} klip transisi counter siap disisipkan antar momen.`);
+      console.log(`   ✅ Seluruh ${validMoments.length} klip transisi siap disisipkan antar momen.`);
     } catch (e) {
-      console.warn(`   ⚠️ Gagal membuat klip transisi counter: ${e.message}`);
+      console.warn(`   ⚠️ Gagal membuat klip transisi: ${e.message}`);
     }
   }
 

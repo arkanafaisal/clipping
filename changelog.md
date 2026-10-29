@@ -14,7 +14,22 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Freeze Gameplay with Dark Overlay in cut.mp4 and Enlarge Transition Font to 72px
+## [Unreleased] - Configurable Boolean Option for Transition Screen Counter
+- **Konteks Struktural**:
+  - Pengaturan Fleksibel Teks Counter Transisi TikTok Core ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example)):
+    - Menambahkan variabel konfigurasi boolean `TRANSITION_SHOW_COUNTER` (default: `true`) serta flag CLI (`--no-transition-counter`, `--no-counter`, atau `--transition-counter=false`) untuk menyalakan atau mematikan tampilan teks penanda kuis `"x / y"` pada layar transisi TikTok Core.
+    - Failsafe intuitif: jika pengguna mengatur `TRANSITION_FONT_SIZE=0` atau opsi `--transition-fs=0`, sistem secara otomatis menganggap teks counter dinonaktifkan (`showTransitionCounter = false`).
+    - Saat counter dinonaktifkan, klip transisi layar hitam dan sound TikTok Core tetap berjalan mulus sebagai jeda antar momen, namun layarnya dirender hitam polos bersih tanpa filter subtitle ASS.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/compile_doksli.js`:
+    - Menambahkan inisialisasi `showTransitionCounter` dari `process.env.TRANSITION_SHOW_COUNTER !== 'false'` dan pengecekan fallback nilai `transitionFontSize === 0`.
+    - Menambahkan penanganan argumen CLI `--no-transition-counter` dan `--transition-counter`.
+    - Menyesuaikan blok pembuatan `transitionClips` agar hanya menginjeksi filter ASS ketika `showTransitionCounter` bernilai `true`.
+    - Memperbarui output ringkasan konfigurasi konsol.
+  - `scheduler-uploader/.env.example`:
+    - Menambahkan dokumentasi variabel `TRANSITION_SHOW_COUNTER=true`.
+
+## [347e591] - Freeze Gameplay with Dark Overlay in cut.mp4 and Enlarge Transition Font to 72px
 - **Konteks Struktural**:
   1. Pembekuan Gameplay & Layer Gelap Murni Sepanjang `cut.mp4` ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
      - Menghilangkan elemen kuis (teks tag, pertanyaan, countdown, dan kartu opsi) selama pemutaran `cut.mp4`, menyisakan layer gelap semi-transparan murni (`\1a&H35&`) di atas area gameplay ($Y = 1006$ s/d $1726$).
