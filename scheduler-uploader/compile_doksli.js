@@ -849,7 +849,11 @@ async function runQuizCompiler() {
     const { options, correctIndex } = createUniqueQuizOptions(gameName, allGameNamesPool);
 
     // Format display text untuk overlay full video: "nama folder eps x + nama file full vid", 1 baris ketat tanpa \n
-    const cleanEps = chosenEps.epsName ? cleanText(chosenEps.epsName) : '';
+    // Jika nama subfolder episode hanya tanda "-" (artinya game langsung tamat dalam 1 stream tanpa pembagian episode),
+    // maka tanda "-" tersebut diabaikan dan tidak dimasukkan ke dalam teks overlay.
+    const rawCleanEps = chosenEps.epsName ? cleanText(chosenEps.epsName) : '';
+    const isSingleStreamNoEps = !rawCleanEps || rawCleanEps === '-' || /^[-—–_]+$/.test(rawCleanEps);
+    const cleanEps = isSingleStreamNoEps ? '' : rawCleanEps;
     const cleanFull = cleanText(chosenEps.fullFile.name);
     const fullVideoDisplayText = cleanEps ? `${cleanEps} ${cleanFull}`.trim() : cleanFull;
 
@@ -868,8 +872,10 @@ async function runQuizCompiler() {
 
     const letter = ['A', 'B', 'C', 'D'][correctIndex];
     console.log(` ✅ Terpilih #${validMoments.length}: Game "${gameName}"`);
-    if (chosenEps.epsName) {
+    if (chosenEps.epsName && !isSingleStreamNoEps) {
       console.log(`    - Episode    : ${chosenEps.epsName}`);
+    } else if (chosenEps.epsName) {
+      console.log(`    - Episode    : ${chosenEps.epsName} (Tamat 1 stream, tidak dimasukkan ke overlay)`);
     }
     console.log(`    - Cut Video  : ${chosenEps.cutFile.name}`);
     console.log(`    - Full Video : ${chosenEps.fullFile.name}`);

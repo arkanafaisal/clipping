@@ -14,7 +14,17 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Decouple Quiz Dark Overlay from Element Offset Y
+## [Unreleased] - Ignore Single-Stream Hyphen Folder from Full Video Overlay
+- **Konteks Struktural**:
+  - Penanganan Subfolder Non-Episode / Tamat 1 Stream ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
+    - Mendeteksi nama subfolder episode yang hanya berisi tanda hubung `"-"` (atau variasi dash/garis seperti `—`, `–`, `_`), yang menandakan game tersebut langsung tamat dalam 1 stream tanpa sistem multi-episode ("eps 1", "eps 2", dst.).
+    - Mengabaikan tanda `"-"` tersebut agar tidak ikut digabungkan ke dalam teks overlay nama video full (`fullVideoDisplayText`), sehingga overlay hanya menampilkan judul video full yang bersih tanpa prefiks `"- "`.
+    - Menambahkan keterangan visual informatif pada log konsol saat momen terpilih (`- Episode : - (Tamat 1 stream, tidak dimasukkan ke overlay)`).
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/compile_doksli.js`:
+    - Menambahkan validasi `isSingleStreamNoEps` pada blok pembentukan `fullVideoDisplayText` di `runQuizCompiler()`.
+
+## [a1bdc3f] - Decouple Quiz Dark Overlay from Element Offset Y
 - **Konteks Struktural**:
   - Penjangkaran Layer Gelap Kuis ke Batas Gameplay ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example)):
     - Mengunci posisi background overlay gelap kuis secara permanen pada batas area gameplay ($Y = \text{gameplayY}$ s/d $\text{gameplayY} + \text{gameplayH}$, default $1006$ s/d $1726$), terlepas dari nilai konfigurasi `QUIZ_OFFSET_Y` / `--offset-y=`.
