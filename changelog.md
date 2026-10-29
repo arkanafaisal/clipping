@@ -14,7 +14,26 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Configurable Boolean Option for Transition Screen Counter
+## [Unreleased] - Configurable Full Video Playback Speed with Pitch-Shifted Audio
+- **Konteks Struktural**:
+  - Akselerasi Video Full Meme & Efek Audio Cempreng ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example)):
+    - Menambahkan opsi percepatan pemutaran video full meme (`FULL_VIDEO_SPEED`, default `1.0` = normal) untuk mengatasi video mentah yang terlalu panjang agar retensi penonton tetap terjaga tanpa kehilangan berkas video asli di Google Drive.
+    - Sesuai permintaan pengguna, batasan nilai terendah dikunci ketat pada angka `1.0` (`Math.max(1.0, speed)`) sehingga tidak diperbolehkan memperlambat video (< 1.0).
+    - Ketika kecepatan diatur lebih dari 1.0 (misal 2.0x, 1.5x, dst.):
+      - Video dipercepat secara proporsional via filter `setpts=PTS/${speed}` pada [normalizeVideo](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js#L570-L635).
+      - Audio ikut dipercepat dan dinaikkan nada suaranya (pitch-shift / efek suara cempreng/chipmunk) menggunakan kombinasi filter `aformat=sample_rates=44100,asetrate=44100*${speed},aresample=44100` sebelum normalisasi AAC 44.1kHz stereo, menjaga sinkronisasi audio-video secara presisi.
+    - Mendukung konfigurasi melalui environment `.env` (`FULL_VIDEO_SPEED=1.0`) dan argumen CLI (`--speed=2`, `--full-speed=1.5`, atau `--speed-full=2`).
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/compile_doksli.js`:
+    - Menambahkan parameter `speed = 1.0` pada fungsi `normalizeVideo`, menyisipkan `setpts=PTS/${actualSpeed}` pada video filter dan `asetrate` pada audio filter.
+    - Menambahkan inisialisasi `fullVideoSpeed` dengan validasi minimal 1.0 pada `runQuizCompiler`.
+    - Menambahkan penanganan CLI argumen `--speed`, `--full-speed`, dan `--speed-full`.
+    - Meneruskan `speed: fullVideoSpeed` saat memproses `normFullPath` di Bagian 3 alur momen.
+    - Menambahkan log informatif kecepatan video full pada ringkasan konfigurasi.
+  - `scheduler-uploader/.env.example`:
+    - Menambahkan dokumentasi variabel `FULL_VIDEO_SPEED=1.0`.
+
+## [4911059] - Configurable Boolean Option for Transition Screen Counter
 - **Konteks Struktural**:
   - Pengaturan Fleksibel Teks Counter Transisi TikTok Core ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example)):
     - Menambahkan variabel konfigurasi boolean `TRANSITION_SHOW_COUNTER` (default: `true`) serta flag CLI (`--no-transition-counter`, `--no-counter`, atau `--transition-counter=false`) untuk menyalakan atau mematikan tampilan teks penanda kuis `"x / y"` pada layar transisi TikTok Core.

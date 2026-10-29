@@ -579,30 +579,37 @@ function normalizeVideo({
   censorPixelSize = 45,
   censorBlurRadius = 28,
   frozenGameplayImagePath = null,
+  speed = 1.0,
 }) {
+  const actualSpeed = Math.max(1.0, parseFloat(speed) || 1.0);
   const baseFilter = 'scale=1080:1920:force_original_aspect_ratio=decrease:flags=lanczos,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1';
   const escapedAss = assSubtitlePath ? assSubtitlePath.replace(/\\/g, '/').replace(/:/g, '\\:') : null;
   const assFilter = escapedAss ? `,ass='${escapedAss}'` : '';
+
+  // Filter audio: normal atau dipercepat dengan perubahan nada tinggi / cempreng (asetrate)
+  const afFilter = actualSpeed > 1.0
+    ? `aformat=sample_rates=44100,asetrate=44100*${actualSpeed},aresample=44100,apad,aresample=async=1:first_pts=0`
+    : 'apad,aresample=async=1:first_pts=0';
 
   // Jika disediakan gameplay beku tersensor (misal selama play cut.mp4), tumpuk gambar gameplay beku di atas video
   if (censorGameplay && frozenGameplayImagePath && fs.existsSync(frozenGameplayImagePath)) {
     const filterComplex = `[0:v]${baseFilter}[main];[main][1:v]overlay=0:${censorY}:shortest=1${assFilter}[outv]`;
     try {
       execSync(
-        `"${FFMPEG_BIN}" -y -i "${inputPath}" -loop 1 -i "${frozenGameplayImagePath}" -filter_complex "${filterComplex}" -map "[outv]" -map 0:a? -af "apad,aresample=async=1:first_pts=0" -shortest -c:v libx264 -preset fast -crf 16 -profile:v high -level 4.2 -c:a aac -ar 44100 -ac 2 -r ${fps} -fps_mode cfr -video_track_timescale 60000 -movflags +faststart -pix_fmt yuv420p "${outputPath}"`,
+        `"${FFMPEG_BIN}" -y -i "${inputPath}" -loop 1 -i "${frozenGameplayImagePath}" -filter_complex "${filterComplex}" -map "[outv]" -map 0:a? -af "${afFilter}" -shortest -c:v libx264 -preset fast -crf 16 -profile:v high -level 4.2 -c:a aac -ar 44100 -ac 2 -r ${fps} -fps_mode cfr -video_track_timescale 60000 -movflags +faststart -pix_fmt yuv420p "${outputPath}"`,
         { stdio: 'pipe' }
       );
     } catch (err) {
       // Fallback jika video mentah tidak memiliki stream audio
       execSync(
-        `"${FFMPEG_BIN}" -y -i "${inputPath}" -loop 1 -i "${frozenGameplayImagePath}" -f lavfi -i "anullsrc=r=44100:cl=stereo" -filter_complex "${filterComplex}" -map "[outv]" -map 2:a -af "apad,aresample=async=1:first_pts=0" -shortest -c:v libx264 -preset fast -crf 16 -profile:v high -level 4.2 -c:a aac -ar 44100 -ac 2 -r ${fps} -fps_mode cfr -video_track_timescale 60000 -movflags +faststart -pix_fmt yuv420p "${outputPath}"`,
+        `"${FFMPEG_BIN}" -y -i "${inputPath}" -loop 1 -i "${frozenGameplayImagePath}" -f lavfi -i "anullsrc=r=44100:cl=stereo" -filter_complex "${filterComplex}" -map "[outv]" -map 2:a -af "${afFilter}" -shortest -c:v libx264 -preset fast -crf 16 -profile:v high -level 4.2 -c:a aac -ar 44100 -ac 2 -r ${fps} -fps_mode cfr -video_track_timescale 60000 -movflags +faststart -pix_fmt yuv420p "${outputPath}"`,
         { stdio: 'ignore' }
       );
     }
     return;
   }
 
-  let vf = baseFilter;
+  let vf = actualSpeed > 1.0 ? `setpts=PTS/${actualSpeed},${baseFilter}` : baseFilter;
 
   if (censorGameplay) {
     let censorChain = '';
@@ -615,6 +622,9 @@ function normalizeVideo({
       censorChain = `scale=1080/${px}:${censorH}/${px}:flags=neighbor,scale=1080:${censorH}:flags=neighbor`;
     }
     vf = `${baseFilter},split[main][gp];[gp]crop=1080:${censorH}:0:${censorY},${censorChain}[censored];[main][censored]overlay=0:${censorY}`;
+    if (actualSpeed > 1.0) {
+      vf = `setpts=PTS/${actualSpeed},${vf}`;
+    }
   }
 
   if (assSubtitlePath) {
@@ -623,13 +633,13 @@ function normalizeVideo({
 
   try {
     execSync(
-      `"${FFMPEG_BIN}" -y -i "${inputPath}" -vf "${vf}" -af "apad,aresample=async=1:first_pts=0" -shortest -c:v libx264 -preset fast -crf 16 -profile:v high -level 4.2 -c:a aac -ar 44100 -ac 2 -r ${fps} -fps_mode cfr -video_track_timescale 60000 -movflags +faststart -pix_fmt yuv420p "${outputPath}"`,
+      `"${FFMPEG_BIN}" -y -i "${inputPath}" -vf "${vf}" -af "${afFilter}" -shortest -c:v libx264 -preset fast -crf 16 -profile:v high -level 4.2 -c:a aac -ar 44100 -ac 2 -r ${fps} -fps_mode cfr -video_track_timescale 60000 -movflags +faststart -pix_fmt yuv420p "${outputPath}"`,
       { stdio: 'pipe' }
     );
   } catch (err) {
     // Fallback jika video mentah tidak memiliki stream audio
     execSync(
-      `"${FFMPEG_BIN}" -y -i "${inputPath}" -f lavfi -i "anullsrc=r=44100:cl=stereo" -vf "${vf}" -af "apad,aresample=async=1:first_pts=0" -shortest -c:v libx264 -preset fast -crf 16 -profile:v high -level 4.2 -c:a aac -ar 44100 -ac 2 -r ${fps} -fps_mode cfr -video_track_timescale 60000 -movflags +faststart -pix_fmt yuv420p "${outputPath}"`,
+      `"${FFMPEG_BIN}" -y -i "${inputPath}" -f lavfi -i "anullsrc=r=44100:cl=stereo" -vf "${vf}" -af "${afFilter}" -shortest -c:v libx264 -preset fast -crf 16 -profile:v high -level 4.2 -c:a aac -ar 44100 -ac 2 -r ${fps} -fps_mode cfr -video_track_timescale 60000 -movflags +faststart -pix_fmt yuv420p "${outputPath}"`,
       { stdio: 'ignore' }
     );
   }
@@ -686,6 +696,9 @@ async function runQuizCompiler() {
   if (isNaN(transitionFontSize) || transitionFontSize <= 0) {
     transitionFontSize = 72;
   }
+  let fullVideoSpeed = parseFloat(process.env.FULL_VIDEO_SPEED || '1.0');
+  if (isNaN(fullVideoSpeed) || fullVideoSpeed < 1.0) fullVideoSpeed = 1.0;
+
   let resultFolderId =
     process.env.GDRIVE_RESULT_FOLDER_ID ||
     process.env.GDRIVE_OUTPUT_FOLDER_ID ||
@@ -721,6 +734,10 @@ async function runQuizCompiler() {
       } else if (!isNaN(fsVal) && fsVal > 0) {
         transitionFontSize = fsVal;
       }
+    }
+    if (arg.startsWith('--speed=') || arg.startsWith('--full-speed=') || arg.startsWith('--speed-full=')) {
+      const spd = parseFloat(arg.split('=')[1]);
+      if (!isNaN(spd)) fullVideoSpeed = Math.max(1.0, spd);
     }
     if (arg.startsWith('--result-folder=')) resultFolderId = arg.slice(arg.indexOf('=') + 1);
     if (arg.startsWith('--skip-prefix=')) skipPrefix = arg.slice(arg.indexOf('=') + 1);
@@ -759,6 +776,7 @@ async function runQuizCompiler() {
   console.log(` - Pertanyaan Kuis        : "${quizQuestion}"`);
   console.log(` - Prefix Abaikan/Skip    : "${skipPrefix}" (folder/file diawali prefix ini otomatis dilewati)`);
   console.log(` - Audio Penutup Momen    : ${transitionSfxPath ? path.basename(transitionSfxPath) + (showTransitionCounter ? ' (Teks Counter: x/y, Font: ' + transitionFontSize + 'px)' : ' (Layar hitam polos tanpa counter)') : 'Tidak aktif (file tidak ditemukan)'}`);
+  console.log(` - Kecepatan Video Full   : ${fullVideoSpeed > 1.0 ? fullVideoSpeed + 'x (Dipercepat, Audio Cempreng)' : '1.0x (Normal)'}`);
   console.log(` - Auto-Upload Hasil      : ${resultFolderId ? 'Aktif (Folder: ' + resultFolderId + ', auto-hapus lokal)' : 'Nonaktif (tersimpan di lokal)'}`);
   console.log(` - Posisi Freeze Kuis     : Area Gameplay 2:3 (Y = ${censorY}px s/d ${censorY + censorH}px, Grid 2x2, Offset: ${quizOffsetY}px)`);
   console.log(` - Posisi Teks Video Full : 1/4 tinggi kanvas (Y = ${memeTextY}px)\n`);
@@ -1191,7 +1209,7 @@ async function runQuizCompiler() {
       }
 
       // --- BAGIAN 3: VIDEO FULL DENGAN OVERLAY TEKS DI 1/4 ATAS KANVAS ---
-      console.log(`   3. Mengunduh & merender video full ("${moment.fullVideoDisplayText}")...`);
+      console.log(`   3. Mengunduh & merender video full ("${moment.fullVideoDisplayText}")${fullVideoSpeed > 1.0 ? ` (Kecepatan: ${fullVideoSpeed}x, Audio Cempreng)` : ''}...`);
       const rawFullPath = path.join(workDir, `raw_full_${momentIndex}.mp4`);
       momentTempFiles.push(rawFullPath);
       const fullStream = await drive.files.get(
@@ -1218,6 +1236,7 @@ async function runQuizCompiler() {
         inputPath: rawFullPath,
         outputPath: normFullPath,
         assSubtitlePath: memeAssPath,
+        speed: fullVideoSpeed,
       });
 
       // Masukkan ketiga bagian alur momen langsung ke list kompilasi
