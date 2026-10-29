@@ -910,36 +910,83 @@ async function runQuizCompiler() {
       const shuffledEps = shuffleArray(epsFolders);
 
       for (const epsFolder of shuffledEps) {
-        const vidRes = await drive.files.list({
-          q: `'${epsFolder.id}' in parents and (mimeType contains 'video/' or name contains '.mp4' or name contains '.mkv' or name contains '.mov' or name contains '.webm') and trashed = false`,
+        // Ambil isi di dalam subfolder episode (dapat berupa berkas video langsung atau subfolder klip lapis ke-3)
+        const epsChildrenRes = await drive.files.list({
+          q: `'${epsFolder.id}' in parents and trashed = false`,
           fields: 'files(id, name, size, mimeType)',
           spaces: 'drive',
-          pageSize: 20,
+          pageSize: 100,
           supportsAllDrives: true,
           includeItemsFromAllDrives: true,
         });
 
-        const rawVidFiles = vidRes.data.files || [];
-        const vidFiles = rawVidFiles.filter((f) => {
-          if (isSkippedItem(f.name, skipPrefix)) {
-            console.log(`   ⏭️ [SKIP] Berkas video "${f.name}" di episode "${epsFolder.name}" dilewati (diawali kode skip).`);
-            return false;
-          }
-          return true;
-        });
+        const epsItems = epsChildrenRes.data.files || [];
 
-        if (vidFiles.length === 2) {
-          const cutFile = vidFiles.find((f) => {
+        // 1. Cek apakah di dalam folder episode sudah ada langsung 2 berkas video (cut.mp4 & full video)
+        const directVidFiles = epsItems.filter(
+          (f) =>
+            ((f.mimeType && f.mimeType.startsWith('video/')) || /\.(mp4|mkv|mov|webm)$/i.test(f.name)) &&
+            !isSkippedItem(f.name, skipPrefix)
+        );
+
+        if (directVidFiles.length === 2) {
+          const cutFile = directVidFiles.find((f) => {
             const base = f.name.toLowerCase().replace(/\.[^.]+$/, '');
             return base === 'cut';
           });
-          const fullFile = vidFiles.find((f) => f.id !== cutFile?.id);
+          const fullFile = directVidFiles.find((f) => f.id !== cutFile?.id);
           if (cutFile && fullFile) {
             chosenEps = {
               epsName: epsFolder.name.trim(),
+              clipFolderName: null,
               cutFile,
               fullFile,
             };
+            break;
+          }
+        }
+
+        // 2. Jika tidak ada 2 video langsung, periksa apakah terdapat subfolder klip lapis ke-3 (misal: folder-folder "-")
+        const layer3SubFolders = epsItems.filter(
+          (f) => f.mimeType === 'application/vnd.google-apps.folder' && !isSkippedItem(f.name, skipPrefix)
+        );
+
+        if (layer3SubFolders.length > 0) {
+          // Acak urutan folder klip lapis ke-3 agar klip terpilih secara acak jika dalam 1 episode terdapat banyak klip
+          const shuffledL3 = shuffleArray(layer3SubFolders);
+
+          for (const l3Folder of shuffledL3) {
+            const l3Res = await drive.files.list({
+              q: `'${l3Folder.id}' in parents and (mimeType contains 'video/' or name contains '.mp4' or name contains '.mkv' or name contains '.mov' or name contains '.webm') and trashed = false`,
+              fields: 'files(id, name, size, mimeType)',
+              spaces: 'drive',
+              pageSize: 20,
+              supportsAllDrives: true,
+              includeItemsFromAllDrives: true,
+            });
+
+            const rawL3Vids = l3Res.data.files || [];
+            const l3VidFiles = rawL3Vids.filter((f) => !isSkippedItem(f.name, skipPrefix));
+
+            if (l3VidFiles.length === 2) {
+              const cutFile = l3VidFiles.find((f) => {
+                const base = f.name.toLowerCase().replace(/\.[^.]+$/, '');
+                return base === 'cut';
+              });
+              const fullFile = l3VidFiles.find((f) => f.id !== cutFile?.id);
+              if (cutFile && fullFile) {
+                chosenEps = {
+                  epsName: epsFolder.name.trim(),
+                  clipFolderName: l3Folder.name.trim(),
+                  cutFile,
+                  fullFile,
+                };
+                break;
+              }
+            }
+          }
+
+          if (chosenEps) {
             break;
           }
         }
@@ -968,6 +1015,7 @@ async function runQuizCompiler() {
         if (cutFile && fullFile) {
           chosenEps = {
             epsName: '',
+            clipFolderName: null,
             cutFile,
             fullFile,
           };
@@ -986,6 +1034,7 @@ async function runQuizCompiler() {
     // Format display text untuk overlay full video: "nama folder eps x + nama file full vid", 1 baris ketat tanpa \n
     // Jika nama subfolder episode hanya tanda "-" (artinya game langsung tamat dalam 1 stream tanpa pembagian episode),
     // maka tanda "-" tersebut diabaikan dan tidak dimasukkan ke dalam teks overlay.
+    // Begitu juga subfolder klip lapis ke-3 (misal folder "-"), tanda "-" tidak pernah dimasukkan ke overlay.
     const rawCleanEps = chosenEps.epsName ? cleanText(chosenEps.epsName) : '';
     const isSingleStreamNoEps = !rawCleanEps || rawCleanEps === '-' || /^[-—–_]+$/.test(rawCleanEps);
     const cleanEps = isSingleStreamNoEps ? '' : rawCleanEps;
@@ -997,6 +1046,7 @@ async function runQuizCompiler() {
       momentName: gameName,
       gameName,
       epsName: chosenEps.epsName,
+      clipFolderName: chosenEps.clipFolderName || null,
       cutFile: chosenEps.cutFile,
       fullFile: chosenEps.fullFile,
       fullVideoDisplayText,
@@ -1007,10 +1057,11 @@ async function runQuizCompiler() {
 
     const letter = ['A', 'B', 'C', 'D'][correctIndex];
     console.log(` ✅ Terpilih #${validMoments.length}: Game "${gameName}"`);
+    const l3Log = chosenEps.clipFolderName ? ` [Klip: "${chosenEps.clipFolderName}"]` : '';
     if (chosenEps.epsName && !isSingleStreamNoEps) {
-      console.log(`    - Episode    : ${chosenEps.epsName}`);
+      console.log(`    - Episode    : ${chosenEps.epsName}${l3Log}`);
     } else if (chosenEps.epsName) {
-      console.log(`    - Episode    : ${chosenEps.epsName} (Tamat 1 stream, tidak dimasukkan ke overlay)`);
+      console.log(`    - Episode    : ${chosenEps.epsName} (Tamat 1 stream, tidak dimasukkan ke overlay)${l3Log}`);
     }
     console.log(`    - Cut Video  : ${chosenEps.cutFile.name}`);
     console.log(`    - Full Video : ${chosenEps.fullFile.name}`);

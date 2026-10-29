@@ -14,7 +14,21 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Refined Quiz Option Cards (Clean Game Title without A/B/C/D and Pure Emerald Highlight)
+## [Unreleased] - Layer-3 Subfolder Clip Support with Random Selection and Overlay Exclusion
+- **Konteks Struktural**:
+  - Dukungan Subfolder Klip Lapis ke-3 pada Struktur Episode ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
+    - Mengakomodasi struktur Google Drive di mana dalam satu episode stream (`eps x` atau `-`) terdapat banyak potongan klip yang masing-masing disimpan dalam subfolder lapis ke-3 (misal: folder bernama `"-"`):
+      - Ketika folder episode lapis ke-2 tidak langsung berisi 2 file video, sistem secara cerdas memeriksa subfolder lapis ke-3 di dalamnya.
+      - Jika terdapat beberapa subfolder klip lapis ke-3, sistem mengacak urutan folder (`shuffleArray`) dan memilih satu subfolder klip yang valid (memiliki `cut.mp4` dan video full) secara acak.
+      - Nama folder klip lapis ke-3 (seperti `"-"`) secara ketat **tidak ditambahkan** ke dalam teks overlay video full (`fullVideoDisplayText`), sehingga teks overlay tetap bersih sesuai format nama episode dan berkas full video.
+      - Mekanisme pengabaian tanda `"-"` pada folder lapis ke-2 (untuk game yang tamat dalam 1 stream) tetap berjalan konsisten.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/compile_doksli.js`:
+    - Memperbarui pengecekan folder episode pada `runQuizCompiler` untuk mendukung pemilihan acak subfolder klip lapis ke-3.
+    - Menambahkan pelacakan `clipFolderName` pada objek momen untuk transparansi logging terminal.
+    - Memastikan teks overlay video full terisolasi dari penambahan nama folder `"-"` lapis ke-3.
+
+## [7a4c7af] - Refined Quiz Option Cards (Clean Game Title without A/B/C/D and Pure Emerald Highlight)
 - **Konteks Struktural**:
   - Penyempurnaan Tampilan Opsi Kuis Freeze Frame ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
     - Mengeliminasi prefiks huruf `"A. "`, `"B. "`, `"C. "`, `"D. "` dari seluruh opsi kuis sehingga hanya memuat nama game murni.
