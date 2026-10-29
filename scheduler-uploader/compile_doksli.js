@@ -696,8 +696,16 @@ async function runQuizCompiler() {
   if (isNaN(transitionFontSize) || transitionFontSize <= 0) {
     transitionFontSize = 72;
   }
-  let fullVideoSpeed = parseFloat(process.env.FULL_VIDEO_SPEED || '1.0');
-  if (isNaN(fullVideoSpeed) || fullVideoSpeed < 1.0) fullVideoSpeed = 1.0;
+
+  const speedEnvRaw = (process.env.FULL_VIDEO_SPEED || '1.0').trim().toLowerCase();
+  let isFullVideoAutoSpeed = process.env.FULL_VIDEO_AUTO_SPEED === 'true' || speedEnvRaw === 'auto';
+  let fullVideoSpeed = 1.0;
+  if (!isFullVideoAutoSpeed) {
+    fullVideoSpeed = parseFloat(speedEnvRaw);
+    if (isNaN(fullVideoSpeed) || fullVideoSpeed < 1.0) fullVideoSpeed = 1.0;
+  }
+  let fullVideoMaxDuration = parseFloat(process.env.FULL_VIDEO_MAX_DURATION || '5.0');
+  if (isNaN(fullVideoMaxDuration) || fullVideoMaxDuration <= 0.5) fullVideoMaxDuration = 5.0;
 
   let resultFolderId =
     process.env.GDRIVE_RESULT_FOLDER_ID ||
@@ -735,9 +743,23 @@ async function runQuizCompiler() {
         transitionFontSize = fsVal;
       }
     }
-    if (arg.startsWith('--speed=') || arg.startsWith('--full-speed=') || arg.startsWith('--speed-full=')) {
-      const spd = parseFloat(arg.split('=')[1]);
-      if (!isNaN(spd)) fullVideoSpeed = Math.max(1.0, spd);
+    if (arg === '--auto-speed' || arg === '--speed=auto' || arg === '--full-speed=auto') {
+      isFullVideoAutoSpeed = true;
+    } else if (arg.startsWith('--speed=') || arg.startsWith('--full-speed=') || arg.startsWith('--speed-full=')) {
+      const val = arg.split('=')[1].toLowerCase();
+      if (val === 'auto') {
+        isFullVideoAutoSpeed = true;
+      } else {
+        const spd = parseFloat(val);
+        if (!isNaN(spd)) {
+          fullVideoSpeed = Math.max(1.0, spd);
+          isFullVideoAutoSpeed = false;
+        }
+      }
+    }
+    if (arg.startsWith('--max-duration=') || arg.startsWith('--full-max-dur=')) {
+      const dur = parseFloat(arg.split('=')[1]);
+      if (!isNaN(dur) && dur > 0.5) fullVideoMaxDuration = dur;
     }
     if (arg.startsWith('--result-folder=')) resultFolderId = arg.slice(arg.indexOf('=') + 1);
     if (arg.startsWith('--skip-prefix=')) skipPrefix = arg.slice(arg.indexOf('=') + 1);
@@ -768,6 +790,13 @@ async function runQuizCompiler() {
   if (isNaN(clipCountTarget) || clipCountTarget < 1) clipCountTarget = 5;
   if (clipCountTarget > 15) clipCountTarget = 10;
 
+  let speedDesc = '1.0x (Normal)';
+  if (isFullVideoAutoSpeed) {
+    speedDesc = `Otomatis (Target: maks ${fullVideoMaxDuration}s per klip jika > ${fullVideoMaxDuration}s)`;
+  } else if (fullVideoSpeed > 1.0) {
+    speedDesc = `${fullVideoSpeed}x (Tetap, Audio Cempreng)`;
+  }
+
   console.log(`\nKonfigurasi:`);
   console.log(` - ID Folder Google Drive : ${doksliFolderId}`);
   console.log(` - Target Momen Terpilih  : ${clipCountTarget} momen`);
@@ -776,7 +805,7 @@ async function runQuizCompiler() {
   console.log(` - Pertanyaan Kuis        : "${quizQuestion}"`);
   console.log(` - Prefix Abaikan/Skip    : "${skipPrefix}" (folder/file diawali prefix ini otomatis dilewati)`);
   console.log(` - Audio Penutup Momen    : ${transitionSfxPath ? path.basename(transitionSfxPath) + (showTransitionCounter ? ' (Teks Counter: x/y, Font: ' + transitionFontSize + 'px)' : ' (Layar hitam polos tanpa counter)') : 'Tidak aktif (file tidak ditemukan)'}`);
-  console.log(` - Kecepatan Video Full   : ${fullVideoSpeed > 1.0 ? fullVideoSpeed + 'x (Dipercepat, Audio Cempreng)' : '1.0x (Normal)'}`);
+  console.log(` - Kecepatan Video Full   : ${speedDesc}`);
   console.log(` - Auto-Upload Hasil      : ${resultFolderId ? 'Aktif (Folder: ' + resultFolderId + ', auto-hapus lokal)' : 'Nonaktif (tersimpan di lokal)'}`);
   console.log(` - Posisi Freeze Kuis     : Area Gameplay 2:3 (Y = ${censorY}px s/d ${censorY + censorH}px, Grid 2x2, Offset: ${quizOffsetY}px)`);
   console.log(` - Posisi Teks Video Full : 1/4 tinggi kanvas (Y = ${memeTextY}px)\n`);
@@ -1209,7 +1238,6 @@ async function runQuizCompiler() {
       }
 
       // --- BAGIAN 3: VIDEO FULL DENGAN OVERLAY TEKS DI 1/4 ATAS KANVAS ---
-      console.log(`   3. Mengunduh & merender video full ("${moment.fullVideoDisplayText}")${fullVideoSpeed > 1.0 ? ` (Kecepatan: ${fullVideoSpeed}x, Audio Cempreng)` : ''}...`);
       const rawFullPath = path.join(workDir, `raw_full_${momentIndex}.mp4`);
       momentTempFiles.push(rawFullPath);
       const fullStream = await drive.files.get(
@@ -1217,6 +1245,22 @@ async function runQuizCompiler() {
         { responseType: 'stream' }
       );
       await pipeline(fullStream.data, fs.createWriteStream(rawFullPath));
+
+      // Hitung kecepatan klip (apakah mode otomatis atau fixed speed)
+      let clipSpeed = fullVideoSpeed;
+      if (isFullVideoAutoSpeed) {
+        const rawDur = getAudioDuration(rawFullPath);
+        if (rawDur > fullVideoMaxDuration) {
+          // Kalkulasi percepatan dinamis agar durasi menjadi <= fullVideoMaxDuration (misal 5 detik)
+          clipSpeed = Math.round((rawDur / fullVideoMaxDuration) * 100) / 100;
+          console.log(`   3. Mengunduh & merender video full ("${moment.fullVideoDisplayText}") [Durasi: ${rawDur.toFixed(2)}s > ${fullVideoMaxDuration}s -> Auto Speed: ${clipSpeed}x, Target: ~${fullVideoMaxDuration}s, Audio Cempreng]...`);
+        } else {
+          clipSpeed = 1.0;
+          console.log(`   3. Mengunduh & merender video full ("${moment.fullVideoDisplayText}") [Durasi: ${rawDur.toFixed(2)}s <= ${fullVideoMaxDuration}s -> Kecepatan normal 1.0x]...`);
+        }
+      } else {
+        console.log(`   3. Mengunduh & merender video full ("${moment.fullVideoDisplayText}")${clipSpeed > 1.0 ? ` (Kecepatan: ${clipSpeed}x, Audio Cempreng)` : ''}...`);
+      }
 
       const memeAssPath = path.join(workDir, `meme_${momentIndex}.ass`);
       momentTempFiles.push(memeAssPath);
@@ -1236,7 +1280,7 @@ async function runQuizCompiler() {
         inputPath: rawFullPath,
         outputPath: normFullPath,
         assSubtitlePath: memeAssPath,
-        speed: fullVideoSpeed,
+        speed: clipSpeed,
       });
 
       // Masukkan ketiga bagian alur momen langsung ke list kompilasi

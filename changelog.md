@@ -14,7 +14,25 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Configurable Full Video Playback Speed with Pitch-Shifted Audio
+## [Unreleased] - Dynamic Auto Speed for Full Video Exceeding 5 Seconds
+- **Konteks Struktural**:
+  - Mode Otomatis Akselerasi Video Full Meme ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example)):
+    - Menambahkan mode percepatan otomatis `auto` pada video full meme (`FULL_VIDEO_SPEED=auto` atau `--speed=auto`).
+    - Mekanisme dinamis per klip:
+      - Sebelum merender video full, sistem membaca durasi asli video mentah.
+      - Jika durasi asli $> 5\text{ detik}$ (dapat dikonfigurasi melalui `FULL_VIDEO_MAX_DURATION`, default: `5.0`), sistem menghitung rasio percepatan yang tepat (`clipSpeed = rawDur / 5.0`) agar durasi video dipersingkat menjadi pas $\le 5$ detik dengan audio otomatis mengikuti efek cempreng (pitch naik).
+      - Jika durasi asli sejak awal sudah $\le 5\text{ detik}$, klip tidak dipercepat sama sekali (`clipSpeed = 1.0x`) dan audio tetap normal.
+    - Sesuai instruksi pengguna, fitur percepatan ini **hanya berlaku khusus untuk video full meme**; video potongan `cut.mp4` tetap 100% utuh tanpa perubahan kecepatan.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/compile_doksli.js`:
+    - Menambahkan deteksi mode `isFullVideoAutoSpeed` dari `FULL_VIDEO_SPEED=auto` atau `FULL_VIDEO_AUTO_SPEED=true` serta flag CLI `--auto-speed` dan `--speed=auto`.
+    - Menambahkan parsing `fullVideoMaxDuration` dari `FULL_VIDEO_MAX_DURATION` dan CLI `--max-duration`.
+    - Mengintegrasikan kalkulasi percepatan dinamis per klip berbasis pembacaan durasi pada Bagian 3 pemrosesan video full.
+    - Memperbarui ringkasan log konfigurasi konsol.
+  - `scheduler-uploader/.env.example`:
+    - Menambahkan dokumentasi nilai `auto` untuk `FULL_VIDEO_SPEED` dan variabel `FULL_VIDEO_MAX_DURATION=5.0`.
+
+## [0ea25c5] - Configurable Full Video Playback Speed with Pitch-Shifted Audio
 - **Konteks Struktural**:
   - Akselerasi Video Full Meme & Efek Audio Cempreng ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example)):
     - Menambahkan opsi percepatan pemutaran video full meme (`FULL_VIDEO_SPEED`, default `1.0` = normal) untuk mengatasi video mentah yang terlalu panjang agar retensi penonton tetap terjaga tanpa kehilangan berkas video asli di Google Drive.
