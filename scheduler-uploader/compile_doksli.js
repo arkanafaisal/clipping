@@ -519,6 +519,32 @@ Dialogue: 0,0:00:00.00,${durStr},MemeTitle,,0,0,0,,{\\pos(540,${posY})\\an5\\bor
 }
 
 /**
+ * Pembuat Subtitle ASS untuk Teks Counter Transisi Layar Hitam (TikTok Core)
+ * Menampilkan teks "x / y" di tengah presisi (horizontal & vertikal)
+ */
+function generateTransitionASS({ text, durationSeconds = 2.0, fontSize = 24 }) {
+  const hh = String(Math.floor(durationSeconds / 3600)).padStart(1, '0');
+  const mm = String(Math.floor((durationSeconds % 3600) / 60)).padStart(2, '0');
+  const ss = String(Math.floor(durationSeconds % 60)).padStart(2, '0');
+  const durStr = `${hh}:${mm}:${ss}.00`;
+
+  return `[Script Info]
+Title: Transition Counter Overlay
+ScriptType: v4.00+
+PlayResX: 1080
+PlayResY: 1920
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Counter, Arial, ${fontSize}, &H00FFFFFF, &H000000FF, &H00000000, &H00000000, 1, 0, 0, 0, 100, 100, 0, 0, 1, 2, 0, 5, 20, 20, 20, 1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:00.00,${durStr},Counter,,0,0,0,,{\\pos(540,960)\\an5\\b1\\fs${fontSize}\\c&HFFFFFF&\\bord2\\3c&H000000&\\q2}${text}
+`;
+}
+
+/**
  * Normalisasi video klip ke format prime 1080x1920 60FPS AAC 44.1kHz stereo
  * (Dilengkapi penanganan audio hening serta opsi sensor/blur gameplay untuk video cut kuis)
  */
@@ -612,6 +638,8 @@ async function runQuizCompiler() {
   let quizTickSeconds = parseFloat(process.env.QUIZ_TICK_SECONDS || '0.5');
   if (isNaN(quizTickSeconds) || quizTickSeconds <= 0.1) quizTickSeconds = 0.5;
   let customTransitionSfx = process.env.TRANSITION_SFX_PATH || null;
+  let transitionFontSize = parseInt(process.env.TRANSITION_FONT_SIZE || '24', 10);
+  if (isNaN(transitionFontSize) || transitionFontSize <= 0) transitionFontSize = 24;
   let resultFolderId =
     process.env.GDRIVE_RESULT_FOLDER_ID ||
     process.env.GDRIVE_OUTPUT_FOLDER_ID ||
@@ -634,6 +662,9 @@ async function runQuizCompiler() {
     if (arg.startsWith('--tick=')) quizTickSeconds = parseFloat(arg.split('=')[1]);
     if (arg.startsWith('--question=')) quizQuestion = arg.slice(arg.indexOf('=') + 1);
     if (arg.startsWith('--transition-sfx=')) customTransitionSfx = arg.slice(arg.indexOf('=') + 1);
+    if (arg.startsWith('--transition-fs=') || arg.startsWith('--transition-fontsize=')) {
+      transitionFontSize = parseInt(arg.split('=')[1], 10);
+    }
     if (arg.startsWith('--result-folder=')) resultFolderId = arg.slice(arg.indexOf('=') + 1);
     if (arg.startsWith('--skip-prefix=')) skipPrefix = arg.slice(arg.indexOf('=') + 1);
     if (arg.startsWith('--censor-mode=')) censorMode = arg.split('=')[1].toLowerCase();
@@ -670,7 +701,7 @@ async function runQuizCompiler() {
   console.log(` - Durasi Freeze Kuis     : ${(4 * quizTickSeconds).toFixed(2)}s (Tick: ${quizTickSeconds}s x 4 beat)`);
   console.log(` - Pertanyaan Kuis        : "${quizQuestion}"`);
   console.log(` - Prefix Abaikan/Skip    : "${skipPrefix}" (folder/file diawali prefix ini otomatis dilewati)`);
-  console.log(` - Audio Penutup Momen    : ${transitionSfxPath ? path.basename(transitionSfxPath) : 'Tidak aktif (file tidak ditemukan)'}`);
+  console.log(` - Audio Penutup Momen    : ${transitionSfxPath ? path.basename(transitionSfxPath) + ' (Teks Counter: x/y, Font: ' + transitionFontSize + 'px)' : 'Tidak aktif (file tidak ditemukan)'}`);
   console.log(` - Auto-Upload Hasil      : ${resultFolderId ? 'Aktif (Folder: ' + resultFolderId + ', auto-hapus lokal)' : 'Nonaktif (tersimpan di lokal)'}`);
   console.log(` - Posisi Freeze Kuis     : Area Gameplay 2:3 (Y = ${censorY}px s/d ${censorY + censorH}px, Grid 2x2, Offset: ${quizOffsetY}px)`);
   console.log(` - Posisi Teks Video Full : 1/4 tinggi kanvas (Y = ${memeTextY}px)\n`);
@@ -902,23 +933,40 @@ async function runQuizCompiler() {
   }
   fs.mkdirSync(workDir, { recursive: true });
 
-  // Siapkan klip transisi layar hitam jika audio transisi tersedia
-  let transitionClipPath = null;
+  // Siapkan klip transisi layar hitam dengan counter "x / y" jika audio transisi tersedia
+  const transitionClips = {};
   if (transitionSfxPath) {
-    console.log(`\n🎞️ [TRANSISI] Menyiapkan klip transisi layar hitam dengan audio "${path.basename(transitionSfxPath)}"...`);
-    transitionClipPath = path.join(workDir, 'transition_clip.mp4');
+    console.log(`\n🎞️ [TRANSISI] Menyiapkan ${validMoments.length} klip transisi layar hitam dengan counter "x / ${validMoments.length}" (audio: "${path.basename(transitionSfxPath)}", font: ${transitionFontSize}px)...`);
     try {
       const sfxDur = getAudioDuration(transitionSfxPath);
       const transFrames = Math.max(1, Math.round(sfxDur * 60));
       const transDurSec = (transFrames / 60).toFixed(4);
-      execSync(
-        `"${FFMPEG_BIN}" -y -f lavfi -i "color=c=black:s=1080x1920:r=60" -i "${transitionSfxPath}" -af "apad,aresample=async=1:first_pts=0" -t ${transDurSec} -vframes ${transFrames} -shortest -c:v libx264 -preset fast -crf 16 -profile:v high -level 4.2 -c:a aac -ar 44100 -ac 2 -r 60 -fps_mode cfr -video_track_timescale 60000 -movflags +faststart -pix_fmt yuv420p "${transitionClipPath}"`,
-        { stdio: 'ignore' }
-      );
-      console.log(`   ✅ Klip transisi layar hitam siap disisipkan antar momen (${transFrames} frame / ${transDurSec}s).`);
+
+      for (let idx = 1; idx <= validMoments.length; idx++) {
+        const transClipPath = path.join(workDir, `transition_${idx}.mp4`);
+        const transAssPath = path.join(workDir, `trans_${idx}.ass`);
+        const counterText = `${idx} / ${validMoments.length}`;
+
+        fs.writeFileSync(
+          transAssPath,
+          generateTransitionASS({
+            text: counterText,
+            durationSeconds: parseFloat(transDurSec),
+            fontSize: transitionFontSize,
+          }),
+          'utf8'
+        );
+
+        const escapedTransAss = transAssPath.replace(/\\/g, '/').replace(/:/g, '\\:');
+        execSync(
+          `"${FFMPEG_BIN}" -y -f lavfi -i "color=c=black:s=1080x1920:r=60" -i "${transitionSfxPath}" -vf "ass='${escapedTransAss}'" -af "apad,aresample=async=1:first_pts=0" -t ${transDurSec} -vframes ${transFrames} -shortest -c:v libx264 -preset fast -crf 16 -profile:v high -level 4.2 -c:a aac -ar 44100 -ac 2 -r 60 -fps_mode cfr -video_track_timescale 60000 -movflags +faststart -pix_fmt yuv420p "${transClipPath}"`,
+          { stdio: 'ignore' }
+        );
+        transitionClips[idx] = transClipPath;
+      }
+      console.log(`   ✅ Seluruh ${validMoments.length} klip transisi counter siap disisipkan antar momen.`);
     } catch (e) {
-      console.warn(`   ⚠️ Gagal membuat klip transisi layar hitam: ${e.message}`);
-      transitionClipPath = null;
+      console.warn(`   ⚠️ Gagal membuat klip transisi counter: ${e.message}`);
     }
   }
 
@@ -1055,9 +1103,9 @@ async function runQuizCompiler() {
       // Masukkan ketiga bagian alur momen langsung ke list kompilasi
       allCompilationClips.push(normCutPath, freezeVideoPath, normFullPath);
 
-      // Sisipkan klip layar hitam dan sound TikTok Core setelah setiap momen (termasuk momen terakhir / ke-X)
-      if (transitionClipPath) {
-        allCompilationClips.push(transitionClipPath);
+      // Sisipkan klip layar hitam dan sound TikTok Core dengan counter "x / y" setelah setiap momen
+      if (transitionClips[momentIndex]) {
+        allCompilationClips.push(transitionClips[momentIndex]);
       }
 
       console.log(`   ✅ Seluruh bagian momen #${momentIndex} siap dirangkai.`);

@@ -14,7 +14,21 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Ignore Single-Stream Hyphen Folder from Full Video Overlay
+## [Unreleased] - Centered "x / y" Counter Overlay on Transition Screen
+- **Konteks Struktural**:
+  - Penambahan Teks Counter pada Klip Transisi TikTok Core ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example)):
+    - Menyisipkan teks penanda nomor kuis `"x / y"` di tengah-tengah kanvas secara presisi ($X = 540$, $Y = 960$, alignment `\an5`) pada klip transisi layar hitam TikTok Core setelah setiap momen.
+    - Nilai `x` adalah urutan kuis yang sedang berjalan ($1, 2, \dots, y$), dan `y` adalah jumlah total kuis unik yang berhasil dikumpulkan untuk video kompilasi tersebut (`validMoments.length`, misal jika target 5 namun game unik valid yang tersedia hanya 3, maka $y = 3$).
+    - Mendukung konfigurasi ukuran font teks counter dengan default $24\text{px}$ melalui variabel `.env` `TRANSITION_FONT_SIZE=24` dan argumen CLI `--transition-fs=24`.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/compile_doksli.js`:
+    - Menambahkan fungsi pembantu `generateTransitionASS({ text, durationSeconds, fontSize })`.
+    - Mengubah mekanisme pembuatan klip transisi menjadi per-momen dengan teks counter individual (`"1 / y"`, `"2 / y"`, dst.).
+    - Menambahkan parsing konfigurasi `transitionFontSize` dari environment dan CLI.
+  - `scheduler-uploader/.env.example`:
+    - Menambahkan dokumentasi variabel `TRANSITION_FONT_SIZE=24`.
+
+## [7aa9c08] - Ignore Single-Stream Hyphen Folder from Full Video Overlay
 - **Konteks Struktural**:
   - Penanganan Subfolder Non-Episode / Tamat 1 Stream ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
     - Mendeteksi nama subfolder episode yang hanya berisi tanda hubung `"-"` (atau variasi dash/garis seperti `—`, `–`, `_`), yang menandakan game tersebut langsung tamat dalam 1 stream tanpa sistem multi-episode ("eps 1", "eps 2", dst.).
