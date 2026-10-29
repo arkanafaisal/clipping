@@ -14,7 +14,20 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Simplified Quiz Display with Full-Width Smooth 60fps Progress Bar
+## [Unreleased] - Refined Quiz Option Cards (Clean Game Title without A/B/C/D and Pure Emerald Highlight)
+- **Konteks Struktural**:
+  - Penyempurnaan Tampilan Opsi Kuis Freeze Frame ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
+    - Mengeliminasi prefiks huruf `"A. "`, `"B. "`, `"C. "`, `"D. "` dari seluruh opsi kuis sehingga hanya memuat nama game murni.
+    - Menempatkan teks pilihan ganda tepat di tengah kartu (*center-aligned*, `\an5` di `cX + 221`) untuk estetika tombol yang lebih seimbang dan modern.
+    - Menghilangkan efek peredupan (*dimming*) pada opsi-opsi yang salah saat fase reveal jawaban benar; opsi yang salah kini tetap berada dalam tampilan normal aslinya tanpa perubahan warna atau transparansi.
+    - Mengunci satu-satunya penanda visual jawaban benar pada kartu yang tepat dengan highlight Hijau Emerald terang (`#22C55E`).
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/compile_doksli.js`:
+    - Mengubah rendering kartu pada `generateQuizASS` agar mencetak teks opsi langsung tanpa awalan huruf.
+    - Menyelaraskan koordinat teks menjadi `\an5` terpusat di tengah kartu.
+    - Menghapus event redup pada opsi salah, menjaganya tetap aktif dan solid dari awal hingga akhir kuis.
+
+## [c19e58c] - Simplified Quiz Display with Full-Width Smooth 60fps Progress Bar
 - **Konteks Struktural**:
   - Penyederhanaan Visual Kuis Freeze Frame ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
     - Menyederhanakan tata letak kuis gameplay agar bersih dari tumpukan elemen visual dan mudah dibaca penonton dalam durasi sangat singkat ($\le 4\text{ detik}$) atau video berkecepatan tinggi:

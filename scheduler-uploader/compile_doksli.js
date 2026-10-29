@@ -464,31 +464,29 @@ function generateQuizASS({
   // Bar aktif berwarna yang menyusut secara kontinu (smooth 60 fps) menggunakan tag \\clip + \\t
   events.push(`Dialogue: 2,${str0},${strCountdown},Default,,0,0,0,,{\\pos(${barStartX},${barY})\\an7\\p1\\1c&H00D4FF&\\3a&HFF&\\clip(${barStartX},${barY},${barEndX},${barY + barH})\\t(0,${countdownMs},\\clip(${barStartX},${barY},${barStartX},${barY + barH}))}${barTrackPath}{\\p0}`);
 
-  // 4. Grid 2x2 Opsi Pilihan Ganda (Kolom Kiri: A & C, Kolom Kanan: B & D)
+  // 4. Grid 2x2 Opsi Pilihan Ganda (Kolom Kiri: Baris 1 & 2, Kolom Kanan: Baris 1 & 2)
   for (let i = 0; i < 4; i++) {
     const cX = colX[i];
     const cY = rowY[i];
-    const tX = textX[i];
-    const tY = cY + 55;
+    const tX = cX + 221; // Posisi horizontal tepat di tengah kartu
+    const tY = cY + 55;  // Posisi vertikal tepat di tengah kartu
     const isCorrect = i === correctIndex;
 
-    const text = options[i] || `Pilihan ${letters[i]}`;
+    const text = options[i] || 'Pilihan';
     const fontSize = 34;
-    const label = `${letters[i]}. ${text}`;
 
-    // --- FASE 1: Detik 0.0 s/d Countdown Selesai (Semua Opsi Netral Elegan) ---
-    events.push(`Dialogue: 1,${str0},${strCountdown},Default,,0,0,0,,{\\pos(${cX},${cY})\\an7\\p1\\1a&H35&\\1c&H251D18&\\3a&H20&\\3c&H605040&\\bord3}${roundRectCard}{\\p0}`);
-    events.push(`Dialogue: 2,${str0},${strCountdown},Default,,0,0,0,,{\\pos(${tX},${tY})\\an4\\fs${fontSize}\\b1\\c&HFFFFFF&\\bord2\\3c&H000000&\\q2}${label}`);
-
-    // --- FASE 2: Reveal (Opsi Benar Hijau Emerald, Salah Redup) ---
-    if (isCorrect) {
-      // HIJAU EMERALD (#22C55E -> BGR: &H30A020&)
-      events.push(`Dialogue: 1,${strCountdown},${strEnd},Default,,0,0,0,,{\\pos(${cX},${cY})\\an7\\p1\\1a&H00&\\1c&H30A020&\\3a&H00&\\3c&H60F040&\\bord5}${roundRectCard}{\\p0}`);
-      events.push(`Dialogue: 2,${strCountdown},${strEnd},Default,,0,0,0,,{\\pos(${tX},${tY})\\an4\\fs${fontSize}\\b1\\c&HFFFFFF&\\bord3\\3c&H104010&\\q2}${label}`);
+    if (!isCorrect) {
+      // Opsi salah: Tetap dalam tampilan normal aslinya dari awal hingga akhir kuis (tidak diredupkan)
+      events.push(`Dialogue: 1,${str0},${strEnd},Default,,0,0,0,,{\\pos(${cX},${cY})\\an7\\p1\\1a&H35&\\1c&H251D18&\\3a&H20&\\3c&H605040&\\bord3}${roundRectCard}{\\p0}`);
+      events.push(`Dialogue: 2,${str0},${strEnd},Default,,0,0,0,,{\\pos(${tX},${tY})\\an5\\fs${fontSize}\\b1\\c&HFFFFFF&\\bord2\\3c&H000000&\\q2}${text}`);
     } else {
-      // Opsi salah dibuat redup
-      events.push(`Dialogue: 1,${strCountdown},${strEnd},Default,,0,0,0,,{\\pos(${cX},${cY})\\an7\\p1\\1a&H75&\\1c&H101010&\\3a&H85&\\3c&H303030&\\bord2}${roundRectCard}{\\p0}`);
-      events.push(`Dialogue: 2,${strCountdown},${strEnd},Default,,0,0,0,,{\\pos(${tX},${tY})\\an4\\fs${fontSize}\\b0\\c&H888888&\\bord2\\3c&H000000&\\q2}${label}`);
+      // Opsi benar: Tampil normal selama countdown, lalu berubah warna menjadi Hijau Emerald saat reveal
+      events.push(`Dialogue: 1,${str0},${strCountdown},Default,,0,0,0,,{\\pos(${cX},${cY})\\an7\\p1\\1a&H35&\\1c&H251D18&\\3a&H20&\\3c&H605040&\\bord3}${roundRectCard}{\\p0}`);
+      events.push(`Dialogue: 2,${str0},${strCountdown},Default,,0,0,0,,{\\pos(${tX},${tY})\\an5\\fs${fontSize}\\b1\\c&HFFFFFF&\\bord2\\3c&H000000&\\q2}${text}`);
+
+      // Reveal: Hanya opsi benar yang berubah warna menjadi Hijau Emerald (#22C55E)
+      events.push(`Dialogue: 1,${strCountdown},${strEnd},Default,,0,0,0,,{\\pos(${cX},${cY})\\an7\\p1\\1a&H00&\\1c&H30A020&\\3a&H00&\\3c&H60F040&\\bord5}${roundRectCard}{\\p0}`);
+      events.push(`Dialogue: 2,${strCountdown},${strEnd},Default,,0,0,0,,{\\pos(${tX},${tY})\\an5\\fs${fontSize}\\b1\\c&HFFFFFF&\\bord3\\3c&H104010&\\q2}${text}`);
     }
   }
 
