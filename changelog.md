@@ -14,7 +14,29 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Layer-3 Subfolder Clip Support with Random Selection and Overlay Exclusion
+## [Unreleased] - Modular Architecture with Dedicated Utils Sub-modules for Compiler Pipeline
+- **Konteks Struktural**:
+  - Modularisasi dan Dekomposisi Pipeline Kompilator Doksli ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [utils/](file:///d:/projects/clipping/scheduler-uploader/utils/)):
+    - Memecah berkas monolitik `compile_doksli.js` (~1450 baris) menjadi modul-modul terfokus dan independen di folder `scheduler-uploader/utils/` sesuai fungsi domain masing-masing:
+      1. [config.js](file:///d:/projects/clipping/scheduler-uploader/utils/config.js): Penanganan konfigurasi environment `.env`, argumen CLI, deteksi path binary FFmpeg, inisialisasi Google Auth client, dan visual banner konfigurasi konsol.
+      2. [selector.js](file:///d:/projects/clipping/scheduler-uploader/utils/selector.js): Navigasi struktur folder Drive bertingkat (Game -> Episode -> Subfolder klip lapis ke-3), pengecekan prefix skip (`!`), validasi pasangan berkas video (`cut.mp4` dan video full), pemilihan opsi kuis unik (1 kunci + 3 pengecoh), dan formatting nama teks display overlay tanpa tanda `-`.
+      3. [downloader.js](file:///d:/projects/clipping/scheduler-uploader/utils/downloader.js): Pengunduhan stream berkas Google Drive dengan pelacakan byte progress serta unduhan pasangan video klip dengan validasi runtime failsafe prefix skip.
+      4. [overlay.js](file:///d:/projects/clipping/scheduler-uploader/utils/overlay.js): Pembuatan berkas subtitle ASS untuk layer gelap gameplay statis, kartu kuis interaktif dengan timer progress bar 60 FPS, overlay video full satu baris, dan penanda transisi `"x / y"`, serta sintesis suara kuis multi-tone WAV murni (countdown beep & chime).
+      5. [videoEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/videoEditor.js): Eksekusi filter grafis FFmpeg untuk normalisasi portrait 1080x1920 60 FPS CFR, rendering klip potongan gameplay tersensor (`cut.mp4`), rendering freeze frame kuis dengan gameplay beku dan audio kuis, serta rendering video full dengan akselerasi dinamis (`setpts`) dan efek audio pitch-shifted/cempreng (`asetrate`).
+      6. [transition.js](file:///d:/projects/clipping/scheduler-uploader/utils/transition.js): Deteksi berkas SFX TikTok Core dan perakitan klip transisi jeda layar hitam per-momen dengan teks counter opsional.
+      7. [compiler.js](file:///d:/projects/clipping/scheduler-uploader/utils/compiler.js): Orkestrasi pemrosesan satu momen (`processSingleMoment`), penggabungan akhir seluruh klip via single-pass flat concat (`concatenateCompilation`), dan pengunggahan otomatis hasil video ke Google Drive (`uploadCompilationToDrive`).
+    - Merampingkan [compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js) menjadi ~175 baris yang bersih dan mudah dibaca, di mana alur utamanya kini murni menangani perulangan (*looping*) momen kuis serta mengekspor ulang seluruh fungsi pembantu untuk menjamin kompatibilitas mundur penuh.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/utils/config.js`: Modul baru untuk konfigurasi dan inisialisasi auth.
+  - `scheduler-uploader/utils/selector.js`: Modul baru untuk seleksi momen dan opsi kuis.
+  - `scheduler-uploader/utils/downloader.js`: Modul baru untuk unduh berkas Google Drive.
+  - `scheduler-uploader/utils/overlay.js`: Modul baru untuk generator ASS dan WAV audio kuis.
+  - `scheduler-uploader/utils/videoEditor.js`: Modul baru untuk pemrosesan FFmpeg video dan audio.
+  - `scheduler-uploader/utils/transition.js`: Modul baru untuk perakitan transisi TikTok Core.
+  - `scheduler-uploader/utils/compiler.js`: Modul baru untuk orkestrasi momen tunggal dan kompilasi final.
+  - `scheduler-uploader/compile_doksli.js`: Refaktor alur eksekusi utama menjadi pemanggilan modular dan re-ekspor seluruh fungsi.
+
+## [4ee5eeb] - Layer-3 Subfolder Clip Support with Random Selection and Overlay Exclusion
 - **Konteks Struktural**:
   - Dukungan Subfolder Klip Lapis ke-3 pada Struktur Episode ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
     - Mengakomodasi struktur Google Drive di mana dalam satu episode stream (`eps x` atau `-`) terdapat banyak potongan klip yang masing-masing disimpan dalam subfolder lapis ke-3 (misal: folder bernama `"-"`):

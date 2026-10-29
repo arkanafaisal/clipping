@@ -1,0 +1,268 @@
+const fs = require('fs');
+const path = require('path');
+const dotenv = require('dotenv');
+const { google } = require('googleapis');
+
+// Path binary FFmpeg (menggunakan ffmpeg-static jika tersedia)
+let FFMPEG_BIN = 'ffmpeg';
+try {
+  FFMPEG_BIN = require('ffmpeg-static') || 'ffmpeg';
+} catch (e) {
+  FFMPEG_BIN = process.env.FFMPEG_PATH || 'ffmpeg';
+}
+
+// Muat variabel lingkungan dari .env
+const localEnvPath = path.resolve(__dirname, '../.env');
+const rootEnvPath = path.resolve(__dirname, '../../.env');
+if (fs.existsSync(localEnvPath)) {
+  dotenv.config({ path: localEnvPath });
+} else if (fs.existsSync(rootEnvPath)) {
+  dotenv.config({ path: rootEnvPath });
+} else {
+  dotenv.config();
+}
+
+/**
+ * Factory kredensial Google API yang fleksibel (Drive API)
+ */
+function getGoogleAuth(tokenOrCreds, scopes) {
+  if (!tokenOrCreds) {
+    throw new Error('Kredensial Google API (GDRIVE_TOKEN / token.json) tidak ditemukan di konfigurasi!');
+  }
+
+  let credsObj = null;
+  if (typeof tokenOrCreds === 'string') {
+    const trimmed = tokenOrCreds.trim();
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      try {
+        credsObj = JSON.parse(trimmed);
+      } catch (e) {
+        throw new Error('Format string JSON kredensial Google tidak valid.');
+      }
+    } else if (fs.existsSync(trimmed)) {
+      try {
+        const fileContent = fs.readFileSync(trimmed, 'utf8');
+        credsObj = JSON.parse(fileContent);
+      } catch (e) {
+        throw new Error(`Gagal membaca file kredensial Google di "${trimmed}": ${e.message}`);
+      }
+    }
+  } else if (typeof tokenOrCreds === 'object' && tokenOrCreds !== null) {
+    credsObj = tokenOrCreds;
+  }
+
+  if (credsObj) {
+    if (credsObj.type === 'service_account') {
+      return new google.auth.JWT({
+        email: credsObj.client_email,
+        key: credsObj.private_key,
+        scopes,
+      });
+    }
+
+    const clientId = credsObj.client_id || (credsObj.installed && credsObj.installed.client_id);
+    const clientSecret = credsObj.client_secret || (credsObj.installed && credsObj.installed.client_secret);
+    const refreshToken = credsObj.refresh_token;
+
+    if (clientId && clientSecret && refreshToken) {
+      const oauth2Client = new google.auth.OAuth2(clientId, clientSecret);
+      oauth2Client.setCredentials({ refresh_token: refreshToken });
+      return oauth2Client;
+    }
+
+    if (refreshToken) {
+      const oauth2Client = new google.auth.OAuth2(
+        process.env.GDRIVE_CLIENT_ID,
+        process.env.GDRIVE_CLIENT_SECRET
+      );
+      oauth2Client.setCredentials({ refresh_token: refreshToken });
+      return oauth2Client;
+    }
+  }
+
+  if (typeof tokenOrCreds === 'string') {
+    const trimmed = tokenOrCreds.trim();
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GDRIVE_CLIENT_ID,
+      process.env.GDRIVE_CLIENT_SECRET
+    );
+    if (trimmed.startsWith('1//') || trimmed.length > 50) {
+      oauth2Client.setCredentials({ refresh_token: trimmed });
+    } else {
+      oauth2Client.setCredentials({ access_token: trimmed });
+    }
+    return oauth2Client;
+  }
+
+  throw new Error('Format kredensial Google tidak dikenali.');
+}
+
+/**
+ * Membaca dan mem-parsing seluruh konfigurasi lingkungan (.env) & argumen CLI
+ */
+function getConfig() {
+  let doksliFolderId =
+    process.env.GDRIVE_DOKSLI_FOLDER_ID ||
+    process.env.GDRIVE_UNUSED_FOLDER_ID ||
+    process.env.GDRIVE_ROOT_FOLDER_ID;
+
+  let clipCountTarget = parseInt(process.env.QUIZ_CLIP_COUNT || '5', 10);
+  let quizOffsetY = parseInt(process.env.QUIZ_OFFSET_Y || '0', 10);
+  let memeTextY = parseInt(process.env.MEME_TEXT_Y || '480', 10);
+  let quizQuestion = process.env.QUIZ_QUESTION || 'Momen manakah itu?';
+  let quizTickSeconds = parseFloat(process.env.QUIZ_TICK_SECONDS || '0.5');
+  if (isNaN(quizTickSeconds) || quizTickSeconds <= 0.1) quizTickSeconds = 0.5;
+
+  let customTransitionSfx = process.env.TRANSITION_SFX_PATH || null;
+  let showTransitionCounter = process.env.TRANSITION_SHOW_COUNTER !== 'false';
+  let transitionFontSize = parseInt(process.env.TRANSITION_FONT_SIZE || '72', 10);
+  if (transitionFontSize === 0) {
+    showTransitionCounter = false;
+  }
+  if (isNaN(transitionFontSize) || transitionFontSize <= 0) {
+    transitionFontSize = 72;
+  }
+
+  const speedEnvRaw = (process.env.FULL_VIDEO_SPEED || '1.0').trim().toLowerCase();
+  let isFullVideoAutoSpeed = process.env.FULL_VIDEO_AUTO_SPEED === 'true' || speedEnvRaw === 'auto';
+  let fullVideoSpeed = 1.0;
+  if (!isFullVideoAutoSpeed) {
+    fullVideoSpeed = parseFloat(speedEnvRaw);
+    if (isNaN(fullVideoSpeed) || fullVideoSpeed < 1.0) fullVideoSpeed = 1.0;
+  }
+  let fullVideoMaxDuration = parseFloat(process.env.FULL_VIDEO_MAX_DURATION || '5.0');
+  if (isNaN(fullVideoMaxDuration) || fullVideoMaxDuration <= 0.5) fullVideoMaxDuration = 5.0;
+
+  let resultFolderId =
+    process.env.GDRIVE_RESULT_FOLDER_ID ||
+    process.env.GDRIVE_OUTPUT_FOLDER_ID ||
+    null;
+
+  let skipPrefix = process.env.SKIP_PREFIX || '!';
+
+  let censorGameplay = process.env.CENSOR_GAMEPLAY !== 'false';
+  let censorMode = (process.env.CENSOR_MODE || process.env.CENSOR_GAMEPLAY_MODE || 'pixelate').toLowerCase();
+  let censorY = parseInt(process.env.CENSOR_GAMEPLAY_Y || '1006', 10);
+  let censorH = parseInt(process.env.CENSOR_GAMEPLAY_H || '720', 10);
+  let censorPixelSize = parseInt(process.env.CENSOR_PIXEL_SIZE || '45', 10);
+  let censorBlurRadius = parseInt(process.env.CENSOR_BLUR_RADIUS || '28', 10);
+
+  // Parsing CLI arguments
+  for (const arg of process.argv.slice(2)) {
+    if (arg.startsWith('--folder=')) doksliFolderId = arg.split('=')[1];
+    if (arg.startsWith('--count=')) clipCountTarget = parseInt(arg.split('=')[1], 10);
+    if (arg.startsWith('--offset-y=')) quizOffsetY = parseInt(arg.split('=')[1], 10);
+    if (arg.startsWith('--meme-y=')) memeTextY = parseInt(arg.split('=')[1], 10);
+    if (arg.startsWith('--tick=')) quizTickSeconds = parseFloat(arg.split('=')[1]);
+    if (arg.startsWith('--question=')) quizQuestion = arg.slice(arg.indexOf('=') + 1);
+    if (arg.startsWith('--transition-sfx=')) customTransitionSfx = arg.slice(arg.indexOf('=') + 1);
+    if (arg === '--no-transition-counter' || arg === '--no-counter' || arg === '--transition-counter=false') {
+      showTransitionCounter = false;
+    }
+    if (arg === '--transition-counter=true' || arg === '--transition-counter') {
+      showTransitionCounter = true;
+    }
+    if (arg.startsWith('--transition-fs=') || arg.startsWith('--transition-fontsize=')) {
+      const fsVal = parseInt(arg.split('=')[1], 10);
+      if (fsVal === 0) {
+        showTransitionCounter = false;
+      } else if (!isNaN(fsVal) && fsVal > 0) {
+        transitionFontSize = fsVal;
+      }
+    }
+    if (arg === '--auto-speed' || arg === '--speed=auto' || arg === '--full-speed=auto') {
+      isFullVideoAutoSpeed = true;
+    } else if (arg.startsWith('--speed=') || arg.startsWith('--full-speed=') || arg.startsWith('--speed-full=')) {
+      const val = arg.split('=')[1].toLowerCase();
+      if (val === 'auto') {
+        isFullVideoAutoSpeed = true;
+      } else {
+        const spd = parseFloat(val);
+        if (!isNaN(spd)) {
+          fullVideoSpeed = Math.max(1.0, spd);
+          isFullVideoAutoSpeed = false;
+        }
+      }
+    }
+    if (arg.startsWith('--max-duration=') || arg.startsWith('--full-max-dur=')) {
+      const dur = parseFloat(arg.split('=')[1]);
+      if (!isNaN(dur) && dur > 0.5) fullVideoMaxDuration = dur;
+    }
+    if (arg.startsWith('--result-folder=')) resultFolderId = arg.slice(arg.indexOf('=') + 1);
+    if (arg.startsWith('--skip-prefix=')) skipPrefix = arg.slice(arg.indexOf('=') + 1);
+    if (arg.startsWith('--censor-mode=')) censorMode = arg.split('=')[1].toLowerCase();
+    if (arg.startsWith('--censor-y=')) censorY = parseInt(arg.split('=')[1], 10);
+    if (arg.startsWith('--censor-h=')) censorH = parseInt(arg.split('=')[1], 10);
+    if (arg.startsWith('--censor-size=')) censorPixelSize = parseInt(arg.split('=')[1], 10);
+    if (arg.startsWith('--censor-blur=')) censorBlurRadius = parseInt(arg.split('=')[1], 10);
+    if (arg === '--no-censor') censorGameplay = false;
+  }
+
+  // Batasi jumlah klip target yang wajar
+  if (isNaN(clipCountTarget) || clipCountTarget < 1) clipCountTarget = 5;
+  if (clipCountTarget > 15) clipCountTarget = 10;
+
+  // Cari kredensial Google
+  const gdriveToken =
+    process.env.GDRIVE_TOKEN ||
+    process.env.GDRIVE_OAUTH_TOKEN ||
+    (fs.existsSync(path.resolve(__dirname, '../token.json')) ? path.resolve(__dirname, '../token.json') : null) ||
+    (fs.existsSync(path.resolve(__dirname, '../../token.json')) ? path.resolve(__dirname, '../../token.json') : null);
+
+  return {
+    doksliFolderId,
+    clipCountTarget,
+    quizOffsetY,
+    memeTextY,
+    quizQuestion,
+    quizTickSeconds,
+    customTransitionSfx,
+    showTransitionCounter,
+    transitionFontSize,
+    isFullVideoAutoSpeed,
+    fullVideoSpeed,
+    fullVideoMaxDuration,
+    resultFolderId,
+    skipPrefix,
+    censorGameplay,
+    censorMode,
+    censorY,
+    censorH,
+    censorPixelSize,
+    censorBlurRadius,
+    gdriveToken,
+    ffmpegBin: FFMPEG_BIN,
+  };
+}
+
+/**
+ * Mencetak ringkasan konfigurasi ke konsol
+ */
+function printConfigBanner(config, transitionSfxPath = null) {
+  let speedDesc = '1.0x (Normal)';
+  if (config.isFullVideoAutoSpeed) {
+    speedDesc = `Otomatis (Target: maks ${config.fullVideoMaxDuration}s per klip jika > ${config.fullVideoMaxDuration}s)`;
+  } else if (config.fullVideoSpeed > 1.0) {
+    speedDesc = `${config.fullVideoSpeed}x (Tetap, Audio Cempreng)`;
+  }
+
+  console.log(`\nKonfigurasi:`);
+  console.log(` - ID Folder Google Drive : ${config.doksliFolderId}`);
+  console.log(` - Target Momen Terpilih  : ${config.clipCountTarget} momen`);
+  console.log(` - Format Output          : Vertikal 9:16 (1080x1920) 60 FPS`);
+  console.log(` - Durasi Freeze Kuis     : ${(4 * config.quizTickSeconds).toFixed(2)}s (Tick: ${config.quizTickSeconds}s x 4 beat)`);
+  console.log(` - Pertanyaan Kuis        : "${config.quizQuestion}"`);
+  console.log(` - Prefix Abaikan/Skip    : "${config.skipPrefix}" (folder/file diawali prefix ini otomatis dilewati)`);
+  console.log(` - Audio Penutup Momen    : ${transitionSfxPath ? path.basename(transitionSfxPath) + (config.showTransitionCounter ? ' (Teks Counter: x/y, Font: ' + config.transitionFontSize + 'px)' : ' (Layar hitam polos tanpa counter)') : 'Tidak aktif (file tidak ditemukan)'}`);
+  console.log(` - Kecepatan Video Full   : ${speedDesc}`);
+  console.log(` - Auto-Upload Hasil      : ${config.resultFolderId ? 'Aktif (Folder: ' + config.resultFolderId + ', auto-hapus lokal)' : 'Nonaktif (tersimpan di lokal)'}`);
+  console.log(` - Posisi Freeze Kuis     : Area Gameplay 2:3 (Y = ${config.censorY}px s/d ${config.censorY + config.censorH}px, Grid 2x2, Offset: ${config.quizOffsetY}px)`);
+  console.log(` - Posisi Teks Video Full : 1/4 tinggi kanvas (Y = ${config.memeTextY}px)\n`);
+}
+
+module.exports = {
+  FFMPEG_BIN,
+  getGoogleAuth,
+  getConfig,
+  printConfigBanner,
+};
