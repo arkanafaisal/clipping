@@ -531,7 +531,7 @@ function normalizeVideo({
   censorMode = 'pixelate',
   censorY = 1006,
   censorH = 720,
-  censorPixelSize = 24,
+  censorPixelSize = 45,
   censorBlurRadius = 28,
 }) {
   const baseFilter = 'scale=1080:1920:force_original_aspect_ratio=decrease:flags=lanczos,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1';
@@ -623,7 +623,7 @@ async function runQuizCompiler() {
   let censorMode = (process.env.CENSOR_MODE || process.env.CENSOR_GAMEPLAY_MODE || 'pixelate').toLowerCase();
   let censorY = parseInt(process.env.CENSOR_GAMEPLAY_Y || '1006', 10);
   let censorH = parseInt(process.env.CENSOR_GAMEPLAY_H || '720', 10);
-  let censorPixelSize = parseInt(process.env.CENSOR_PIXEL_SIZE || '24', 10);
+  let censorPixelSize = parseInt(process.env.CENSOR_PIXEL_SIZE || '45', 10);
   let censorBlurRadius = parseInt(process.env.CENSOR_BLUR_RADIUS || '28', 10);
 
   for (const arg of process.argv.slice(2)) {

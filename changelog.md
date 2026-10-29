@@ -14,7 +14,19 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Localized 2x2 Grid Quiz Overlay in Censored Gameplay Area
+## [Unreleased] - Increase Default Gameplay Pixelate Censor to 45px
+- **Konteks Struktural**:
+  - Peningkatan Intensitas Sensor Mosaik Gameplay ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example)):
+     - Menaikkan ukuran balok piksel default dari $24\text{px}$ menjadi $45\text{px}$ (`censorPixelSize = 45`).
+     - Pada ukuran $24\text{px}$, garis dan bentuk objek game tertentu (seperti balok khas Minecraft atau karakter game) terkadang masih bisa dikenali oleh penonton yang jeli.
+     - Pada ukuran $45\text{px}$ ($2\times$ lebih besar, $1080/45 = 24$ balok horizontal dan $720/45 = 16$ balok vertikal), seluruh detail objek dan teks tersamarkan total menjadi balok warna dinamis tanpa merusak estetika retro mosaik kuis.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/compile_doksli.js`:
+     - Memperbarui nilai default `censorPixelSize` dari `24` menjadi `45` pada `normalizeVideo()` dan `runQuizCompiler()`.
+  - `scheduler-uploader/.env.example`:
+     - Memperbarui dokumentasi nilai default `CENSOR_PIXEL_SIZE=45`.
+
+## [a7f2545] - Localized 2x2 Grid Quiz Overlay in Censored Gameplay Area
 - **Konteks Struktural**:
   1. Penempatan Layer Kuis Khusus di Area Gameplay 2:3 ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example)):
      - Menghilangkan efek *drastic switch / fullscreen blackout* saat transisi dari klip `cut.mp4` ke frame kuis (*freeze frame*): layer kuis kini dilokalisasi hanya pada area gameplay ($Y = 1006$ s/d $1726$, rasio 3:2) yang sudah terblur/tersensor.
