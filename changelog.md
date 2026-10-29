@@ -14,7 +14,29 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Display Quiz Layer Across cut.mp4 and Fix Transition Counter Timecode
+## [Unreleased] - Freeze Gameplay with Dark Overlay in cut.mp4 and Enlarge Transition Font to 72px
+- **Konteks Struktural**:
+  1. Pembekuan Gameplay & Layer Gelap Murni Sepanjang `cut.mp4` ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
+     - Menghilangkan elemen kuis (teks tag, pertanyaan, countdown, dan kartu opsi) selama pemutaran `cut.mp4`, menyisakan layer gelap semi-transparan murni (`\1a&H35&`) di atas area gameplay ($Y = 1006$ s/d $1726$).
+     - Membekukan (*freeze*) visual gameplay tersensor selama `cut.mp4` dengan mengekstrak 1 frame gameplay awal, mengaplikasikan filter sensor (piksel mosaik atau blur), dan menumpuknya sebagai gambar diam statis sepanjang durasi `cut.mp4` via `frozenGameplayImagePath` pada `normalizeVideo`.
+     - Facecam streamer di bagian atas ($Y = 196$ s/d $1006$) tetap berjalan hidup dan dinamis secara normal, sementara area gameplay di bawahnya diam dan tertutup layer gelap. Hal ini memusatkan 100% fokus mata penonton ke reaksi streamer tanpa distraksi gerakan mosaik maupun tebakan kuis prematur.
+     - Setelah `cut.mp4` selesai, alur berpindah ke Bagian 2 (freeze kuis 2 detik): Facecam ikut membeku, dan seluruh elemen kuis (tag `TEBAK GAME`, pertanyaan, hitung mundur 3-2-1, progress bar, dan 4 kartu opsi A/B/C/D) muncul di atas layer gelap yang sama secara mulus dan konsisten.
+  2. Peningkatan Ukuran Font Counter Transisi TikTok Core Menjadi 72px ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example)):
+     - Menaikkan ukuran font default teks counter `"x / y"` pada transisi layar hitam TikTok Core dari 24px menjadi 72px (3x lipat) dengan outline `\bord4`.
+     - Pada kanvas portrait beresolusi 1080x1920, ukuran 72px memberikan rasio keterbacaan yang sangat optimal, jelas, dan proporsional untuk layar smartphone (TikTok/Reels/Shorts).
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/compile_doksli.js`:
+    - Menambahkan fungsi pembantu `generateDarkOverlayASS({ gameplayY, gameplayH })`.
+    - Menyederhanakan `generateQuizASS` khusus untuk fase freeze kuis (menghapus cabang `isCutVersion`).
+    - Memperbarui `generateTransitionASS` dengan default `fontSize = 72` dan `\bord4`.
+    - Menambahkan dukungan parameter `frozenGameplayImagePath` pada `normalizeVideo` menggunakan `-filter_complex` overlay terpetakan.
+    - Menyesuaikan Bagian 1 `runQuizCompiler` untuk mengekstrak frame gameplay awal beku `frozenGpPng` dan menumpuknya bersama `cutDarkAssPath`.
+    - Mengubah fallback default `transitionFontSize` pada `runQuizCompiler` menjadi 72.
+    - Mengekspor `generateDarkOverlayASS` dan `generateTransitionASS` pada `module.exports`.
+  - `scheduler-uploader/.env.example`:
+    - Memperbarui dokumentasi variabel `TRANSITION_FONT_SIZE=72`.
+
+## [7a0df26] - Display Quiz Layer Across cut.mp4 and Fix Transition Counter Timecode
 - **Konteks Struktural**:
   1. Penayangan Layer Kuis Sepanjang Video Potongan `cut.mp4` ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
      - Menampilkan layer kuis (background gelap area gameplay, tag `TEBAK GAME`, teks pertanyaan, dan 4 kartu opsi netral A, B, C, D) di atas gameplay tersensor secara kontinu sepanjang pemutaran `cut.mp4`.
