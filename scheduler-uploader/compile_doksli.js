@@ -387,8 +387,9 @@ function generateQuizSoundWav(outputPath, tickDuration = 0.5, totalDuration = 2.
 }
 
 /**
- * Pembuat Subtitle ASS Dinamis untuk Overlay Kuis & Animasi Pilihan Ganda (Freeze Frame)
- * Terpusat secara matematis di tengah layar (Y ~ 960px) dan mendukung manual offset vertikal (offsetY)
+ * Pembuat Subtitle ASS Dinamis untuk Overlay Kuis Kompak Grid 2x2 (Freeze Frame)
+ * Ditempatkan khusus di area gameplay 2:3 yang terblur/tersensor (Y = 1006 s/d 1726),
+ * sehingga area Facecam di bagian atas (Y = 196 s/d 1006) tetap 100% jernih tanpa switch/jumping drastis.
  */
 function generateQuizASS({
   question = 'Momen manakah itu?',
@@ -397,20 +398,13 @@ function generateQuizASS({
   offsetY = 0,
   tickDuration = 0.5,
   totalDuration = 2.0,
+  gameplayY = 1006,
+  gameplayH = 720,
 }) {
-  const cardW = 920;
-  const leftX = (1080 - cardW) / 2; // 80
+  const baseY = gameplayY + offsetY;
 
-  // Koordinat Y Terpusat Secara Matematis (Midpoint ~960px pada kanvas 1080x1920)
-  // Menjaga elemen kuis tidak terlalu bawah dan aman dari tombol UI TikTok/Reels di bagian bawah
-  const headerY = 520 + offsetY;
-  const questionY = 600 + offsetY;
-  const countdownY = 735 + offsetY;
-  const progressY = 815 + offsetY;
-  const cardY = [875 + offsetY, 1010 + offsetY, 1145 + offsetY, 1280 + offsetY];
-
-  // Path vektor rounded rectangle (920 x 110 dengan radius 20px)
-  const roundRect = `m 0 20 b 0 9 9 0 20 0 l 900 0 b 911 0 920 9 920 20 l 920 90 b 920 101 911 110 900 110 l 20 110 b 9 110 0 101 0 90`;
+  // Path vektor rounded rectangle untuk kartu opsi (442 x 110 dengan radius 18px)
+  const roundRectCard = `m 0 18 b 0 8 8 0 18 0 l 424 0 b 434 0 442 8 442 18 l 442 92 b 442 102 434 110 424 110 l 18 110 b 8 110 0 102 0 92`;
 
   const str0 = formatAssTime(0);
   const str1 = formatAssTime(1 * tickDuration);
@@ -420,60 +414,69 @@ function generateQuizASS({
 
   const events = [];
 
-  // 1. Fullscreen Dark Overlay (Gelapkan frame video asli sekitar 70%)
-  events.push(`Dialogue: 0,${str0},${str4},Default,,0,0,0,,{\\pos(0,0)\\an7\\p1\\1a&H45&\\1c&H000000&\\3a&HFF&}m 0 0 l 1080 0 l 1080 1920 l 0 1920{\\p0}`);
+  // 1. Dark Overlay HANYA di area gameplay 2:3 (Y = 1006 s/d 1726, Facecam atas tetap 100% jernih)
+  events.push(`Dialogue: 0,${str0},${str4},Default,,0,0,0,,{\\pos(0,${baseY})\\an7\\p1\\1a&H35&\\1c&H000000&\\3a&HFF&}m 0 0 l 1080 0 l 1080 ${gameplayH} l 0 ${gameplayH}{\\p0}`);
 
-  // 2. Question Header
-  events.push(`Dialogue: 1,${str0},${str4},Default,,0,0,0,,{\\pos(540,${headerY})\\an5\\fs38\\b1\\c&H00D4FF&}TEBAK DOKSLI`);
-  events.push(`Dialogue: 1,${str0},${str4},Default,,0,0,0,,{\\pos(540,${questionY})\\an5\\fs64\\b1\\c&HFFFFFF&\\bord4\\3c&H000000&}${question}`);
+  // 2. Tag & Pertanyaan Kuis (Kompak & rapi di bagian atas area gameplay)
+  events.push(`Dialogue: 1,${str0},${str4},Default,,0,0,0,,{\\pos(540,${baseY + 45})\\an5\\fs32\\b1\\c&H00D4FF&}TEBAK GAME`);
+  events.push(`Dialogue: 1,${str0},${str4},Default,,0,0,0,,{\\pos(540,${baseY + 95})\\an5\\fs46\\b1\\c&HFFFFFF&\\bord3\\3c&H000000&\\q2}${question}`);
 
-  // 3. Countdown Display (3, 2, 1, dan JAWABAN BENAR)
-  events.push(`Dialogue: 2,${str0},${str1},Default,,0,0,0,,{\\pos(540,${countdownY})\\an5\\fs120\\b1\\c&H00E5FF&\\bord6\\3c&H000000&}3`);
-  events.push(`Dialogue: 2,${str1},${str2},Default,,0,0,0,,{\\pos(540,${countdownY})\\an5\\fs120\\b1\\c&H00E5FF&\\bord6\\3c&H000000&}2`);
-  events.push(`Dialogue: 2,${str2},${str3},Default,,0,0,0,,{\\pos(540,${countdownY})\\an5\\fs130\\b1\\c&H0099FF&\\bord6\\3c&H000000&}1`);
-  events.push(`Dialogue: 2,${str3},${str4},Default,,0,0,0,,{\\pos(540,${countdownY})\\an5\\fs64\\b1\\c&H00E65C&\\bord4\\3c&H000000&}JAWABAN BENAR:`);
+  // 3. Countdown Display & Teks Hasil Jawaban
+  events.push(`Dialogue: 2,${str0},${str1},Default,,0,0,0,,{\\pos(540,${baseY + 165})\\an5\\fs72\\b1\\c&H00E5FF&\\bord5\\3c&H000000&}3`);
+  events.push(`Dialogue: 2,${str1},${str2},Default,,0,0,0,,{\\pos(540,${baseY + 165})\\an5\\fs72\\b1\\c&H00E5FF&\\bord5\\3c&H000000&}2`);
+  events.push(`Dialogue: 2,${str2},${str3},Default,,0,0,0,,{\\pos(540,${baseY + 165})\\an5\\fs76\\b1\\c&H0099FF&\\bord5\\3c&H000000&}1`);
+  events.push(`Dialogue: 2,${str3},${str4},Default,,0,0,0,,{\\pos(540,${baseY + 165})\\an5\\fs52\\b1\\c&H00E65C&\\bord4\\3c&H000000&}JAWABAN BENAR:`);
 
   // Progress Bar (Mengecil selama 3 tick countdown)
-  events.push(`Dialogue: 1,${str0},${str1},Default,,0,0,0,,{\\pos(140,${progressY})\\an7\\p1\\1c&H00E65C&\\3a&HFF&}m 0 0 l 800 0 l 800 12 l 0 12{\\p0}`);
-  events.push(`Dialogue: 1,${str1},${str2},Default,,0,0,0,,{\\pos(140,${progressY})\\an7\\p1\\1c&H00D4FF&\\3a&HFF&}m 0 0 l 530 0 l 530 12 l 0 12{\\p0}`);
-  events.push(`Dialogue: 1,${str2},${str3},Default,,0,0,0,,{\\pos(140,${progressY})\\an7\\p1\\1c&H0077FF&\\3a&HFF&}m 0 0 l 260 0 l 260 12 l 0 12{\\p0}`);
+  const barY = baseY + 215;
+  events.push(`Dialogue: 1,${str0},${str1},Default,,0,0,0,,{\\pos(190,${barY})\\an7\\p1\\1c&H00E65C&\\3a&HFF&}m 0 0 l 700 0 l 700 8 l 0 8{\\p0}`);
+  events.push(`Dialogue: 1,${str1},${str2},Default,,0,0,0,,{\\pos(190,${barY})\\an7\\p1\\1c&H00D4FF&\\3a&HFF&}m 0 0 l 466 0 l 466 8 l 0 8{\\p0}`);
+  events.push(`Dialogue: 1,${str2},${str3},Default,,0,0,0,,{\\pos(190,${barY})\\an7\\p1\\1c&H0077FF&\\3a&HFF&}m 0 0 l 233 0 l 233 8 l 0 8{\\p0}`);
 
-  // 4. Opsi Pilihan Ganda (A, B, C, D)
+  // 4. Grid 2x2 Opsi Pilihan Ganda (Kolom Kiri: A & C, Kolom Kanan: B & D)
+  // Kolom 1 (Kiri): X = 70 s/d 512 | Kolom 2 (Kanan): X = 568 s/d 1010
+  // Baris 1: Y = baseY + 250 s/d baseY + 360 | Baris 2: Y = baseY + 385 s/d baseY + 495
+  const colX = [70, 568, 70, 568];
+  const rowY = [baseY + 250, baseY + 250, baseY + 385, baseY + 385];
+  const textX = [95, 593, 95, 593];
   const letters = ['A', 'B', 'C', 'D'];
+
   for (let i = 0; i < 4; i++) {
-    const yTop = cardY[i];
-    const yMid = yTop + 55;
+    const cX = colX[i];
+    const cY = rowY[i];
+    const tX = textX[i];
+    const tY = cY + 55;
     const isCorrect = i === correctIndex;
 
     const text = options[i] || `Pilihan ${letters[i]}`;
-    const fontSize = 42;
+    const fontSize = 34;
     const label = `${letters[i]}. ${text}`;
 
-    // --- FASE 1: Detik 0.0 s/d 3 * tick (Semua Opsi Netral) ---
-    events.push(`Dialogue: 1,${str0},${str3},Default,,0,0,0,,{\\pos(${leftX},${yTop})\\an7\\p1\\1a&H35&\\1c&H251D18&\\3a&H20&\\3c&H605040&\\bord3}${roundRect}{\\p0}`);
-    events.push(`Dialogue: 2,${str0},${str3},Default,,0,0,0,,{\\pos(140,${yMid})\\an4\\fs${fontSize}\\b1\\c&HFFFFFF&\\bord2\\3c&H000000&}${label}`);
+    // --- FASE 1: Detik 0.0 s/d 3 * tick (Semua Opsi Netral Elegan) ---
+    events.push(`Dialogue: 1,${str0},${str3},Default,,0,0,0,,{\\pos(${cX},${cY})\\an7\\p1\\1a&H35&\\1c&H251D18&\\3a&H20&\\3c&H605040&\\bord3}${roundRectCard}{\\p0}`);
+    events.push(`Dialogue: 2,${str0},${str3},Default,,0,0,0,,{\\pos(${tX},${tY})\\an4\\fs${fontSize}\\b1\\c&HFFFFFF&\\bord2\\3c&H000000&\\q2}${label}`);
 
-    // --- FASE 2: Detik 3 * tick s/d 4 * tick (Jawaban Terbuka Tanpa [V], Opsi Benar Hijau Emerald) ---
+    // --- FASE 2: Detik 3 * tick s/d 4 * tick (Reveal: Opsi Benar Hijau Emerald, Salah Redup) ---
     if (isCorrect) {
       // HIJAU EMERALD (#22C55E -> BGR: &H30A020&)
-      events.push(`Dialogue: 1,${str3},${str4},Default,,0,0,0,,{\\pos(${leftX},${yTop})\\an7\\p1\\1a&H00&\\1c&H30A020&\\3a&H00&\\3c&H60F040&\\bord5}${roundRect}{\\p0}`);
-      events.push(`Dialogue: 2,${str3},${str4},Default,,0,0,0,,{\\pos(140,${yMid})\\an4\\fs${fontSize}\\b1\\c&HFFFFFF&\\bord3\\3c&H104010&}${label}`);
+      events.push(`Dialogue: 1,${str3},${str4},Default,,0,0,0,,{\\pos(${cX},${cY})\\an7\\p1\\1a&H00&\\1c&H30A020&\\3a&H00&\\3c&H60F040&\\bord5}${roundRectCard}{\\p0}`);
+      events.push(`Dialogue: 2,${str3},${str4},Default,,0,0,0,,{\\pos(${tX},${tY})\\an4\\fs${fontSize}\\b1\\c&HFFFFFF&\\bord3\\3c&H104010&\\q2}${label}`);
     } else {
       // Opsi salah dibuat redup
-      events.push(`Dialogue: 1,${str3},${str4},Default,,0,0,0,,{\\pos(${leftX},${yTop})\\an7\\p1\\1a&H75&\\1c&H101010&\\3a&H85&\\3c&H303030&\\bord2}${roundRect}{\\p0}`);
-      events.push(`Dialogue: 2,${str3},${str4},Default,,0,0,0,,{\\pos(140,${yMid})\\an4\\fs${fontSize}\\b0\\c&H888888&\\bord2\\3c&H000000&}${label}`);
+      events.push(`Dialogue: 1,${str3},${str4},Default,,0,0,0,,{\\pos(${cX},${cY})\\an7\\p1\\1a&H75&\\1c&H101010&\\3a&H85&\\3c&H303030&\\bord2}${roundRectCard}{\\p0}`);
+      events.push(`Dialogue: 2,${str3},${str4},Default,,0,0,0,,{\\pos(${tX},${tY})\\an4\\fs${fontSize}\\b0\\c&H888888&\\bord2\\3c&H000000&\\q2}${label}`);
     }
   }
 
   return `[Script Info]
-Title: Quiz Doksli Overlay
+Title: Compact Quiz 2x2 Grid Overlay
 ScriptType: v4.00+
 PlayResX: 1080
 PlayResY: 1920
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default, Arial, 48, &H00FFFFFF, &H000000FF, &H00000000, &H00000000, 1, 0, 0, 0, 100, 100, 0, 0, 1, 2, 0, 5, 40, 40, 40, 1
+Style: Default, Arial, 42, &H00FFFFFF, &H000000FF, &H00000000, &H00000000, 1, 0, 0, 0, 100, 100, 0, 0, 1, 2, 0, 5, 20, 20, 20, 1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -669,7 +672,7 @@ async function runQuizCompiler() {
   console.log(` - Prefix Abaikan/Skip    : "${skipPrefix}" (folder/file diawali prefix ini otomatis dilewati)`);
   console.log(` - Audio Penutup Momen    : ${transitionSfxPath ? path.basename(transitionSfxPath) : 'Tidak aktif (file tidak ditemukan)'}`);
   console.log(` - Auto-Upload Hasil      : ${resultFolderId ? 'Aktif (Folder: ' + resultFolderId + ', auto-hapus lokal)' : 'Nonaktif (tersimpan di lokal)'}`);
-  console.log(` - Posisi Freeze Kuis     : Terpusat matematis (Y ~ 960px, Offset: ${quizOffsetY}px)`);
+  console.log(` - Posisi Freeze Kuis     : Area Gameplay 2:3 (Y = ${censorY}px s/d ${censorY + censorH}px, Grid 2x2, Offset: ${quizOffsetY}px)`);
   console.log(` - Posisi Teks Video Full : 1/4 tinggi kanvas (Y = ${memeTextY}px)\n`);
 
   // 2. Hubungkan ke Google Drive API
@@ -987,6 +990,8 @@ async function runQuizCompiler() {
           offsetY: quizOffsetY,
           tickDuration: quizTickSeconds,
           totalDuration: parseFloat(totalQuizSec),
+          gameplayY: censorY,
+          gameplayH: censorH,
         }),
         'utf8'
       );

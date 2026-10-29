@@ -14,7 +14,26 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Deduplicate cleanText Helper Definition
+## [Unreleased] - Localized 2x2 Grid Quiz Overlay in Censored Gameplay Area
+- **Konteks Struktural**:
+  1. Penempatan Layer Kuis Khusus di Area Gameplay 2:3 ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example)):
+     - Menghilangkan efek *drastic switch / fullscreen blackout* saat transisi dari klip `cut.mp4` ke frame kuis (*freeze frame*): layer kuis kini dilokalisasi hanya pada area gameplay ($Y = 1006$ s/d $1726$, rasio 3:2) yang sudah terblur/tersensor.
+     - Area Facecam streamer di bagian atas ($Y = 196$ s/d $1006$) **tetap 100% jernih, terang, dan tidak tertutup overlay gelap**, sehingga ekspresi wajah kaget/lucu tetap menjadi sorotan utama bagi penonton.
+     - Area bawah kanvas ($Y > 1726$) tetap steril, menjaga kartu kuis aman dari tumpang tindih elemen UI bawaan TikTok/Instagram Reels (tombol Like, Comment, Share, dan judul caption).
+  2. Arsitektur Grid Opsi 2x2 (*Flex Row 2 per Baris*) ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
+     - Mengubah susunan 4 kartu pilihan ganda dari vertikal memanjang (4 baris) menjadi matriks 2 kolom x 2 baris (Kolom 1: Opsi A & C pada $X = 70$, Kolom 2: Opsi B & D pada $X = 568$).
+     - Menyederhanakan tipografi dan header kuis ("TEBAK GAME" & pertanyaan) agar lebih proporsional, ringkas, dan fokus di dalam area gameplay.
+     - Menggunakan tag `\q2` pada subtitle ASS untuk menjamin kepatuhan aturan strict single-line tanpa auto text line-break.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/compile_doksli.js`:
+     - Memperbarui fungsi `generateQuizASS` dengan parameter `gameplayY` dan `gameplayH`.
+     - Mengubah vektor overlay gelap menjadi hanya mencakup area gameplay (`m 0 0 l 1080 0 l 1080 720 l 0 720`).
+     - Menyusun kartu opsi dan teks label menjadi format grid 2x2 (`colX`, `rowY`, `textX`).
+     - Menghubungkan pembacaan `censorY` dan `censorH` ke dalam pemanggilan `generateQuizASS`.
+  - `scheduler-uploader/.env.example`:
+     - Memperbarui deskripsi `QUIZ_OFFSET_Y` untuk merefleksikan posisi kuis di dalam area gameplay 2:3.
+
+## [32553d3] - Deduplicate cleanText Helper Definition
 - **Konteks Struktural**:
   - Penghapusan Definisi Redundan `cleanText` ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
      - Menghapus deklarasi fungsi `cleanText` duplikat di baris bawah yang sebelumnya menimpa fungsi `cleanText` utama di baris 150.
