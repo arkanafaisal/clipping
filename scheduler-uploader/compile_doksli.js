@@ -414,8 +414,8 @@ function generateQuizASS({
 
   const events = [];
 
-  // 1. Dark Overlay HANYA di area gameplay 2:3 (Y = 1006 s/d 1726, Facecam atas tetap 100% jernih)
-  events.push(`Dialogue: 0,${str0},${str4},Default,,0,0,0,,{\\pos(0,${baseY})\\an7\\p1\\1a&H35&\\1c&H000000&\\3a&HFF&}m 0 0 l 1080 0 l 1080 ${gameplayH} l 0 ${gameplayH}{\\p0}`);
+  // 1. Dark Overlay HANYA di area gameplay 2:3 (Terkunci di gameplayY s/d gameplayY + gameplayH, tidak terpengaruh offsetY)
+  events.push(`Dialogue: 0,${str0},${str4},Default,,0,0,0,,{\\pos(0,${gameplayY})\\an7\\p1\\1a&H35&\\1c&H000000&\\3a&HFF&}m 0 0 l 1080 0 l 1080 ${gameplayH} l 0 ${gameplayH}{\\p0}`);
 
   // 2. Tag & Pertanyaan Kuis (Kompak & rapi di bagian atas area gameplay)
   events.push(`Dialogue: 1,${str0},${str4},Default,,0,0,0,,{\\pos(540,${baseY + 45})\\an5\\fs32\\b1\\c&H00D4FF&}TEBAK GAME`);

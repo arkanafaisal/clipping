@@ -14,7 +14,19 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Increase Default Gameplay Pixelate Censor to 45px
+## [Unreleased] - Decouple Quiz Dark Overlay from Element Offset Y
+- **Konteks Struktural**:
+  - Penjangkaran Layer Gelap Kuis ke Batas Gameplay ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example)):
+    - Mengunci posisi background overlay gelap kuis secara permanen pada batas area gameplay ($Y = \text{gameplayY}$ s/d $\text{gameplayY} + \text{gameplayH}$, default $1006$ s/d $1726$), terlepas dari nilai konfigurasi `QUIZ_OFFSET_Y` / `--offset-y=`.
+    - Memisahkan pergerakan elemen kuis (teks pertanyaan, tag `TEBAK GAME`, countdown timer, progress bar, kartu opsi A/B/C/D, dan label pilihan) yang tetap menggunakan `baseY = gameplayY + offsetY` agar bebas digeser naik-turun oleh pengguna.
+    - Menghilangkan *leakage* sensor: sebelumnya ketika `offsetY > 0` (geser ke bawah), layer gelap ikut turun sehingga gameplay tersensor di bagian atas ($Y \approx 1006$) tidak ter-overlay; sebaliknya ketika `offsetY < 0` (geser ke atas), layer gelap ikut naik dan menutupi area Facecam streamer ($Y < 1006$).
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/compile_doksli.js`:
+    - Mengubah posisi dialog drawing layer gelap dari `\pos(0,${baseY})` menjadi `\pos(0,${gameplayY})` pada fungsi `generateQuizASS`.
+  - `scheduler-uploader/.env.example`:
+    - Memperjelas dokumentasi variabel `QUIZ_OFFSET_Y` bahwa offset hanya menggeser elemen konten kuis di dalam batas gameplay, sedangkan background layer gelap tetap terkunci presisi pada $Y \sim 1006\text{px}$.
+
+## [ee6ba6c] - Increase Default Gameplay Pixelate Censor to 45px
 - **Konteks Struktural**:
   - Peningkatan Intensitas Sensor Mosaik Gameplay ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example)):
      - Menaikkan ukuran balok piksel default dari $24\text{px}$ menjadi $45\text{px}$ (`censorPixelSize = 45`).
