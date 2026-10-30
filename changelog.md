@@ -14,7 +14,26 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Doubled Roulette Duration and Uniform Base Lane Speed
+## [Unreleased] - Configurable Roulette Freeze Fade Duration and Env Documentation
+- **Konteks Struktural**:
+  - Konfigurasi Durasi Transisi Freeze Fade-In & Fade-Out ([rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js), [compile_roulette.js](file:///d:/projects/clipping/scheduler-uploader/compile_roulette.js), [config.js](file:///d:/projects/clipping/scheduler-uploader/utils/config.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example)):
+    - Mengubah durasi transisi *freeze still frame* (fade-in dan fade-out pada video full speedup) dari semula hardcoded 0.25 detik menjadi **0.5 detik secara default**, serta membuatnya dapat diatur dinamis melalui file konfigurasi lingkungan (`.env`) maupun argumen CLI.
+    - Pada `renderSpeedupClipWithFade`, frame awal ditahan selama `fadeDuration` (0.5s) saat animasi fade-in berjalan, dan frame akhir ditahan selama `fadeDuration` (0.5s) saat fade-out berjalan. Audio ditunda (`adelay`) sebesar $0.5\text{s} = 500\text{ms}$ agar pemutaran suara baru dimulai tepat saat fade-in tuntas.
+    - Menambahkan pembacaan parameter lingkungan `ROULETTE_FADE_DURATION` dan argumen CLI `--fade-duration=` / `--roulette-fade=`.
+  - Dokumentasi Lingkungan Terpadu ([.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example)):
+    - Mendokumentasikan variabel konfigurasi mode roulette pada `.env.example`: `ROULETTE_SPIN_DURATION` (default: 4.4) dan `ROULETTE_FADE_DURATION` (default: 0.5) dengan penjelasan fungsi masing-masing parameter.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/utils/config.js`:
+    - Menambahkan pembacaan `rouletteFadeDuration` dari `process.env.ROULETTE_FADE_DURATION` (default: 0.5) dan parser CLI `--fade-duration=` / `--roulette-fade=`.
+    - Mengembalikan `rouletteFadeDuration` pada objek kembalian fungsi `getConfig()`.
+  - `scheduler-uploader/utils/rouletteEditor.js`:
+    - Mengubah `const fadeDuration = 0.25` menjadi `const fadeDuration = parseFloat(config?.rouletteFadeDuration) || 0.5;`.
+  - `scheduler-uploader/compile_roulette.js`:
+    - Memperbarui teks log proses agar menampilkan angka durasi fade secara dinamis (`${fadeDur}s`).
+  - `scheduler-uploader/.env.example`:
+    - Menambahkan dokumentasi blok konfigurasi mode roulette untuk `ROULETTE_SPIN_DURATION` dan `ROULETTE_FADE_DURATION`.
+
+## [d5542d1] - Doubled Roulette Duration and Uniform Base Lane Speed
 - **Konteks Struktural**:
   - Peningkatan Durasi Putaran Roulette 2x Lipat ([rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js), [compile_roulette.js](file:///d:/projects/clipping/scheduler-uploader/compile_roulette.js), [config.js](file:///d:/projects/clipping/scheduler-uploader/utils/config.js)):
     - Memperlama durasi segmen putaran roulette menjadi dua kali lipat: dari 2.2 detik (1.8s putaran melambat + 0.4s lock freeze) menjadi **4.4 detik** (3.6s putaran melambat + 0.8s lock freeze) sesuai permintaan user agar animasi penentuan kartu terasa lebih mendebarkan dan dramatis.

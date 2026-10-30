@@ -409,7 +409,7 @@ function renderSpeedupClipWithFade({
   const baseScale = 'scale=1080:1920:force_original_aspect_ratio=decrease:flags=lanczos,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1';
 
   const playDuration = rawDur / clipSpeed;
-  const fadeDuration = 0.25;
+  const fadeDuration = parseFloat(config?.rouletteFadeDuration) || 0.5;
   const fadeOutStart = fadeDuration + playDuration;
   const totalDuration = playDuration + (2 * fadeDuration);
   const adelayMs = Math.round(fadeDuration * 1000);

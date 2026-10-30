@@ -243,7 +243,8 @@ async function main() {
       await downloadDriveFile(drive, moment.fullFile.id, rawVideoPath);
     }
 
-    console.log(`   3. ✂️ Menambahkan transisi freeze fade-in (0.25s) & freeze fade-out (0.25s) pada speedup...`);
+    const fadeDur = config.rouletteFadeDuration || 0.5;
+    console.log(`   3. ✂️ Menambahkan transisi freeze fade-in (${fadeDur}s) & freeze fade-out (${fadeDur}s) pada speedup...`);
     const fadedSpeedupPath = path.join(workDir, `faded_speedup_${momentIndex}.mp4`);
     renderSpeedupClipWithFade({
       rawVideoPath,

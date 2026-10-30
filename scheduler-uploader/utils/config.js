@@ -204,6 +204,9 @@ function getConfig() {
   let rouletteSpinDuration = parseFloat(process.env.ROULETTE_SPIN_DURATION || '4.4');
   if (isNaN(rouletteSpinDuration) || rouletteSpinDuration <= 0.5) rouletteSpinDuration = 4.4;
 
+  let rouletteFadeDuration = parseFloat(process.env.ROULETTE_FADE_DURATION || '0.5');
+  if (isNaN(rouletteFadeDuration) || rouletteFadeDuration < 0.05) rouletteFadeDuration = 0.5;
+
   let resultFolderId =
     process.env.GDRIVE_RESULT_FOLDER_ID ||
     process.env.GDRIVE_OUTPUT_FOLDER_ID ||
@@ -290,6 +293,10 @@ function getConfig() {
       const dur = parseFloat(arg.split('=')[1]);
       if (!isNaN(dur) && dur > 0.5) rouletteSpinDuration = dur;
     }
+    if (arg.startsWith('--fade-duration=') || arg.startsWith('--roulette-fade=')) {
+      const dur = parseFloat(arg.split('=')[1]);
+      if (!isNaN(dur) && dur >= 0.05) rouletteFadeDuration = dur;
+    }
     if (arg.startsWith('--unique-window=') || arg.startsWith('--game-uniqueness=') || arg.startsWith('--uniqueness=') || arg.startsWith('--window=')) {
       const val = parseInt(arg.split('=')[1], 10);
       if (!isNaN(val) && val >= 1) gameUniqueWindow = val;
@@ -348,6 +355,7 @@ function getConfig() {
     fullVideoSpeed,
     fullVideoMaxDuration,
     rouletteSpinDuration,
+    rouletteFadeDuration,
     resultFolderId,
     skipPrefix,
     censorGameplay,
