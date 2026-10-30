@@ -77,7 +77,7 @@ async function downloadMemeImagesPool(drive, doksliFolderId, workDir, minCount =
 /**
  * Sintesis Efek Suara WAV Roulette Berputar & Berhenti (Wheel Ratchet Ticks + Lock Bell Chime)
  */
-function generateRouletteAudioWav({ duration = 2.2, stopTime = 1.8, outputPath }) {
+function generateRouletteAudioWav({ duration = 4.4, stopTime = 3.6, outputPath }) {
   const sampleRate = 44100;
   const numSamples = Math.max(1, Math.round(sampleRate * duration));
   const numChannels = 2;
@@ -111,7 +111,7 @@ function generateRouletteAudioWav({ duration = 2.2, stopTime = 1.8, outputPath }
     tickTimes.push(currT);
     const progress = currT / stopTime; // 0 -> 1
     // Interval antar tick memanjang seiring deselerasi
-    const interval = 0.03 + 0.12 * Math.pow(progress, 2.5);
+    const interval = 0.03 + 0.16 * Math.pow(progress, 2.5);
     currT += interval;
   }
 
@@ -132,10 +132,10 @@ function generateRouletteAudioWav({ duration = 2.2, stopTime = 1.8, outputPath }
 
     // Render lock chime / bell saat roda berhenti di t = stopTime
     const chimeDt = t - stopTime;
-    if (chimeDt >= 0 && chimeDt < 0.7) {
+    if (chimeDt >= 0 && chimeDt < 0.8) {
       // Dua nada harmonik bel emas (E6 1318Hz & B6 1975Hz)
-      const chime1 = Math.sin(2 * Math.PI * 1318.5 * chimeDt) * Math.exp(-chimeDt * 5.0);
-      const chime2 = Math.sin(2 * Math.PI * 1975.5 * chimeDt) * Math.exp(-chimeDt * 7.0);
+      const chime1 = Math.sin(2 * Math.PI * 1318.5 * chimeDt) * Math.exp(-chimeDt * 4.0);
+      const chime2 = Math.sin(2 * Math.PI * 1975.5 * chimeDt) * Math.exp(-chimeDt * 6.0);
       sampleVal += (chime1 * 0.5 + chime2 * 0.3) * 0.8;
     }
 
@@ -239,11 +239,11 @@ function generateRoulettePointerImage() {
 }
 
 /**
- * Merender Satu Segmen Putaran Roulette (Durasi ~2.2 Detik, 1080x1920 60 FPS CFR)
+ * Merender Satu Segmen Putaran Roulette (Durasi Default ~4.4 Detik, 1080x1920 60 FPS CFR)
  * - Jalur yang sudah menang sebelumnya (0 .. currentMomentIndex - 1): Diam di posisi targetnya.
- * - Jalur saat ini (currentMomentIndex): Bergerak cepat lalu melambat mulus (cubic ease-out) dan berhenti di t = 1.8s.
- * - Jalur berikutnya (currentMomentIndex + 1 .. laneCount - 1): Tetap berputar kontinu.
- * - Pointer tengah: HANYA 1 garis lurus vertikal di X = 540 (sesuai permintaan user).
+ * - Jalur saat ini (currentMomentIndex): Bergerak cepat lalu melambat mulus (cubic ease-out) dan berhenti di t = stopTime.
+ * - Jalur berikutnya (currentMomentIndex + 1 .. laneCount - 1): Berputar kontinu dengan kecepatan dasar yang seragam.
+ * - Pointer tengah: HANYA 1 garis lurus vertikal di X = 540.
  * - Berhenti sedikit off-center secara natural, dan kartu yang terpilih di-highlight dengan border hijau (#00FF66).
  * - Menggunakan spawnSync langsung (tanpa cmd.exe shell) agar tidak pernah stuck/deadlock di Windows.
  */
@@ -256,8 +256,8 @@ function renderRouletteSpinSegment({
   outputPath,
   workDir,
   ffmpegBin = 'ffmpeg',
-  spinDuration = 2.2,
-  stopTime = 1.8,
+  spinDuration = 4.4,
+  stopTime = 3.6,
 }) {
   const segmentAudioPath = path.join(workDir, `roulette_audio_${segmentIndex}.wav`);
   generateRouletteAudioWav({
@@ -283,13 +283,13 @@ function renderRouletteSpinSegment({
       xExpr = `${xStop}`;
     } else if (k === currentMomentIndex) {
       // Jalur aktif saat ini -> Bergerak cepat lalu melambat (cubic ease-out) dan berhenti tepat di xStop saat t = stopTime
-      const xStart = Math.max(0, xStop - Math.round(laneHeight * 8.5));
+      const xStart = Math.max(0, xStop - Math.round(laneHeight * 12));
       const dist = xStop - xStart;
       xExpr = `if(gte(t\\,${stopTime})\\,${xStop}\\,${xStart}+${dist}*(1-pow(1-(t/${stopTime})\\,3)))`;
     } else {
-      // Jalur selanjutnya yang belum tiba gilirannya -> Berputar kontinu
-      const speed = 1200 + (k * 250);
-      xExpr = `mod(${k * 300}+t*${speed}\\,${maxX})`;
+      // Jalur selanjutnya yang belum tiba gilirannya -> Berputar kontinu dengan kecepatan yang seragam sama semua
+      const baseSpeed = 1500;
+      xExpr = `mod(${k * 400}+t*${baseSpeed}\\,${maxX})`;
     }
 
     cropFilters.push(`[${k}:v]crop=1080:${laneHeight}:${xExpr}:0[lane${k}]`);

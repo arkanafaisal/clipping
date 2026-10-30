@@ -14,7 +14,26 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Single Line Center Pointer, Natural Off-Center Stop, and SpawnSync Execution
+## [Unreleased] - Doubled Roulette Duration and Uniform Base Lane Speed
+- **Konteks Struktural**:
+  - Peningkatan Durasi Putaran Roulette 2x Lipat ([rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js), [compile_roulette.js](file:///d:/projects/clipping/scheduler-uploader/compile_roulette.js), [config.js](file:///d:/projects/clipping/scheduler-uploader/utils/config.js)):
+    - Memperlama durasi segmen putaran roulette menjadi dua kali lipat: dari 2.2 detik (1.8s putaran melambat + 0.4s lock freeze) menjadi **4.4 detik** (3.6s putaran melambat + 0.8s lock freeze) sesuai permintaan user agar animasi penentuan kartu terasa lebih mendebarkan dan dramatis.
+    - Menyesuaikan sintesis audio efek roulette (`generateRouletteAudioWav`): memperpanjang deretan bunyi *ratchet click* hingga 3.6 detik dengan kurva perlambatan progresif eksponensial ($t^{2.5}$), dan denting bel emas ganda (*lock bell chime*) berbunyi merdu di detik 3.6 dengan peluruhan (*decay*) sepanjang 0.8 detik.
+    - Menambah jarak pengereman deselerasi kartu aktif (`laneHeight * 12`) sehingga deselerasi *cubic ease-out* terlihat sangat halus dan berbobot dalam jendela waktu 3.6 detik.
+    - Menghubungkan durasi putaran secara dinamis melalui parameter lingkungan `ROULETTE_SPIN_DURATION` pada `.env` serta argumen CLI `--spin-duration=` / `--roulette-duration=`.
+  - Penyelarasan Kecepatan Putaran Roulette Jalur Non-Berhenti ([rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js)):
+    - Menyeragamkan kecepatan putaran semua jalur yang belum tiba gilirannya melambat menjadi kecepatan dasar konstan yang seragam (`baseSpeed = 1500 px/s`) dengan offset posisi awal pita bertingkat (`k * 400`), menggantikan variasi kecepatan asinkron (`1200 + k * 250`).
+    - Hal ini meratakan beban visual dan encoding gerakan pada segmen klip awal saat ada $x - 1$ jumlah roulette bergerak bersamaan tanpa melambat.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/utils/config.js`:
+    - Menambahkan pembacaan `rouletteSpinDuration` dari `process.env.ROULETTE_SPIN_DURATION` (default: 4.4) dan parser argumen CLI `--spin-duration=` / `--roulette-duration=`.
+  - `scheduler-uploader/utils/rouletteEditor.js`:
+    - Mengubah nilai default `generateRouletteAudioWav` dan `renderRouletteSpinSegment` dari 2.2s / 1.8s menjadi `spinDuration = 4.4, stopTime = 3.6`.
+    - Menyelaraskan ekspresi gerakan jalur kontinu menjadi `mod(${k * 400}+t*${baseSpeed}\\,${maxX})` dengan `baseSpeed = 1500`.
+  - `scheduler-uploader/compile_roulette.js`:
+    - Mengoper `config.rouletteSpinDuration` dan `stopTime` yang dihitung secara dinamis (`spinDuration * 0.82`) ke fungsi `renderRouletteSpinSegment`.
+
+## [9008990] - Single Line Center Pointer, Natural Off-Center Stop, and SpawnSync Execution
 - **Konteks Struktural**:
   - Implementasi Preferensi Desain Pointer & Stop Natural ([rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js), [note.md](file:///d:/projects/clipping/note.md)):
     - Pointer roulette diubah menjadi **hanya 1 garis vertikal lurus di tengah** ($X = 540$) berwarna emas dengan inti putih terang, menghilangkan bingkai selektor kolom dan panah segitiga emas atas/bawah sesuai permintaan di `note.md`.

@@ -214,8 +214,8 @@ async function main() {
       outputPath: spinOutputPath,
       workDir,
       ffmpegBin: config.ffmpegBin,
-      spinDuration: 2.2,
-      stopTime: 1.8,
+      spinDuration: config.rouletteSpinDuration || 4.4,
+      stopTime: Math.round(((config.rouletteSpinDuration || 4.4) * 0.82) * 10) / 10,
     });
     allCompilationClips.push(spinOutputPath);
     console.log(`      ✅ Segmen putaran roulette #${momentIndex} siap.`);
