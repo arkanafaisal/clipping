@@ -47,10 +47,13 @@ const {
   isSkippedItem,
   STATIC_FALLBACK_DISTRACTORS,
   createUniqueQuizOptions,
+  createUniqueEpisodeQuizOptions,
   findVideoPair,
   findMemeImage,
   getFullVideoDisplayText,
   findGameMomentPair,
+  promptGameSelection,
+  selectSingleGameQuizMoments,
   selectQuizMoments,
 } = require('./utils/selector');
 
@@ -149,6 +152,9 @@ async function runQuizCompiler() {
   };
 
   // Mulai unduh Momen #1 sebelum iterasi pertama
+  if (validMoments.length > 0) {
+    console.log(`\n📥 [DOWNLOAD 1/${validMoments.length}] Mengunduh bahan klip pertama: "${validMoments[0].momentName}"...`);
+  }
   let currentDownloadPromise = validMoments.length > 0 ? startMomentDownload(validMoments[0], 1) : null;
 
   for (let i = 0; i < validMoments.length; i++) {
@@ -159,21 +165,22 @@ async function runQuizCompiler() {
     // Tunggu berkas momen saat ini selesai di-download
     const dlResult = currentDownloadPromise ? await currentDownloadPromise : null;
 
-    // Sesaat setelah download momen saat ini selesai,
+    if (!dlResult || dlResult.error) {
+      const errMsg = dlResult?.error?.message || 'Download tidak menghasilkan berkas valid.';
+      console.warn(`\n   ⚠️ [ERROR DOWNLOAD MOMEN #${momentIndex}] Gagal mengunduh berkas momen "${moment.momentName}": ${errMsg}`);
+      continue;
+    }
+
+    console.log(`\n🎬 [MEMPROSES MOMEN ${momentIndex}/${validMoments.length}]: "${moment.momentName}"...`);
+
+    // Sesaat setelah download momen saat ini siap dan pemrosesan dimulai,
     // SEGERA picu background download untuk momen berikutnya (i + 1) selagi FFmpeg merender momen saat ini!
     let nextDownloadPromise = null;
     if (!isLast) {
       const nextMoment = validMoments[i + 1];
       const nextIndex = i + 2;
-      console.log(`\n   ⚡ [PREFETCH] Memulai download di background untuk Momen #${nextIndex}: "${nextMoment.momentName}"...`);
+      console.log(`   ⚡ [PREFETCH] Memulai download di background untuk Momen #${nextIndex}: "${nextMoment.momentName}"...`);
       nextDownloadPromise = startMomentDownload(nextMoment, nextIndex);
-    }
-
-    if (!dlResult || dlResult.error) {
-      const errMsg = dlResult?.error?.message || 'Download tidak menghasilkan berkas valid.';
-      console.warn(`\n   ⚠️ [ERROR DOWNLOAD MOMEN #${momentIndex}] Gagal mengunduh berkas momen "${moment.momentName}": ${errMsg}`);
-      currentDownloadPromise = nextDownloadPromise;
-      continue;
     }
 
     const momentClips = await processSingleMoment({
@@ -242,6 +249,9 @@ module.exports = {
   findMemeImage,
   getFullVideoDisplayText,
   findGameMomentPair,
+  createUniqueEpisodeQuizOptions,
+  promptGameSelection,
+  selectSingleGameQuizMoments,
   selectQuizMoments,
   detectTransitionSfx,
   renderTransitionClip,

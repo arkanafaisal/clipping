@@ -159,6 +159,13 @@ function getConfig() {
 
   let skipPrefix = process.env.SKIP_PREFIX || '!';
 
+  let singleGameMode = process.env.SINGLE_GAME_MODE === 'true';
+  let singleGameName = (process.env.SINGLE_GAME_NAME || '').trim() || null;
+  let singleGameId = (process.env.SINGLE_GAME_ID || process.env.SINGLE_GAME_FOLDER_ID || '').trim() || null;
+  if (singleGameName || singleGameId) {
+    singleGameMode = true;
+  }
+
   let censorGameplay = process.env.CENSOR_GAMEPLAY !== 'false';
   let censorMode = (process.env.CENSOR_MODE || process.env.CENSOR_GAMEPLAY_MODE || 'pixelate').toLowerCase();
   let censorY = parseInt(process.env.CENSOR_GAMEPLAY_Y || '1006', 10);
@@ -225,6 +232,18 @@ function getConfig() {
       const val = parseInt(arg.split('=')[1], 10);
       if (!isNaN(val) && val >= 1) gameUniqueWindow = val;
     }
+    if (arg === '--single-game' || arg === '--single') {
+      singleGameMode = true;
+    } else if (arg.startsWith('--single-game=')) {
+      singleGameMode = true;
+      singleGameName = arg.slice(arg.indexOf('=') + 1).trim();
+    } else if (arg.startsWith('--game=') || arg.startsWith('--game-name=')) {
+      singleGameMode = true;
+      singleGameName = arg.slice(arg.indexOf('=') + 1).trim();
+    } else if (arg.startsWith('--game-id=') || arg.startsWith('--single-game-id=')) {
+      singleGameMode = true;
+      singleGameId = arg.slice(arg.indexOf('=') + 1).trim();
+    }
     if (arg.startsWith('--result-folder=')) resultFolderId = arg.slice(arg.indexOf('=') + 1);
     if (arg.startsWith('--skip-prefix=')) skipPrefix = arg.slice(arg.indexOf('=') + 1);
     if (arg.startsWith('--censor-mode=')) censorMode = arg.split('=')[1].toLowerCase();
@@ -250,6 +269,9 @@ function getConfig() {
     doksliFolderId,
     clipCountTarget,
     gameUniqueWindow,
+    singleGameMode,
+    singleGameName,
+    singleGameId,
     quizOffsetY,
     memeTextY,
     quizQuestion,
@@ -297,17 +319,23 @@ function printConfigBanner(config, transitionSfxPath = null) {
     }
   }
 
-  let uniquenessDesc = `${config.gameUniqueWindow} klip berturut-turut`;
+  const modeDesc = config.singleGameMode
+    ? `Aktif (Edisi Khusus 1 Game${config.singleGameName ? `: "${config.singleGameName}"` : (config.singleGameId ? `: ID ${config.singleGameId}` : ' - Pilih Interaktif')})`
+    : 'Multi-Game Reguler';
+
+  const uniqueUnit = config.singleGameMode ? 'Episode' : 'Game';
+  let uniquenessDesc = `${config.gameUniqueWindow} klip berturut-turut (${uniqueUnit})`;
   if (config.gameUniqueWindow <= 1) {
-    uniquenessDesc = '1 (Bebas duplikat, game yang sama boleh muncul berturut-turut)';
+    uniquenessDesc = `1 (Bebas duplikat, ${uniqueUnit} yang sama boleh berulang)`;
   } else if (config.gameUniqueWindow >= config.clipCountTarget) {
-    uniquenessDesc = `${config.gameUniqueWindow} klip (Semua momen dalam kompilasi dijamin game berbeda)`;
+    uniquenessDesc = `${config.gameUniqueWindow} klip (Semua momen dalam kompilasi dijamin ${uniqueUnit} berbeda)`;
   }
 
   console.log(`\nKonfigurasi:`);
   console.log(` - ID Folder Google Drive : ${config.doksliFolderId}`);
+  console.log(` - Mode Kompilasi         : ${modeDesc}`);
   console.log(` - Target Momen Terpilih  : ${config.clipCountTarget} momen`);
-  console.log(` - Jarak Keunikan Game    : ${uniquenessDesc}`);
+  console.log(` - Jarak Keunikan         : ${uniquenessDesc}`);
   console.log(` - Format Output          : Vertikal 9:16 (1080x1920) 60 FPS`);
   console.log(` - Durasi Freeze Kuis     : ${(4 * config.quizTickSeconds).toFixed(2)}s (Tick: ${config.quizTickSeconds}s x 4 beat)`);
   console.log(` - Pertanyaan Kuis        : "${config.quizQuestion}"`);

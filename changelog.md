@@ -14,7 +14,38 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Asynchronous Pipelined Pre-Fetching for Video Downloads
+## [Unreleased] - Single Game Edition Compilation Mode with Episode Quizzes and Early Fail Validation
+- **Konteks Struktural**:
+  - Mode Kompilasi Edisi Khusus 1 Game ([selector.js](file:///d:/projects/clipping/scheduler-uploader/utils/selector.js), [config.js](file:///d:/projects/clipping/scheduler-uploader/utils/config.js), [compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [compiler.js](file:///d:/projects/clipping/scheduler-uploader/utils/compiler.js), [videoEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/videoEditor.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example)):
+    - Menambahkan dukungan kompilasi edisi khusus 1 game yang dapat dipicu via argumen CLI (`--single-game`, `--game="<nama>"`, `--game-id="<id>"`) maupun variabel `.env` (`SINGLE_GAME_MODE`, `SINGLE_GAME_NAME`, `SINGLE_GAME_FOLDER_ID`).
+    - Menyediakan sistem pemilihan game *hybrid*:
+      - Jika nama atau ID game disediakan via CLI/`.env`, sistem langsung memproses game tersebut secara otomatis tanpa interupsi.
+      - Jika argumen `--single-game` dioper tanpa parameter pada terminal interaktif (TTY), sistem menampilkan menu daftar game bernomor (`[1]`, `[2]`, `[3]`, ...) untuk dipilih pengguna via prompt terminal (`promptGameSelection`).
+    - Penyesuaian aturan khusus edisi 1 game:
+      - **Opsi Kuis Berbasis Episode**: 4 opsi pilihan ganda kuis secara otomatis menampilkan **Nama Episode / Folder Lapis ke-2** dari game tersebut (`createUniqueEpisodeQuizOptions`). Pengecoh diambil dari subfolder episode lain pada game bersangkutan, dan dilengkapi variasi numerik dinamis jika total episode kurang dari 4.
+      - **Pertanyaan Kuis Tetap Kustom & Default Tidak Berubah**: Pertanyaan kuis tetap mempertahankan nilai default konfigurasi (`"Momen manakah itu?"`) dan tetap dapat dikustomisasi via `.env` atau argumen `--question="..."`.
+      - **Jarak Keunikan Episode & Early Fail Validasi**: Jarak keunikan `GAME_UNIQUE_WINDOW` bergeser berlaku pada keunikan Episode. Jika game yang dipilih bertipe non-episode / single-stream (hanya memiliki subfolder `"-"` atau langsung berisi video) dan `GAME_UNIQUE_WINDOW > 1`, sistem langsung **Early Fail** dengan penjelasan instruksi yang jelas.
+      - **Keunikan Teks Overlay Tetap Dijamin**: Penegakan `usedOverlayKeys` tetap aktif sehingga tidak ada teks overlay video full yang duplikat dalam kompilasi.
+    - Merapikan urutan teks log unduhan dan prefetch di terminal agar log unduhan Momen #1 ditampilkan terlebih dahulu dan header momen muncul sebelum pengumuman prefetch momen berikutnya.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/utils/config.js`:
+    - Menambahkan parsing `singleGameMode`, `singleGameName`, `singleGameId`, dan memperbarui konsol banner untuk menampilkan status edisi game serta unit keunikan (Episode/Game).
+  - `scheduler-uploader/utils/selector.js`:
+    - Menambahkan fungsi pembantu `createUniqueEpisodeQuizOptions(correctAnswer, episodePool)` dan prompt interaktif `promptGameSelection(gameFolders)`.
+    - Menambahkan fungsi seleksi edisi khusus 1 game `selectSingleGameQuizMoments(drive, config, allGameFolders)` dengan validasi early fail `"-"`, sliding cooldown episode, dan opsi episode.
+    - Menghubungkan routing `selectSingleGameQuizMoments` di dalam `selectQuizMoments`.
+    - Mengekspor fungsi-fungsi baru pada `module.exports`.
+  - `scheduler-uploader/utils/videoEditor.js`:
+    - Memperbarui string log render pada langkah 3 dari `"Mengunduh & merender video full"` menjadi `"Merender video full meme"`.
+  - `scheduler-uploader/utils/compiler.js`:
+    - Menghapus pencetakan header momen ganda agar urutan log di terminal selaras dengan notifikasi prefetch.
+  - `scheduler-uploader/compile_doksli.js`:
+    - Mengimpor dan mengekspor ulang fungsi pembantu edisi 1 game.
+    - Menambahkan log pengunduhan awal momen #1 dan merapikan urutan pencetakan header momen sebelum log prefetch.
+  - `scheduler-uploader/.env.example`:
+    - Menambahkan dokumentasi variabel `SINGLE_GAME_MODE`, `SINGLE_GAME_NAME`, dan `SINGLE_GAME_FOLDER_ID`.
+
+## [9ba5624] - Asynchronous Pipelined Pre-Fetching for Video Downloads
 - **Konteks Struktural**:
   - Pipelined Asynchronous Pre-Fetching Download ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [compiler.js](file:///d:/projects/clipping/scheduler-uploader/utils/compiler.js)):
     - Mengoptimalkan alur kompilasi dengan memparalelkan beban kerja yang memanfaatkan subsistem hardware berbeda secara bersamaan:

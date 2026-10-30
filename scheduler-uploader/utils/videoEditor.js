@@ -270,13 +270,13 @@ function renderFullMemeClip({
     const rawDur = getAudioDuration(rawFullPath, ffmpegBin);
     if (rawDur > fullVideoMaxDuration) {
       clipSpeed = Math.round((rawDur / fullVideoMaxDuration) * 100) / 100;
-      console.log(`   3. Mengunduh & merender video full ("${moment.fullVideoDisplayText}") [Durasi: ${rawDur.toFixed(2)}s > ${fullVideoMaxDuration}s -> Auto Speed: ${clipSpeed}x, Target: ~${fullVideoMaxDuration}s, Audio Cempreng]...`);
+      console.log(`   3. Merender video full meme ("${moment.fullVideoDisplayText}") [Durasi: ${rawDur.toFixed(2)}s > ${fullVideoMaxDuration}s -> Auto Speed: ${clipSpeed}x, Target: ~${fullVideoMaxDuration}s, Audio Cempreng]...`);
     } else {
       clipSpeed = 1.0;
-      console.log(`   3. Mengunduh & merender video full ("${moment.fullVideoDisplayText}") [Durasi: ${rawDur.toFixed(2)}s <= ${fullVideoMaxDuration}s -> Kecepatan normal 1.0x]...`);
+      console.log(`   3. Merender video full meme ("${moment.fullVideoDisplayText}") [Durasi: ${rawDur.toFixed(2)}s <= ${fullVideoMaxDuration}s -> Kecepatan normal 1.0x]...`);
     }
   } else {
-    console.log(`   3. Mengunduh & merender video full ("${moment.fullVideoDisplayText}")${clipSpeed > 1.0 ? ` (Kecepatan: ${clipSpeed}x, Audio Cempreng)` : ''}...`);
+    console.log(`   3. Merender video full meme ("${moment.fullVideoDisplayText}")${clipSpeed > 1.0 ? ` (Kecepatan: ${clipSpeed}x, Audio Cempreng)` : ''}...`);
   }
 
   const memeAssPath = `${workDir}/meme_${momentIndex}.ass`;

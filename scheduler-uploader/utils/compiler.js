@@ -31,8 +31,6 @@ async function processSingleMoment({
   downloadedFiles = null,
   isPrefetched = false,
 }) {
-  console.log(`\n🎬 [MEMPROSES MOMEN ${momentIndex}/${totalMoments}]: "${moment.momentName}"...`);
-
   const momentTempFiles = [];
   const cleanupMomentTempFiles = () => {
     for (const p of momentTempFiles) {
