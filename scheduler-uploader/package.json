@@ -8,6 +8,8 @@
     "setup": "node setup.js",
     "doksli": "node compile_doksli.js",
     "compile:doksli": "node compile_doksli.js",
+    "crawl": "node crawl_organize_drive.js",
+    "organize": "node crawl_organize_drive.js",
     "auth": "node auth.js",
     "auth:tiktok": "node auth_tiktok.js"
   },

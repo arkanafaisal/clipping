@@ -14,7 +14,33 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Softened Countdown Tick and Balanced Chime with Custom SFX Mixing
+## [Unreleased] - Crawler and Reorganizer Script for Google Drive Doksli with Standard Zero-Padded Timestamp Folders
+- **Konteks Struktural**:
+  - Script Crawler & Pengorganisir Google Drive ([crawl_organize_drive.js](file:///d:/projects/clipping/scheduler-uploader/crawl_organize_drive.js), [package.json](file:///d:/projects/clipping/scheduler-uploader/package.json)):
+    - Membuat script mandiri `crawl_organize_drive.js` (dapat dijalankan via `npm run crawl` atau `npm run organize`) untuk menelusuri seluruh subfolder Google Drive Doksli, mendeteksi pasangan video (`cut.mp4` & video full), lalu mereorganisasi struktur penamaan secara aman:
+      - **Format Folder Angka Waktu ("HH:MM:SS")**: Mengubah nama folder klip dari `"-"` menjadi format jam standar berpanjang tetap 8 karakter (`HH:MM:SS`, misal `"00:39:35"`, `"01:12:05"`).
+      - **Riset Google Drive Sort by Name**: Mengonfirmasi bahwa Google Drive menyortir berkas secara leksikografis (ASCII strict) dan tidak mendukung "natural numeric sorting". Menuliskan jam 0 sebagai `"00:"` menjamin panjang digit seragam sehingga seluruh klip tersortir dalam urutan kronologis yang 100% presisi.
+      - **Pembeda Seri vs Klip Video**: Memudahkan membedakan antara folder seri/episode (diawali teks seperti `eps 1`, `part 2`) dengan folder klip video (diawali angka `00:xx:xx` / `01:xx:xx`).
+      - **Urutan Konfirmasi Aman**: Sesuai instruksi, nama folder diubah dan dikonfirmasi terlebih dahulu di Google Drive (`res.data.name === newFolderName`), barulah nama berkas video full diubah menjadi `"full.mp4"`. Jika update folder gagal, file tidak disentuh sehingga judul aslinya tidak akan hilang.
+      - **Dukungan CLI Fleksibel**: Menyediakan opsi `--dry-run` (simulasi tanpa mutasi), `--yes` (otomatis konfirmasi), `--game="<nama>"` (filter game), dan `--folder="<id>"`.
+  - Integrasi Kompatibilitas Kompilator ([selector.js](file:///d:/projects/clipping/scheduler-uploader/utils/selector.js), [compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
+    - Memperbarui fungsi `getFullVideoDisplayText` untuk mendukung resolusi teks overlay video full ketika berkas bernama `"full.mp4"`, dengan mengambil deskripsi dari nama folder klipnya (`clipFolderName`).
+    - Memperbarui `isClipOrSingleStreamSub` pada mode edisi 1 game agar mengenali folder klip berformat angka (`^\d{1,2}:`) sebagai klip single-stream (bukan episode), menjaga aturan keunikan dan pencegahan early-fail.
+    - Tetap menjunjung tinggi aturan awalan skip (`!`): seluruh folder/berkas yang diawali tanda seru otomatis diabaikan.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/crawl_organize_drive.js`:
+    - Membuat modul crawler baru dengan pemindaian rekursif, deteksi pasangan video, tabel pratinjau perubahan, konfirmasi interaktif, dan penanganan rate limiting.
+  - `scheduler-uploader/utils/selector.js`:
+    - Menambahkan fungsi pembantu `parseTimeToStandardTimestamp(str)` untuk mengonversi pola waktu teks Indonesia ("jam X menit Y detik Z") menjadi format zero-padded "HH:MM:SS".
+    - Memperbarui `getFullVideoDisplayText` dan meneruskan parameter `clipFolderName` di seluruh pemanggilan seleksi klip.
+    - Memperbarui deteksi single-stream pada `selectSingleGameQuizMoments`.
+    - Mengekspor `parseTimeToStandardTimestamp`.
+  - `scheduler-uploader/compile_doksli.js`:
+    - Mengimpor dan mengekspor ulang `parseTimeToStandardTimestamp`.
+  - `scheduler-uploader/package.json`:
+    - Menambahkan script CLI `"crawl": "node crawl_organize_drive.js"` dan `"organize": "node crawl_organize_drive.js"`.
+
+## [9503862] - Softened Countdown Tick and Balanced Chime with Custom SFX Mixing
 - **Konteks Struktural**:
   - Efek Suara Kuis & Kustomisasi SFX ([overlay.js](file:///d:/projects/clipping/scheduler-uploader/utils/overlay.js), [config.js](file:///d:/projects/clipping/scheduler-uploader/utils/config.js), [videoEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/videoEditor.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example)):
     - **Penyempurnaan Suara Countdown Beep (Lebih Halus & Hangat)**:

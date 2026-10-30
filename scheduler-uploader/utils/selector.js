@@ -26,6 +26,70 @@ function cleanText(str) {
 }
 
 /**
+ * Mengonversi format waktu teks Indonesia ("jam X menit Y detik Z") atau numerik
+ * menjadi format standar "HH:MM:SS" berpanjang tetap 8 karakter dengan zero-padding (misal: "00:39:35", "01:12:05").
+ *
+ * Diperlukan karena Google Drive menyortir nama secara leksikografis (ASCII strict),
+ * sehingga penambahan awalan "00:" dan angka 2 digit memastikan urutan kronologis klip 100% presisi.
+ */
+function parseTimeToStandardTimestamp(str) {
+  if (!str || typeof str !== 'string') return '';
+  const clean = cleanText(str);
+
+  // 1. Cek apakah sudah berformat H:M:S atau M:S numerik (misal "01:19:02" atau "02:45")
+  const colonMatch = clean.match(/^(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?(.*)$/);
+  if (colonMatch) {
+    let h = 0;
+    let m = 0;
+    let s = 0;
+    const rest = (colonMatch[4] || '').trim();
+
+    if (colonMatch[3] !== undefined) {
+      h = parseInt(colonMatch[1], 10) || 0;
+      m = parseInt(colonMatch[2], 10) || 0;
+      s = parseInt(colonMatch[3], 10) || 0;
+    } else {
+      m = parseInt(colonMatch[1], 10) || 0;
+      s = parseInt(colonMatch[2], 10) || 0;
+    }
+
+    const hh = String(h).padStart(2, '0');
+    const mm = String(m).padStart(2, '0');
+    const ss = String(s).padStart(2, '0');
+    return rest ? `${hh}:${mm}:${ss} ${rest}`.trim() : `${hh}:${mm}:${ss}`;
+  }
+
+  // 2. Parse pola bahasa Indonesia: "jam X", "menit Y", "detik Z"
+  const jamMatch = clean.match(/(?:^|\s)jam\s*(\d+)/i);
+  const menitMatch = clean.match(/(?:^|\s)menit\s*(\d+)/i);
+  const detikMatch = clean.match(/(?:^|\s)detik\s*(\d+)/i);
+
+  if (jamMatch || menitMatch || detikMatch) {
+    const h = jamMatch ? parseInt(jamMatch[1], 10) : 0;
+    const m = menitMatch ? parseInt(menitMatch[1], 10) : 0;
+    const s = detikMatch ? parseInt(detikMatch[1], 10) : 0;
+
+    const hh = String(h).padStart(2, '0');
+    const mm = String(m).padStart(2, '0');
+    const ss = String(s).padStart(2, '0');
+
+    // Hapus pola waktu yang sudah diambil untuk memeriksa sisa teks
+    const remainingText = clean
+      .replace(/(?:^|\s)jam\s*\d+/gi, '')
+      .replace(/(?:^|\s)menit\s*\d+/gi, '')
+      .replace(/(?:^|\s)detik\s*\d+/gi, '')
+      .replace(/^eps\s*\d+\s*/i, '') // Hapus redundansi 'eps X' jika terselip di nama file full
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    return remainingText ? `${hh}:${mm}:${ss} ${remainingText}` : `${hh}:${mm}:${ss}`;
+  }
+
+  // 3. Fallback: nama bersih apa adanya
+  return clean;
+}
+
+/**
  * Memeriksa apakah nama folder atau file memiliki kode awalan 'skip'
  * (Default kode: tanda seru '!' seperti '!Minecraft', '!eps 1', '!cut.mp4',
  * ']]' atau tag kurung '[skip]' / '[x]', serta dapat dikonfigurasi via SKIP_PREFIX)
@@ -234,14 +298,33 @@ function findMemeImage(files, skipPrefix) {
 
 /**
  * Menghasilkan teks overlay satu baris untuk video full meme:
- * Menggabungkan nama episode dan nama berkas video full, dengan mengabaikan tanda '-'
+ * Menggabungkan nama episode dan nama berkas/folder video full, dengan mengabaikan tanda '-'
  * pada game single-stream/non-episode maupun subfolder klip lapis ke-3.
+ *
+ * Mendukung struktur baru di mana nama klip tersimpan di folder (misal: "00:39:35")
+ * dan berkas videonya telah diganti nama menjadi "full.mp4".
  */
-function getFullVideoDisplayText(epsName, fullFileName) {
+function getFullVideoDisplayText(epsName, fullFileName, clipFolderName = null) {
   const rawCleanEps = epsName ? cleanText(epsName) : '';
   const isSingleStreamNoEps = !rawCleanEps || rawCleanEps === '-' || /^[-—–_]+$/.test(rawCleanEps);
   const cleanEps = isSingleStreamNoEps ? '' : rawCleanEps;
-  const cleanFull = cleanText(fullFileName);
+
+  let cleanFull = cleanText(fullFileName);
+
+  // Jika nama berkas adalah 'full' (karena sudah diorganisir menjadi full.mp4)
+  if (cleanFull.toLowerCase() === 'full') {
+    const rawCleanClip = clipFolderName ? cleanText(clipFolderName) : '';
+    const hasValidClipFolder = rawCleanClip && rawCleanClip !== '-' && !/^[-—–_]+$/.test(rawCleanClip);
+
+    if (hasValidClipFolder) {
+      // Ada folder klip waktu (misal: "00:39:35") di bawah folder episode ("eps 1")
+      cleanFull = rawCleanClip;
+    } else if (cleanEps) {
+      // Tidak ada subfolder klip tambahan, nama folder waktu berada langsung di cleanEps (single stream)
+      return cleanEps;
+    }
+  }
+
   return cleanEps ? `${cleanEps} ${cleanFull}`.trim() : cleanFull;
 }
 
@@ -305,7 +388,7 @@ async function findGameMomentPair(drive, gameFolder, skipPrefix, usedPairKeys, u
       const fileKey = `${p.cutFile.id}_${p.fullFile.id}`;
       if (usedPairKeys && usedPairKeys.has(fileKey)) return false;
 
-      const overlayText = getFullVideoDisplayText(p.epsName, p.fullFile.name);
+      const overlayText = getFullVideoDisplayText(p.epsName, p.fullFile.name, p.clipFolderName);
       const gameOverlayKey = `${gameKey}:::${overlayText.toLowerCase()}`;
       if (usedOverlayKeys && usedOverlayKeys.has(gameOverlayKey)) return false;
 
@@ -489,29 +572,32 @@ async function selectSingleGameQuizMoments(drive, config, allGameFolders) {
   const allSubFolders = children.filter((c) => c.mimeType === 'application/vnd.google-apps.folder');
   const validSubFolders = allSubFolders.filter((c) => !isSkippedItem(c.name, skipPrefix));
 
-  // Validasi Single-Stream & Early Fail:
-  // Jika game bertipe non-episode / single-stream ('-' atau tanpa subfolder episode)
-  // dan aturan keunikan > 1, maka early fail sesuai instruksi.
-  const isSingleStreamSub = (name) => {
+  // Helper membedakan subfolder seri/episode ("eps 1", "part 2") vs folder klip video / single-stream
+  // Folder klip video berkarakter:
+  // - Bernama "-"
+  // - Diawali angka / format jam ("00:39:35", "01:12:05", "jam ...", "menit ...")
+  const isClipOrSingleStreamSub = (name) => {
     const cl = cleanText(name);
-    return !cl || cl === '-' || /^[-—–_]+$/.test(cl);
+    if (!cl || cl === '-' || /^[-—–_]+$/.test(cl)) return true;
+    if (/^\d{1,2}:/i.test(cl) || /^(jam|menit|detik)\s*\d+/i.test(cl)) return true;
+    return false;
   };
 
   const hasOnlySingleStream =
     validSubFolders.length === 0 ||
-    validSubFolders.every((sf) => isSingleStreamSub(sf.name));
+    validSubFolders.every((sf) => isClipOrSingleStreamSub(sf.name));
 
   if (hasOnlySingleStream && gameUniqueWindow > 1) {
-    console.error(`\n❌ [EARLY FAIL] Game "${targetGame.name}" adalah konten single-stream / non-episode (hanya memiliki folder "-" atau langsung berisi file video).`);
+    console.error(`\n❌ [EARLY FAIL] Game "${targetGame.name}" adalah konten single-stream / non-episode (hanya memiliki folder klip waktu seperti "00:xx:xx" / "-" atau langsung berisi file video).`);
     console.error(`   Aturan keunikan saat ini adalah ${gameUniqueWindow} (membutuhkan variasi episode berbeda).`);
     console.error(`   Untuk game single-stream, jalankan dengan --window=1 (atau atur GAME_UNIQUE_WINDOW=1 pada .env) agar boleh mengambil klip dari stream yang sama.`);
     process.exit(1);
   }
 
-  // Kumpulkan daftar episode untuk pool opsi kuis (mengabaikan nama "-")
+  // Kumpulkan daftar episode untuk pool opsi kuis (mengabaikan folder klip waktu dan "-")
   const allEpisodeNamesPool = validSubFolders
     .map((sf) => sf.name.trim())
-    .filter((n) => !isSingleStreamSub(n));
+    .filter((n) => !isClipOrSingleStreamSub(n));
 
   const targetFolders = validSubFolders.length > 0
     ? validSubFolders
@@ -600,7 +686,7 @@ async function selectSingleGameQuizMoments(drive, config, allGameFolders) {
       const fileKey = `${p.cutFile.id}_${p.fullFile.id}`;
       if (usedPairKeys && usedPairKeys.has(fileKey)) return false;
 
-      const overlayText = getFullVideoDisplayText(p.epsName, p.fullFile.name);
+      const overlayText = getFullVideoDisplayText(p.epsName, p.fullFile.name, p.clipFolderName);
       const gameOverlayKey = `${gameKey}:::${overlayText.toLowerCase()}`;
       if (usedOverlayKeys && usedOverlayKeys.has(gameOverlayKey)) return false;
 
@@ -655,7 +741,7 @@ async function selectSingleGameQuizMoments(drive, config, allGameFolders) {
         const pairKey = `${pair.cutFile.id}_${pair.fullFile.id}`;
         usedPairKeys.add(pairKey);
 
-        const fullVideoDisplayText = getFullVideoDisplayText(pair.epsName, pair.fullFile.name);
+        const fullVideoDisplayText = getFullVideoDisplayText(pair.epsName, pair.fullFile.name, pair.clipFolderName);
         const gameOverlayKey = `${gameKey}:::${fullVideoDisplayText.toLowerCase()}`;
         usedOverlayKeys.add(gameOverlayKey);
 
@@ -693,7 +779,7 @@ async function selectSingleGameQuizMoments(drive, config, allGameFolders) {
           const pairKey = `${pair.cutFile.id}_${pair.fullFile.id}`;
           usedPairKeys.add(pairKey);
 
-          const fullVideoDisplayText = getFullVideoDisplayText(pair.epsName, pair.fullFile.name);
+          const fullVideoDisplayText = getFullVideoDisplayText(pair.epsName, pair.fullFile.name, pair.clipFolderName);
           const gameOverlayKey = `${gameKey}:::${fullVideoDisplayText.toLowerCase()}`;
           usedOverlayKeys.add(gameOverlayKey);
 
@@ -866,7 +952,7 @@ async function selectQuizMoments(drive, config) {
         const pairKey = `${pair.cutFile.id}_${pair.fullFile.id}`;
         usedPairKeys.add(pairKey);
 
-        const fullVideoDisplayText = getFullVideoDisplayText(pair.epsName, pair.fullFile.name);
+        const fullVideoDisplayText = getFullVideoDisplayText(pair.epsName, pair.fullFile.name, pair.clipFolderName);
         const gameOverlayKey = `${gameName.toLowerCase()}:::${fullVideoDisplayText.toLowerCase()}`;
         usedOverlayKeys.add(gameOverlayKey);
 
@@ -908,7 +994,7 @@ async function selectQuizMoments(drive, config) {
           const pairKey = `${pair.cutFile.id}_${pair.fullFile.id}`;
           usedPairKeys.add(pairKey);
 
-          const fullVideoDisplayText = getFullVideoDisplayText(pair.epsName, pair.fullFile.name);
+          const fullVideoDisplayText = getFullVideoDisplayText(pair.epsName, pair.fullFile.name, pair.clipFolderName);
           const gameOverlayKey = `${gameName.toLowerCase()}:::${fullVideoDisplayText.toLowerCase()}`;
           usedOverlayKeys.add(gameOverlayKey);
 
@@ -975,6 +1061,7 @@ async function selectQuizMoments(drive, config) {
 module.exports = {
   shuffleArray,
   cleanText,
+  parseTimeToStandardTimestamp,
   isSkippedItem,
   STATIC_FALLBACK_DISTRACTORS,
   createUniqueQuizOptions,

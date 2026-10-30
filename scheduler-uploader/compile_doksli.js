@@ -44,6 +44,7 @@ const {
 const {
   shuffleArray,
   cleanText,
+  parseTimeToStandardTimestamp,
   isSkippedItem,
   STATIC_FALLBACK_DISTRACTORS,
   createUniqueQuizOptions,
@@ -243,6 +244,7 @@ module.exports = {
   generateQuizSoundWav,
   getAudioDuration,
   cleanText,
+  parseTimeToStandardTimestamp,
   isSkippedItem,
   STATIC_FALLBACK_DISTRACTORS,
   findVideoPair,
