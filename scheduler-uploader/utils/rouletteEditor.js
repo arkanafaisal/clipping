@@ -313,14 +313,8 @@ function renderRouletteSpinSegment({
   drawFilters.push(`drawbox=x=537:y=0:w=6:h=${totalStackHeight}:color=0xFFCC00@0.9:t=fill`);
   drawFilters.push(`drawbox=x=539:y=0:w=2:h=${totalStackHeight}:color=white@0.95:t=fill`);
 
-  // 3. Kotak sorotan hijau (#00FF66) untuk kartu yang sudah/sedang terkunci membingkai kartu terpilih secara presisi
-  // Jalur yang sudah menang sebelumnya: selalu aktif membingkai kartu yang berhenti
-  for (let j = 0; j < currentMomentIndex; j++) {
-    const y = j * laneHeight;
-    const rJ = ribbons[j];
-    drawFilters.push(`drawbox=x=${rJ.cardScreenX}:y=${y}:w=${laneHeight}:h=${laneHeight}:color=0x00FF66:t=6`);
-  }
-  // Jalur aktif saat ini: aktif saat t >= stopTime membingkai kartu yang berhenti
+  // 3. Kotak sorotan hijau (#00FF66) HANYA untuk sesi aktif saat ini saat t >= stopTime
+  // Sesi lama yang sudah lewat tidak lagi menampilkan kotak hijau sehingga maksimal hanya 1 kotak hijau dalam 1 frame
   const currY = currentMomentIndex * laneHeight;
   const rCurr = ribbons[currentMomentIndex];
   drawFilters.push(`drawbox=enable='gte(t\\,${stopTime})':x=${rCurr.cardScreenX}:y=${currY}:w=${laneHeight}:h=${laneHeight}:color=0x00FF66:t=6`);

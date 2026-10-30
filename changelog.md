@@ -14,7 +14,17 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Configurable Roulette Freeze Fade Duration and Env Documentation
+## [Unreleased] - Single Active Green Highlight Box per Roulette Session
+- **Konteks Struktural**:
+  - Pembatasan Kotak Sorotan Hijau Tunggal per Frame ([rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js)):
+    - Mengubah perilaku kotak sorotan hijau (`#00FF66`) agar **hanya muncul pada sesi jalur aktif saat ini** ketika piringan roulette berhenti mengunci kartu pemenang ($t \ge \text{stopTime}$).
+    - Menghilangkan kotak sorotan hijau dari jalur-jalur sebelumnya saat video berpindah ke sesi roulette berikutnya. Dengan demikian, di dalam 1 frame video dijamin **maksimal hanya ada 1 kotak hijau**, menjaga tampilan visual tetap bersih dan fokus pada kartu yang sedang ditentukan.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/utils/rouletteEditor.js`:
+    - Menghapus perulangan penggambaran kotak hijau pada jalur yang sudah menang (`for (let j = 0; j < currentMomentIndex; j++)`).
+    - Menyisakan hanya 1 filter `drawbox` dinamis untuk kartu terpilih pada jalur aktif saat $t \ge \text{stopTime}$.
+
+## [7ef91c7] - Configurable Roulette Freeze Fade Duration and Env Documentation
 - **Konteks Struktural**:
   - Konfigurasi Durasi Transisi Freeze Fade-In & Fade-Out ([rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js), [compile_roulette.js](file:///d:/projects/clipping/scheduler-uploader/compile_roulette.js), [config.js](file:///d:/projects/clipping/scheduler-uploader/utils/config.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example)):
     - Mengubah durasi transisi *freeze still frame* (fade-in dan fade-out pada video full speedup) dari semula hardcoded 0.25 detik menjadi **0.5 detik secara default**, serta membuatnya dapat diatur dinamis melalui file konfigurasi lingkungan (`.env`) maupun argumen CLI.
