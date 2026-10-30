@@ -14,7 +14,25 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Native FFmpeg Drawbox Roulette Overlays and Freeze Frame Transitions
+## [Unreleased] - Single Line Center Pointer, Natural Off-Center Stop, and SpawnSync Execution
+- **Konteks Struktural**:
+  - Implementasi Preferensi Desain Pointer & Stop Natural ([rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js), [note.md](file:///d:/projects/clipping/note.md)):
+    - Pointer roulette diubah menjadi **hanya 1 garis vertikal lurus di tengah** ($X = 540$) berwarna emas dengan inti putih terang, menghilangkan bingkai selektor kolom dan panah segitiga emas atas/bawah sesuai permintaan di `note.md`.
+    - Mengimplementasikan pemberhentian kartu yang tidak kaku/tidak persis di tengah (*natural off-center stop*): menambahkan offset acak antara $-18\%$ hingga $+18\%$ dari lebar kartu per jalur, sehingga putaran roulette terlihat organik dan tidak seperti robot yang diprogram, dengan kepastian garis tengah $X = 540$ tetap memotong kartu target pemenang.
+    - Menghitung koordinat dinamis kartu di layar (`cardScreenX`) sehingga **kotak border hijau (`#00FF66`)** tetap membingkai kartu pemenang secara presisi di posisi berhentinya yang off-center saat $t \ge 1.8\text{s}$.
+  - Pencegahan Deadlock & Stuck pada Windows Shell ([rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js), [compile_roulette.js](file:///d:/projects/clipping/scheduler-uploader/compile_roulette.js)):
+    - Mengganti eksekusi FFmpeg dari `execSync` (yang dibungkus oleh Windows `cmd.exe /d /s /c`) menjadi pemanggilan langsung `spawnSync` dengan array argumen `CreateProcessW`.
+    - Menghilangkan bug deadlock/hang pada Windows command prompt akibat parsing string filter complex yang panjang dan multi-quoting.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/utils/rouletteEditor.js`:
+    - Mengimpor `spawnSync` dari `child_process`.
+    - Memperbarui `buildLaneRibbons` untuk menyertakan `cardOffset` dan `cardScreenX`.
+    - Memperbarui `renderRouletteSpinSegment` untuk menggambar hanya 1 garis tengah dan kotak hijau presisi posisi `cardScreenX`, serta mengeksekusi FFmpeg melalui `spawnSync`.
+    - Memperbarui `renderSpeedupClipWithFade` untuk mengeksekusi FFmpeg melalui `spawnSync`.
+  - `scheduler-uploader/compile_roulette.js`:
+    - Memperbarui ekstraksi still frame latar belakang untuk menggunakan `spawnSync`.
+
+## [7710d14] - Native FFmpeg Drawbox Roulette Overlays and Freeze Frame Transitions
 - **Konteks Struktural**:
   - Eliminasi Dependensi SVG dan librsvg pada Roulette Pointer ([rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js), [compile_roulette.js](file:///d:/projects/clipping/scheduler-uploader/compile_roulette.js)):
     - Mengatasi kesalahan fatal `Command failed: ffmpeg ... -i roulette_pointer.svg ...` yang disebabkan oleh ketiadaan dukungan `librsvg` pada pustaka `ffmpeg-static` di lingkungan Windows.

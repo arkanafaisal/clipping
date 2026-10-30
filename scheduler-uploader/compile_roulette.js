@@ -29,7 +29,7 @@
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
+const { execSync, spawnSync } = require('child_process');
 const { google } = require('googleapis');
 
 const {
@@ -223,8 +223,9 @@ async function main() {
     // Ekstrak frame terakhir papan roulette yang berhenti untuk latar belakang fade klip speedup
     const bgStillPath = path.join(workDir, `roulette_still_${momentIndex}.jpg`);
     try {
-      execSync(
-        `"${config.ffmpegBin}" -y -sseof -0.1 -i "${spinOutputPath}" -update 1 -frames:v 1 -q:v 2 "${bgStillPath}"`,
+      spawnSync(
+        config.ffmpegBin,
+        ['-y', '-sseof', '-0.1', '-i', spinOutputPath, '-update', '1', '-frames:v', '1', '-q:v', '2', bgStillPath],
         { stdio: 'ignore' }
       );
     } catch (_) {}

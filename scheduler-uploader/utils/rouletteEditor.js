@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
+const { execSync, spawnSync } = require('child_process');
 const { downloadDriveFile } = require('./downloader');
 const { isSkippedItem, getFullVideoDisplayText } = require('./selector');
 const { getAudioDuration, normalizeVideo } = require('./videoEditor');
@@ -204,18 +204,26 @@ function buildLaneRibbons({ imagePool, moments, laneCount, laneHeight, workDir, 
     );
 
     // Hitung posisi koordinat X saat berhenti di pointer tengah (X = 540)
-    // Pusat kartu target = targetCardIndex * laneHeight + laneHeight / 2
-    // Jendela crop 1080px berpusat di x + 540
-    // Maka x_stop = targetCenter - 540
+    // Berikan sedikit offset acak agar berhentinya tidak harus persis di tengah
+    // bervariasi antara -18% s/d +18% dari lebar kartu (agar terlihat natural dan acak),
+    // namun tetap memastikan garis pointer tengah X=540 memotong kartu tersebut.
     const targetCenter = targetCardIndex * laneHeight + laneHeight / 2;
-    const xStop = Math.max(0, Math.round(targetCenter - 540));
+    const randomOffsets = [-0.18, 0.15, -0.12, 0.18, -0.15, 0.10];
+    const offsetFrac = randomOffsets[k % randomOffsets.length];
+    const cardOffset = Math.round(laneHeight * offsetFrac);
+    const stopCenter = targetCenter + cardOffset;
+    const xStop = Math.max(0, Math.round(stopCenter - 540));
     const totalRibbonWidth = cardsPerRibbon * laneHeight;
+
+    // Posisi X kartu terpilih di layar 1080px saat pita berada di posisi xStop:
+    const cardScreenX = (targetCardIndex * laneHeight) - xStop;
 
     ribbonResults.push({
       laneIndex: k,
       ribbonImgPath,
       targetCardIndex,
       xStop,
+      cardScreenX,
       totalRibbonWidth,
     });
   }
@@ -235,8 +243,9 @@ function generateRoulettePointerImage() {
  * - Jalur yang sudah menang sebelumnya (0 .. currentMomentIndex - 1): Diam di posisi targetnya.
  * - Jalur saat ini (currentMomentIndex): Bergerak cepat lalu melambat mulus (cubic ease-out) dan berhenti di t = 1.8s.
  * - Jalur berikutnya (currentMomentIndex + 1 .. laneCount - 1): Tetap berputar kontinu.
- * - Indikator pemisah jalur, penunjuk tengah (X = 540), dan kotak hijau penanda kartu terpilih
- *   dirender langsung menggunakan filter native FFmpeg (drawbox), 100% bebas SVG/librsvg.
+ * - Pointer tengah: HANYA 1 garis lurus vertikal di X = 540 (sesuai permintaan user).
+ * - Berhenti sedikit off-center secara natural, dan kartu yang terpilih di-highlight dengan border hijau (#00FF66).
+ * - Menggunakan spawnSync langsung (tanpa cmd.exe shell) agar tidak pernah stuck/deadlock di Windows.
  */
 function renderRouletteSpinSegment({
   segmentIndex,
@@ -263,7 +272,7 @@ function renderRouletteSpinSegment({
 
   for (let k = 0; k < laneCount; k++) {
     const r = ribbons[k];
-    inputArgs.push(`-loop 1 -i "${r.ribbonImgPath}"`);
+    inputArgs.push('-loop', '1', '-i', r.ribbonImgPath);
 
     let xExpr = '';
     const maxX = Math.max(100, r.totalRibbonWidth - 1080);
@@ -288,43 +297,33 @@ function renderRouletteSpinSegment({
 
   // Input audio roulette ratchet + bell chime
   const audioInputIndex = laneCount;
-  inputArgs.push(`-i "${segmentAudioPath}"`);
+  inputArgs.push('-i', segmentAudioPath);
 
-  // Bangun filter drawbox untuk divider, pointer emas, dan kotak seleksi kartu
+  // Bangun filter drawbox untuk divider, pointer garis tunggal tengah, dan kotak seleksi kartu hijau
   const totalStackHeight = laneCount * laneHeight;
   const drawFilters = [];
 
-  // 1. Dividers antar baris jalur
+  // 1. Dividers antar baris jalur (garis putih transparan tipis)
   for (let k = 1; k < laneCount; k++) {
     const y = k * laneHeight;
     drawFilters.push(`drawbox=x=0:y=${y}:w=1080:h=3:color=white@0.35:t=fill`);
   }
 
-  // 2. Garis panduan tengah vertikal bercahaya emas (X = 540)
-  drawFilters.push(`drawbox=x=536:y=0:w=8:h=${totalStackHeight}:color=0xFFCC00@0.85:t=fill`);
+  // 2. Garis pointer vertikal di tengah (HANYA 1 garis lurus vertikal di X = 540)
+  drawFilters.push(`drawbox=x=537:y=0:w=6:h=${totalStackHeight}:color=0xFFCC00@0.9:t=fill`);
   drawFilters.push(`drawbox=x=539:y=0:w=2:h=${totalStackHeight}:color=white@0.95:t=fill`);
 
-  // 3. Bingkai selektor kartu tengah
-  const markerX = 540 - Math.round(laneHeight / 2);
-  drawFilters.push(`drawbox=x=${markerX}:y=0:w=${laneHeight}:h=${totalStackHeight}:color=0xFFCC00@0.6:t=4`);
-
-  // 4. Panah atas & bawah emas
-  drawFilters.push(`drawbox=x=526:y=0:w=28:h=28:color=0xFFCC00:t=fill`);
-  drawFilters.push(`drawbox=x=531:y=28:w=18:h=10:color=0xFFCC00:t=fill`);
-  drawFilters.push(`drawbox=x=536:y=38:w=8:h=8:color=0xFFCC00:t=fill`);
-  drawFilters.push(`drawbox=x=526:y=${totalStackHeight - 28}:w=28:h=28:color=0xFFCC00:t=fill`);
-  drawFilters.push(`drawbox=x=531:y=${totalStackHeight - 38}:w=18:h=10:color=0xFFCC00:t=fill`);
-  drawFilters.push(`drawbox=x=536:y=${totalStackHeight - 46}:w=8:h=8:color=0xFFCC00:t=fill`);
-
-  // 5. Kotak sorotan hijau (#00FF66) untuk kartu yang sudah/sedang terkunci
-  // Jalur yang sudah menang sebelumnya: selalu aktif
+  // 3. Kotak sorotan hijau (#00FF66) untuk kartu yang sudah/sedang terkunci membingkai kartu terpilih secara presisi
+  // Jalur yang sudah menang sebelumnya: selalu aktif membingkai kartu yang berhenti
   for (let j = 0; j < currentMomentIndex; j++) {
     const y = j * laneHeight;
-    drawFilters.push(`drawbox=x=${markerX}:y=${y}:w=${laneHeight}:h=${laneHeight}:color=0x00FF66:t=6`);
+    const rJ = ribbons[j];
+    drawFilters.push(`drawbox=x=${rJ.cardScreenX}:y=${y}:w=${laneHeight}:h=${laneHeight}:color=0x00FF66:t=6`);
   }
-  // Jalur aktif saat ini: aktif saat t >= stopTime
+  // Jalur aktif saat ini: aktif saat t >= stopTime membingkai kartu yang berhenti
   const currY = currentMomentIndex * laneHeight;
-  drawFilters.push(`drawbox=enable='gte(t\\,${stopTime})':x=${markerX}:y=${currY}:w=${laneHeight}:h=${laneHeight}:color=0x00FF66:t=6`);
+  const rCurr = ribbons[currentMomentIndex];
+  drawFilters.push(`drawbox=enable='gte(t\\,${stopTime})':x=${rCurr.cardScreenX}:y=${currY}:w=${laneHeight}:h=${laneHeight}:color=0x00FF66:t=6`);
 
   // Gabungkan seluruh jalur secara vertikal (vstack), letakkan di kanvas 1080x1920 tepat di tengah
   const vstackInputs = Array.from({ length: laneCount }, (_, i) => `[lane${i}]`).join('');
@@ -336,10 +335,35 @@ function renderRouletteSpinSegment({
     [stack]pad=1080:1920:0:${yOffset}:color=black[finalv]
   `.replace(/\s+/g, ' ').trim();
 
-  execSync(
-    `"${ffmpegBin}" -y ${inputArgs.join(' ')} -filter_complex "${filterComplex}" -map "[finalv]" -map ${audioInputIndex}:a -t ${spinDuration} -shortest -c:v libx264 -preset fast -crf 16 -profile:v high -level 4.2 -c:a aac -ar 44100 -ac 2 -r 60 -fps_mode cfr -video_track_timescale 60000 -movflags +faststart -pix_fmt yuv420p "${outputPath}"`,
-    { stdio: 'ignore' }
-  );
+  const ffmpegArgs = [
+    '-y',
+    ...inputArgs,
+    '-filter_complex', filterComplex,
+    '-map', '[finalv]',
+    '-map', `${audioInputIndex}:a`,
+    '-t', String(spinDuration),
+    '-shortest',
+    '-c:v', 'libx264',
+    '-preset', 'fast',
+    '-crf', '16',
+    '-profile:v', 'high',
+    '-level', '4.2',
+    '-c:a', 'aac',
+    '-ar', '44100',
+    '-ac', '2',
+    '-r', '60',
+    '-fps_mode', 'cfr',
+    '-video_track_timescale', '60000',
+    '-movflags', '+faststart',
+    '-pix_fmt', 'yuv420p',
+    outputPath,
+  ];
+
+  const res = spawnSync(ffmpegBin, ffmpegArgs, { stdio: 'pipe' });
+  if (res.status !== 0) {
+    const errStr = res.stderr ? res.stderr.toString() : '';
+    throw new Error(`FFmpeg error in renderRouletteSpinSegment: ${errStr.slice(-500)}`);
+  }
 
   return outputPath;
 }
@@ -399,10 +423,10 @@ function renderSpeedupClipWithFade({
   const fadeFilter = `fade=t=in:st=0:d=${fadeDuration}:alpha=1,fade=t=out:st=${fadeOutStart.toFixed(2)}:d=${fadeDuration}:alpha=1`;
 
   let filterComplex = '';
-  let inputArgs = [`-i "${rawVideoPath}"`];
+  let inputArgs = ['-i', rawVideoPath];
 
   if (bgStillPath && fs.existsSync(bgStillPath)) {
-    inputArgs.push(`-loop 1 -i "${bgStillPath}"`);
+    inputArgs.push('-loop', '1', '-i', bgStillPath);
     filterComplex = `
       [0:v]${speedFilter ? speedFilter + ',' : ''}${baseScale},ass='${escapedAss}',${tpadFilter},format=yuva420p,${fadeFilter}[fg];
       [1:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1[bg];
@@ -420,19 +444,61 @@ function renderSpeedupClipWithFade({
     ? `aformat=sample_rates=44100,asetrate=44100*${clipSpeed},aresample=44100,adelay=delays=${adelayMs}:all=1,afade=t=in:st=${fadeDuration}:d=${fadeDuration},afade=t=out:st=${fadeOutStart.toFixed(2)}:d=${fadeDuration},apad,aresample=async=1:first_pts=0`
     : `adelay=delays=${adelayMs}:all=1,afade=t=in:st=${fadeDuration}:d=${fadeDuration},afade=t=out:st=${fadeOutStart.toFixed(2)}:d=${fadeDuration},apad,aresample=async=1:first_pts=0`;
 
-  try {
-    execSync(
-      `"${ffmpegBin}" -y ${inputArgs.join(' ')} -filter_complex "${filterComplex}" -map "[finalv]" -map 0:a? -t ${totalDuration.toFixed(2)} -c:v libx264 -preset fast -crf 16 -profile:v high -level 4.2 -c:a aac -ar 44100 -ac 2 -r 60 -fps_mode cfr -video_track_timescale 60000 -movflags +faststart -pix_fmt yuv420p "${outputPath}"`,
-      { stdio: 'pipe' }
-    );
-  } catch (err) {
+  let ffmpegArgs = [
+    '-y',
+    ...inputArgs,
+    '-filter_complex', filterComplex,
+    '-map', '[finalv]',
+    '-map', '0:a?',
+    '-t', totalDuration.toFixed(2),
+    '-c:v', 'libx264',
+    '-preset', 'fast',
+    '-crf', '16',
+    '-profile:v', 'high',
+    '-level', '4.2',
+    '-c:a', 'aac',
+    '-ar', '44100',
+    '-ac', '2',
+    '-r', '60',
+    '-fps_mode', 'cfr',
+    '-video_track_timescale', '60000',
+    '-movflags', '+faststart',
+    '-pix_fmt', 'yuv420p',
+    outputPath,
+  ];
+
+  let res = spawnSync(ffmpegBin, ffmpegArgs, { stdio: 'pipe' });
+  if (res.status !== 0) {
     // Fallback jika video mentah tidak memiliki audio stream: gunakan anullsrc
-    const nullAudioIndex = inputArgs.length;
-    inputArgs.push(`-f lavfi -i "anullsrc=r=44100:cl=stereo"`);
-    execSync(
-      `"${ffmpegBin}" -y ${inputArgs.join(' ')} -filter_complex "${filterComplex}" -map "[finalv]" -map ${nullAudioIndex}:a -t ${totalDuration.toFixed(2)} -c:v libx264 -preset fast -crf 16 -profile:v high -level 4.2 -c:a aac -ar 44100 -ac 2 -r 60 -fps_mode cfr -video_track_timescale 60000 -movflags +faststart -pix_fmt yuv420p "${outputPath}"`,
-      { stdio: 'ignore' }
-    );
+    const nullAudioIndex = Math.floor(inputArgs.length / 2);
+    inputArgs.push('-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo');
+    ffmpegArgs = [
+      '-y',
+      ...inputArgs,
+      '-filter_complex', filterComplex,
+      '-map', '[finalv]',
+      '-map', `${nullAudioIndex}:a`,
+      '-t', totalDuration.toFixed(2),
+      '-c:v', 'libx264',
+      '-preset', 'fast',
+      '-crf', '16',
+      '-profile:v', 'high',
+      '-level', '4.2',
+      '-c:a', 'aac',
+      '-ar', '44100',
+      '-ac', '2',
+      '-r', '60',
+      '-fps_mode', 'cfr',
+      '-video_track_timescale', '60000',
+      '-movflags', '+faststart',
+      '-pix_fmt', 'yuv420p',
+      outputPath,
+    ];
+    res = spawnSync(ffmpegBin, ffmpegArgs, { stdio: 'pipe' });
+    if (res.status !== 0) {
+      const errStr = res.stderr ? res.stderr.toString() : '';
+      throw new Error(`FFmpeg error in renderSpeedupClipWithFade: ${errStr.slice(-500)}`);
+    }
   }
 
   try {
