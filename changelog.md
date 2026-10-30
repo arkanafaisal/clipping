@@ -14,7 +14,24 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Configurable Sliding-Window Game Uniqueness and Uniform Game-Level Sampling
+## [Unreleased] - Strict Game-Level Full Video Overlay Uniqueness in Compilation
+- **Konteks Struktural**:
+  - Penegakan Keunikan Teks Overlay Full Video Per Game ([selector.js](file:///d:/projects/clipping/scheduler-uploader/utils/selector.js), [compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
+    - Dengan adanya kontrol jarak keunikan kustom (`GAME_UNIQUE_WINDOW`), suatu game dapat terpilih lebih dari satu kali dalam satu video kompilasi.
+    - Menegakkan aturan seleksi momen: **Dilarang keras terdapat teks overlay video full (`fullVideoDisplayText`) yang sama dalam game yang sama**.
+    - Episode diperbolehkan sama (`eps boleh sama`), misalnya dua klip berbeda yang berasal dari episode yang sama (contohnya `eps 1 - ketemu monster.mp4` dan `eps 1 - dikejar zombie.mp4`), namun klip dengan teks overlay yang identik pada game yang sama akan ditolak oleh selector dan dialihkan ke klip berikutnya.
+    - Mengabstraksi pembuatan teks overlay ke fungsi modular `getFullVideoDisplayText(epsName, fullFileName)` sebagai *single source of truth* (menghapus ekstensi berkas, newline/enter, menormalisasi spasi, dan mengabaikan penanda `"-"` pada game single-stream maupun subfolder klip lapis ke-3).
+    - Memperluas mekanisme filter `findGameMomentPair` dan `selectQuizMoments` dengan pelacakan `usedOverlayKeys` berbasis `${gameKey}:::${overlayText.toLowerCase()}` yang berjalan berdampingan dengan `usedPairKeys` (`${cutFile.id}_${fullFile.id}`).
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/utils/selector.js`:
+    - Menambahkan fungsi pembantu `getFullVideoDisplayText(epsName, fullFileName)`.
+    - Memperbarui `findGameMomentPair` agar menerima parameter `usedOverlayKeys` dan menyaring pasangan video yang teks overlay-nya telah digunakan pada game bersangkutan.
+    - Memperbarui `selectQuizMoments` dengan `const usedOverlayKeys = new Set()` dan mendaftarkan teks overlay setiap momen yang terpilih.
+    - Mengekspor `getFullVideoDisplayText` pada `module.exports`.
+  - `scheduler-uploader/compile_doksli.js`:
+    - Mengimpor dan mengekspor ulang `getFullVideoDisplayText` dan `selectQuizMoments`.
+
+## [6d53511] - Configurable Sliding-Window Game Uniqueness and Uniform Game-Level Sampling
 - **Konteks Struktural**:
   - Kontrol Jarak Keunikan Game & Sampling Setara Tingkat Game ([selector.js](file:///d:/projects/clipping/scheduler-uploader/utils/selector.js), [config.js](file:///d:/projects/clipping/scheduler-uploader/utils/config.js), [compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example)):
     - Menambahkan variabel konfigurasi `GAME_UNIQUE_WINDOW` (default: 5) dan argumen CLI (`--unique-window=`, `--game-uniqueness=`, `--uniqueness=`, `--window=`) untuk mengontrol jarak jeda (*sliding window cooldown*) sebelum sebuah game boleh terpilih kembali:

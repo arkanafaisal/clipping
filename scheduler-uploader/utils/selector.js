@@ -157,10 +157,27 @@ function findMemeImage(files, skipPrefix) {
 }
 
 /**
+ * Menghasilkan teks overlay satu baris untuk video full meme:
+ * Menggabungkan nama episode dan nama berkas video full, dengan mengabaikan tanda '-'
+ * pada game single-stream/non-episode maupun subfolder klip lapis ke-3.
+ */
+function getFullVideoDisplayText(epsName, fullFileName) {
+  const rawCleanEps = epsName ? cleanText(epsName) : '';
+  const isSingleStreamNoEps = !rawCleanEps || rawCleanEps === '-' || /^[-—–_]+$/.test(rawCleanEps);
+  const cleanEps = isSingleStreamNoEps ? '' : rawCleanEps;
+  const cleanFull = cleanText(fullFileName);
+  return cleanEps ? `${cleanEps} ${cleanFull}`.trim() : cleanFull;
+}
+
+/**
  * Mencari satu pasangan klip video yang valid dan belum terpakai di dalam sebuah folder game.
  * Menggunakan cache agar pencarian episode/klip berikutnya untuk game yang sama tidak mengulang query API.
+ * Menegakkan aturan keunikan:
+ * 1. Pasangan file video (cutFile.id + fullFile.id) belum pernah dipakai.
+ * 2. Teks overlay video full (fullVideoDisplayText) untuk game ini belum pernah dipakai.
+ *    (Episode boleh sama asalkan teks overlay full video berbeda).
  */
-async function findGameMomentPair(drive, gameFolder, skipPrefix, usedPairKeys, gameClipsCache) {
+async function findGameMomentPair(drive, gameFolder, skipPrefix, usedPairKeys, usedOverlayKeys, gameClipsCache) {
   let cache = gameClipsCache.get(gameFolder.id);
 
   if (!cache) {
@@ -202,11 +219,22 @@ async function findGameMomentPair(drive, gameFolder, skipPrefix, usedPairKeys, g
     gameClipsCache.set(gameFolder.id, cache);
   }
 
-  // 1. Cek apakah ada pasangan yang belum dipakai dari yang sudah pernah ditemukan
+  const gameKey = gameFolder.name.trim().toLowerCase();
+
+  // 1. Cek apakah ada pasangan yang belum dipakai dari yang sudah pernah ditemukan:
+  // - ID file pasangan video (cut + full) belum pernah dipakai
+  // - Teks overlay fullvid untuk game ini belum pernah dipakai (teks overlay tidak boleh sama dalam 1 game, meski eps sama)
   const getUnused = () => {
-    return cache.discoveredPairs.find(
-      (p) => !usedPairKeys.has(`${p.cutFile.id}_${p.fullFile.id}`)
-    );
+    return cache.discoveredPairs.find((p) => {
+      const fileKey = `${p.cutFile.id}_${p.fullFile.id}`;
+      if (usedPairKeys && usedPairKeys.has(fileKey)) return false;
+
+      const overlayText = getFullVideoDisplayText(p.epsName, p.fullFile.name);
+      const gameOverlayKey = `${gameKey}:::${overlayText.toLowerCase()}`;
+      if (usedOverlayKeys && usedOverlayKeys.has(gameOverlayKey)) return false;
+
+      return true;
+    });
   };
 
   let unusedPair = getUnused();
@@ -333,6 +361,7 @@ async function selectQuizMoments(drive, config) {
 
   const validMoments = [];
   const usedPairKeys = new Set();
+  const usedOverlayKeys = new Set();
   const gameClipsCache = new Map();
 
   // Loop terus sampai target klip terpenuhi atau seluruh klip di GDrive habis
@@ -368,19 +397,24 @@ async function selectQuizMoments(drive, config) {
 
     for (const gameFolder of candidateGames) {
       const gameName = gameFolder.name.trim();
-      const pair = await findGameMomentPair(drive, gameFolder, skipPrefix, usedPairKeys, gameClipsCache);
+      const pair = await findGameMomentPair(
+        drive,
+        gameFolder,
+        skipPrefix,
+        usedPairKeys,
+        usedOverlayKeys,
+        gameClipsCache
+      );
 
       if (pair) {
         const pairKey = `${pair.cutFile.id}_${pair.fullFile.id}`;
         usedPairKeys.add(pairKey);
 
-        const { options, correctIndex } = createUniqueQuizOptions(gameName, allGameNamesPool);
+        const fullVideoDisplayText = getFullVideoDisplayText(pair.epsName, pair.fullFile.name);
+        const gameOverlayKey = `${gameName.toLowerCase()}:::${fullVideoDisplayText.toLowerCase()}`;
+        usedOverlayKeys.add(gameOverlayKey);
 
-        const rawCleanEps = pair.epsName ? cleanText(pair.epsName) : '';
-        const isSingleStreamNoEps = !rawCleanEps || rawCleanEps === '-' || /^[-—–_]+$/.test(rawCleanEps);
-        const cleanEps = isSingleStreamNoEps ? '' : rawCleanEps;
-        const cleanFull = cleanText(pair.fullFile.name);
-        const fullVideoDisplayText = cleanEps ? `${cleanEps} ${cleanFull}`.trim() : cleanFull;
+        const { options, correctIndex } = createUniqueQuizOptions(gameName, allGameNamesPool);
 
         chosenMomentData = {
           folderId: gameFolder.id,
@@ -406,18 +440,23 @@ async function selectQuizMoments(drive, config) {
       );
       for (const gameFolder of remainingGames) {
         const gameName = gameFolder.name.trim();
-        const pair = await findGameMomentPair(drive, gameFolder, skipPrefix, usedPairKeys, gameClipsCache);
+        const pair = await findGameMomentPair(
+          drive,
+          gameFolder,
+          skipPrefix,
+          usedPairKeys,
+          usedOverlayKeys,
+          gameClipsCache
+        );
         if (pair) {
           const pairKey = `${pair.cutFile.id}_${pair.fullFile.id}`;
           usedPairKeys.add(pairKey);
 
-          const { options, correctIndex } = createUniqueQuizOptions(gameName, allGameNamesPool);
+          const fullVideoDisplayText = getFullVideoDisplayText(pair.epsName, pair.fullFile.name);
+          const gameOverlayKey = `${gameName.toLowerCase()}:::${fullVideoDisplayText.toLowerCase()}`;
+          usedOverlayKeys.add(gameOverlayKey);
 
-          const rawCleanEps = pair.epsName ? cleanText(pair.epsName) : '';
-          const isSingleStreamNoEps = !rawCleanEps || rawCleanEps === '-' || /^[-—–_]+$/.test(rawCleanEps);
-          const cleanEps = isSingleStreamNoEps ? '' : rawCleanEps;
-          const cleanFull = cleanText(pair.fullFile.name);
-          const fullVideoDisplayText = cleanEps ? `${cleanEps} ${cleanFull}`.trim() : cleanFull;
+          const { options, correctIndex } = createUniqueQuizOptions(gameName, allGameNamesPool);
 
           chosenMomentData = {
             folderId: gameFolder.id,
@@ -485,6 +524,8 @@ module.exports = {
   createUniqueQuizOptions,
   findVideoPair,
   findMemeImage,
+  getFullVideoDisplayText,
   findGameMomentPair,
   selectQuizMoments,
 };
+
