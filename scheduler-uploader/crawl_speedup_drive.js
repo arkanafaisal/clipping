@@ -389,7 +389,7 @@ async function main() {
       // Langkah 3: Siapkan Subtitle ASS untuk teks overlay video full
       let appliedAssPath = null;
       if (withOverlay) {
-        const displayText = getFullVideoDisplayText(item.epsName, item.fullFile.name, item.folderName);
+        const displayText = getFullVideoDisplayText(item.gameName, item.epsName, item.fullFile.name, item.folderName);
         fs.writeFileSync(
           assSubtitlePath,
           generateFullVideoASS({

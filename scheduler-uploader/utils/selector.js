@@ -361,8 +361,37 @@ function findMemeImage(files, skipPrefix) {
  * Mendukung struktur baru di mana nama klip tersimpan di folder (misal: "00:39:35")
  * dan berkas videonya telah diganti nama menjadi "full.mp4".
  */
-function getFullVideoDisplayText(epsName, fullFileName, clipFolderName = null) {
-  const rawCleanEps = epsName ? cleanText(epsName) : '';
+function getFullVideoDisplayText(gameNameOrEps, epsNameOrFull, fullFileNameOrClip = null, clipFolderName = null) {
+  let gameName = '';
+  let epsName = '';
+  let fullFileName = '';
+  let clipFolder = clipFolderName;
+
+  if (arguments.length >= 4) {
+    gameName = gameNameOrEps || '';
+    epsName = epsNameOrFull || '';
+    fullFileName = fullFileNameOrClip || '';
+    clipFolder = clipFolderName;
+  } else if (arguments.length === 3) {
+    if (typeof epsNameOrFull === 'string' && /\.(mp4|mkv|mov|webm)$/i.test(epsNameOrFull)) {
+      // Dipanggil format 3 argumen lama: (epsName, fullFileName, clipFolderName)
+      epsName = gameNameOrEps || '';
+      fullFileName = epsNameOrFull || '';
+      clipFolder = fullFileNameOrClip;
+    } else {
+      // Dipanggil (gameName, epsName, fullFileName)
+      gameName = gameNameOrEps || '';
+      epsName = epsNameOrFull || '';
+      fullFileName = fullFileNameOrClip || '';
+    }
+  } else if (arguments.length === 2) {
+    epsName = gameNameOrEps || '';
+    fullFileName = epsNameOrFull || '';
+  } else if (arguments.length === 1) {
+    fullFileName = gameNameOrEps || '';
+  }
+
+  const rawCleanEps = epsName ? cleanText(epsName).replace(/^!+\s*/, '') : '';
   const isSingleStreamNoEps = !rawCleanEps || rawCleanEps === '-' || /^[-—–_]+$/.test(rawCleanEps);
   const cleanEps = isSingleStreamNoEps ? '' : rawCleanEps;
 
@@ -370,7 +399,7 @@ function getFullVideoDisplayText(epsName, fullFileName, clipFolderName = null) {
 
   // Jika nama berkas adalah 'full' (karena sudah diorganisir menjadi full.mp4)
   if (cleanFull.toLowerCase() === 'full') {
-    const rawCleanClip = clipFolderName ? cleanText(clipFolderName) : '';
+    const rawCleanClip = clipFolder ? cleanText(clipFolder).replace(/^!+\s*/, '') : '';
     const hasValidClipFolder = rawCleanClip && rawCleanClip !== '-' && !/^[-—–_]+$/.test(rawCleanClip);
 
     if (hasValidClipFolder) {
@@ -379,14 +408,20 @@ function getFullVideoDisplayText(epsName, fullFileName, clipFolderName = null) {
       cleanFull = formatTimestampToIndoTime(rawCleanClip);
     } else if (cleanEps) {
       // Tidak ada subfolder klip tambahan, nama folder waktu berada langsung di cleanEps (single stream)
-      return formatTimestampToIndoTime(cleanEps);
+      cleanFull = formatTimestampToIndoTime(cleanEps);
     }
   } else {
     // Jika nama berkas sendiri sudah berformat "00:xx:xx", konversi ke teks Indonesia
     cleanFull = formatTimestampToIndoTime(cleanFull);
   }
 
-  return cleanEps ? `${cleanEps} ${cleanFull}`.trim() : cleanFull;
+  const timePart = cleanEps ? `${cleanEps} ${cleanFull}`.trim() : cleanFull;
+  const cleanGame = gameName ? cleanText(gameName).replace(/^!+\s*/, '') : '';
+
+  if (cleanGame) {
+    return `${cleanGame}\n${timePart}`;
+  }
+  return timePart;
 }
 
 /**
@@ -450,7 +485,7 @@ async function findGameMomentPair(drive, gameFolder, skipPrefix, usedPairKeys, u
       const fileKey = `${p.cutFile.id}_${p.fullFile.id}`;
       if (usedPairKeys && usedPairKeys.has(fileKey)) return false;
 
-      const overlayText = getFullVideoDisplayText(p.epsName, p.fullFile.name, p.clipFolderName);
+      const overlayText = getFullVideoDisplayText(gameFolder.name, p.epsName, p.fullFile.name, p.clipFolderName);
       const gameOverlayKey = `${gameKey}:::${overlayText.toLowerCase()}`;
       if (usedOverlayKeys && usedOverlayKeys.has(gameOverlayKey)) return false;
 
@@ -753,7 +788,7 @@ async function selectSingleGameQuizMoments(drive, config, allGameFolders) {
       const fileKey = `${p.cutFile.id}_${p.fullFile.id}`;
       if (usedPairKeys && usedPairKeys.has(fileKey)) return false;
 
-      const overlayText = getFullVideoDisplayText(p.epsName, p.fullFile.name, p.clipFolderName);
+      const overlayText = getFullVideoDisplayText(targetGame.name, p.epsName, p.fullFile.name, p.clipFolderName);
       const gameOverlayKey = `${gameKey}:::${overlayText.toLowerCase()}`;
       if (usedOverlayKeys && usedOverlayKeys.has(gameOverlayKey)) return false;
 
@@ -808,7 +843,7 @@ async function selectSingleGameQuizMoments(drive, config, allGameFolders) {
         const pairKey = `${pair.cutFile.id}_${pair.fullFile.id}`;
         usedPairKeys.add(pairKey);
 
-        const fullVideoDisplayText = getFullVideoDisplayText(pair.epsName, pair.fullFile.name, pair.clipFolderName);
+        const fullVideoDisplayText = getFullVideoDisplayText(targetGame.name, pair.epsName, pair.fullFile.name, pair.clipFolderName);
         const gameOverlayKey = `${gameKey}:::${fullVideoDisplayText.toLowerCase()}`;
         usedOverlayKeys.add(gameOverlayKey);
 
@@ -847,7 +882,7 @@ async function selectSingleGameQuizMoments(drive, config, allGameFolders) {
           const pairKey = `${pair.cutFile.id}_${pair.fullFile.id}`;
           usedPairKeys.add(pairKey);
 
-          const fullVideoDisplayText = getFullVideoDisplayText(pair.epsName, pair.fullFile.name, pair.clipFolderName);
+          const fullVideoDisplayText = getFullVideoDisplayText(targetGame.name, pair.epsName, pair.fullFile.name, pair.clipFolderName);
           const gameOverlayKey = `${gameKey}:::${fullVideoDisplayText.toLowerCase()}`;
           usedOverlayKeys.add(gameOverlayKey);
 
@@ -1021,7 +1056,7 @@ async function selectQuizMoments(drive, config) {
         const pairKey = `${pair.cutFile.id}_${pair.fullFile.id}`;
         usedPairKeys.add(pairKey);
 
-        const fullVideoDisplayText = getFullVideoDisplayText(pair.epsName, pair.fullFile.name, pair.clipFolderName);
+        const fullVideoDisplayText = getFullVideoDisplayText(gameName, pair.epsName, pair.fullFile.name, pair.clipFolderName);
         const gameOverlayKey = `${gameName.toLowerCase()}:::${fullVideoDisplayText.toLowerCase()}`;
         usedOverlayKeys.add(gameOverlayKey);
 
@@ -1064,7 +1099,7 @@ async function selectQuizMoments(drive, config) {
           const pairKey = `${pair.cutFile.id}_${pair.fullFile.id}`;
           usedPairKeys.add(pairKey);
 
-          const fullVideoDisplayText = getFullVideoDisplayText(pair.epsName, pair.fullFile.name, pair.clipFolderName);
+          const fullVideoDisplayText = getFullVideoDisplayText(gameName, pair.epsName, pair.fullFile.name, pair.clipFolderName);
           const gameOverlayKey = `${gameName.toLowerCase()}:::${fullVideoDisplayText.toLowerCase()}`;
           usedOverlayKeys.add(gameOverlayKey);
 

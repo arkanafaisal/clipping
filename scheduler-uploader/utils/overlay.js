@@ -320,12 +320,22 @@ ${events.join('\n')}
  * Tampil 1 baris ketat tanpa mekanisme line break (\n) agar tidak menutupi visual konten
  */
 function generateFullVideoASS({ text, durationSeconds = 600, posY = 480 }) {
-  const formattedText = text
-    .replace(/\.[a-zA-Z0-9]+$/i, '')
-    .replace(/\\n/gi, ' ')
-    .replace(/[\r\n]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  const cleanExtText = (text || '').replace(/\.[a-zA-Z0-9]+$/i, '');
+
+  // Pisahkan baris jika terdapat \n atau \N manual (Line 1: Nama Game, Line 2: Episode / Waktu)
+  const lines = cleanExtText
+    .split(/\\N|\\n|\r?\n/)
+    .map((l) => l.replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+
+  let formattedText = '';
+  if (lines.length >= 2) {
+    // Baris 1: Nama Game (fs 44, putih tebal)
+    // Baris 2: Episode / Waktu (fs 38, putih tebal)
+    formattedText = `{\\b1\\fs44\\c&HFFFFFF&\\bord5\\3c&H000000&}${lines[0]}\\N{\\b1\\fs38\\c&HFFFFFF&\\bord5\\3c&H000000&}${lines.slice(1).join(' - ')}`;
+  } else {
+    formattedText = `{\\b1\\fs42\\c&HFFFFFF&\\bord5\\3c&H000000&}${lines[0] || ''}`;
+  }
 
   const hh = String(Math.floor(durationSeconds / 3600)).padStart(1, '0');
   const mm = String(Math.floor((durationSeconds % 3600) / 60)).padStart(2, '0');
@@ -344,7 +354,7 @@ Style: MemeTitle, Arial, 42, &H00FFFFFF, &H000000FF, &H00000000, &H00000000, 1, 
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-Dialogue: 0,0:00:00.00,${durStr},MemeTitle,,0,0,0,,{\\pos(540,${posY})\\an5\\bord5\\3c&H000000&\\q2}${formattedText}
+Dialogue: 0,0:00:00.00,${durStr},MemeTitle,,0,0,0,,{\\pos(540,${posY})\\an5\\q2}${formattedText}
 `;
 }
 

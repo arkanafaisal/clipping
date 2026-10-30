@@ -8,6 +8,8 @@
     "setup": "node setup.js",
     "doksli": "node compile_doksli.js",
     "compile:doksli": "node compile_doksli.js",
+    "roulette": "node compile_roulette.js",
+    "compile:roulette": "node compile_roulette.js",
     "crawl": "node crawl_organize_drive.js",
     "organize": "node crawl_organize_drive.js",
     "speedup": "node crawl_speedup_drive.js",

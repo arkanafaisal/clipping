@@ -14,7 +14,33 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Progressive Speedup Crawler and Fast-Path Compiler Integration
+## [Unreleased] - Multi-Lane Horizontal Roulette Compilation Mode and Two-Line Game Title Overlay
+- **Konteks Struktural**:
+  - Mode Kompilasi Baru: Gudang Doksli Roulette Edition ([compile_roulette.js](file:///d:/projects/clipping/scheduler-uploader/compile_roulette.js), [rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js), [package.json](file:///d:/projects/clipping/scheduler-uploader/package.json)):
+    - Membuat program terpisah `compile_roulette.js` (dapat dijalankan via `npm run roulette` atau `npm run compile:roulette`) khusus untuk mode kompilasi video speedup berorientasi horizontal roulette tanpa kuis dan tanpa transisi layar hitam TikTok core.
+    - **Multi-Lane Horizontal Roulette**: Menampilkan $X$ jalur roulette horizontal yang ditumpuk secara vertikal (total tinggi 80% kanvas 9:16 = 1536 px, terpusat vertikal di Y = 192 s/d 1728).
+    - **Pita Kartu & Deselerasi Estafet (Cubic Ease-Out)**: Seluruh jalur berputar horizontal simultan. Satu per satu jalur melambat dan berhenti mengunci kartu yang ditunjuk pointer indikator emas di tengah ($X = 540$) disertai efek suara ratchet ticks dan bell lock chime.
+    - **Transisi Fade-In & Fade-Out Mulus**: Setelah suatu jalur berhenti, video speedup full meme (~5 detik) menimpa dengan animasi fade-in (0.25s), diputar, lalu fade-out (0.25s) kembali ke papan roulette. Jalur lama tetap terkunci di posisinya, sementara jalur berikutnya berputar untuk berhenti.
+    - **Pool Kartu Gambar Meme 1:1**: Mengumpulkan dan menjahit berkas `image.jpg` acak dari Google Drive menjadi pita horizontal 24 kartu per jalur.
+  - Standar Baru Teks Overlay Video Full 2 Baris ([selector.js](file:///d:/projects/clipping/scheduler-uploader/utils/selector.js), [overlay.js](file:///d:/projects/clipping/scheduler-uploader/utils/overlay.js), [crawl_speedup_drive.js](file:///d:/projects/clipping/scheduler-uploader/crawl_speedup_drive.js)):
+    - Memperbarui `getFullVideoDisplayText` untuk mencantumkan Nama Game pada baris atas: `"<Nama Game>\n<Episode / Waktu Indonesia>"` (misal `"the mortuary assistant\neps 1 menit 40 detik 25"`).
+    - Memperbarui `generateFullVideoASS` di `overlay.js` agar merender baris 1 (Nama Game, fs 44 tebal) dan baris 2 (Episode / Waktu, fs 38 tebal) dengan rapi, terpusat horizontal dan vertikal (`\an5\q2`), mematuhi aturan strict line-break Rule 23.
+    - Otomatis kompatibel pada `crawl_speedup_drive.js`, mode kuis `compile_doksli.js`, dan mode roulette `compile_roulette.js`.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/compile_roulette.js`:
+    - Membuat alur utama kompilasi roulette dengan seleksi momen, penyiapan pool gambar, perenderan pita horizontal, pembuatan segmen putaran roulette, perakitan video speedup ber-fade, dan penggabungan single-pass 60 FPS.
+  - `scheduler-uploader/utils/rouletteEditor.js`:
+    - Membuat modul pembantu roulette: `downloadMemeImagesPool`, `generateRouletteAudioWav` (sintesis ratchet tick + bell chime), `buildLaneRibbons` (penjahitan pita HxH hstack), `generateRoulettePointerImage` (indikator tengah emas), `renderRouletteSpinSegment`, dan `renderSpeedupClipWithFade`.
+  - `scheduler-uploader/utils/selector.js`:
+    - Memperbarui `getFullVideoDisplayText` untuk mendukung parameter `gameName` di baris pertama dan mempertahankan kompatibilitas mundur.
+  - `scheduler-uploader/utils/overlay.js`:
+    - Memperbarui `generateFullVideoASS` untuk memisahkan baris judul game dan penanda waktu dengan font sizing berbobot rapi.
+  - `scheduler-uploader/crawl_speedup_drive.js`:
+    - Meneruskan `item.gameName` ke `getFullVideoDisplayText`.
+  - `scheduler-uploader/package.json`:
+    - Menambahkan script `"roulette"` dan `"compile:roulette"`.
+
+## [8cedca8] - Progressive Speedup Crawler and Fast-Path Compiler Integration
 - **Konteks Struktural**:
   - Script Crawler & Generator Speedup Google Drive ([crawl_speedup_drive.js](file:///d:/projects/clipping/scheduler-uploader/crawl_speedup_drive.js), [package.json](file:///d:/projects/clipping/scheduler-uploader/package.json)):
     - Membuat script mandiri `crawl_speedup_drive.js` (`npm run speedup` / `npm run crawl:speedup`) untuk menelusuri seluruh klip Doksli di Google Drive, merender versi speedup dinamis (~5 detik, rasio 9:16 vertikal, 60 FPS CFR, audio pitch-shifted cempreng, dan overlay teks judul), lalu LANGSUNG mengunggahnya 1 per 1 ke folder klip yang sama di Google Drive dengan nama `speedup.mp4`.
