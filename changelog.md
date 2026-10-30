@@ -14,7 +14,28 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Strict Full Video Speedup Crawler and Roulette Image Card Requirement
+## [Unreleased] - Native FFmpeg Drawbox Roulette Overlays and Freeze Frame Transitions
+- **Konteks Struktural**:
+  - Eliminasi Dependensi SVG dan librsvg pada Roulette Pointer ([rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js), [compile_roulette.js](file:///d:/projects/clipping/scheduler-uploader/compile_roulette.js)):
+    - Mengatasi kesalahan fatal `Command failed: ffmpeg ... -i roulette_pointer.svg ...` yang disebabkan oleh ketiadaan dukungan `librsvg` pada pustaka `ffmpeg-static` di lingkungan Windows.
+    - Menggantikan perenderan berkas perantara SVG/PNG dengan filter native FFmpeg `drawbox` langsung pada `[stack]` kanvas roulette.
+    - Menambahkan divider pemisah antar jalur, garis vertikal pembimbing emas di $X = 540$, pointer penunjuk atas/bawah, serta kotak sorotan hijau terang (`#00FF66`) yang mengunci kartu pemenang saat $t \ge \text{stopTime}$.
+  - Aturan Timing Freeze-Frame pada Transisi Speedup Video ([rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js), [compile_roulette.js](file:///d:/projects/clipping/scheduler-uploader/compile_roulette.js)):
+    - Menerapkan aturan jeda pemutaran: video speedup **tidak diputar saat animasi fade-in berlangsung**. Frame 0 ditahan (*freeze still frame*) menggunakan filter `tpad=start_mode=clone` selama durasi fade-in (0.25s) sambil bertransisi opacity $0\% \to 100\%$.
+    - Video speedup diputar utuh dari detik awal hingga durasi penuh selesai (~5 detik) pada opacity 100%.
+    - Frame terakhir ditahan (*freeze still frame*) menggunakan filter `tpad=stop_mode=clone` selama durasi fade-out (0.25s) sambil bertransisi opacity $100\% \to 0\%$.
+    - Mengekstrak frame terakhir dari segmen putaran roulette (`-sseof -0.1 -update 1 -frames:v 1`) sebagai `bgStillPath` sehingga transisi fade-in dan fade-out melebur mulus langsung di atas papan roulette yang baru berhenti tanpa layar hitam.
+    - Menunda audio speedup menggunakan `adelay=delays=250:all=1` sehingga audio baru bersuara tepat ketika animasi fade-in selesai.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/utils/rouletteEditor.js`:
+    - Mengubah `generateRoulettePointerImage` menjadi fungsi kompatibilitas stub (menghapus eksekusi SVG).
+    - Memperbarui `renderRouletteSpinSegment` untuk menyematkan filter `drawbox` garis panduan emas, divider, panah, dan kotak highlight hijau dinamis.
+    - Memperbarui `renderSpeedupClipWithFade` dengan `tpad` (clone frame awal & akhir), `format=yuva420p`, fade alpha, penundaan audio `adelay`, dan dukungan overlay latar papan roulette (`bgStillPath`).
+  - `scheduler-uploader/compile_roulette.js`:
+    - Menghapus pembuatan berkas `roulette_pointer.png`.
+    - Mengekstrak still frame akhir segmen roulette dan meneruskannya ke `renderSpeedupClipWithFade` sebagai latar belakang fade.
+
+## [76265a7] - Strict Full Video Speedup Crawler and Roulette Image Card Requirement
 - **Konteks Struktural**:
   - Validasi Ketat Video Full pada Speedup Crawler ([crawl_speedup_drive.js](file:///d:/projects/clipping/scheduler-uploader/crawl_speedup_drive.js), [selector.js](file:///d:/projects/clipping/scheduler-uploader/utils/selector.js), [GEMINI.md](file:///d:/projects/clipping/GEMINI.md)):
     - Memperbarui `detectClipFolderFiles` pada crawler dan `findVideoPair` pada selector agar klip yang tidak memiliki berkas persis bernama `full.mp4` (atau base name `full`) **dilarang menggunakan fallback** ke berkas video lain (seperti `cut.mp4` atau nama acak lainnya). Jika `full.mp4` tidak ditemukan, klip wajib dilewati (skip) demi mencegah video cut ter-speedup secara keliru (Aturan Baru Rule 24).

@@ -29,6 +29,7 @@
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
 const { google } = require('googleapis');
 
 const {
@@ -57,7 +58,6 @@ const {
 const {
   downloadMemeImagesPool,
   buildLaneRibbons,
-  generateRoulettePointerImage,
   renderRouletteSpinSegment,
   renderSpeedupClipWithFade,
 } = require('./utils/rouletteEditor');
@@ -191,18 +191,8 @@ async function main() {
     ffmpegBin: config.ffmpegBin,
   });
 
-  const pointerPngPath = path.join(workDir, 'roulette_pointer.png');
-  generateRoulettePointerImage({
-    width: 1080,
-    height: totalRouletteHeight,
-    laneHeight,
-    laneCount,
-    outputPath: pointerPngPath,
-    ffmpegBin: config.ffmpegBin,
-  });
-
-  // 6. Merender Rangkaian Segmen: [Roulette Spin #k] -> [Speedup Video #k dengan Fade]
-  console.log(`\n🎬 [TAHAP 3/4] Merender animasi roulette dan merangkai klip speedup dengan fade...`);
+  // 6. Merender Rangkaian Segmen: [Roulette Spin #k] -> [Speedup Video #k dengan Freeze Fade]
+  console.log(`\n🎬 [TAHAP 3/4] Merender animasi roulette dan merangkai klip speedup dengan freeze fade...`);
   const allCompilationClips = [];
 
   for (let k = 0; k < laneCount; k++) {
@@ -221,7 +211,6 @@ async function main() {
       laneCount,
       laneHeight,
       ribbons,
-      pointerPngPath,
       outputPath: spinOutputPath,
       workDir,
       ffmpegBin: config.ffmpegBin,
@@ -231,7 +220,16 @@ async function main() {
     allCompilationClips.push(spinOutputPath);
     console.log(`      ✅ Segmen putaran roulette #${momentIndex} siap.`);
 
-    // Bagian B: Unduh dan Siapkan Video Full Speedup dengan Fade-In & Fade-Out
+    // Ekstrak frame terakhir papan roulette yang berhenti untuk latar belakang fade klip speedup
+    const bgStillPath = path.join(workDir, `roulette_still_${momentIndex}.jpg`);
+    try {
+      execSync(
+        `"${config.ffmpegBin}" -y -sseof -0.1 -i "${spinOutputPath}" -update 1 -frames:v 1 -q:v 2 "${bgStillPath}"`,
+        { stdio: 'ignore' }
+      );
+    } catch (_) {}
+
+    // Bagian B: Unduh dan Siapkan Video Full Speedup dengan Freeze Fade-In & Freeze Fade-Out
     console.log(`   2. 📥 Mengunduh video full speedup untuk Momen #${momentIndex}...`);
     let rawVideoPath = path.join(workDir, `raw_full_${momentIndex}.mp4`);
 
@@ -244,7 +242,7 @@ async function main() {
       await downloadDriveFile(drive, moment.fullFile.id, rawVideoPath);
     }
 
-    console.log(`   3. ✂️ Menambahkan transisi fade-in (0.25s) & fade-out (0.25s) pada video speedup...`);
+    console.log(`   3. ✂️ Menambahkan transisi freeze fade-in (0.25s) & freeze fade-out (0.25s) pada speedup...`);
     const fadedSpeedupPath = path.join(workDir, `faded_speedup_${momentIndex}.mp4`);
     renderSpeedupClipWithFade({
       rawVideoPath,
@@ -252,6 +250,7 @@ async function main() {
       moment,
       workDir,
       config,
+      bgStillPath,
       ffmpegBin: config.ffmpegBin,
     });
     allCompilationClips.push(fadedSpeedupPath);
@@ -260,6 +259,7 @@ async function main() {
     // Bersihkan file video mentah lokal momen ini
     try {
       if (fs.existsSync(rawVideoPath)) fs.unlinkSync(rawVideoPath);
+      if (fs.existsSync(bgStillPath)) fs.unlinkSync(bgStillPath);
     } catch (_) {}
   }
 
