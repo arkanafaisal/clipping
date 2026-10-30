@@ -1,4 +1,6 @@
 const fs = require('fs');
+const path = require('path');
+const { execSync } = require('child_process');
 
 /**
  * Helper format detik ke timecode ASS (H:MM:SS.cs)
@@ -14,16 +16,15 @@ function formatAssTime(sec) {
 }
 
 /**
- * Generator Efek Suara WAV Kuis (3 Countdown Beep & 1 Correct Chime)
- * Menghasilkan file PCM WAV stereo 44.1kHz murni tanpa aset audio eksternal:
- * - t = 0 * tick : Beep 880Hz (Countdown 3)
- * - t = 1 * tick : Beep 880Hz (Countdown 2)
- * - t = 2 * tick : Beep 880Hz (Countdown 1)
- * - t = 3 * tick : Correct Chime (Rising Major Arpeggio C6-E6-G6 + harmoni lonceng)
+ * Sintesis Audio PCM WAV Kuis Halus & Hangat (Countdown Marimba Tick & Correct Chime)
+ * Mode:
+ * - 'both' : 3 Countdown Tick (t = 0, 1, 2 * tick) + 1 Correct Chime (t = 3 * tick)
+ * - 'tick' : 1 Single Tick di t = 0
+ * - 'chime': 1 Single Chime di t = 0
  */
-function generateQuizSoundWav(outputPath, tickDuration = 0.5, totalDuration = 2.0) {
+function generatePureSynthesizedQuizWav(outputPath, tickDuration = 0.5, totalDuration = 2.0, mode = 'both') {
   const sampleRate = 44100;
-  const numSamples = Math.round(sampleRate * totalDuration);
+  const numSamples = Math.max(1, Math.round(sampleRate * totalDuration));
   const numChannels = 2;
   const bytesPerSample = 2; // 16-bit
   const blockAlign = numChannels * bytesPerSample;
@@ -51,13 +52,16 @@ function generateQuizSoundWav(outputPath, tickDuration = 0.5, totalDuration = 2.
   buffer.write('data', 36);
   buffer.writeUInt32LE(dataSize, 40);
 
-  // Parameter Countdown Beep Identik (3, 2, 1)
-  const beepTimes = [0.0 * tickDuration, 1.0 * tickDuration, 2.0 * tickDuration];
-  const beepDuration = Math.min(0.11, tickDuration * 0.25);
-  const beepFreq = 880; // 880Hz (A5) seragam untuk semua countdown
-  const beepPeakAmp = 0.70; // Volume kencang dan bertenaga
+  // Parameter Countdown Tick Akustik Halus (Warm D5 Marimba Tap)
+  // Menghilangkan nada elektronik 880Hz yang menusuk dan menggantinya dengan ketukan metronom kayu organik
+  const beepTimes = mode === 'chime' ? [] : (mode === 'tick' ? [0.0] : [0.0 * tickDuration, 1.0 * tickDuration, 2.0 * tickDuration]);
+  const tickDurationSpan = Math.min(0.08, tickDuration > 0 ? tickDuration * 0.2 : 0.08);
+  const baseFreq = 587.33; // D5 hangat (bukan 880Hz buzzer tajam)
+  const subFreq = 293.66;  // D4 sub-body kayu
+  const topFreq = 1174.66; // D6 sentuhan lembut
+  const tickPeakAmp = 0.25; // Volume lembut, tidak mengagetkan (peak ~0.18)
 
-  const chimeStart = 3.0 * tickDuration;
+  const chimeStart = mode === 'chime' ? 0.0 : (mode === 'tick' ? 99999 : 3.0 * tickDuration);
   const chimeDuration = Math.max(0.2, totalDuration - chimeStart);
 
   // Sintesis audio gelombang
@@ -65,46 +69,53 @@ function generateQuizSoundWav(outputPath, tickDuration = 0.5, totalDuration = 2.
     const t = i / sampleRate;
     let sample = 0;
 
-    // 1. Countdown Beep Identik di t = 0 * tick, 1 * tick, dan 2 * tick
-    for (const t0 of beepTimes) {
-      if (t >= t0 && t < t0 + beepDuration) {
-        const dt = t - t0;
-        let env = 1.0;
-        if (dt < 0.005) {
-          env = dt / 0.005; // 5ms attack halus bebas klik
-        } else if (dt > 0.06) {
-          env = Math.max(0, 1.0 - (dt - 0.06) / (beepDuration - 0.06)); // release lembut
+    // 1. Countdown Tick Lembut Akustik di t = 0 * tick, 1 * tick, dan 2 * tick
+    if (mode !== 'chime') {
+      for (const t0 of beepTimes) {
+        if (t >= t0 && t < t0 + tickDurationSpan) {
+          const dt = t - t0;
+          // Attack 4ms sangat halus bebas klik, peluruhan eksponensial alami perkusi kayu
+          const attack = Math.min(1.0, dt / 0.004);
+          const decay = Math.exp(-dt * 45); // Meluruh santun dalam ~60ms
+          const env = attack * decay;
+
+          // Harmoni nada D5 kayu yang ramah di telinga
+          const wave = 0.65 * Math.sin(2 * Math.PI * baseFreq * dt)
+                     + 0.25 * Math.sin(2 * Math.PI * subFreq * dt)
+                     + 0.10 * Math.sin(2 * Math.PI * topFreq * dt);
+
+          sample += tickPeakAmp * wave * env;
         }
-        sample += beepPeakAmp * Math.sin(2 * Math.PI * beepFreq * dt) * env;
       }
     }
 
     // 2. Correct Chime di t = 3 * tick (C6 -> E6 -> G6)
-    if (t >= chimeStart) {
+    // Karakter akor arpeggio tetap dipertahankan, volume diturunkan ~55% agar elegan dan tidak mendominasi
+    if (mode !== 'tick' && t >= chimeStart) {
       const dt = t - chimeStart;
       const decayRate = Math.max(6, 4.0 / chimeDuration);
 
-      // Note 1: C6 (1046.5 Hz)
+      // Note 1: C6 (1046.5 Hz) - volume diperkecil ke 0.12 (dari 0.25)
       if (dt >= 0.0 && dt < chimeDuration * 0.8) {
         const env1 = Math.exp(-dt * decayRate);
-        sample += 0.25 * Math.sin(2 * Math.PI * 1046.5 * dt) * env1;
+        sample += 0.12 * Math.sin(2 * Math.PI * 1046.5 * dt) * env1;
       }
 
-      // Note 2: E6 (1318.5 Hz)
+      // Note 2: E6 (1318.5 Hz) - volume diperkecil ke 0.14 (dari 0.28)
       const note2Offset = Math.min(0.06, chimeDuration * 0.12);
       if (dt >= note2Offset && dt < chimeDuration * 0.9) {
         const dt2 = dt - note2Offset;
         const env2 = Math.exp(-dt2 * decayRate);
-        sample += 0.28 * Math.sin(2 * Math.PI * 1318.5 * dt2) * env2;
+        sample += 0.14 * Math.sin(2 * Math.PI * 1318.5 * dt2) * env2;
       }
 
-      // Note 3: G6 (1568 Hz) + harmoni lonceng cerah
+      // Note 3: G6 (1568 Hz) + harmoni lonceng cerah - diperkecil ke 0.17 & 0.06 (dari 0.35 & 0.15)
       const note3Offset = Math.min(0.12, chimeDuration * 0.24);
       if (dt >= note3Offset && dt < chimeDuration) {
         const dt3 = dt - note3Offset;
         const env3 = Math.exp(-dt3 * (decayRate * 0.9));
-        sample += 0.35 * Math.sin(2 * Math.PI * 1567.98 * dt3) * env3;
-        sample += 0.15 * Math.sin(2 * Math.PI * 3135.96 * dt3) * env3;
+        sample += 0.17 * Math.sin(2 * Math.PI * 1567.98 * dt3) * env3;
+        sample += 0.06 * Math.sin(2 * Math.PI * 3135.96 * dt3) * env3;
       }
     }
 
@@ -120,6 +131,70 @@ function generateQuizSoundWav(outputPath, tickDuration = 0.5, totalDuration = 2.
 
   fs.writeFileSync(outputPath, buffer);
   return outputPath;
+}
+
+/**
+ * Generator Efek Suara WAV Kuis (3 Countdown Tick & 1 Correct Chime)
+ * Mendukung 2 mode operasi:
+ * 1. Mode File Eksternal: Jika disediakan tickSfxPath atau correctSfxPath, audio dimixing presisi
+ *    menggunakan FFmpeg pada delay t = 0s, 1*tick, 2*tick, dan 3*tick.
+ * 2. Mode Sintesis Bawaan: Menghasilkan audio WAV murni 44.1kHz dengan nada tick kayu marimba hangat
+ *    (bebas bising/hard) dan correct chime bersuara lembut (-55% volume).
+ */
+function generateQuizSoundWav(outputPath, tickDuration = 0.5, totalDuration = 2.0, options = {}) {
+  const tickSfxPath = options.tickSfxPath || (options.config && options.config.quizTickSfx) || null;
+  const correctSfxPath = options.correctSfxPath || (options.config && options.config.quizCorrectSfx) || null;
+  const ffmpegBin = options.ffmpegBin || (options.config && options.config.ffmpegBin) || 'ffmpeg';
+  const workDir = options.workDir || path.dirname(outputPath);
+
+  const hasCustomTick = tickSfxPath && fs.existsSync(tickSfxPath);
+  const hasCustomCorrect = correctSfxPath && fs.existsSync(correctSfxPath);
+
+  // Jika salah satu atau kedua SFX kustom disediakan, lakukan mixing via FFmpeg
+  if (hasCustomTick || hasCustomCorrect) {
+    const tempFiles = [];
+    try {
+      let effectiveTick = tickSfxPath;
+      if (!hasCustomTick) {
+        effectiveTick = path.join(workDir, `temp_soft_tick_${Date.now()}_${Math.random().toString(36).substring(2, 6)}.wav`);
+        generatePureSynthesizedQuizWav(effectiveTick, tickDuration, Math.min(0.15, tickDuration), 'tick');
+        tempFiles.push(effectiveTick);
+      }
+
+      let effectiveCorrect = correctSfxPath;
+      if (!hasCustomCorrect) {
+        effectiveCorrect = path.join(workDir, `temp_soft_chime_${Date.now()}_${Math.random().toString(36).substring(2, 6)}.wav`);
+        const chimeDur = Math.max(0.3, totalDuration - 3.0 * tickDuration);
+        generatePureSynthesizedQuizWav(effectiveCorrect, 0, chimeDur, 'chime');
+        tempFiles.push(effectiveCorrect);
+      }
+
+      const d1 = Math.round(1.0 * tickDuration * 1000);
+      const d2 = Math.round(2.0 * tickDuration * 1000);
+      const dc = Math.round(3.0 * tickDuration * 1000);
+
+      const pTick = effectiveTick.replace(/\\/g, '/');
+      const pCorrect = effectiveCorrect.replace(/\\/g, '/');
+      const pOut = outputPath.replace(/\\/g, '/');
+
+      const filterComplex = `[0:a]asplit=3[t0][t1][t2];[t1]adelay=${d1}|${d1}[at1];[t2]adelay=${d2}|${d2}[at2];[1:a]adelay=${dc}|${dc}[ac];[t0][at1][at2][ac]amix=inputs=4:duration=longest:dropout_transition=0,volume=2.5[amix];[amix]apad,atrim=0:${totalDuration},aresample=44100[aout]`;
+
+      execSync(
+        `"${ffmpegBin}" -y -i "${pTick}" -i "${pCorrect}" -filter_complex "${filterComplex}" -map "[aout]" -c:a pcm_s16le -ar 44100 -ac 2 -t ${totalDuration} "${pOut}"`,
+        { stdio: 'ignore' }
+      );
+      return outputPath;
+    } catch (err) {
+      // Fallback otomatis ke sintesis halus jika FFmpeg mixing mengalami kendala format
+    } finally {
+      for (const f of tempFiles) {
+        try { if (fs.existsSync(f)) fs.unlinkSync(f); } catch (_) {}
+      }
+    }
+  }
+
+  // Standar bawaan: sintesis gelombang audio lembut dan ramah di telinga
+  return generatePureSynthesizedQuizWav(outputPath, tickDuration, totalDuration, 'both');
 }
 
 /**

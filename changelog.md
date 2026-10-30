@@ -14,7 +14,34 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Single Game Edition Compilation Mode with Episode Quizzes and Early Fail Validation
+## [Unreleased] - Softened Countdown Tick and Balanced Chime with Custom SFX Mixing
+- **Konteks Struktural**:
+  - Efek Suara Kuis & Kustomisasi SFX ([overlay.js](file:///d:/projects/clipping/scheduler-uploader/utils/overlay.js), [config.js](file:///d:/projects/clipping/scheduler-uploader/utils/config.js), [videoEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/videoEditor.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example)):
+    - **Penyempurnaan Suara Countdown Beep (Lebih Halus & Hangat)**:
+      - Menghapus gelombang elektronik nada 880Hz (A5) yang tajam, menusuk, dan berisik (buzzer).
+      - Menggantinya dengan karakter nada metronom kayu / marimba akustik D5 (587.33 Hz) hangat berharmoni sub-body D4 (293.66 Hz) dan overtone D6 (1174.66 Hz).
+      - Menerapkan kurva amplop *attack* lembut 4ms bebas klik dengan peluruhan eksponensial alami perkusi ($\exp(-\Delta t \cdot 45)$) serta memangkas amplitudo puncak dari $0.70$ ke $\sim 0.18$ (~74% lebih senyap dan nyaman di telinga).
+    - **Penyesuaian Volume Correct Chime**:
+      - Mempertahankan progresi akor arpeggio mayor C6-E6-G6 dan harmoni lonceng yang disukai pengguna.
+      - Menurunkan amplitudo komponen not secara proporsional (~55% volume reduction, amplitudo puncak gabungan turun dari $0.78$ ke $0.33$) sehingga terdengar elegan, jernih, dan tidak membanting audio latar video.
+    - **Dukungan Penuh SFX Eksternal (Online / Lokal)**:
+      - Menyediakan konfigurasi berkas audio kustom untuk countdown tick (`QUIZ_TICK_SFX_PATH`) dan lonceng jawaban benar (`QUIZ_CORRECT_SFX_PATH`) via `.env` maupun argumen CLI (`--tick-sfx="..."`, `--correct-sfx="..."`).
+      - Menyediakan fitur auto-deteksi berkas SFX lokal (`quiz_tick.mp3`/`.wav`, `quiz_correct.mp3`/`.wav`, dll.) jika diletakkan di direktori kerja.
+      - Jika berkas SFX eksternal disediakan, `generateQuizSoundWav` melakukan komposit mixing multi-track secara presisi menggunakan filter FFmpeg (`asplit`, `adelay`, `amix`) pada ketukan $t = 0, 1, 2,$ dan $3 \times \text{tick}$.
+      - Menyediakan proteksi *graceful fallback* ke sintesis gelombang halus bawaan jika FFmpeg mixing gagal atau file tidak ditemukan.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/utils/overlay.js`:
+    - Memisahkan fungsi sintesis audio murni ke `generatePureSynthesizedQuizWav` dengan parameter nada D5 akustik dan volume arpeggio yang diperhalus.
+    - Mengintegrasikan FFmpeg audio mixing multi-delay di dalam `generateQuizSoundWav` untuk menggabungkan aset SFX kustom eksternal.
+  - `scheduler-uploader/utils/config.js`:
+    - Menambahkan pembacaan `quizTickSfx` dan `quizCorrectSfx` dari `.env`, auto-deteksi berkas lokal, dan argumen CLI (`--tick-sfx`, `--correct-sfx`).
+    - Memperbarui `printConfigBanner` untuk menampilkan informasi status SFX kuis (Custom / Default Akustik Halus).
+  - `scheduler-uploader/utils/videoEditor.js`:
+    - Meneruskan opsi konfigurasi SFX (`quizTickSfx`, `quizCorrectSfx`, `ffmpegBin`, `workDir`) ke `generateQuizSoundWav` di dalam `renderQuizFreezeClip`.
+  - `scheduler-uploader/.env.example`:
+    - Mendokumentasikan variabel `QUIZ_TICK_SFX_PATH` dan `QUIZ_CORRECT_SFX_PATH` beserta penjelasan format dan auto-deteksinya.
+
+## [44f4395] - Single Game Edition Compilation Mode with Episode Quizzes and Early Fail Validation
 - **Konteks Struktural**:
   - Mode Kompilasi Edisi Khusus 1 Game ([selector.js](file:///d:/projects/clipping/scheduler-uploader/utils/selector.js), [config.js](file:///d:/projects/clipping/scheduler-uploader/utils/config.js), [compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [compiler.js](file:///d:/projects/clipping/scheduler-uploader/utils/compiler.js), [videoEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/videoEditor.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example)):
     - Menambahkan dukungan kompilasi edisi khusus 1 game yang dapat dipicu via argumen CLI (`--single-game`, `--game="<nama>"`, `--game-id="<id>"`) maupun variabel `.env` (`SINGLE_GAME_MODE`, `SINGLE_GAME_NAME`, `SINGLE_GAME_FOLDER_ID`).

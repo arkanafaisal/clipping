@@ -122,6 +122,55 @@ function getConfig() {
   let quizTickSeconds = parseFloat(process.env.QUIZ_TICK_SECONDS || '0.5');
   if (isNaN(quizTickSeconds) || quizTickSeconds <= 0.1) quizTickSeconds = 0.5;
 
+  let quizTickSfx = process.env.QUIZ_TICK_SFX_PATH || null;
+  let quizCorrectSfx = process.env.QUIZ_CORRECT_SFX_PATH || null;
+
+  // Auto-deteksi berkas audio SFX kustom jika diletakkan di folder proyek
+  const possibleTickFiles = [
+    'quiz_tick.mp3',
+    'quiz_tick.wav',
+    'tick.mp3',
+    'tick.wav',
+    'beep.mp3',
+    'beep.wav',
+  ];
+  const possibleCorrectFiles = [
+    'quiz_correct.mp3',
+    'quiz_correct.wav',
+    'correct.mp3',
+    'correct.wav',
+    'chime.mp3',
+    'chime.wav',
+  ];
+
+  if (!quizTickSfx) {
+    for (const name of possibleTickFiles) {
+      const p1 = path.resolve(__dirname, '../', name);
+      const p2 = path.resolve(__dirname, '../../', name);
+      if (fs.existsSync(p1)) {
+        quizTickSfx = p1;
+        break;
+      } else if (fs.existsSync(p2)) {
+        quizTickSfx = p2;
+        break;
+      }
+    }
+  }
+
+  if (!quizCorrectSfx) {
+    for (const name of possibleCorrectFiles) {
+      const p1 = path.resolve(__dirname, '../', name);
+      const p2 = path.resolve(__dirname, '../../', name);
+      if (fs.existsSync(p1)) {
+        quizCorrectSfx = p1;
+        break;
+      } else if (fs.existsSync(p2)) {
+        quizCorrectSfx = p2;
+        break;
+      }
+    }
+  }
+
   let customTransitionSfx = process.env.TRANSITION_SFX_PATH || null;
   let transitionMode = (process.env.TRANSITION_MODE || '').trim().toLowerCase();
   if (!['off', 'number', 'meme'].includes(transitionMode)) {
@@ -180,6 +229,12 @@ function getConfig() {
     if (arg.startsWith('--offset-y=')) quizOffsetY = parseInt(arg.split('=')[1], 10);
     if (arg.startsWith('--meme-y=')) memeTextY = parseInt(arg.split('=')[1], 10);
     if (arg.startsWith('--tick=')) quizTickSeconds = parseFloat(arg.split('=')[1]);
+    if (arg.startsWith('--tick-sfx=') || arg.startsWith('--quiz-tick-sfx=')) {
+      quizTickSfx = arg.slice(arg.indexOf('=') + 1).trim();
+    }
+    if (arg.startsWith('--correct-sfx=') || arg.startsWith('--quiz-correct-sfx=')) {
+      quizCorrectSfx = arg.slice(arg.indexOf('=') + 1).trim();
+    }
     if (arg.startsWith('--question=')) quizQuestion = arg.slice(arg.indexOf('=') + 1);
     if (arg.startsWith('--transition-sfx=')) customTransitionSfx = arg.slice(arg.indexOf('=') + 1);
     if (arg.startsWith('--transition-mode=') || arg.startsWith('--trans-mode=')) {
@@ -276,6 +331,8 @@ function getConfig() {
     memeTextY,
     quizQuestion,
     quizTickSeconds,
+    quizTickSfx,
+    quizCorrectSfx,
     customTransitionSfx,
     transitionMode,
     showTransitionCounter,
@@ -338,6 +395,13 @@ function printConfigBanner(config, transitionSfxPath = null) {
   console.log(` - Jarak Keunikan         : ${uniquenessDesc}`);
   console.log(` - Format Output          : Vertikal 9:16 (1080x1920) 60 FPS`);
   console.log(` - Durasi Freeze Kuis     : ${(4 * config.quizTickSeconds).toFixed(2)}s (Tick: ${config.quizTickSeconds}s x 4 beat)`);
+  const tickDesc = config.quizTickSfx
+    ? `Custom (${path.basename(config.quizTickSfx)})`
+    : 'Akustik Marimba D5 Halus (Warm Low Peak ~0.18)';
+  const chimeDesc = config.quizCorrectSfx
+    ? `Custom (${path.basename(config.quizCorrectSfx)})`
+    : 'Akor C6-E6-G6 Halus (-55% Volume)';
+  console.log(` - Efek Suara Kuis (SFX)  : Tick: ${tickDesc} | Chime: ${chimeDesc}`);
   console.log(` - Pertanyaan Kuis        : "${config.quizQuestion}"`);
   console.log(` - Prefix Abaikan/Skip    : "${config.skipPrefix}" (folder/file diawali prefix ini otomatis dilewati)`);
   console.log(` - Ending Transisi        : ${transDesc}`);

@@ -240,7 +240,13 @@ function renderQuizFreezeClip({
 
   const sfxWavPath = `${workDir}/sfx_${momentIndex}.wav`;
   tempFilesTracker.push(sfxWavPath);
-  generateQuizSoundWav(sfxWavPath, quizTickSeconds, parseFloat(totalQuizSec));
+  generateQuizSoundWav(sfxWavPath, quizTickSeconds, parseFloat(totalQuizSec), {
+    config,
+    tickSfxPath: config.quizTickSfx,
+    correctSfxPath: config.quizCorrectSfx,
+    ffmpegBin,
+    workDir,
+  });
 
   const escapedQuizAss = quizAssPath.replace(/\\/g, '/').replace(/:/g, '\\:');
   execSync(
