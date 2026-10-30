@@ -14,7 +14,27 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Strict Game-Level Full Video Overlay Uniqueness in Compilation
+## [Unreleased] - Asynchronous Pipelined Pre-Fetching for Video Downloads
+- **Konteks Struktural**:
+  - Pipelined Asynchronous Pre-Fetching Download ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [compiler.js](file:///d:/projects/clipping/scheduler-uploader/utils/compiler.js)):
+    - Mengoptimalkan alur kompilasi dengan memparalelkan beban kerja yang memanfaatkan subsistem hardware berbeda secara bersamaan:
+      - **Download Google Drive**: Menggunakan *Network I/O & Bandwidth Internet* (beban CPU $\approx 0-2\%$, GPU $0\%$).
+      - **Editing FFmpeg**: Menggunakan *CPU & GPU Compute* (beban bandwidth internet $0\%$).
+    - Mengubah alur antrean sekuensial bergantian menjadi sistem **Pipelined Pre-Fetching**:
+      - Sesaat setelah unduhan momen $i$ selesai dan FFmpeg mulai merender momen tersebut, Node.js langsung memicu pengunduhan berkas untuk momen berikutnya ($i+1$) di latar belakang (*background stream*) secara non-blocking.
+      - Begitu FFmpeg menyelesaikan perenderan momen $i$, seluruh berkas video untuk momen $i+1$ sudah siap di penyimpanan lokal sehingga FFmpeg langsung memproses momen berikutnya tanpa jeda tunggu unduh (*zero download wait time*).
+      - Menghapus berkas video mentah (`rawCutPath`, `rawFullPath`, `rawMemeImgPath`) segera setelah perenderan setiap momen tuntas untuk menjaga efisiensi ruang disk sementara (SSD/HDD).
+    - Memasang mekanisme failsafe dengan proteksi *unhandled promise rejection* (`startMomentDownload`) sehingga jika ada berkas gagal diunduh di latar belakang, kesalahan ditangani dengan anggun dan kompilasi tetap berlanjut ke momen berikutnya.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/utils/compiler.js`:
+    - Memperbarui `processSingleMoment` untuk menerima parameter `downloadedFiles` dan `isPrefetched`.
+    - Menambahkan pembersihan langsung berkas mentahan video setelah langkah perenderan selesai.
+  - `scheduler-uploader/compile_doksli.js`:
+    - Mengimpor `downloadMomentVideos` dan `downloadDriveFile` dari `utils/downloader`.
+    - Mengimplementasikan helper `startMomentDownload` dan restrukturisasi loop tahap 3 dengan pelacak `currentDownloadPromise` serta pemicu `nextDownloadPromise`.
+    - Mengekspor ulang fungsi downloader di `module.exports`.
+
+## [3e22191] - Strict Game-Level Full Video Overlay Uniqueness in Compilation
 - **Konteks Struktural**:
   - Penegakan Keunikan Teks Overlay Full Video Per Game ([selector.js](file:///d:/projects/clipping/scheduler-uploader/utils/selector.js), [compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
     - Dengan adanya kontrol jarak keunikan kustom (`GAME_UNIQUE_WINDOW`), suatu game dapat terpilih lebih dari satu kali dalam satu video kompilasi.

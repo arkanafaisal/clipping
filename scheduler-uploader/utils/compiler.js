@@ -28,6 +28,8 @@ async function processSingleMoment({
   workDir,
   transitionClipPath = null,
   transitionSfxPath = null,
+  downloadedFiles = null,
+  isPrefetched = false,
 }) {
   console.log(`\n🎬 [MEMPROSES MOMEN ${momentIndex}/${totalMoments}]: "${moment.momentName}"...`);
 
@@ -42,15 +44,32 @@ async function processSingleMoment({
 
   try {
     // 1. Mengunduh video potongan (cut.mp4), video full, serta gambar meme facecam (jika ada)
-    const memeNote = moment.memeImageFile ? ' + Gambar Meme 1:1' : '';
-    console.log(`   1. Mengunduh dan menormalisasi berkas video${memeNote}${config.censorGameplay ? ` (Sensor Gameplay Beku: ${config.censorMode})` : ''}...`);
-    const { rawCutPath, rawFullPath, rawMemeImgPath } = await downloadMomentVideos(
-      drive,
-      moment,
-      workDir,
-      momentIndex,
-      config.skipPrefix
-    );
+    let rawCutPath;
+    let rawFullPath;
+    let rawMemeImgPath;
+
+    if (downloadedFiles) {
+      if (isPrefetched) {
+        console.log(`   ⚡ [PREFETCH] Berkas video Momen #${momentIndex} sudah siap diunduh di background sebelumnya.`);
+      }
+      rawCutPath = downloadedFiles.rawCutPath;
+      rawFullPath = downloadedFiles.rawFullPath;
+      rawMemeImgPath = downloadedFiles.rawMemeImgPath;
+    } else {
+      const memeNote = moment.memeImageFile ? ' + Gambar Meme 1:1' : '';
+      console.log(`   1. Mengunduh dan menormalisasi berkas video${memeNote}${config.censorGameplay ? ` (Sensor Gameplay Beku: ${config.censorMode})` : ''}...`);
+      const dl = await downloadMomentVideos(
+        drive,
+        moment,
+        workDir,
+        momentIndex,
+        config.skipPrefix
+      );
+      rawCutPath = dl.rawCutPath;
+      rawFullPath = dl.rawFullPath;
+      rawMemeImgPath = dl.rawMemeImgPath;
+    }
+
     momentTempFiles.push(rawCutPath, rawFullPath);
     if (rawMemeImgPath) momentTempFiles.push(rawMemeImgPath);
 
@@ -110,6 +129,14 @@ async function processSingleMoment({
         momentTempFiles.push(finalTransitionPath);
       }
     }
+
+    // Bersihkan berkas video mentah (raw cut, raw full, raw meme) setelah selesai di-render
+    // untuk menghemat ruang disk sementara selagi background download berjalan
+    try {
+      if (fs.existsSync(rawCutPath)) fs.unlinkSync(rawCutPath);
+      if (fs.existsSync(rawFullPath)) fs.unlinkSync(rawFullPath);
+      if (rawMemeImgPath && fs.existsSync(rawMemeImgPath)) fs.unlinkSync(rawMemeImgPath);
+    } catch (_) {}
 
     // 6. Susun klip-klip momen
     const momentClips = [normCutPath, freezeVideoPath, normFullPath];

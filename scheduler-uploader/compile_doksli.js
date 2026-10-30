@@ -75,6 +75,11 @@ const {
 } = require('./utils/transition');
 
 const {
+  downloadDriveFile,
+  downloadMomentVideos,
+} = require('./utils/downloader');
+
+const {
   processSingleMoment,
   concatenateCompilation,
   uploadCompilationToDrive,
@@ -133,12 +138,43 @@ async function runQuizCompiler() {
     ffmpegBin: config.ffmpegBin,
   });
 
-  // 5. Looping pemrosesan per momen secara modular
+  // 5. Looping pemrosesan per momen dengan Pipelined Pre-fetching
+  // (Sambil FFmpeg merender Momen saat ini di CPU/GPU, Node.js mengunduh Momen berikutnya di background via Network I/O)
   const allCompilationClips = [];
+
+  const startMomentDownload = (momentObj, idx) => {
+    return downloadMomentVideos(drive, momentObj, workDir, idx, config.skipPrefix)
+      .then((res) => ({ files: res, error: null }))
+      .catch((err) => ({ files: null, error: err }));
+  };
+
+  // Mulai unduh Momen #1 sebelum iterasi pertama
+  let currentDownloadPromise = validMoments.length > 0 ? startMomentDownload(validMoments[0], 1) : null;
 
   for (let i = 0; i < validMoments.length; i++) {
     const moment = validMoments[i];
     const momentIndex = i + 1;
+    const isLast = i === validMoments.length - 1;
+
+    // Tunggu berkas momen saat ini selesai di-download
+    const dlResult = currentDownloadPromise ? await currentDownloadPromise : null;
+
+    // Sesaat setelah download momen saat ini selesai,
+    // SEGERA picu background download untuk momen berikutnya (i + 1) selagi FFmpeg merender momen saat ini!
+    let nextDownloadPromise = null;
+    if (!isLast) {
+      const nextMoment = validMoments[i + 1];
+      const nextIndex = i + 2;
+      console.log(`\n   ⚡ [PREFETCH] Memulai download di background untuk Momen #${nextIndex}: "${nextMoment.momentName}"...`);
+      nextDownloadPromise = startMomentDownload(nextMoment, nextIndex);
+    }
+
+    if (!dlResult || dlResult.error) {
+      const errMsg = dlResult?.error?.message || 'Download tidak menghasilkan berkas valid.';
+      console.warn(`\n   ⚠️ [ERROR DOWNLOAD MOMEN #${momentIndex}] Gagal mengunduh berkas momen "${moment.momentName}": ${errMsg}`);
+      currentDownloadPromise = nextDownloadPromise;
+      continue;
+    }
 
     const momentClips = await processSingleMoment({
       drive,
@@ -149,11 +185,16 @@ async function runQuizCompiler() {
       workDir,
       transitionClipPath: transitionClips[momentIndex] || null,
       transitionSfxPath,
+      downloadedFiles: dlResult.files,
+      isPrefetched: i > 0,
     });
 
     if (momentClips && momentClips.length > 0) {
       allCompilationClips.push(...momentClips);
     }
+
+    // Sambungkan antrean download momen berikutnya untuk iterasi selanjutnya
+    currentDownloadPromise = nextDownloadPromise;
   }
 
   if (allCompilationClips.length === 0) {
@@ -205,6 +246,8 @@ module.exports = {
   detectTransitionSfx,
   renderTransitionClip,
   prepareTransitionClips,
+  downloadDriveFile,
+  downloadMomentVideos,
   processSingleMoment,
   concatenateCompilation,
   uploadCompilationToDrive,
