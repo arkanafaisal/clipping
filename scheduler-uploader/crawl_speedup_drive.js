@@ -121,8 +121,12 @@ function detectClipFolderFiles(files) {
     return base === 'speedup';
   });
 
-  const otherVideos = vidFiles.filter((f) => f.id !== cutFile?.id && f.id !== speedupFile?.id);
-  const fullFile = otherVideos.length === 1 ? otherVideos[0] : null;
+  // Berkas video full wajib persis bernama 'full' (misal 'full.mp4').
+  // Dilarang ada fallback ke berkas video lain (seperti cut.mp4) jika 'full' tidak ditemukan.
+  const fullFile = vidFiles.find((f) => {
+    const base = f.name.toLowerCase().replace(/^!+\s*/, '').replace(/\.[^.]+$/, '');
+    return base === 'full';
+  }) || null;
 
   return { cutFile, fullFile, speedupFile };
 }
@@ -154,14 +158,15 @@ async function crawlForSpeedupCandidates(drive, folder, context, skipPrefix, res
   if (isClipCandidate) {
     const { cutFile, fullFile, speedupFile } = detectClipFolderFiles(files);
 
-    // Folder klip valid minimal memiliki cutFile dan fullFile (atau sudah ada speedupFile)
-    if (cutFile && (fullFile || speedupFile)) {
+    // Untuk membuat speedup.mp4, yang dibutuhkan HANYA video full (atau sudah ada speedupFile).
+    // Berkas cut.mp4 tidak diwajibkan karena tidak digunakan dalam pembuatan speedup.
+    if (fullFile || speedupFile) {
       results.push({
         gameName: context.gameName,
         epsName: context.epsName || '-',
         folderId: folder.id,
         folderName: folder.name,
-        cutFile,
+        cutFile: cutFile || null,
         fullFile: fullFile || speedupFile,
         speedupFile,
         hasSpeedup: !!speedupFile,

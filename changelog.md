@@ -14,7 +14,28 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Multi-Lane Horizontal Roulette Compilation Mode and Two-Line Game Title Overlay
+## [Unreleased] - Strict Full Video Speedup Crawler and Roulette Image Card Requirement
+- **Konteks Struktural**:
+  - Validasi Ketat Video Full pada Speedup Crawler ([crawl_speedup_drive.js](file:///d:/projects/clipping/scheduler-uploader/crawl_speedup_drive.js), [selector.js](file:///d:/projects/clipping/scheduler-uploader/utils/selector.js), [GEMINI.md](file:///d:/projects/clipping/GEMINI.md)):
+    - Memperbarui `detectClipFolderFiles` pada crawler dan `findVideoPair` pada selector agar klip yang tidak memiliki berkas persis bernama `full.mp4` (atau base name `full`) **dilarang menggunakan fallback** ke berkas video lain (seperti `cut.mp4` atau nama acak lainnya). Jika `full.mp4` tidak ditemukan, klip wajib dilewati (skip) demi mencegah video cut ter-speedup secara keliru (Aturan Baru Rule 24).
+    - Memastikan bahwa ketiadaan `cut.mp4` tidak lagi menghalangi pemrosesan `speedup.mp4` asalkan `full.mp4` tersedia, karena pembuatan speedup murni hanya membutuhkan video full.
+  - Seleksi Momen Roulette Khusus Folder Ber-`image.jpg` ([compile_roulette.js](file:///d:/projects/clipping/scheduler-uploader/compile_roulette.js), [selector.js](file:///d:/projects/clipping/scheduler-uploader/utils/selector.js), [GEMINI.md](file:///d:/projects/clipping/GEMINI.md)):
+    - Menambahkan opsi `requireMemeImage: true` pada `selectQuizMoments` dan `selectSingleGameQuizMoments` saat dipanggil oleh `compile_roulette.js`.
+    - Momen untuk mode roulette **hanya mengambil folder klip yang memiliki kartu gambar `image.jpg`**; folder yang tidak memiliki `image.jpg` langsung diskip karena setiap jalur roulette membutuhkan kartu gambar 1:1 spesifik momen (Aturan Baru Rule 25).
+    - Menjamin penanganan aman `pair.cutFile` null/undefined pada seleksi momen tanpa cut di mode roulette.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/crawl_speedup_drive.js`:
+    - Menghapus logika fallback `otherVideos` pada `detectClipFolderFiles`, menegakkan syarat mutlak berkas video bernama `full` (atau sudah ada `speedupFile`).
+    - Mengizinkan pembuatan `speedup.mp4` ketika hanya ada `full.mp4` tanpa memerlukan `cut.mp4`.
+  - `scheduler-uploader/utils/selector.js`:
+    - Memperbarui `findVideoPair` untuk mendukung `options.requireCut` dan `options.requireFull` tanpa fallback saat `requireCut = false`.
+    - Memperbarui `findGameMomentPair`, `findEpisodeClipPair`, `selectSingleGameQuizMoments`, dan `selectQuizMoments` agar mendukung opsi `requireMemeImage: true` dan aman menangani klip tanpa `cut.mp4` (`pair.cutFile ? ... : ...`).
+  - `scheduler-uploader/compile_roulette.js`:
+    - Mengirimkan `{ requireCut: false, requireMemeImage: true }` ke `selectQuizMoments` dan `selectSingleGameQuizMoments`.
+  - `GEMINI.md`:
+    - Menambahkan Rule 24 (`[DATA] Never fallback to arbitrary video files when searching for full video clips in crawlers or compilers...`) dan Rule 25 (`[DATA] Always require an existing "image.jpg" card asset when selecting moments for roulette compilations...`).
+
+## [55d8371] - Multi-Lane Horizontal Roulette Compilation Mode and Two-Line Game Title Overlay
 - **Konteks Struktural**:
   - Mode Kompilasi Baru: Gudang Doksli Roulette Edition ([compile_roulette.js](file:///d:/projects/clipping/scheduler-uploader/compile_roulette.js), [rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js), [package.json](file:///d:/projects/clipping/scheduler-uploader/package.json)):
     - Membuat program terpisah `compile_roulette.js` (dapat dijalankan via `npm run roulette` atau `npm run compile:roulette`) khusus untuk mode kompilasi video speedup berorientasi horizontal roulette tanpa kuis dan tanpa transisi layar hitam TikTok core.

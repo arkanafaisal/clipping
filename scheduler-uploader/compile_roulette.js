@@ -107,9 +107,15 @@ async function main() {
   console.log(`🔍 [TAHAP 1/4] Menyeleksi ${clipCountTarget} momen Doksli dari Google Drive...`);
   let validMoments = [];
   if (targetGameName) {
-    validMoments = await selectSingleGameQuizMoments(drive, config, targetGameName);
+    validMoments = await selectSingleGameQuizMoments(drive, config, targetGameName, {
+      requireCut: false,
+      requireMemeImage: true,
+    });
   } else {
-    validMoments = await selectQuizMoments(drive, config);
+    validMoments = await selectQuizMoments(drive, config, {
+      requireCut: false,
+      requireMemeImage: true,
+    });
   }
 
   if (!validMoments || validMoments.length === 0) {

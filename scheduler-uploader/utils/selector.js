@@ -302,7 +302,8 @@ function createUniqueEpisodeQuizOptions(correctAnswer, episodePool = []) {
  * Helper memeriksa apakah daftar berkas memiliki pasangan video valid:
  * tepat 2 video, satu bernama 'cut' (misal cut.mp4), dan satu video full.
  */
-function findVideoPair(files, skipPrefix) {
+function findVideoPair(files, skipPrefix, options = {}) {
+  const requireCut = options.requireCut !== false;
   const vidFiles = files.filter((f) => {
     const isVid =
       (f.mimeType && f.mimeType.startsWith('video/')) ||
@@ -316,18 +317,29 @@ function findVideoPair(files, skipPrefix) {
     const base = f.name.toLowerCase().replace(/^!+\s*/, '').replace(/\.[^.]+$/, '');
     return base === 'cut';
   });
-  if (!cutFile) return null;
+  if (requireCut && !cutFile) return null;
 
   const speedupFile = vidFiles.find((f) => {
     const base = f.name.toLowerCase().replace(/^!+\s*/, '').replace(/\.[^.]+$/, '');
     return base === 'speedup';
   });
 
-  const fullFile = vidFiles.find((f) => f.id !== cutFile.id && f.id !== speedupFile?.id);
+  // Berkas video full wajib persis bernama 'full' (misal 'full.mp4').
+  // Dilarang ada fallback ke berkas video lain (seperti cut.mp4) ketika requireCut=false.
+  let fullFile = vidFiles.find((f) => {
+    const base = f.name.toLowerCase().replace(/^!+\s*/, '').replace(/\.[^.]+$/, '');
+    return base === 'full';
+  }) || null;
 
-  if (cutFile && (fullFile || speedupFile)) {
+  // Fallback hanya berlaku untuk mode kuis lama (requireCut=true) jika ada tepat 1 video lain selain cut & speedup
+  if (!fullFile && requireCut && cutFile) {
+    const otherVideos = vidFiles.filter((f) => f.id !== cutFile.id && f.id !== speedupFile?.id);
+    fullFile = otherVideos.length === 1 ? otherVideos[0] : null;
+  }
+
+  if ((cutFile || !requireCut) && (fullFile || speedupFile)) {
     return {
-      cutFile,
+      cutFile: cutFile || null,
       fullFile: fullFile || speedupFile,
       speedupFile: speedupFile || null,
     };
@@ -432,7 +444,7 @@ function getFullVideoDisplayText(gameNameOrEps, epsNameOrFull, fullFileNameOrCli
  * 2. Teks overlay video full (fullVideoDisplayText) untuk game ini belum pernah dipakai.
  *    (Episode boleh sama asalkan teks overlay full video berbeda).
  */
-async function findGameMomentPair(drive, gameFolder, skipPrefix, usedPairKeys, usedOverlayKeys, gameClipsCache) {
+async function findGameMomentPair(drive, gameFolder, skipPrefix, usedPairKeys, usedOverlayKeys, gameClipsCache, options = {}) {
   let cache = gameClipsCache.get(gameFolder.id);
 
   if (!cache) {
@@ -456,18 +468,21 @@ async function findGameMomentPair(drive, gameFolder, skipPrefix, usedPairKeys, u
       directChecked: false,
     };
 
-    // Fallback: Jika tidak ada subfolder episode, periksa apakah ada 2 video langsung di folder game
+    // Fallback: Jika tidak ada subfolder episode, periksa apakah ada video langsung di folder game
     if (validEpsFolders.length === 0) {
-      const directPair = findVideoPair(children, skipPrefix);
+      const directPair = findVideoPair(children, skipPrefix, options);
       if (directPair) {
-        cache.discoveredPairs.push({
-          epsName: '',
-          clipFolderName: null,
-          cutFile: directPair.cutFile,
-          fullFile: directPair.fullFile,
-          speedupFile: directPair.speedupFile || null,
-          memeImageFile: findMemeImage(children, skipPrefix),
-        });
+        const memeImageFile = findMemeImage(children, skipPrefix);
+        if (!options.requireMemeImage || memeImageFile) {
+          cache.discoveredPairs.push({
+            epsName: '',
+            clipFolderName: null,
+            cutFile: directPair.cutFile,
+            fullFile: directPair.fullFile,
+            speedupFile: directPair.speedupFile || null,
+            memeImageFile,
+          });
+        }
       }
       cache.directChecked = true;
     }
@@ -480,9 +495,12 @@ async function findGameMomentPair(drive, gameFolder, skipPrefix, usedPairKeys, u
   // 1. Cek apakah ada pasangan yang belum dipakai dari yang sudah pernah ditemukan:
   // - ID file pasangan video (cut + full) belum pernah dipakai
   // - Teks overlay fullvid untuk game ini belum pernah dipakai (teks overlay tidak boleh sama dalam 1 game, meski eps sama)
+  // - Jika requireMemeImage aktif, berkas gambar (image.jpg / meme facecam) WAJIB ada di folder klip
   const getUnused = () => {
     return cache.discoveredPairs.find((p) => {
-      const fileKey = `${p.cutFile.id}_${p.fullFile.id}`;
+      if (options.requireMemeImage && !p.memeImageFile) return false;
+
+      const fileKey = p.cutFile ? `${p.cutFile.id}_${p.fullFile.id}` : `nocut_${p.fullFile.id}`;
       if (usedPairKeys && usedPairKeys.has(fileKey)) return false;
 
       const overlayText = getFullVideoDisplayText(gameFolder.name, p.epsName, p.fullFile.name, p.clipFolderName);
@@ -512,16 +530,19 @@ async function findGameMomentPair(drive, gameFolder, skipPrefix, usedPairKeys, u
     const epsItems = epsChildrenRes.data.files || [];
 
     // Cek direct pair di folder episode
-    const directPair = findVideoPair(epsItems, skipPrefix);
+    const directPair = findVideoPair(epsItems, skipPrefix, options);
     if (directPair) {
-      cache.discoveredPairs.push({
-        epsName: epsFolder.name.trim(),
-        clipFolderName: null,
-        cutFile: directPair.cutFile,
-        fullFile: directPair.fullFile,
-        speedupFile: directPair.speedupFile || null,
-        memeImageFile: findMemeImage(epsItems, skipPrefix),
-      });
+      const memeImageFile = findMemeImage(epsItems, skipPrefix);
+      if (!options.requireMemeImage || memeImageFile) {
+        cache.discoveredPairs.push({
+          epsName: epsFolder.name.trim(),
+          clipFolderName: null,
+          cutFile: directPair.cutFile,
+          fullFile: directPair.fullFile,
+          speedupFile: directPair.speedupFile || null,
+          memeImageFile,
+        });
+      }
     }
 
     // Cek subfolder klip lapis ke-3 (misal folder "-")
@@ -542,16 +563,21 @@ async function findGameMomentPair(drive, gameFolder, skipPrefix, usedPairKeys, u
         });
 
         const l3Items = l3Res.data.files || [];
-        const l3Pair = findVideoPair(l3Items, skipPrefix);
+        const l3Pair = findVideoPair(l3Items, skipPrefix, options);
         if (l3Pair) {
-          cache.discoveredPairs.push({
-            epsName: epsFolder.name.trim(),
-            clipFolderName: l3Folder.name.trim(),
-            cutFile: l3Pair.cutFile,
-            fullFile: l3Pair.fullFile,
-            speedupFile: l3Pair.speedupFile || null,
-            memeImageFile: findMemeImage(l3Items, skipPrefix) || findMemeImage(epsItems, skipPrefix),
-          });
+          const l3Meme = findMemeImage(l3Items, skipPrefix);
+          const fallbackMeme = !options.requireMemeImage ? findMemeImage(epsItems, skipPrefix) : null;
+          const memeImageFile = l3Meme || fallbackMeme;
+          if (!options.requireMemeImage || memeImageFile) {
+            cache.discoveredPairs.push({
+              epsName: epsFolder.name.trim(),
+              clipFolderName: l3Folder.name.trim(),
+              cutFile: l3Pair.cutFile,
+              fullFile: l3Pair.fullFile,
+              speedupFile: l3Pair.speedupFile || null,
+              memeImageFile,
+            });
+          }
         }
       }
     }
@@ -612,9 +638,28 @@ function promptGameSelection(gameFolders) {
  * - Menghasilkan 4 opsi pilihan ganda berbasis Nama Episode
  * - Menjamin teks overlay full video tetap unik tanpa duplikasi
  */
-async function selectSingleGameQuizMoments(drive, config, allGameFolders) {
+async function selectSingleGameQuizMoments(drive, config, allGameFoldersParam = null, options = {}) {
   const { skipPrefix, clipCountTarget } = config;
   const gameUniqueWindow = Math.max(1, config.gameUniqueWindow || 5);
+
+  let allGameFolders = allGameFoldersParam;
+  if (typeof allGameFoldersParam === 'string') {
+    config.singleGameName = allGameFoldersParam;
+    allGameFolders = null;
+  }
+
+  if (!allGameFolders || !Array.isArray(allGameFolders)) {
+    const listRes = await drive.files.list({
+      q: `'${config.doksliFolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+      fields: 'files(id, name)',
+      spaces: 'drive',
+      pageSize: 500,
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
+    });
+    const rawFiles = listRes.data.files || [];
+    allGameFolders = rawFiles.filter((f) => !isSkippedItem(f.name, skipPrefix));
+  }
 
   let targetGame = null;
   if (config.singleGameId) {
@@ -714,16 +759,19 @@ async function selectSingleGameQuizMoments(drive, config, allGameFolders) {
 
       if (epsFolder.id === targetGame.id) {
         // Direct files di root game folder
-        const directPair = findVideoPair(children, skipPrefix);
+        const directPair = findVideoPair(children, skipPrefix, options);
         if (directPair) {
-          cache.pairs.push({
-            epsName: '',
-            clipFolderName: null,
-            cutFile: directPair.cutFile,
-            fullFile: directPair.fullFile,
-            speedupFile: directPair.speedupFile || null,
-            memeImageFile: findMemeImage(children, skipPrefix),
-          });
+          const memeImageFile = findMemeImage(children, skipPrefix);
+          if (!options.requireMemeImage || memeImageFile) {
+            cache.pairs.push({
+              epsName: '',
+              clipFolderName: null,
+              cutFile: directPair.cutFile,
+              fullFile: directPair.fullFile,
+              speedupFile: directPair.speedupFile || null,
+              memeImageFile,
+            });
+          }
         }
       } else {
         const epsRes = await drive.files.list({
@@ -737,16 +785,19 @@ async function selectSingleGameQuizMoments(drive, config, allGameFolders) {
         const epsItems = epsRes.data.files || [];
 
         // Direct pair di dalam folder episode
-        const directPair = findVideoPair(epsItems, skipPrefix);
+        const directPair = findVideoPair(epsItems, skipPrefix, options);
         if (directPair) {
-          cache.pairs.push({
-            epsName: epsFolder.name.trim(),
-            clipFolderName: null,
-            cutFile: directPair.cutFile,
-            fullFile: directPair.fullFile,
-            speedupFile: directPair.speedupFile || null,
-            memeImageFile: findMemeImage(epsItems, skipPrefix),
-          });
+          const memeImageFile = findMemeImage(epsItems, skipPrefix);
+          if (!options.requireMemeImage || memeImageFile) {
+            cache.pairs.push({
+              epsName: epsFolder.name.trim(),
+              clipFolderName: null,
+              cutFile: directPair.cutFile,
+              fullFile: directPair.fullFile,
+              speedupFile: directPair.speedupFile || null,
+              memeImageFile,
+            });
+          }
         }
 
         // Subfolder lapis ke-3 (misal folder "-")
@@ -765,16 +816,21 @@ async function selectSingleGameQuizMoments(drive, config, allGameFolders) {
               includeItemsFromAllDrives: true,
             });
             const l3Items = l3Res.data.files || [];
-            const l3Pair = findVideoPair(l3Items, skipPrefix);
+            const l3Pair = findVideoPair(l3Items, skipPrefix, options);
             if (l3Pair) {
-              cache.pairs.push({
-                epsName: epsFolder.name.trim(),
-                clipFolderName: l3Folder.name.trim(),
-                cutFile: l3Pair.cutFile,
-                fullFile: l3Pair.fullFile,
-                speedupFile: l3Pair.speedupFile || null,
-                memeImageFile: findMemeImage(l3Items, skipPrefix) || findMemeImage(epsItems, skipPrefix),
-              });
+              const l3Meme = findMemeImage(l3Items, skipPrefix);
+              const fallbackMeme = !options.requireMemeImage ? findMemeImage(epsItems, skipPrefix) : null;
+              const memeImageFile = l3Meme || fallbackMeme;
+              if (!options.requireMemeImage || memeImageFile) {
+                cache.pairs.push({
+                  epsName: epsFolder.name.trim(),
+                  clipFolderName: l3Folder.name.trim(),
+                  cutFile: l3Pair.cutFile,
+                  fullFile: l3Pair.fullFile,
+                  speedupFile: l3Pair.speedupFile || null,
+                  memeImageFile,
+                });
+              }
             }
           }
         }
@@ -785,7 +841,9 @@ async function selectSingleGameQuizMoments(drive, config, allGameFolders) {
 
     const gameKey = targetGame.name.trim().toLowerCase();
     return cache.pairs.find((p) => {
-      const fileKey = `${p.cutFile.id}_${p.fullFile.id}`;
+      if (options.requireMemeImage && !p.memeImageFile) return false;
+
+      const fileKey = p.cutFile ? `${p.cutFile.id}_${p.fullFile.id}` : `nocut_${p.fullFile.id}`;
       if (usedPairKeys && usedPairKeys.has(fileKey)) return false;
 
       const overlayText = getFullVideoDisplayText(targetGame.name, p.epsName, p.fullFile.name, p.clipFolderName);
@@ -840,7 +898,7 @@ async function selectSingleGameQuizMoments(drive, config, allGameFolders) {
     for (const epsFolder of candidateFolders) {
       const pair = await findEpisodeClipPair(epsFolder, usedPairKeys, usedOverlayKeys);
       if (pair) {
-        const pairKey = `${pair.cutFile.id}_${pair.fullFile.id}`;
+        const pairKey = pair.cutFile ? `${pair.cutFile.id}_${pair.fullFile.id}` : `nocut_${pair.fullFile.id}`;
         usedPairKeys.add(pairKey);
 
         const fullVideoDisplayText = getFullVideoDisplayText(targetGame.name, pair.epsName, pair.fullFile.name, pair.clipFolderName);
@@ -848,7 +906,7 @@ async function selectSingleGameQuizMoments(drive, config, allGameFolders) {
         usedOverlayKeys.add(gameOverlayKey);
 
         const rawEpsAnswer = pair.epsName || targetGame.name;
-        const { options, correctIndex } = createUniqueEpisodeQuizOptions(
+        const { options: quizOptions, correctIndex } = createUniqueEpisodeQuizOptions(
           rawEpsAnswer,
           allEpisodeNamesPool
         );
@@ -864,7 +922,7 @@ async function selectSingleGameQuizMoments(drive, config, allGameFolders) {
           speedupFile: pair.speedupFile || null,
           memeImageFile: pair.memeImageFile || null,
           fullVideoDisplayText,
-          options,
+          options: quizOptions,
           correctIndex,
         };
         break;
@@ -879,7 +937,7 @@ async function selectSingleGameQuizMoments(drive, config, allGameFolders) {
       for (const epsFolder of remainingFolders) {
         const pair = await findEpisodeClipPair(epsFolder, usedPairKeys, usedOverlayKeys);
         if (pair) {
-          const pairKey = `${pair.cutFile.id}_${pair.fullFile.id}`;
+          const pairKey = pair.cutFile ? `${pair.cutFile.id}_${pair.fullFile.id}` : `nocut_${pair.fullFile.id}`;
           usedPairKeys.add(pairKey);
 
           const fullVideoDisplayText = getFullVideoDisplayText(targetGame.name, pair.epsName, pair.fullFile.name, pair.clipFolderName);
@@ -887,7 +945,7 @@ async function selectSingleGameQuizMoments(drive, config, allGameFolders) {
           usedOverlayKeys.add(gameOverlayKey);
 
           const rawEpsAnswer = pair.epsName || targetGame.name;
-          const { options, correctIndex } = createUniqueEpisodeQuizOptions(
+          const { options: quizOptions, correctIndex } = createUniqueEpisodeQuizOptions(
             rawEpsAnswer,
             allEpisodeNamesPool
           );
@@ -903,7 +961,7 @@ async function selectSingleGameQuizMoments(drive, config, allGameFolders) {
             speedupFile: pair.speedupFile || null,
             memeImageFile: pair.memeImageFile || null,
             fullVideoDisplayText,
-            options,
+            options: quizOptions,
             correctIndex,
           };
           break;
@@ -916,7 +974,8 @@ async function selectSingleGameQuizMoments(drive, config, allGameFolders) {
       const letter = ['A', 'B', 'C', 'D'][chosenMomentData.correctIndex];
       console.log(` ✅ Terpilih #${validMoments.length}: Episode "${chosenMomentData.epsName || 'Klip'}" (${chosenMomentData.gameName})`);
       const l3Log = chosenMomentData.clipFolderName ? ` [Klip: "${chosenMomentData.clipFolderName}"]` : '';
-      console.log(`    - Cut Video  : ${chosenMomentData.cutFile.name}`);
+      const cutLog = chosenMomentData.cutFile ? chosenMomentData.cutFile.name : '(Tidak ada cut)';
+      console.log(`    - Cut Video  : ${cutLog}`);
       console.log(`    - Full Video : ${chosenMomentData.fullFile.name}`);
       const memeLog = chosenMomentData.memeImageFile
         ? `"${chosenMomentData.memeImageFile.name}" (1:1 meme facecam, lebar 540px)`
@@ -958,7 +1017,7 @@ async function selectSingleGameQuizMoments(drive, config, allGameFolders) {
  * - Menghasilkan 4 opsi kuis unik
  * - Membentuk teks overlay full video dengan mengabaikan tanda "-"
  */
-async function selectQuizMoments(drive, config) {
+async function selectQuizMoments(drive, config, options = {}) {
   const { doksliFolderId, clipCountTarget, skipPrefix } = config;
   const gameUniqueWindow = Math.max(1, config.gameUniqueWindow || 5);
 
@@ -990,7 +1049,7 @@ async function selectQuizMoments(drive, config) {
 
   // Jika Mode Kompilasi Edisi 1 Game aktif
   if (config.singleGameMode) {
-    return await selectSingleGameQuizMoments(drive, config, allGameFolders);
+    return await selectSingleGameQuizMoments(drive, config, allGameFolders, options);
   }
 
   // Simpan nama semua folder game untuk pool pengecoh kuis
@@ -1049,18 +1108,19 @@ async function selectQuizMoments(drive, config) {
         skipPrefix,
         usedPairKeys,
         usedOverlayKeys,
-        gameClipsCache
+        gameClipsCache,
+        options
       );
 
       if (pair) {
-        const pairKey = `${pair.cutFile.id}_${pair.fullFile.id}`;
+        const pairKey = pair.cutFile ? `${pair.cutFile.id}_${pair.fullFile.id}` : `nocut_${pair.fullFile.id}`;
         usedPairKeys.add(pairKey);
 
         const fullVideoDisplayText = getFullVideoDisplayText(gameName, pair.epsName, pair.fullFile.name, pair.clipFolderName);
         const gameOverlayKey = `${gameName.toLowerCase()}:::${fullVideoDisplayText.toLowerCase()}`;
         usedOverlayKeys.add(gameOverlayKey);
 
-        const { options, correctIndex } = createUniqueQuizOptions(gameName, allGameNamesPool);
+        const { options: quizOptions, correctIndex } = createUniqueQuizOptions(gameName, allGameNamesPool);
 
         chosenMomentData = {
           folderId: gameFolder.id,
@@ -1073,7 +1133,7 @@ async function selectQuizMoments(drive, config) {
           speedupFile: pair.speedupFile || null,
           memeImageFile: pair.memeImageFile || null,
           fullVideoDisplayText,
-          options,
+          options: quizOptions,
           correctIndex,
         };
         break;
@@ -1093,17 +1153,18 @@ async function selectQuizMoments(drive, config) {
           skipPrefix,
           usedPairKeys,
           usedOverlayKeys,
-          gameClipsCache
+          gameClipsCache,
+          options
         );
         if (pair) {
-          const pairKey = `${pair.cutFile.id}_${pair.fullFile.id}`;
+          const pairKey = pair.cutFile ? `${pair.cutFile.id}_${pair.fullFile.id}` : `nocut_${pair.fullFile.id}`;
           usedPairKeys.add(pairKey);
 
           const fullVideoDisplayText = getFullVideoDisplayText(gameName, pair.epsName, pair.fullFile.name, pair.clipFolderName);
           const gameOverlayKey = `${gameName.toLowerCase()}:::${fullVideoDisplayText.toLowerCase()}`;
           usedOverlayKeys.add(gameOverlayKey);
 
-          const { options, correctIndex } = createUniqueQuizOptions(gameName, allGameNamesPool);
+          const { options: quizOptions, correctIndex } = createUniqueQuizOptions(gameName, allGameNamesPool);
 
           chosenMomentData = {
             folderId: gameFolder.id,
@@ -1116,7 +1177,7 @@ async function selectQuizMoments(drive, config) {
             speedupFile: pair.speedupFile || null,
             memeImageFile: pair.memeImageFile || null,
             fullVideoDisplayText,
-            options,
+            options: quizOptions,
             correctIndex,
           };
           break;
@@ -1137,7 +1198,8 @@ async function selectQuizMoments(drive, config) {
       } else if (chosenMomentData.epsName) {
         console.log(`    - Episode    : ${chosenMomentData.epsName} (Tamat 1 stream, tidak dimasukkan ke overlay)${l3Log}`);
       }
-      console.log(`    - Cut Video  : ${chosenMomentData.cutFile.name}`);
+      const cutLog = chosenMomentData.cutFile ? chosenMomentData.cutFile.name : '(Tidak ada cut)';
+      console.log(`    - Cut Video  : ${cutLog}`);
       console.log(`    - Full Video : ${chosenMomentData.fullFile.name}`);
       const memeLog = chosenMomentData.memeImageFile
         ? `"${chosenMomentData.memeImageFile.name}" (1:1 meme facecam, lebar 540px)`
