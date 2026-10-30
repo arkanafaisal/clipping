@@ -49,6 +49,7 @@ const {
   createUniqueQuizOptions,
   findVideoPair,
   findMemeImage,
+  findGameMomentPair,
   selectQuizMoments,
 } = require('./utils/selector');
 
@@ -197,6 +198,7 @@ module.exports = {
   STATIC_FALLBACK_DISTRACTORS,
   findVideoPair,
   findMemeImage,
+  findGameMomentPair,
   detectTransitionSfx,
   renderTransitionClip,
   prepareTransitionClips,

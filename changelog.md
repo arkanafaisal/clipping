@@ -14,7 +14,34 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Configurable Transition Modes (Centered 1:1 Meme Facecam, Number Counter, and Off)
+## [Unreleased] - Configurable Sliding-Window Game Uniqueness and Uniform Game-Level Sampling
+- **Konteks Struktural**:
+  - Kontrol Jarak Keunikan Game & Sampling Setara Tingkat Game ([selector.js](file:///d:/projects/clipping/scheduler-uploader/utils/selector.js), [config.js](file:///d:/projects/clipping/scheduler-uploader/utils/config.js), [compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example)):
+    - Menambahkan variabel konfigurasi `GAME_UNIQUE_WINDOW` (default: 5) dan argumen CLI (`--unique-window=`, `--game-uniqueness=`, `--uniqueness=`, `--window=`) untuk mengontrol jarak jeda (*sliding window cooldown*) sebelum sebuah game boleh terpilih kembali:
+      - Nilai $\ge 5$ (atau $\ge$ target klip): Menjamin dalam 5 klip berturut-turut tidak akan pernah ada duplikat game (setiap klip berasal dari game yang berbeda).
+      - Nilai $= 1$: Bebas duplikat game, di mana game yang sama boleh muncul berturut-turut pada klip berikutnya asalkan memiliki klip/episode lain yang belum pernah digunakan dalam kompilasi tersebut.
+      - Nilai $= 2, 3, \dots$: Game yang sama baru boleh muncul kembali setelah jeda 2 atau 3 klip.
+    - Mengonfirmasi dan mengunci prinsip **Uniform Random di Tingkat Game**:
+      - Pengacakan dilakukan pada daftar entitas folder Game (`allGameFolders`), bukan dengan menggabungkan seluruh klip dari seluruh game ke dalam satu kolam raksasa.
+      - Game X (yang memiliki 100 klip) dan Game Y (yang hanya memiliki 5 klip) memiliki peluang terpilih yang persis setara ($1 : 1$), karena masing-masing game hanya memiliki tepat 1 tiket pada setiap putaran pemilihan kandidat.
+    - Menambahkan fungsi pembantu lazy-scan `findGameMomentPair(drive, gameFolder, skipPrefix, usedPairKeys, gameClipsCache)`:
+      - Memindai episode dan subfolder klip secara bertahap hanya saat game tersebut terpilih sebagai kandidat.
+      - Menyimpan cache pasangan klip yang sudah ditemukan per game (`gameClipsCache`) agar jika game yang sama terpilih kembali di masa mendatang (setelah melewati cooldown window), sistem langsung mengambil klip lain yang belum terpakai tanpa melakukan kueri API Google Drive berulang kali.
+      - Menjamin tidak ada berkas video pasangan yang sama (`cutFile` & `fullFile`) diputar ganda dalam 1 video kompilasi.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/utils/config.js`:
+    - Menambahkan parsing `gameUniqueWindow` dari `process.env.GAME_UNIQUE_WINDOW` dan argumen CLI.
+    - Menambahkan visualisasi jarak keunikan game pada konsol banner.
+  - `scheduler-uploader/utils/selector.js`:
+    - Mengimplementasikan `findGameMomentPair` dengan caching memori dan pelacakan `usedPairKeys`.
+    - Mengubah loop seleksi `selectQuizMoments` dari iterasi tunggal `for..of` menjadi `while (validMoments.length < clipCountTarget)` berbasis sliding cooldown window.
+    - Menambahkan failsafe pelepasan cooldown otomatis jika jumlah total game di Google Drive lebih sedikit dari target window.
+  - `scheduler-uploader/compile_doksli.js`:
+    - Mengimpor dan mengekspor ulang `findGameMomentPair`.
+  - `scheduler-uploader/.env.example`:
+    - Menambahkan dokumentasi variabel `GAME_UNIQUE_WINDOW=5`.
+
+## [f110fab] - Configurable Transition Modes (Centered 1:1 Meme Facecam, Number Counter, and Off)
 - **Konteks Struktural**:
   - Fleksibilitas Visual Layar Transisi TikTok Core ([compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js), [config.js](file:///d:/projects/clipping/scheduler-uploader/utils/config.js), [transition.js](file:///d:/projects/clipping/scheduler-uploader/utils/transition.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example)):
     - Menambahkan konfigurasi mode visual transisi layar hitam TikTok Core melalui variabel `.env` `TRANSITION_MODE` (pilihan: `meme`, `number`, `off`) dan argumen CLI (`--transition-mode=`, `--trans-mode=`, `--meme`, `--transition-meme`, `--no-counter`, dll):

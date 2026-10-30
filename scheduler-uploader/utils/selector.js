@@ -157,10 +157,133 @@ function findMemeImage(files, skipPrefix) {
 }
 
 /**
+ * Mencari satu pasangan klip video yang valid dan belum terpakai di dalam sebuah folder game.
+ * Menggunakan cache agar pencarian episode/klip berikutnya untuk game yang sama tidak mengulang query API.
+ */
+async function findGameMomentPair(drive, gameFolder, skipPrefix, usedPairKeys, gameClipsCache) {
+  let cache = gameClipsCache.get(gameFolder.id);
+
+  if (!cache) {
+    const childrenRes = await drive.files.list({
+      q: `'${gameFolder.id}' in parents and trashed = false`,
+      fields: 'files(id, name, size, mimeType)',
+      spaces: 'drive',
+      pageSize: 100,
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
+    });
+
+    const children = childrenRes.data.files || [];
+    const allEpsFolders = children.filter((c) => c.mimeType === 'application/vnd.google-apps.folder');
+    const validEpsFolders = allEpsFolders.filter((c) => !isSkippedItem(c.name, skipPrefix));
+
+    cache = {
+      children,
+      epsFolders: shuffleArray(validEpsFolders),
+      discoveredPairs: [],
+      directChecked: false,
+    };
+
+    // Fallback: Jika tidak ada subfolder episode, periksa apakah ada 2 video langsung di folder game
+    if (validEpsFolders.length === 0) {
+      const directPair = findVideoPair(children, skipPrefix);
+      if (directPair) {
+        cache.discoveredPairs.push({
+          epsName: '',
+          clipFolderName: null,
+          cutFile: directPair.cutFile,
+          fullFile: directPair.fullFile,
+          memeImageFile: findMemeImage(children, skipPrefix),
+        });
+      }
+      cache.directChecked = true;
+    }
+
+    gameClipsCache.set(gameFolder.id, cache);
+  }
+
+  // 1. Cek apakah ada pasangan yang belum dipakai dari yang sudah pernah ditemukan
+  const getUnused = () => {
+    return cache.discoveredPairs.find(
+      (p) => !usedPairKeys.has(`${p.cutFile.id}_${p.fullFile.id}`)
+    );
+  };
+
+  let unusedPair = getUnused();
+  if (unusedPair) return unusedPair;
+
+  // 2. Jika belum ada, scan sisa subfolder episode secara bertahap
+  while (cache.epsFolders.length > 0 && !unusedPair) {
+    const epsFolder = cache.epsFolders.pop();
+
+    const epsChildrenRes = await drive.files.list({
+      q: `'${epsFolder.id}' in parents and trashed = false`,
+      fields: 'files(id, name, size, mimeType)',
+      spaces: 'drive',
+      pageSize: 100,
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
+    });
+
+    const epsItems = epsChildrenRes.data.files || [];
+
+    // Cek direct pair di folder episode
+    const directPair = findVideoPair(epsItems, skipPrefix);
+    if (directPair) {
+      cache.discoveredPairs.push({
+        epsName: epsFolder.name.trim(),
+        clipFolderName: null,
+        cutFile: directPair.cutFile,
+        fullFile: directPair.fullFile,
+        memeImageFile: findMemeImage(epsItems, skipPrefix),
+      });
+    }
+
+    // Cek subfolder klip lapis ke-3 (misal folder "-")
+    const layer3SubFolders = epsItems.filter(
+      (f) => f.mimeType === 'application/vnd.google-apps.folder' && !isSkippedItem(f.name, skipPrefix)
+    );
+
+    if (layer3SubFolders.length > 0) {
+      const shuffledL3 = shuffleArray(layer3SubFolders);
+      for (const l3Folder of shuffledL3) {
+        const l3Res = await drive.files.list({
+          q: `'${l3Folder.id}' in parents and trashed = false`,
+          fields: 'files(id, name, size, mimeType)',
+          spaces: 'drive',
+          pageSize: 20,
+          supportsAllDrives: true,
+          includeItemsFromAllDrives: true,
+        });
+
+        const l3Items = l3Res.data.files || [];
+        const l3Pair = findVideoPair(l3Items, skipPrefix);
+        if (l3Pair) {
+          cache.discoveredPairs.push({
+            epsName: epsFolder.name.trim(),
+            clipFolderName: l3Folder.name.trim(),
+            cutFile: l3Pair.cutFile,
+            fullFile: l3Pair.fullFile,
+            memeImageFile: findMemeImage(l3Items, skipPrefix) || findMemeImage(epsItems, skipPrefix),
+          });
+        }
+      }
+    }
+
+    unusedPair = getUnused();
+  }
+
+  return unusedPair || null;
+}
+
+/**
  * Memilih secara acak momen kuis dari Google Drive berdasarkan konfigurasi:
  * - Mengambil folder Game (Layer 1)
- * - Memilih episode (Layer 2)
- * - Jika episode memiliki subfolder klip (Layer 3, misal folder "-"), memilih satu klip secara acak
+ * - Tingkat keunikan game dikontrol oleh `gameUniqueWindow` (default: 5)
+ *   Jika window = 5: dalam 5 klip berturut-turut dijamin tidak ada duplikat game.
+ *   Jika window = 1: bebas duplikat (game yang sama boleh muncul berturut-turut dengan klip berbeda).
+ * - Pemilihan benar-benar adil (Uniform Random di tingkat Game), sehingga Game dengan 100 klip
+ *   tidak memiliki peluang lebih besar daripada Game dengan 5 klip.
  * - Memvalidasi ketersediaan tepat 2 video (cut.mp4 dan full video)
  * - Mendeteksi gambar meme 1:1 opsional (facecam) jika ada
  * - Menghasilkan 4 opsi kuis unik
@@ -168,6 +291,7 @@ function findMemeImage(files, skipPrefix) {
  */
 async function selectQuizMoments(drive, config) {
   const { doksliFolderId, clipCountTarget, skipPrefix } = config;
+  const gameUniqueWindow = Math.max(1, config.gameUniqueWindow || 5);
 
   console.log('[TAHAP 1/4] Mengambil daftar folder game di Google Drive...');
   const res = await drive.files.list({
@@ -198,180 +322,146 @@ async function selectQuizMoments(drive, config) {
   // Simpan nama semua folder game untuk pool pengecoh kuis
   const allGameNamesPool = allGameFolders.map((f) => f.name.trim());
 
-  // 4. Acak dan seleksi game unik
-  console.log(`\n[TAHAP 2/4] Mengacak dan menyeleksi ${clipCountTarget} momen kuis dari episode game...`);
-  const shuffledGameFolders = shuffleArray(allGameFolders);
+  let uniquenessLog = `${gameUniqueWindow} klip berturut-turut`;
+  if (gameUniqueWindow <= 1) {
+    uniquenessLog = '1 (Bebas duplikat, game boleh berulang berturut-turut)';
+  } else if (gameUniqueWindow >= clipCountTarget) {
+    uniquenessLog = `${gameUniqueWindow} klip (Semua momen dijamin game unik)`;
+  }
+
+  console.log(`\n[TAHAP 2/4] Mengacak dan menyeleksi ${clipCountTarget} momen kuis (Jarak Keunikan Game: ${uniquenessLog})...`);
 
   const validMoments = [];
-  const selectedGameNames = new Set();
+  const usedPairKeys = new Set();
+  const gameClipsCache = new Map();
 
-  for (const gameFolder of shuffledGameFolders) {
-    if (validMoments.length >= clipCountTarget) break;
-
-    const gameName = gameFolder.name.trim();
-
-    // Pencegah duplikat game: pastikan game belum pernah terpilih
-    const isDuplicateGame = Array.from(selectedGameNames).some(
-      (selected) => selected.toLowerCase() === gameName.toLowerCase()
-    );
-    if (isDuplicateGame) {
-      console.log(` ⚠️ Game "${gameName}" dilewati (game ini sudah terpilih di kompilasi ini).`);
-      continue;
+  // Loop terus sampai target klip terpenuhi atau seluruh klip di GDrive habis
+  while (validMoments.length < clipCountTarget) {
+    // 1. Tentukan game mana yang sedang dalam cooldown window
+    const cooldownGames = new Set();
+    if (gameUniqueWindow > 1) {
+      const windowSlice = validMoments.slice(-(gameUniqueWindow - 1));
+      for (const m of windowSlice) {
+        cooldownGames.add(m.gameName.toLowerCase());
+      }
     }
 
-    // Ambil daftar item di dalam folder game (mencari subfolder episode atau berkas langsung)
-    const childrenRes = await drive.files.list({
-      q: `'${gameFolder.id}' in parents and trashed = false`,
-      fields: 'files(id, name, mimeType)',
-      spaces: 'drive',
-      pageSize: 100,
-      supportsAllDrives: true,
-      includeItemsFromAllDrives: true,
-    });
+    // 2. Filter game yang memenuhi syarat (tidak sedang cooldown)
+    let eligibleGames = allGameFolders.filter(
+      (g) => !cooldownGames.has(g.name.trim().toLowerCase())
+    );
 
-    const children = childrenRes.data.files || [];
-    const allEpsFolders = children.filter((c) => c.mimeType === 'application/vnd.google-apps.folder');
-    const epsFolders = allEpsFolders.filter((c) => {
-      if (isSkippedItem(c.name, skipPrefix)) {
-        console.log(`   ⏭️ [SKIP] Subfolder episode "${c.name}" pada game "${gameName}" dilewati (diawali kode skip).`);
-        return false;
+    // Failsafe: Jika semua game sedang cooldown (misal jumlah total game < window)
+    if (eligibleGames.length === 0) {
+      eligibleGames = [...allGameFolders];
+      if (validMoments.length > 0 && allGameFolders.length > 1) {
+        const lastGame = validMoments[validMoments.length - 1].gameName.toLowerCase();
+        eligibleGames = eligibleGames.filter((g) => g.name.trim().toLowerCase() !== lastGame);
       }
-      return true;
-    });
+    }
 
-    let chosenEps = null;
+    // 3. Acak game kandidat secara setara (UNIFORM RANDOM per Game)
+    // Setiap folder game memiliki peluang terpilih yang persis sama, terlepas dari berapa banyak klip di dalamnya
+    const candidateGames = shuffleArray(eligibleGames);
 
-    if (epsFolders.length > 0) {
-      // Acak urutan episode agar pilihan klip bervariasi jika game memiliki banyak episode
-      const shuffledEps = shuffleArray(epsFolders);
+    let chosenMomentData = null;
 
-      for (const epsFolder of shuffledEps) {
-        // Ambil isi di dalam subfolder episode (dapat berupa berkas video langsung atau subfolder klip lapis ke-3)
-        const epsChildrenRes = await drive.files.list({
-          q: `'${epsFolder.id}' in parents and trashed = false`,
-          fields: 'files(id, name, size, mimeType)',
-          spaces: 'drive',
-          pageSize: 100,
-          supportsAllDrives: true,
-          includeItemsFromAllDrives: true,
-        });
+    for (const gameFolder of candidateGames) {
+      const gameName = gameFolder.name.trim();
+      const pair = await findGameMomentPair(drive, gameFolder, skipPrefix, usedPairKeys, gameClipsCache);
 
-        const epsItems = epsChildrenRes.data.files || [];
+      if (pair) {
+        const pairKey = `${pair.cutFile.id}_${pair.fullFile.id}`;
+        usedPairKeys.add(pairKey);
 
-        // 1. Cek apakah di dalam folder episode sudah ada langsung 2 berkas video (cut.mp4 & full video)
-        const directPair = findVideoPair(epsItems, skipPrefix);
-        if (directPair) {
-          chosenEps = {
-            epsName: epsFolder.name.trim(),
-            clipFolderName: null,
-            cutFile: directPair.cutFile,
-            fullFile: directPair.fullFile,
-            memeImageFile: findMemeImage(epsItems, skipPrefix),
+        const { options, correctIndex } = createUniqueQuizOptions(gameName, allGameNamesPool);
+
+        const rawCleanEps = pair.epsName ? cleanText(pair.epsName) : '';
+        const isSingleStreamNoEps = !rawCleanEps || rawCleanEps === '-' || /^[-—–_]+$/.test(rawCleanEps);
+        const cleanEps = isSingleStreamNoEps ? '' : rawCleanEps;
+        const cleanFull = cleanText(pair.fullFile.name);
+        const fullVideoDisplayText = cleanEps ? `${cleanEps} ${cleanFull}`.trim() : cleanFull;
+
+        chosenMomentData = {
+          folderId: gameFolder.id,
+          momentName: gameName,
+          gameName,
+          epsName: pair.epsName,
+          clipFolderName: pair.clipFolderName || null,
+          cutFile: pair.cutFile,
+          fullFile: pair.fullFile,
+          memeImageFile: pair.memeImageFile || null,
+          fullVideoDisplayText,
+          options,
+          correctIndex,
+        };
+        break;
+      }
+    }
+
+    // Jika tidak ada klip tersisa di eligibleGames, coba cek sisa game di cooldown
+    if (!chosenMomentData && cooldownGames.size > 0) {
+      const remainingGames = shuffleArray(
+        allGameFolders.filter((g) => cooldownGames.has(g.name.trim().toLowerCase()))
+      );
+      for (const gameFolder of remainingGames) {
+        const gameName = gameFolder.name.trim();
+        const pair = await findGameMomentPair(drive, gameFolder, skipPrefix, usedPairKeys, gameClipsCache);
+        if (pair) {
+          const pairKey = `${pair.cutFile.id}_${pair.fullFile.id}`;
+          usedPairKeys.add(pairKey);
+
+          const { options, correctIndex } = createUniqueQuizOptions(gameName, allGameNamesPool);
+
+          const rawCleanEps = pair.epsName ? cleanText(pair.epsName) : '';
+          const isSingleStreamNoEps = !rawCleanEps || rawCleanEps === '-' || /^[-—–_]+$/.test(rawCleanEps);
+          const cleanEps = isSingleStreamNoEps ? '' : rawCleanEps;
+          const cleanFull = cleanText(pair.fullFile.name);
+          const fullVideoDisplayText = cleanEps ? `${cleanEps} ${cleanFull}`.trim() : cleanFull;
+
+          chosenMomentData = {
+            folderId: gameFolder.id,
+            momentName: gameName,
+            gameName,
+            epsName: pair.epsName,
+            clipFolderName: pair.clipFolderName || null,
+            cutFile: pair.cutFile,
+            fullFile: pair.fullFile,
+            memeImageFile: pair.memeImageFile || null,
+            fullVideoDisplayText,
+            options,
+            correctIndex,
           };
           break;
         }
-
-        // 2. Jika tidak ada 2 video langsung, periksa apakah terdapat subfolder klip lapis ke-3 (misal: folder-folder "-")
-        const layer3SubFolders = epsItems.filter(
-          (f) => f.mimeType === 'application/vnd.google-apps.folder' && !isSkippedItem(f.name, skipPrefix)
-        );
-
-        if (layer3SubFolders.length > 0) {
-          // Acak urutan folder klip lapis ke-3 agar klip terpilih secara acak jika dalam 1 episode terdapat banyak klip
-          const shuffledL3 = shuffleArray(layer3SubFolders);
-
-          for (const l3Folder of shuffledL3) {
-            const l3Res = await drive.files.list({
-              q: `'${l3Folder.id}' in parents and trashed = false`,
-              fields: 'files(id, name, size, mimeType)',
-              spaces: 'drive',
-              pageSize: 20,
-              supportsAllDrives: true,
-              includeItemsFromAllDrives: true,
-            });
-
-            const l3Items = l3Res.data.files || [];
-            const l3Pair = findVideoPair(l3Items, skipPrefix);
-            if (l3Pair) {
-              chosenEps = {
-                epsName: epsFolder.name.trim(),
-                clipFolderName: l3Folder.name.trim(),
-                cutFile: l3Pair.cutFile,
-                fullFile: l3Pair.fullFile,
-                memeImageFile: findMemeImage(l3Items, skipPrefix) || findMemeImage(epsItems, skipPrefix),
-              };
-              break;
-            }
-          }
-
-          if (chosenEps) {
-            break;
-          }
-        }
       }
+    }
+
+    if (chosenMomentData) {
+      validMoments.push(chosenMomentData);
+
+      const letter = ['A', 'B', 'C', 'D'][chosenMomentData.correctIndex];
+      console.log(` ✅ Terpilih #${validMoments.length}: Game "${chosenMomentData.gameName}"`);
+      const l3Log = chosenMomentData.clipFolderName ? ` [Klip: "${chosenMomentData.clipFolderName}"]` : '';
+      const isSingleStreamNoEps =
+        !chosenMomentData.epsName || chosenMomentData.epsName === '-' || /^[-—–_]+$/.test(chosenMomentData.epsName);
+      if (chosenMomentData.epsName && !isSingleStreamNoEps) {
+        console.log(`    - Episode    : ${chosenMomentData.epsName}${l3Log}`);
+      } else if (chosenMomentData.epsName) {
+        console.log(`    - Episode    : ${chosenMomentData.epsName} (Tamat 1 stream, tidak dimasukkan ke overlay)${l3Log}`);
+      }
+      console.log(`    - Cut Video  : ${chosenMomentData.cutFile.name}`);
+      console.log(`    - Full Video : ${chosenMomentData.fullFile.name}`);
+      const memeLog = chosenMomentData.memeImageFile
+        ? `"${chosenMomentData.memeImageFile.name}" (1:1 meme facecam, lebar 540px)`
+        : '(Tidak ada - layar hitam jika mode meme)';
+      console.log(`    - Meme Image : ${memeLog}`);
+      console.log(`    - Overlay    : "${chosenMomentData.fullVideoDisplayText}" (1 baris)`);
+      console.log(`    - Kunci Kuis : [${letter}]`);
     } else {
-      // Fallback kompatibilitas: jika video diletakkan langsung di dalam folder game
-      const directPair = findVideoPair(children, skipPrefix);
-      if (directPair) {
-        chosenEps = {
-          epsName: '',
-          clipFolderName: null,
-          cutFile: directPair.cutFile,
-          fullFile: directPair.fullFile,
-          memeImageFile: findMemeImage(children, skipPrefix),
-        };
-      }
+      console.log(`ℹ️ [INFO] Tidak ada lagi klip baru yang tersisa di seluruh folder game Google Drive.`);
+      break;
     }
-
-    if (!chosenEps) {
-      console.log(` ⚠️ Game "${gameName}" dilewati (tidak ada subfolder episode valid yang memiliki cut.mp4 dan video full).`);
-      continue;
-    }
-
-    // Siapkan pilihan ganda kuis berbasis Game (100% unik tanpa duplikat via Set & fallback statis)
-    const { options, correctIndex } = createUniqueQuizOptions(gameName, allGameNamesPool);
-
-    // Format display text untuk overlay full video: "nama folder eps x + nama file full vid", 1 baris ketat tanpa \n
-    // Jika nama subfolder episode hanya tanda "-" (artinya game langsung tamat dalam 1 stream tanpa pembagian episode),
-    // maka tanda "-" tersebut diabaikan dan tidak dimasukkan ke dalam teks overlay.
-    // Begitu juga subfolder klip lapis ke-3 (misal folder "-"), tanda "-" tidak pernah dimasukkan ke overlay.
-    const rawCleanEps = chosenEps.epsName ? cleanText(chosenEps.epsName) : '';
-    const isSingleStreamNoEps = !rawCleanEps || rawCleanEps === '-' || /^[-—–_]+$/.test(rawCleanEps);
-    const cleanEps = isSingleStreamNoEps ? '' : rawCleanEps;
-    const cleanFull = cleanText(chosenEps.fullFile.name);
-    const fullVideoDisplayText = cleanEps ? `${cleanEps} ${cleanFull}`.trim() : cleanFull;
-
-    validMoments.push({
-      folderId: gameFolder.id,
-      momentName: gameName,
-      gameName,
-      epsName: chosenEps.epsName,
-      clipFolderName: chosenEps.clipFolderName || null,
-      cutFile: chosenEps.cutFile,
-      fullFile: chosenEps.fullFile,
-      memeImageFile: chosenEps.memeImageFile || null,
-      fullVideoDisplayText,
-      options,
-      correctIndex,
-    });
-    selectedGameNames.add(gameName);
-
-    const letter = ['A', 'B', 'C', 'D'][correctIndex];
-    console.log(` ✅ Terpilih #${validMoments.length}: Game "${gameName}"`);
-    const l3Log = chosenEps.clipFolderName ? ` [Klip: "${chosenEps.clipFolderName}"]` : '';
-    if (chosenEps.epsName && !isSingleStreamNoEps) {
-      console.log(`    - Episode    : ${chosenEps.epsName}${l3Log}`);
-    } else if (chosenEps.epsName) {
-      console.log(`    - Episode    : ${chosenEps.epsName} (Tamat 1 stream, tidak dimasukkan ke overlay)${l3Log}`);
-    }
-    console.log(`    - Cut Video  : ${chosenEps.cutFile.name}`);
-    console.log(`    - Full Video : ${chosenEps.fullFile.name}`);
-    const memeLog = chosenEps.memeImageFile
-      ? `"${chosenEps.memeImageFile.name}" (1:1 meme facecam, lebar 540px)`
-      : '(Tidak ada - layar hitam jika mode meme)';
-    console.log(`    - Meme Image : ${memeLog}`);
-    console.log(`    - Overlay    : "${fullVideoDisplayText}" (1 baris)`);
-    console.log(`    - Kunci Kuis : [${letter}]`);
   }
 
   if (validMoments.length === 0) {
@@ -379,9 +469,9 @@ async function selectQuizMoments(drive, config) {
     process.exit(1);
   }
 
-  console.log(`\n🎉 Berhasil mengumpulkan ${validMoments.length} game unik untuk kompilasi!`);
+  console.log(`\n🎉 Berhasil mengumpulkan ${validMoments.length} momen untuk kompilasi!`);
   if (validMoments.length < clipCountTarget) {
-    console.log(`ℹ️ [INFO] Target diminta ${clipCountTarget} klip, namun game unik yang valid dan tersedia hanya ${validMoments.length} game.`);
+    console.log(`ℹ️ [INFO] Target diminta ${clipCountTarget} klip, namun klip unik yang valid dan tersedia hanya ${validMoments.length} klip.`);
   }
 
   return validMoments;
@@ -395,5 +485,6 @@ module.exports = {
   createUniqueQuizOptions,
   findVideoPair,
   findMemeImage,
+  findGameMomentPair,
   selectQuizMoments,
 };

@@ -107,6 +107,15 @@ function getConfig() {
     process.env.GDRIVE_ROOT_FOLDER_ID;
 
   let clipCountTarget = parseInt(process.env.QUIZ_CLIP_COUNT || '5', 10);
+  let gameUniqueWindow = parseInt(
+    process.env.GAME_UNIQUE_WINDOW ||
+    process.env.GAME_UNIQUENESS ||
+    process.env.QUIZ_GAME_UNIQUENESS ||
+    '5',
+    10
+  );
+  if (isNaN(gameUniqueWindow) || gameUniqueWindow < 1) gameUniqueWindow = 1;
+
   let quizOffsetY = parseInt(process.env.QUIZ_OFFSET_Y || '0', 10);
   let memeTextY = parseInt(process.env.MEME_TEXT_Y || '480', 10);
   let quizQuestion = process.env.QUIZ_QUESTION || 'Momen manakah itu?';
@@ -212,6 +221,10 @@ function getConfig() {
       const dur = parseFloat(arg.split('=')[1]);
       if (!isNaN(dur) && dur > 0.5) fullVideoMaxDuration = dur;
     }
+    if (arg.startsWith('--unique-window=') || arg.startsWith('--game-uniqueness=') || arg.startsWith('--uniqueness=') || arg.startsWith('--window=')) {
+      const val = parseInt(arg.split('=')[1], 10);
+      if (!isNaN(val) && val >= 1) gameUniqueWindow = val;
+    }
     if (arg.startsWith('--result-folder=')) resultFolderId = arg.slice(arg.indexOf('=') + 1);
     if (arg.startsWith('--skip-prefix=')) skipPrefix = arg.slice(arg.indexOf('=') + 1);
     if (arg.startsWith('--censor-mode=')) censorMode = arg.split('=')[1].toLowerCase();
@@ -236,6 +249,7 @@ function getConfig() {
   return {
     doksliFolderId,
     clipCountTarget,
+    gameUniqueWindow,
     quizOffsetY,
     memeTextY,
     quizQuestion,
@@ -283,9 +297,17 @@ function printConfigBanner(config, transitionSfxPath = null) {
     }
   }
 
+  let uniquenessDesc = `${config.gameUniqueWindow} klip berturut-turut`;
+  if (config.gameUniqueWindow <= 1) {
+    uniquenessDesc = '1 (Bebas duplikat, game yang sama boleh muncul berturut-turut)';
+  } else if (config.gameUniqueWindow >= config.clipCountTarget) {
+    uniquenessDesc = `${config.gameUniqueWindow} klip (Semua momen dalam kompilasi dijamin game berbeda)`;
+  }
+
   console.log(`\nKonfigurasi:`);
   console.log(` - ID Folder Google Drive : ${config.doksliFolderId}`);
   console.log(` - Target Momen Terpilih  : ${config.clipCountTarget} momen`);
+  console.log(` - Jarak Keunikan Game    : ${uniquenessDesc}`);
   console.log(` - Format Output          : Vertikal 9:16 (1080x1920) 60 FPS`);
   console.log(` - Durasi Freeze Kuis     : ${(4 * config.quizTickSeconds).toFixed(2)}s (Tick: ${config.quizTickSeconds}s x 4 beat)`);
   console.log(` - Pertanyaan Kuis        : "${config.quizQuestion}"`);
