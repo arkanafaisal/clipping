@@ -14,7 +14,32 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Preserve Skip Prefix for Crawler Folders and Indonesian Text Overlay Conversion
+## [Unreleased] - Progressive Speedup Crawler and Fast-Path Compiler Integration
+- **Konteks Struktural**:
+  - Script Crawler & Generator Speedup Google Drive ([crawl_speedup_drive.js](file:///d:/projects/clipping/scheduler-uploader/crawl_speedup_drive.js), [package.json](file:///d:/projects/clipping/scheduler-uploader/package.json)):
+    - Membuat script mandiri `crawl_speedup_drive.js` (`npm run speedup` / `npm run crawl:speedup`) untuk menelusuri seluruh klip Doksli di Google Drive, merender versi speedup dinamis (~5 detik, rasio 9:16 vertikal, 60 FPS CFR, audio pitch-shifted cempreng, dan overlay teks judul), lalu LANGSUNG mengunggahnya 1 per 1 ke folder klip yang sama di Google Drive dengan nama `speedup.mp4`.
+    - **Eksekusi Progresif 1 per 1**: Selesai 1 klip langsung diunggah ke Google Drive dan file lokal dihapus. Jika program dihentikan pengguna di tengah jalan (Ctrl+C / early stop), seluruh klip yang sudah terunggah tetap aman di cloud.
+    - **Idempoten & Deteksi Otomatis**: Saat program dijalankan kembali, klip yang sudah memiliki `speedup.mp4` otomatis dideteksi dan dilewati (skip). Menyediakan opsi `--force` untuk merender ulang jika diinginkan.
+    - **Opsi CLI Komprehensif**: Mendukung `--dry-run` (simulasi tanpa download/upload), `--yes` (auto konfirmasi), `--game="<nama>"` (filter game), `--limit=<n>` (batasi kuota), dan `--no-overlay`.
+  - Integrasi Kompilator Dokli ([selector.js](file:///d:/projects/clipping/scheduler-uploader/utils/selector.js), [downloader.js](file:///d:/projects/clipping/scheduler-uploader/utils/downloader.js), [compiler.js](file:///d:/projects/clipping/scheduler-uploader/utils/compiler.js)):
+    - Memperbarui `findVideoPair` di `selector.js` untuk mendeteksi keberadaan `speedup.mp4` di samping `cut.mp4` dan `full.mp4`.
+    - Mengoptimalkan `downloadMomentVideos` di `downloader.js`: Jika `speedup.mp4` sudah tersedia di Google Drive, script langsung mengunduh `speedup.mp4` (berukuran kecil ~1-2 MB) dan melewati download video full mentah (30-80 MB).
+    - Memperbarui `processSingleMoment` di `compiler.js`: Menggunakan `speedup.mp4` siap pakai dari Google Drive secara instan, melewati rendering FFmpeg manual untuk bagian full meme, sehingga kompilasi berlangsung jauh lebih cepat.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/crawl_speedup_drive.js`:
+    - Membuat modul crawler progresif lengkap dengan pemindaian hierarki folder, penanganan graceful shutdown SIGINT, kalkulasi auto speed ~5s, audio pitch shift cempreng, ASS subtitle generation, dan upload langsung Google Drive API v3.
+  - `scheduler-uploader/utils/selector.js`:
+    - Memperbarui `findVideoPair` agar mengenali folder dengan 3 file video (`cut.mp4`, `full.mp4`, `speedup.mp4`) dan memetakan `speedupFile`.
+    - Meneruskan `speedupFile` pada seluruh titik instansiasi pasangan momen klip.
+  - `scheduler-uploader/utils/downloader.js`:
+    - Menambahkan logika pemilihan unduh `speedupFile` prioritas sebelum fallback ke `fullFile`.
+    - Mengembalikan `isAlreadySpeedup` dan `rawSpeedupPath`.
+  - `scheduler-uploader/utils/compiler.js`:
+    - Menghubungkan jalur cepat (fast-path) di mana `rawSpeedupPath` langsung disalin ke `normFullPath` tanpa memanggil `renderFullMemeClip`.
+  - `scheduler-uploader/package.json`:
+    - Menambahkan npm script `"speedup"` dan `"crawl:speedup"`.
+
+## [a92487b] - Preserve Skip Prefix for Crawler Folders and Indonesian Text Overlay Conversion
 - **Konteks Struktural**:
   - Pelestarian Prefix Skip pada Crawler ([crawl_organize_drive.js](file:///d:/projects/clipping/scheduler-uploader/crawl_organize_drive.js)):
     - Mendukung penamaan folder bertanda skip `!-` menjadi `!HH:MM:SS` (misal `!-` -> `!00:12:54` atau `!01:39:12`), sehingga status skip klip tetap terjaga di Google Drive dan otomatis diabaikan oleh kompilator.

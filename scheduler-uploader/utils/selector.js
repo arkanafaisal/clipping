@@ -312,15 +312,25 @@ function findVideoPair(files, skipPrefix) {
     return true;
   });
 
-  if (vidFiles.length === 2) {
-    const cutFile = vidFiles.find((f) => {
-      const base = f.name.toLowerCase().replace(/\.[^.]+$/, '');
-      return base === 'cut';
-    });
-    const fullFile = vidFiles.find((f) => f.id !== cutFile?.id);
-    if (cutFile && fullFile) {
-      return { cutFile, fullFile };
-    }
+  const cutFile = vidFiles.find((f) => {
+    const base = f.name.toLowerCase().replace(/^!+\s*/, '').replace(/\.[^.]+$/, '');
+    return base === 'cut';
+  });
+  if (!cutFile) return null;
+
+  const speedupFile = vidFiles.find((f) => {
+    const base = f.name.toLowerCase().replace(/^!+\s*/, '').replace(/\.[^.]+$/, '');
+    return base === 'speedup';
+  });
+
+  const fullFile = vidFiles.find((f) => f.id !== cutFile.id && f.id !== speedupFile?.id);
+
+  if (cutFile && (fullFile || speedupFile)) {
+    return {
+      cutFile,
+      fullFile: fullFile || speedupFile,
+      speedupFile: speedupFile || null,
+    };
   }
   return null;
 }
@@ -420,6 +430,7 @@ async function findGameMomentPair(drive, gameFolder, skipPrefix, usedPairKeys, u
           clipFolderName: null,
           cutFile: directPair.cutFile,
           fullFile: directPair.fullFile,
+          speedupFile: directPair.speedupFile || null,
           memeImageFile: findMemeImage(children, skipPrefix),
         });
       }
@@ -473,6 +484,7 @@ async function findGameMomentPair(drive, gameFolder, skipPrefix, usedPairKeys, u
         clipFolderName: null,
         cutFile: directPair.cutFile,
         fullFile: directPair.fullFile,
+        speedupFile: directPair.speedupFile || null,
         memeImageFile: findMemeImage(epsItems, skipPrefix),
       });
     }
@@ -502,6 +514,7 @@ async function findGameMomentPair(drive, gameFolder, skipPrefix, usedPairKeys, u
             clipFolderName: l3Folder.name.trim(),
             cutFile: l3Pair.cutFile,
             fullFile: l3Pair.fullFile,
+            speedupFile: l3Pair.speedupFile || null,
             memeImageFile: findMemeImage(l3Items, skipPrefix) || findMemeImage(epsItems, skipPrefix),
           });
         }
@@ -673,6 +686,7 @@ async function selectSingleGameQuizMoments(drive, config, allGameFolders) {
             clipFolderName: null,
             cutFile: directPair.cutFile,
             fullFile: directPair.fullFile,
+            speedupFile: directPair.speedupFile || null,
             memeImageFile: findMemeImage(children, skipPrefix),
           });
         }
@@ -695,6 +709,7 @@ async function selectSingleGameQuizMoments(drive, config, allGameFolders) {
             clipFolderName: null,
             cutFile: directPair.cutFile,
             fullFile: directPair.fullFile,
+            speedupFile: directPair.speedupFile || null,
             memeImageFile: findMemeImage(epsItems, skipPrefix),
           });
         }
@@ -722,6 +737,7 @@ async function selectSingleGameQuizMoments(drive, config, allGameFolders) {
                 clipFolderName: l3Folder.name.trim(),
                 cutFile: l3Pair.cutFile,
                 fullFile: l3Pair.fullFile,
+                speedupFile: l3Pair.speedupFile || null,
                 memeImageFile: findMemeImage(l3Items, skipPrefix) || findMemeImage(epsItems, skipPrefix),
               });
             }
@@ -810,6 +826,7 @@ async function selectSingleGameQuizMoments(drive, config, allGameFolders) {
           clipFolderName: pair.clipFolderName || null,
           cutFile: pair.cutFile,
           fullFile: pair.fullFile,
+          speedupFile: pair.speedupFile || null,
           memeImageFile: pair.memeImageFile || null,
           fullVideoDisplayText,
           options,
@@ -848,6 +865,7 @@ async function selectSingleGameQuizMoments(drive, config, allGameFolders) {
             clipFolderName: pair.clipFolderName || null,
             cutFile: pair.cutFile,
             fullFile: pair.fullFile,
+            speedupFile: pair.speedupFile || null,
             memeImageFile: pair.memeImageFile || null,
             fullVideoDisplayText,
             options,
@@ -1017,6 +1035,7 @@ async function selectQuizMoments(drive, config) {
           clipFolderName: pair.clipFolderName || null,
           cutFile: pair.cutFile,
           fullFile: pair.fullFile,
+          speedupFile: pair.speedupFile || null,
           memeImageFile: pair.memeImageFile || null,
           fullVideoDisplayText,
           options,
@@ -1059,6 +1078,7 @@ async function selectQuizMoments(drive, config) {
             clipFolderName: pair.clipFolderName || null,
             cutFile: pair.cutFile,
             fullFile: pair.fullFile,
+            speedupFile: pair.speedupFile || null,
             memeImageFile: pair.memeImageFile || null,
             fullVideoDisplayText,
             options,

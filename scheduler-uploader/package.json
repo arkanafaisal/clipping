@@ -10,6 +10,8 @@
     "compile:doksli": "node compile_doksli.js",
     "crawl": "node crawl_organize_drive.js",
     "organize": "node crawl_organize_drive.js",
+    "speedup": "node crawl_speedup_drive.js",
+    "crawl:speedup": "node crawl_speedup_drive.js",
     "auth": "node auth.js",
     "auth:tiktok": "node auth_tiktok.js"
   },

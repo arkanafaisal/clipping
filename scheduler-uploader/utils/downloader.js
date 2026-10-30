@@ -25,19 +25,23 @@ async function downloadMomentVideos(drive, moment, workDir, momentIndex, skipPre
     throw new Error(`Berkas video pada momen "${moment.momentName}" memiliki kode skip ("${moment.cutFile?.name}" / "${moment.fullFile?.name}").`);
   }
 
-  const rawCutPath = `${workDir}/raw_cut_${momentIndex}.mp4`;
-  const rawFullPath = `${workDir}/raw_full_${momentIndex}.mp4`;
+  let rawFullPath = null;
+  let rawSpeedupPath = null;
 
-  // Unduh cut.mp4
-  await downloadDriveFile(drive, moment.cutFile.id, rawCutPath);
-  if (isSkippedItem(moment.cutFile?.name, skipPrefix)) {
-    throw new Error(`Berkas cut.mp4 ("${moment.cutFile.name}") memiliki kode skip.`);
-  }
-
-  // Unduh full video
-  await downloadDriveFile(drive, moment.fullFile.id, rawFullPath);
-  if (isSkippedItem(moment.fullFile?.name, skipPrefix)) {
-    throw new Error(`Berkas full video ("${moment.fullFile.name}") memiliki kode skip.`);
+  // Jika speedup.mp4 sudah ada di folder klip, unduh speedup.mp4 langsung (lebih hemat bandwidth & render)
+  if (moment.speedupFile && !isSkippedItem(moment.speedupFile.name, skipPrefix)) {
+    rawSpeedupPath = `${workDir}/raw_speedup_${momentIndex}.mp4`;
+    await downloadDriveFile(drive, moment.speedupFile.id, rawSpeedupPath);
+    if (isSkippedItem(moment.speedupFile?.name, skipPrefix)) {
+      throw new Error(`Berkas speedup.mp4 ("${moment.speedupFile.name}") memiliki kode skip.`);
+    }
+  } else if (moment.fullFile) {
+    // Unduh full video mentah biasa
+    rawFullPath = `${workDir}/raw_full_${momentIndex}.mp4`;
+    await downloadDriveFile(drive, moment.fullFile.id, rawFullPath);
+    if (isSkippedItem(moment.fullFile?.name, skipPrefix)) {
+      throw new Error(`Berkas full video ("${moment.fullFile.name}") memiliki kode skip.`);
+    }
   }
 
   // Unduh meme facecam image jika ada (opsional)
@@ -57,7 +61,9 @@ async function downloadMomentVideos(drive, moment, workDir, momentIndex, skipPre
 
   return {
     rawCutPath,
-    rawFullPath,
+    rawFullPath: rawFullPath || rawSpeedupPath,
+    rawSpeedupPath,
+    isAlreadySpeedup: !!rawSpeedupPath,
     rawMemeImgPath,
   };
 }

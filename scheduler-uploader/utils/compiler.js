@@ -100,15 +100,20 @@ async function processSingleMoment({
     // 4. Merender Bagian 3: Video Full Meme
     const normFullPath = path.join(workDir, `norm_full_${momentIndex}.mp4`);
     momentTempFiles.push(normFullPath);
-    renderFullMemeClip({
-      rawFullPath,
-      outputPath: normFullPath,
-      moment,
-      momentIndex,
-      workDir,
-      config,
-      tempFilesTracker: momentTempFiles,
-    });
+    if (downloadedFiles && downloadedFiles.isAlreadySpeedup && downloadedFiles.rawSpeedupPath) {
+      console.log(`   3. ⚡ Menggunakan "speedup.mp4" siap pakai dari Google Drive ("${moment.fullVideoDisplayText}")...`);
+      fs.copyFileSync(downloadedFiles.rawSpeedupPath, normFullPath);
+    } else {
+      renderFullMemeClip({
+        rawFullPath,
+        outputPath: normFullPath,
+        moment,
+        momentIndex,
+        workDir,
+        config,
+        tempFilesTracker: momentTempFiles,
+      });
+    }
 
     // 5. Menyiapkan klip transisi (TikTok Core: meme 1:1 / number / off)
     let finalTransitionPath = transitionClipPath;
