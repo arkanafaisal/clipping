@@ -90,6 +90,53 @@ function parseTimeToStandardTimestamp(str) {
 }
 
 /**
+ * Mengonversi format timestamp angka "HH:MM:SS" (atau "MM:SS") kembali ke teks penanda waktu bahasa Indonesia
+ * untuk overlay teks video full meme sesuai aturan spesifik:
+ * - 0x menjadi x (tanpa 0 di depan, misal 05 -> 5)
+ * - 00 di jam menjadi hilang (tanpa "jam 0")
+ * - 00 di menit dan detik tetap ditulis tetapi hanya sekali (0), misal:
+ *   "00:00:00" -> "menit 0 detik 0"
+ *   "01:00:10" -> "jam 1 menit 0 detik 10"
+ *   "00:39:35" -> "menit 39 detik 35"
+ *   "01:04:05" -> "jam 1 menit 4 detik 5"
+ */
+function formatTimestampToIndoTime(str) {
+  if (!str || typeof str !== 'string') return '';
+  const clean = cleanText(str);
+
+  const timeMatch = clean.match(/^(!)?\s*(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?(.*)$/);
+  if (!timeMatch) {
+    return clean;
+  }
+
+  const hasBang = timeMatch[1] === '!';
+  let h = 0, m = 0, s = 0;
+  const rest = (timeMatch[5] || '').trim();
+
+  if (timeMatch[4] !== undefined) {
+    h = parseInt(timeMatch[2], 10) || 0;
+    m = parseInt(timeMatch[3], 10) || 0;
+    s = parseInt(timeMatch[4], 10) || 0;
+  } else {
+    m = parseInt(timeMatch[2], 10) || 0;
+    s = parseInt(timeMatch[3], 10) || 0;
+  }
+
+  const parts = [];
+  if (h > 0) {
+    parts.push(`jam ${h}`);
+  }
+  parts.push(`menit ${m}`);
+  parts.push(`detik ${s}`);
+
+  let result = parts.join(' ');
+  if (rest) {
+    result = `${result} ${rest}`;
+  }
+  return hasBang ? `!${result}` : result;
+}
+
+/**
  * Memeriksa apakah nama folder atau file memiliki kode awalan 'skip'
  * (Default kode: tanda seru '!' seperti '!Minecraft', '!eps 1', '!cut.mp4',
  * ']]' atau tag kurung '[skip]' / '[x]', serta dapat dikonfigurasi via SKIP_PREFIX)
@@ -318,11 +365,15 @@ function getFullVideoDisplayText(epsName, fullFileName, clipFolderName = null) {
 
     if (hasValidClipFolder) {
       // Ada folder klip waktu (misal: "00:39:35") di bawah folder episode ("eps 1")
-      cleanFull = rawCleanClip;
+      // Konversi format angka "00:39:35" kembali ke teks Indonesia "menit 39 detik 35"
+      cleanFull = formatTimestampToIndoTime(rawCleanClip);
     } else if (cleanEps) {
       // Tidak ada subfolder klip tambahan, nama folder waktu berada langsung di cleanEps (single stream)
-      return cleanEps;
+      return formatTimestampToIndoTime(cleanEps);
     }
+  } else {
+    // Jika nama berkas sendiri sudah berformat "00:xx:xx", konversi ke teks Indonesia
+    cleanFull = formatTimestampToIndoTime(cleanFull);
   }
 
   return cleanEps ? `${cleanEps} ${cleanFull}`.trim() : cleanFull;
@@ -1062,6 +1113,7 @@ module.exports = {
   shuffleArray,
   cleanText,
   parseTimeToStandardTimestamp,
+  formatTimestampToIndoTime,
   isSkippedItem,
   STATIC_FALLBACK_DISTRACTORS,
   createUniqueQuizOptions,

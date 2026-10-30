@@ -86,18 +86,16 @@ async function listAllFolderItems(drive, folderId) {
 /**
  * Mendeteksi apakah daftar berkas memiliki pasangan video (cut.* dan video full)
  */
-function detectVideoPair(files, skipPrefix) {
+function detectVideoPair(files) {
   const vidFiles = files.filter((f) => {
-    const isVid =
+    return (
       (f.mimeType && f.mimeType.startsWith('video/')) ||
-      /\.(mp4|mkv|mov|webm)$/i.test(f.name);
-    if (!isVid) return false;
-    if (isSkippedItem(f.name, skipPrefix)) return false;
-    return true;
+      /\.(mp4|mkv|mov|webm)$/i.test(f.name)
+    );
   });
 
   const cutFile = vidFiles.find((f) => {
-    const base = f.name.toLowerCase().replace(/\.[^.]+$/, '');
+    const base = f.name.toLowerCase().replace(/^!+\s*/, '').replace(/\.[^.]+$/, '');
     return base === 'cut';
   });
 
@@ -113,34 +111,52 @@ function detectVideoPair(files, skipPrefix) {
 async function crawlFolderRecursive(drive, folder, context, skipPrefix, results) {
   const items = await listAllFolderItems(drive, folder.id);
   const subFolders = items.filter(
-    (item) => item.mimeType === 'application/vnd.google-apps.folder' && !isSkippedItem(item.name, skipPrefix)
+    (item) => item.mimeType === 'application/vnd.google-apps.folder'
   );
   const files = items.filter(
-    (item) => item.mimeType !== 'application/vnd.google-apps.folder' && !isSkippedItem(item.name, skipPrefix)
+    (item) => item.mimeType !== 'application/vnd.google-apps.folder'
   );
 
   // Periksa apakah folder ini adalah folder klip yang berisi pasangan video (cut.* + video full)
-  // Catatan: Hanya anggap sebagai folder klip jika berada di dalam game (context.gameName sudah ada)
-  if (context.gameName) {
-    const { cutFile, fullFile } = detectVideoPair(files, skipPrefix);
+  // Syarat folder klip:
+  // 1. Berada di dalam game (context.gameName sudah ada)
+  // 2. BUKAN folder seri/episode (misal bukan "eps 1", "part 2", "!eps 1")
+  // 3. Tidak memiliki subfolder lagi (leaf folder) ATAU bernama "-" / "!-"
+  const isSeriesFolder = /(^|[\s_!-])(eps|episode|part|season|chapter)\s*\d+/i.test(folder.name.trim());
+  const isDashFolder = /^!?[-—–_]+$/.test(folder.name.trim());
+  const cleanFolderName = folder.name.trim().replace(/^!+\s*/, '');
+  const isTimestampFolder =
+    /^!?\d{1,2}:\d{2}:\d{2}$/.test(folder.name.trim()) ||
+    parseTimeToStandardTimestamp(cleanFolderName) !== cleanFolderName;
+  const isClipCandidate =
+    context.gameName &&
+    !isSeriesFolder &&
+    (isDashFolder || isTimestampFolder);
+
+  if (isClipCandidate) {
+    const { cutFile, fullFile } = detectVideoPair(files);
 
     if (cutFile && fullFile) {
-      const fullBase = fullFile.name.toLowerCase().replace(/\.[^.]+$/, '');
+      const fullBase = fullFile.name.toLowerCase().replace(/^!+\s*/, '').replace(/\.[^.]+$/, '');
       const ext = path.extname(fullFile.name) || '.mp4';
       const isFullAlready = fullBase === 'full';
+
+      // Cek apakah folder saat ini memiliki prefix skip '!' (misal "!-" atau "! 00:xx:xx")
+      const isFolderSkipped = folder.name.trim().startsWith('!');
 
       // Hitung target nama folder dan target nama file
       let targetFolderName = folder.name;
       if (!isFullAlready) {
-        targetFolderName = parseTimeToStandardTimestamp(fullFile.name);
-      } else if (folder.name === '-' || /^[-—–_]+$/.test(folder.name)) {
-        // Jika file sudah 'full.mp4' tapi nama folder masih '-', pertahankan
+        const rawTs = parseTimeToStandardTimestamp(fullFile.name).replace(/^!+/, '');
+        targetFolderName = isFolderSkipped ? `!${rawTs}` : rawTs;
+      } else if (cleanFolderName === '-' || /^[-—–_]+$/.test(cleanFolderName)) {
+        // Jika file sudah 'full.mp4' tapi nama folder masih '-' atau '!-'
         targetFolderName = folder.name;
       }
 
       const targetFileName = `full${ext}`;
 
-      const folderNeedsRename = folder.name.trim() !== targetFolderName && targetFolderName !== folder.name;
+      const folderNeedsRename = folder.name.trim() !== targetFolderName;
       const fileNeedsRename = fullFile.name.trim() !== targetFileName;
       const isAlreadyOrganized = isFullAlready && !folderNeedsRename;
 

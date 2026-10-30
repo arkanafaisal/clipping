@@ -14,7 +14,30 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Crawler and Reorganizer Script for Google Drive Doksli with Standard Zero-Padded Timestamp Folders
+## [Unreleased] - Preserve Skip Prefix for Crawler Folders and Indonesian Text Overlay Conversion
+- **Konteks Struktural**:
+  - Pelestarian Prefix Skip pada Crawler ([crawl_organize_drive.js](file:///d:/projects/clipping/scheduler-uploader/crawl_organize_drive.js)):
+    - Mendukung penamaan folder bertanda skip `!-` menjadi `!HH:MM:SS` (misal `!-` -> `!00:12:54` atau `!01:39:12`), sehingga status skip klip tetap terjaga di Google Drive dan otomatis diabaikan oleh kompilator.
+    - Memperkuat regex deteksi folder seri/episode (`isSeriesFolder`) dengan `/(^|[\s_!-])(eps|episode|part|season|chapter)\s*\d+/i` dan membatasi kandidat klip hanya pada folder bertanda strip (`-`, `!-`) atau berformat timestamp. Hal ini secara mutlak melindungi folder episode (seperti `!feed and grow eps 3`) agar tidak tertimpa menjadi timestamp.
+  - Konversi Teks Overlay Video Full ke Bahasa Indonesia Alami ([selector.js](file:///d:/projects/clipping/scheduler-uploader/utils/selector.js), [compile_doksli.js](file:///d:/projects/clipping/scheduler-uploader/compile_doksli.js)):
+    - Menambahkan fungsi `formatTimestampToIndoTime(str)` yang mengonversi balik format jam angka `HH:MM:SS` menjadi kalimat penanda waktu Indonesia alami `"jam X menit Y detik Z"` untuk overlay teks meme video full, dengan aturan penulisan spesifik:
+      - Digit `0x` diubah menjadi `x` tanpa angka 0 di depan (misal `05` -> `5`).
+      - Jam bernilai `00` dihilangkan seluruhnya (tanpa tulisan "jam 0").
+      - Menit dan detik bernilai `00` tetap ditulis namun hanya satu angka 0 (contoh: `00:00:00` -> `"menit 0 detik 0"`, `01:00:10` -> `"jam 1 menit 0 detik 10"`).
+    - Memperbarui `getFullVideoDisplayText` agar secara konsisten mengonversi nama folder klip berformat `HH:MM:SS` menjadi penanda waktu teks Indonesia pada overlay video full meme (misal `"eps 1 menit 39 detik 35"` atau `"menit 39 detik 35"`).
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/crawl_organize_drive.js`:
+    - Mengatur target penamaan folder klip skip agar mempertahankan awalan `!` (`targetFolderName = isFolderSkipped ? `!${rawTs}` : rawTs`).
+    - Memperbaiki pengenalan folder episode dan leaf folder agar tidak mengategorikan kontainer episode yang belum bersubfolder sebagai klip.
+  - `scheduler-uploader/utils/selector.js`:
+    - Menambahkan fungsi `formatTimestampToIndoTime(str)` dengan regex parser `HH:MM:SS` dan pemetaan aturan penulisan jam/menit/detik bahasa Indonesia.
+    - Menghubungkan `formatTimestampToIndoTime` di dalam `getFullVideoDisplayText` untuk merender nama folder `full.mp4` ke teks overlay video.
+    - Memperbarui `isClipOrSingleStreamSub` untuk mengenali folder klip skip `^!\d{1,2}:`.
+    - Mengekspor `formatTimestampToIndoTime`.
+  - `scheduler-uploader/compile_doksli.js`:
+    - Mengimpor dan mengekspor ulang `formatTimestampToIndoTime`.
+
+## [56ca573] - Crawler and Reorganizer Script for Google Drive Doksli with Standard Zero-Padded Timestamp Folders
 - **Konteks Struktural**:
   - Script Crawler & Pengorganisir Google Drive ([crawl_organize_drive.js](file:///d:/projects/clipping/scheduler-uploader/crawl_organize_drive.js), [package.json](file:///d:/projects/clipping/scheduler-uploader/package.json)):
     - Membuat script mandiri `crawl_organize_drive.js` (dapat dijalankan via `npm run crawl` atau `npm run organize`) untuk menelusuri seluruh subfolder Google Drive Doksli, mendeteksi pasangan video (`cut.mp4` & video full), lalu mereorganisasi struktur penamaan secara aman:
