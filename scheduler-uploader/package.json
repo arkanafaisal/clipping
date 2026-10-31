@@ -13,6 +13,8 @@
     "crawl": "node crawl_organize_drive.js",
     "organize": "node crawl_organize_drive.js",
     "speedup": "node crawl_speedup_drive.js",
+    "speedup:update": "node crawl_speedup_drive.js --update",
+    "speedup:force": "node crawl_speedup_drive.js --force",
     "crawl:speedup": "node crawl_speedup_drive.js",
     "auth": "node auth.js",
     "auth:tiktok": "node auth_tiktok.js"

@@ -209,23 +209,58 @@ async function main() {
   let maxLimit = null;
   let withOverlay = true;
 
-  for (const arg of process.argv.slice(2)) {
+  const rawArgs = process.argv.slice(2);
+  for (let i = 0; i < rawArgs.length; i++) {
+    const arg = rawArgs[i].trim();
+    if (!arg) continue;
+
     if (arg === '--dry-run' || arg === '--dry') isDryRun = true;
     if (arg === '--yes' || arg === '-y') autoConfirm = true;
-    if (arg === '--force' || arg === '-f') forceRerender = true;
+    if (
+      arg === '--force' || arg === '-f' ||
+      arg === '--update' || arg === '-u' ||
+      arg === '--refresh' || arg === '-r' ||
+      arg === '--renew' ||
+      arg === '--rerender' ||
+      arg === '--rebuild' ||
+      arg === '--overwrite' ||
+      arg.startsWith('--force=') ||
+      arg.startsWith('--update=') ||
+      arg.startsWith('--refresh=') ||
+      arg.startsWith('--rerender=') ||
+      arg.startsWith('--overwrite=')
+    ) {
+      forceRerender = true;
+    }
     if (arg === '--no-overlay') withOverlay = false;
-    if (arg.startsWith('--game=')) targetGameFilter = arg.slice(arg.indexOf('=') + 1).trim();
-    if (arg.startsWith('--folder=')) doksliFolderId = arg.slice(arg.indexOf('=') + 1).trim();
-    if (arg.startsWith('--limit=')) maxLimit = parseInt(arg.slice(arg.indexOf('=') + 1).trim(), 10) || null;
+
+    if (arg.startsWith('--game=')) {
+      targetGameFilter = arg.slice(arg.indexOf('=') + 1).replace(/^["']|["']$/g, '').trim();
+    } else if (arg === '--game' && i + 1 < rawArgs.length) {
+      targetGameFilter = rawArgs[++i].replace(/^["']|["']$/g, '').trim();
+    }
+
+    if (arg.startsWith('--folder=')) {
+      doksliFolderId = arg.slice(arg.indexOf('=') + 1).replace(/^["']|["']$/g, '').trim();
+    } else if (arg === '--folder' && i + 1 < rawArgs.length) {
+      doksliFolderId = rawArgs[++i].replace(/^["']|["']$/g, '').trim();
+    }
+
+    if (arg.startsWith('--limit=')) {
+      maxLimit = parseInt(arg.slice(arg.indexOf('=') + 1).trim(), 10) || null;
+    } else if (arg === '--limit' && i + 1 < rawArgs.length) {
+      maxLimit = parseInt(rawArgs[++i].trim(), 10) || null;
+    }
+
     if (arg === '--help' || arg === '-h') {
       console.log('Opsi Argumen:');
-      console.log('  --dry-run       : Mode simulasi (hanya scan klip tanpa download/upload)');
-      console.log('  --yes, -y       : Langsung eksekusi tanpa konfirmasi manual');
-      console.log('  --force, -f     : Paksa buat ulang speedup.mp4 meskipun sudah ada');
-      console.log('  --no-overlay    : Render video speedup tanpa overlay teks judul');
-      console.log('  --game="<nama>" : Hanya proses klip pada game tertentu');
-      console.log('  --limit=<n>     : Batasi pemrosesan maksimal N klip');
-      console.log('  --folder="<id>" : Override ID folder induk Doksli Google Drive');
+      console.log('  --update, --force, -u, -f : Perbarui/buat ulang speedup.mp4 meskipun sudah ada di Drive');
+      console.log('  --game="<nama>"           : Filter klip berdasarkan nama game atau sub-game/episode (misal: --game="Chilla\'s Art" atau --game="The Bathhouse")');
+      console.log('  --dry-run                 : Mode simulasi (hanya scan klip tanpa download/upload)');
+      console.log('  --yes, -y                 : Langsung eksekusi tanpa konfirmasi manual');
+      console.log('  --limit=<n>               : Batasi pemrosesan maksimal N klip');
+      console.log('  --no-overlay              : Render video speedup tanpa overlay teks judul');
+      console.log('  --folder="<id>"           : Override ID folder induk Doksli Google Drive');
       process.exit(0);
     }
   }
@@ -250,10 +285,17 @@ async function main() {
     (item) => item.mimeType === 'application/vnd.google-apps.folder' && !isSkippedItem(item.name, config.skipPrefix)
   );
 
+  let matchedTop = false;
   if (targetGameFilter) {
     const filterLower = targetGameFilter.toLowerCase();
-    gameFolders = gameFolders.filter((gf) => gf.name.toLowerCase().includes(filterLower));
-    console.log(`🎯 Memfilter game dengan kata kunci: "${targetGameFilter}" (${gameFolders.length} folder game cocok).`);
+    const topMatches = gameFolders.filter((gf) => gf.name.toLowerCase().includes(filterLower));
+    if (topMatches.length > 0) {
+      gameFolders = topMatches;
+      matchedTop = true;
+      console.log(`🎯 Memfilter game dengan kata kunci: "${targetGameFilter}" (${gameFolders.length} folder game cocok).`);
+    } else {
+      console.log(`🎯 Kata kunci "${targetGameFilter}" tidak cocok di folder induk, akan menelusuri seluruh game dan memfilter di level sub-game/episode.`);
+    }
   }
 
   if (gameFolders.length === 0) {
@@ -262,7 +304,7 @@ async function main() {
   }
 
   console.log(`🔍 [TAHAP 2/3] Menelusuri seluruh klip dan mengecek keberadaan "speedup.mp4"...`);
-  const crawlResults = [];
+  let crawlResults = [];
   for (let idx = 0; idx < gameFolders.length; idx++) {
     const g = gameFolders[idx];
     process.stdout.write(`   [${idx + 1}/${gameFolders.length}] Menelusuri game: "${g.name}"... `);
@@ -270,6 +312,16 @@ async function main() {
     await crawlForSpeedupCandidates(drive, g, { gameName: g.name, epsName: '' }, config.skipPrefix, crawlResults);
     const foundInGame = crawlResults.length - beforeCount;
     console.log(`(${foundInGame} klip terdeteksi)`);
+  }
+
+  if (targetGameFilter && !matchedTop) {
+    const filterLower = targetGameFilter.toLowerCase();
+    crawlResults = crawlResults.filter((c) =>
+      c.gameName.toLowerCase().includes(filterLower) ||
+      (c.epsName && c.epsName.toLowerCase().includes(filterLower)) ||
+      (c.folderName && c.folderName.toLowerCase().includes(filterLower))
+    );
+    console.log(`🎯 Hasil filter dengan kata kunci "${targetGameFilter}": ${crawlResults.length} klip cocok.`);
   }
 
   // Pisahkan antara yang sudah memiliki speedup.mp4 vs yang belum
@@ -284,7 +336,11 @@ async function main() {
   console.log('📋 RINGKASAN PENELUSURAN KLIP DOKSLI:');
   console.log('========================================================================================');
   console.log(` Total klip terdeteksi         : ${crawlResults.length} klip`);
-  console.log(` Sudah memiliki speedup.mp4    : ${alreadyHaveSpeedup.length} klip (akan dilewati)`);
+  if (forceRerender) {
+    console.log(` Mode perbarui (--update/--force): Aktif (memperbarui seluruh klip termasuk yang sudah ada)`);
+  } else {
+    console.log(` Sudah memiliki speedup.mp4    : ${alreadyHaveSpeedup.length} klip (akan dilewati)`);
+  }
   console.log(` Perlu diproses speedup        : ${itemsToProcess.length} klip`);
   console.log(` Target durasi maksimal        : ${config.fullVideoMaxDuration || 5.0} detik (Auto Speed & Cempreng)`);
   console.log(` Overlay teks judul            : ${withOverlay ? 'Aktif (Bahasa Indonesia Alami)' : 'Nonaktif'}`);

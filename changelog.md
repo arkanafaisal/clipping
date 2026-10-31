@@ -14,7 +14,27 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Bypass Subtitle Re-burning for Speedup Videos and Fix Non-Numeric Folder Traversal in Crawler
+## [Unreleased] - Support CLI Update Flags and Sub-game Filtering in Speedup Crawler
+- **Konteks Struktural**:
+  - Dukungan Opsi Pembaruan Paksa Klip Speedup (*CLI Force & Update Flags Architecture*) ([crawl_speedup_drive.js](file:///d:/projects/clipping/scheduler-uploader/crawl_speedup_drive.js), [package.json](file:///d:/projects/clipping/scheduler-uploader/package.json)):
+    - **Penyebab & Kebutuhan**: Sebelumnya, crawler speedup secara otomatis melewati klip yang sudah memiliki berkas `speedup.mp4` di Google Drive demi efisiensi dan sifat idempoten. Namun ketika crawler baru saja diperbaiki (misal: perbaikan hierarki sub-game atau penyesuaian overlay), pengguna memerlukan parameter CLI untuk memaksa pembuatan dan pengunggahan ulang klip speedup yang sudah ada tanpa harus menghapus file di Drive secara manual.
+    - **Solusi**:
+      1. Menambahkan pengenalan flag CLI fleksibel: `--update`, `-u`, `--force`, `-f`, `--refresh`, `-r`, `--renew`, `--rerender`, `--rebuild`, `--overwrite`, dan format key-value seperti `--update=true` atau `--force=true`.
+      2. Mencegah klip yang sudah ada difilter keluar saat flag pembaruan aktif (`alreadyHaveSpeedup = crawlResults.filter((c) => c.hasSpeedup && !forceRerender)` dan `itemsToProcess = crawlResults.filter((c) => !c.hasSpeedup || forceRerender)`).
+      3. Menambahkan shortcut npm scripts pada `package.json`: `"speedup:update"` dan `"speedup:force"` sehingga pengguna dapat menjalankan `npm run speedup:update` maupun `npm run speedup -- --update --game="<nama>"`.
+  - Pembersihan dan Ketahanan Filter Parameter CLI (*CLI Parameter Sanitization & Nested Sub-game Matching*) ([crawl_speedup_drive.js](file:///d:/projects/clipping/scheduler-uploader/crawl_speedup_drive.js)):
+    - Mendukung penerusan argumen baik format sama-dengan (`--game="chilla"`) maupun format terpisah spasi (`--game "chilla"`).
+    - Melakukan stripping tanda kutip pembungkus (`replace(/^["']|["']$/g, '')`) agar kutip ganda atau tunggal dari shell (PowerShell / Bash) tidak ikut terbaca sebagai bagian dari nama game.
+    - Penyaringan game bertingkat (*hierarchical fallback*): Jika kata kunci `--game` tidak cocok di nama folder game induk (misal pengguna mengetik `--game="The Bathhouse"` yang berada di bawah folder induk `Chilla's Art`), crawler akan menelusuri seluruh game dan menyaring klip yang cocok di tingkat subfolder/episode atau nama folder klip.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/crawl_speedup_drive.js`:
+    - Mengintegrasikan flag pembaruan (`forceRerender`) dan opsi `--help`.
+    - Membersihkan kutip pada `--game`, `--folder`, dan `--limit`.
+    - Menghapus duplikasi ringkasan logging dan menampilkan indikator mode pembaruan pada ringkasan konsol.
+  - `scheduler-uploader/package.json`:
+    - Menambahkan script `"speedup:update": "node crawl_speedup_drive.js --update"` dan `"speedup:force": "node crawl_speedup_drive.js --force"`.
+
+## [045c66d] - Bypass Subtitle Re-burning for Speedup Videos and Fix Non-Numeric Folder Traversal in Crawler
 - **Konteks Struktural**:
   - Peniadaan Penimpaan Teks Ganda (*Double-Burn Elimination for Pre-rendered Speedup Clips*) ([compile_roulette.js](file:///d:/projects/clipping/scheduler-uploader/compile_roulette.js), [rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js)):
     - **Penyebab Masalah**: File `speedup.mp4` yang diunggah ke Google Drive oleh crawler telah memiliki teks judul video yang tertanam secara permanen (*hardcoded/burned-in*). Namun, saat mode roulette mengunduh file `speedup.mp4` tersebut, fungsi `renderSpeedupClipWithFade` secara membabi buta membakar kembali subtitle ASS (`ass='...'`) di atas video yang sama, menyebabkan teks tumpang tindih (*overlap* ganda) dan huruf bertabrakan.
