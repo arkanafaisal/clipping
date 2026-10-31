@@ -83,9 +83,13 @@ async function main() {
     if (arg === '--yes' || arg === '-y') autoConfirm = true;
     if (arg.startsWith('--count=')) clipCountTarget = parseInt(arg.slice(arg.indexOf('=') + 1).trim(), 10) || clipCountTarget;
     if (arg.startsWith('--game=')) targetGameName = arg.slice(arg.indexOf('=') + 1).trim();
+    if (arg.startsWith('--items=') || arg.startsWith('--roulette-items=')) {
+      config.rouletteItems = parseInt(arg.slice(arg.indexOf('=') + 1).trim(), 10) || config.rouletteItems;
+    }
     if (arg === '--help' || arg === '-h') {
       console.log('Opsi Argumen:');
       console.log('  --count=<n>     : Jumlah momen / jalur roulette (contoh: --count=5)');
+      console.log('  --items=<n>     : Jumlah variasi kartu gambar per jalur roulette (default: dari .env ROULETTE_ITEMS atau 15)');
       console.log('  --game="<nama>" : Mode roulette khusus untuk 1 game tertentu');
       console.log('  --dry-run       : Mode simulasi (seleksi momen tanpa mengunduh/merender)');
       console.log('  --yes, -y       : Langsung eksekusi tanpa konfirmasi');
@@ -159,7 +163,8 @@ async function main() {
 
   // 4. Unduh Pool Gambar Meme 1:1 & Seluruh Video Full Speedup Momen Terpilih
   console.log(`\n📦 [TAHAP 2/4] Mengunduh aset kartu roulette dan video full speedup dari Google Drive...`);
-  const imagePool = await downloadMemeImagesPool(drive, config.doksliFolderId, workDir, 30);
+  const poolSizeTarget = Math.max(30, (config.rouletteItems || 15) * 2);
+  const imagePool = await downloadMemeImagesPool(drive, config.doksliFolderId, workDir, poolSizeTarget, config.ffmpegBin);
 
   // Unduh gambar kartu dan video untuk masing-masing momen dari Drive
   for (let i = 0; i < laneCount; i++) {
@@ -206,7 +211,7 @@ async function main() {
     moments: validMoments,
     laneCount,
     laneHeight,
-    rouletteItems: config.rouletteItems || 5,
+    rouletteItems: config.rouletteItems || 15,
     maxSpeed,
     spinDuration,
     lockDuration,

@@ -14,7 +14,31 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Support CLI Update Flags and Sub-game Filtering in Speedup Crawler
+## [Unreleased] - Enforce Genuine Fisher-Yates Random Sampling and Dynamic Pool for Roulette Cards
+- **Konteks Struktural**:
+  - Pool Gambar Acak Dinamis & Pengambilan Sekali di Awal (*Dynamic One-time Random Image Pool Architecture*) ([compile_roulette.js](file:///d:/projects/clipping/scheduler-uploader/compile_roulette.js), [rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js)):
+    - **Penyebab & Kebutuhan**: Sebelumnya, fungsi `downloadMemeImagesPool` mengunduh 30 gambar pertama dari Google Drive tanpa paginasi penuh dan tanpa pengacakan kandidat, sehingga kartu yang terunduh selalu identik di setiap eksekusi. Selain itu, nilai `ROULETTE_ITEMS` di `.env` (misal 15) tidak digunakan untuk mengukur target kapasitas pool gambar yang diunduh dari Drive.
+    - **Solusi**:
+      1. Menghitung target kapasitas pool secara dinamis berdasarkan konfigurasi: `poolSizeTarget = Math.max(30, (config.rouletteItems || 15) * 2)`.
+      2. Menerapkan paginasi `drive.files.list` hingga ratusan berkas kartu gambar di Drive, lalu mengacak seluruh daftar berkas menggunakan algoritma Fisher-Yates (`shuffleArray`) SEBELUM diunduh ke folder kerja lokal sementara `temp_roulette_work/image_pool`. Dengan demikian, gambar diunduh cukup SEKALI di awal dan di-reuse langsung sepanjang proses pembuatan pita.
+  - Pengacakan Independen Per Jalur Roulette (*Independent Per-Lane Card Randomization & Randomized Winner Placement*) ([rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js)):
+    - **Penyebab Monoton**: Di fungsi `buildLaneRibbons`, pengacakan sebelumnya menggunakan metode rapuh `sort(() => 0.5 - Math.random())` yang tidak mendistribusikan elemen secara merata dalam JavaScript engine (V8). Selain itu, kartu pemenang (`winningCardPath`) SELALU diletakkan pada indeks pertama (Index 0), menyebabkan pola perputaran kartu di setiap jalur roulette terasa serupa dan kurang variatif.
+    - **Solusi**:
+      1. Menerapkan pengacakan Fisher-Yates murni (`shuffleArray`) pada setiap jalur roulette secara independen, sehingga setiap jalur mengambil kombinasi kartu acak yang baru dan segar dari master pool.
+      2. Mengacak posisi kartu pemenang (`winningIndex = Math.floor(Math.random() * (otherCandidates.length + 1))`) di dalam susunan kartu jalur (`laneItems`), bukan lagi selalu di posisi 0.
+      3. Menghitung koordinat horizontal tengah kartu pemenang secara dinamis: `winningCardCenterX = winningIndex * laneHeight + Math.round(laneHeight / 2)`, lalu menghitung `xStopRaw` dan `xStopTarget` secara presisi. Garis pointer vertikal ($X = 540$) dan efek spotlight overlay gelap tetap mengunci kartu pemenang dengan presisi piksel 100%.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/utils/rouletteEditor.js`:
+    - Menambahkan helper `shuffleArray` (Fisher-Yates shuffle).
+    - Memperbarui `downloadMemeImagesPool` dengan paginasi dan pengacakan kandidat berkas Drive sebelum diunduh.
+    - Memperbarui `buildLaneRibbons` untuk mengambil sampel kartu acak baru per jalur dan mengacak letak kartu pemenang di dalam pita.
+  - `scheduler-uploader/compile_roulette.js`:
+    - Menambahkan parsing argumen `--items=` dan `--roulette-items=` serta dokumentasi bantuan CLI.
+    - Menghitung `poolSizeTarget` dinamis berbasis `config.rouletteItems` dan meneruskannya ke `downloadMemeImagesPool`.
+  - `scheduler-uploader/.env.example`:
+    - Memperbarui nilai default dan dokumentasi penjelasan variabel `ROULETTE_ITEMS` menjadi 15.
+
+## [c749133] - Support CLI Update Flags and Sub-game Filtering in Speedup Crawler
 - **Konteks Struktural**:
   - Dukungan Opsi Pembaruan Paksa Klip Speedup (*CLI Force & Update Flags Architecture*) ([crawl_speedup_drive.js](file:///d:/projects/clipping/scheduler-uploader/crawl_speedup_drive.js), [package.json](file:///d:/projects/clipping/scheduler-uploader/package.json)):
     - **Penyebab & Kebutuhan**: Sebelumnya, crawler speedup secara otomatis melewati klip yang sudah memiliki berkas `speedup.mp4` di Google Drive demi efisiensi dan sifat idempoten. Namun ketika crawler baru saja diperbaiki (misal: perbaikan hierarki sub-game atau penyesuaian overlay), pengguna memerlukan parameter CLI untuk memaksa pembuatan dan pengunggahan ulang klip speedup yang sudah ada tanpa harus menghapus file di Drive secara manual.

@@ -7,39 +7,67 @@ const { getAudioDuration, normalizeVideo } = require('./videoEditor');
 const { generateFullVideoASS } = require('./overlay');
 
 /**
+ * Helper shuffle array secara acak (Fisher-Yates)
+ */
+function shuffleArray(arr) {
+  const list = [...arr];
+  for (let i = list.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [list[i], list[j]] = [list[j], list[i]];
+  }
+  return list;
+}
+
+/**
  * Mengunduh kumpulan gambar meme 1:1 dari Google Drive (image.jpg / foto meme)
  * untuk dijadikan koleksi kartu yang berputar pada roulette horizontal
  */
-async function downloadMemeImagesPool(drive, doksliFolderId, workDir, minCount = 25) {
+async function downloadMemeImagesPool(drive, doksliFolderId, workDir, minCount = 30, ffmpegBin = 'ffmpeg') {
   const poolDir = path.join(workDir, 'image_pool');
   if (!fs.existsSync(poolDir)) {
     fs.mkdirSync(poolDir, { recursive: true });
   }
 
-  console.log(`   🎲 Mengumpulkan bahan kartu gambar dari Google Drive untuk roulette...`);
+  console.log(`   🎲 Mengumpulkan bahan kartu gambar dari Google Drive untuk pool roulette...`);
   const downloadedPaths = [];
 
   try {
-    const res = await drive.files.list({
-      q: `trashed = false and (name contains 'image' or mimeType contains 'image/')`,
-      fields: 'files(id, name, mimeType)',
-      pageSize: 60,
-      supportsAllDrives: true,
-      includeItemsFromAllDrives: true,
-    });
+    const allFiles = [];
+    let pageToken = null;
+    do {
+      const res = await drive.files.list({
+        q: `trashed = false and (name contains 'image' or mimeType contains 'image/')`,
+        fields: 'nextPageToken, files(id, name, mimeType)',
+        pageSize: 100,
+        pageToken: pageToken || undefined,
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true,
+      });
+      if (res.data && Array.isArray(res.data.files)) {
+        allFiles.push(...res.data.files);
+      }
+      pageToken = res.data.nextPageToken;
+    } while (pageToken && allFiles.length < 250);
 
-    const imgFiles = (res.data.files || []).filter((f) => {
+    const imgFiles = allFiles.filter((f) => {
       const isImg =
         (f.mimeType && f.mimeType.startsWith('image/')) ||
         /\.(jpe?g|png|webp)$/i.test(f.name);
       return isImg && !isSkippedItem(f.name);
     });
 
-    console.log(`   📷 Ditemukan ${imgFiles.length} berkas gambar di Google Drive.`);
+    console.log(`   📷 Ditemukan ${imgFiles.length} berkas kartu gambar di Google Drive.`);
 
-    for (let i = 0; i < Math.min(imgFiles.length, minCount); i++) {
-      const f = imgFiles[i];
-      const localPath = path.join(poolDir, `pool_img_${i}.jpg`);
+    // Acak seluruh kandidat gambar Drive dengan Fisher-Yates shuffle sebelum diunduh
+    // sehingga setiap eksekusi menghasilkan pool gambar yang benar-benar acak dan segar
+    const shuffledFiles = shuffleArray(imgFiles);
+    const countToDownload = Math.min(shuffledFiles.length, minCount);
+    console.log(`   🎲 Mengacak pool kartu dan mengunduh ${countToDownload} gambar secara acak ke pool lokal...`);
+
+    for (let i = 0; i < countToDownload; i++) {
+      const f = shuffledFiles[i];
+      const ext = path.extname(f.name) || '.jpg';
+      const localPath = path.join(poolDir, `pool_img_${i}${ext}`);
       try {
         await downloadDriveFile(drive, f.id, localPath);
         downloadedPaths.push(localPath);
@@ -69,7 +97,7 @@ async function downloadMemeImagesPool(drive, doksliFolderId, workDir, minCount =
     }
   }
 
-  console.log(`   ✅ Kumpulan gambar roulette siap (${downloadedPaths.length} kartu gambar).`);
+  console.log(`   ✅ Pool gambar roulette siap (${downloadedPaths.length} kartu gambar unik tersimpan di pool lokal).`);
   return downloadedPaths;
 }
 
@@ -229,23 +257,42 @@ function buildLaneRibbons({
     // Total jarak tempuh jalur k dari t = 0 segmen pertama hingga berhenti mengunci di segmen k:
     const distTotal = k * distPerSegment + refDist;
 
-    // Ambil (rouletteItems - 1) kartu kandidat acak untuk jalur ini
+    // Ambil (rouletteItems - 1) kartu acak dari pool gambar untuk jalur ini
+    // Memastikan setiap jalur roulette mengambil sampel acak yang BARU dan BERBEDA
     const candidatePool = allAvailableImages.filter((p) => p !== winningCardPath);
     const poolToSample = candidatePool.length > 0 ? candidatePool : allAvailableImages;
-    // Acak pool kandidat untuk variasi tiap jalur
-    const shuffledCandidates = [...poolToSample].sort(() => 0.5 - Math.random());
+
+    // Acak pool kandidat menggunakan Fisher-Yates shuffle yang sesungguhnya
+    const shuffledCandidates = shuffleArray(poolToSample);
+
+    const neededOtherCount = Math.max(1, rouletteItems - 1);
     const otherCandidates = [];
-    for (let i = 0; i < rouletteItems - 1; i++) {
-      if (shuffledCandidates.length > 0) {
-        otherCandidates.push(shuffledCandidates[i % shuffledCandidates.length]);
-      } else {
-        otherCandidates.push(winningCardPath);
+
+    // Jika kandidat di pool cukup, ambil kartu unik sebanyak neededOtherCount
+    if (shuffledCandidates.length >= neededOtherCount) {
+      otherCandidates.push(...shuffledCandidates.slice(0, neededOtherCount));
+    } else {
+      // Jika pool lebih kecil dari rouletteItems, isi sebanyak mungkin lalu ulangi dengan acakan baru
+      while (otherCandidates.length < neededOtherCount) {
+        const nextBatch = shuffleArray(poolToSample);
+        for (const img of nextBatch) {
+          otherCandidates.push(img);
+          if (otherCandidates.length >= neededOtherCount) break;
+        }
       }
     }
 
-    // Daftar item unik untuk jalur ini: item 0 = kartu pemenang, item 1..N-1 = kandidat
-    const laneItems = [winningCardPath, ...otherCandidates];
+    // Acak posisi kartu pemenang agar TIDAK SELALU di posisi pertama (Index 0)
+    // Sisipkan winningCardPath pada index acak di dalam laneItems
+    const winningIndex = Math.floor(Math.random() * (otherCandidates.length + 1));
+    const laneItems = [
+      ...otherCandidates.slice(0, winningIndex),
+      winningCardPath,
+      ...otherCandidates.slice(winningIndex),
+    ];
     const M = laneItems.length;
+
+    console.log(`   🎨 [Jalur #${k + 1}] Memilih ${M} kartu acak dari pool (posisi kartu pemenang: #${winningIndex + 1}/${M})`);
 
     // Pastikan panjang 1 siklus periodik L = Meff * laneHeight > 1080 (lebar layar)
     // agar maksimal hanya ada 1 kartu pemenang di layar dalam satu saat
@@ -289,10 +336,12 @@ function buildLaneRibbons({
     }
 
     // Hitung posisi koordinat X saat berhenti dengan offset acak natural
-    // Tengah kartu 0 ada di laneHeight / 2. Garis pointer vertikal di X = 540.
+    // Tengah kartu pemenang ada di winningIndex * laneHeight + laneHeight / 2.
+    // Garis pointer vertikal di X = 540.
     const offsetFrac = randomOffsets[k % randomOffsets.length];
     const cardOffset = Math.round(laneHeight * offsetFrac);
-    const xStopRaw = Math.round(laneHeight / 2 + cardOffset - 540);
+    const winningCardCenterX = winningIndex * laneHeight + Math.round(laneHeight / 2);
+    const xStopRaw = Math.round(winningCardCenterX + cardOffset - 540);
     const xStopTarget = ((xStopRaw % periodWidth) + periodWidth) % periodWidth;
 
     // Titik koordinat X pita pada t = 0 segmen pertama (Segmen 0)
