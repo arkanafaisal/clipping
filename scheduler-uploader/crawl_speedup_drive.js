@@ -18,12 +18,12 @@
  *    tanpa perlu download ulang video full mentah dan tanpa render ulang FFmpeg.
  *
  * Penggunaan:
- *   node crawl_speedup_drive.js             # Mode interaktif progresif (tanya konfirmasi)
- *   node crawl_speedup_drive.js --dry-run   # Mode simulasi (hanya scan klip yang butuh speedup)
- *   node crawl_speedup_drive.js --yes       # Otomatis langsung eksekusi tanpa prompt
- *   node crawl_speedup_drive.js --game="X"  # Hanya proses klip untuk 1 game tertentu
- *   node crawl_speedup_drive.js --limit=5   # Batasi pemrosesan maksimal N klip
- *   node crawl_speedup_drive.js --force     # Paksa render ulang meskipun speedup.mp4 sudah ada
+ *   node crawl_speedup_drive.js                        # Mode interaktif progresif (tanya konfirmasi)
+ *   node crawl_speedup_drive.js --dry-run              # Mode simulasi (hanya scan klip yang butuh speedup)
+ *   node crawl_speedup_drive.js --yes                  # Otomatis langsung eksekusi tanpa prompt
+ *   node crawl_speedup_drive.js --path="abc/def/hij/"  # Filter spesifik (game, eps, klip, maupun file)
+ *   node crawl_speedup_drive.js --force                # Paksa render ulang meskipun speedup.mp4 sudah ada
+ *   node crawl_speedup_drive.js --limit=5              # Batasi pemrosesan maksimal N klip
  * ============================================================================
  */
 
@@ -132,9 +132,62 @@ function detectClipFolderFiles(files) {
 }
 
 /**
+ * Helper membandingkan 2 nama segmen folder/file Google Drive.
+ * Menjamin 100% kecocokan string karakter: spasi, tanda petik satu/dua, titik dua, dsb.
+ */
+function matchSegment(a, b) {
+  if (!a || !b) return false;
+  const sA = a.trim();
+  const sB = b.trim();
+  // 1. Cocok persis 100% (exact match)
+  if (sA === sB) return true;
+  // 2. Cocok persis tanpa awalan tanda skip ('!' atau '!!') jika ada di Drive
+  const noBangA = sA.replace(/^!+\s*/, '');
+  const noBangB = sB.replace(/^!+\s*/, '');
+  if (noBangA === noBangB) return true;
+  // 3. Toleransi kapitalisasi huruf (case-insensitive) namun tetap karakter utuh
+  if (sA.toLowerCase() === sB.toLowerCase()) return true;
+  if (noBangA.toLowerCase() === noBangB.toLowerCase()) return true;
+  return false;
+}
+
+/**
+ * Helper memvalidasi kecocokan path klip dengan target path yang dicari.
+ * WAJIB dimulai dari folder tingkat pertama (Game folder) persis seperti mengakses direktori (game/eps/klip).
+ */
+function isPathMatch(clipSegments, targetSegments) {
+  if (!targetSegments || targetSegments.length === 0) return true;
+  if (!clipSegments || clipSegments.length === 0) return false;
+
+  // Cek kecocokan berurutan mulai dari indeks 0 (folder game pertama)
+  const checkPrefix = (segments) => {
+    if (targetSegments.length > segments.length) return false;
+    for (let i = 0; i < targetSegments.length; i++) {
+      if (!matchSegment(segments[i], targetSegments[i])) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  // 1. Cek pada hierarki asli klip
+  if (checkPrefix(clipSegments)) return true;
+
+  // 2. Toleransi jika di Drive ada dummy dash folder ("-") pada game single-stream
+  // misal user ketik "game/00:15:20" padahal di Drive strukturnya "game/-/00:15:20"
+  const nonDashClipSegments = clipSegments.filter((s) => !/^[-—–_]+$/.test(s.replace(/^!+\s*/, '')));
+  if (nonDashClipSegments.length !== clipSegments.length) {
+    return checkPrefix(nonDashClipSegments);
+  }
+
+  return false;
+}
+
+/**
  * Menelusuri seluruh hierarki folder Google Drive untuk menemukan klip kandidat speedup
  */
 async function crawlForSpeedupCandidates(drive, folder, context, skipPrefix, results) {
+  const currentSegments = context.pathSegments || [folder.name];
   const items = await listAllFolderItems(drive, folder.id);
   const subFolders = items.filter(
     (item) => item.mimeType === 'application/vnd.google-apps.folder'
@@ -159,11 +212,14 @@ async function crawlForSpeedupCandidates(drive, folder, context, skipPrefix, res
     // Untuk membuat speedup.mp4, yang dibutuhkan HANYA video full (atau sudah ada speedupFile).
     // Berkas cut.mp4 tidak diwajibkan karena tidak digunakan dalam pembuatan speedup.
     if (fullFile || speedupFile) {
+      const displayPath = currentSegments.join('/');
       results.push({
         gameName: context.gameName,
         epsName: context.epsName || '-',
         folderId: folder.id,
         folderName: folder.name,
+        pathSegments: currentSegments,
+        displayPath,
         cutFile: cutFile || null,
         fullFile: fullFile || speedupFile,
         speedupFile,
@@ -185,6 +241,7 @@ async function crawlForSpeedupCandidates(drive, folder, context, skipPrefix, res
     const nextContext = {
       gameName: context.gameName || folder.name,
       epsName: nextEpsName,
+      pathSegments: [...currentSegments, sf.name],
     };
     await crawlForSpeedupCandidates(drive, sf, nextContext, skipPrefix, results);
   }
@@ -202,7 +259,7 @@ async function main() {
   // 1. Konfigurasi & Opsi CLI
   const config = getConfig();
   let doksliFolderId = config.doksliFolderId;
-  let targetGameFilter = null;
+  let targetPath = null;
   let isDryRun = false;
   let autoConfirm = false;
   let forceRerender = false;
@@ -234,10 +291,14 @@ async function main() {
     }
     if (arg === '--no-overlay') withOverlay = false;
 
-    if (arg.startsWith('--game=')) {
-      targetGameFilter = arg.slice(arg.indexOf('=') + 1).replace(/^["']|["']$/g, '').trim();
+    if (arg.startsWith('--path=')) {
+      targetPath = arg.slice(arg.indexOf('=') + 1);
+    } else if ((arg === '--path' || arg === '-p') && i + 1 < rawArgs.length) {
+      targetPath = rawArgs[++i];
+    } else if (arg.startsWith('--game=')) {
+      targetPath = arg.slice(arg.indexOf('=') + 1);
     } else if (arg === '--game' && i + 1 < rawArgs.length) {
-      targetGameFilter = rawArgs[++i].replace(/^["']|["']$/g, '').trim();
+      targetPath = rawArgs[++i];
     }
 
     if (arg.startsWith('--folder=')) {
@@ -254,8 +315,14 @@ async function main() {
 
     if (arg === '--help' || arg === '-h') {
       console.log('Opsi Argumen:');
+      console.log('  --path="<path>", -p       : Filter path direktori Google Drive (wajib diawali dari folder game)');
+      console.log('                              Format hierarki direktori: "game", "game/eps", "game/eps/klip", atau "game/eps/klip/full.mp4"');
+      console.log('                              Contoh: --path="chilla\'s art"');
+      console.log('                              Contoh: --path="chilla\'s art/The Bathhouse"');
+      console.log('                              Contoh: --path="chilla\'s art/The Bathhouse/01:03:20"');
+      console.log('                              Contoh: --path="chilla\'s art/The Bathhouse/01:03:20/full.mp4"');
+      console.log('  --game="<nama>"           : Alias untuk --path (filter nama game/path)');
       console.log('  --update, --force, -u, -f : Perbarui/buat ulang speedup.mp4 meskipun sudah ada di Drive');
-      console.log('  --game="<nama>"           : Filter klip berdasarkan nama game atau sub-game/episode (misal: --game="Chilla\'s Art" atau --game="The Bathhouse")');
       console.log('  --dry-run                 : Mode simulasi (hanya scan klip tanpa download/upload)');
       console.log('  --yes, -y                 : Langsung eksekusi tanpa konfirmasi manual');
       console.log('  --limit=<n>               : Batasi pemrosesan maksimal N klip');
@@ -263,6 +330,39 @@ async function main() {
       console.log('  --folder="<id>"           : Override ID folder induk Doksli Google Drive');
       process.exit(0);
     }
+  }
+
+  // Parse dan normalisasi targetPath menjadi segmen folder pencarian yang presisi
+  let targetSegments = [];
+  let targetFileName = null;
+
+  if (targetPath) {
+    targetPath = targetPath.trim();
+    // Lepas hanya tanda petik pembungkus terluar argumen CLI jika ada
+    if (
+      (targetPath.startsWith('"') && targetPath.endsWith('"')) ||
+      (targetPath.startsWith("'") && targetPath.endsWith("'"))
+    ) {
+      targetPath = targetPath.slice(1, -1).trim();
+    }
+
+    // Normalisasi slash path tanpa mengubah karakter internal (spasi, tanda petik dalam, titik dua dijaga 100%)
+    const normalizedPath = targetPath.replace(/\\/g, '/');
+    const rawSegs = normalizedPath.split('/').map((s) => s.trim()).filter(Boolean);
+
+    // Cek jika segmen terakhir adalah nama berkas video spesifik (misal: "full.mp4", "speedup.mp4")
+    if (rawSegs.length > 0) {
+      const lastSeg = rawSegs[rawSegs.length - 1];
+      if (
+        /\.(mp4|mkv|mov|webm)$/i.test(lastSeg) ||
+        lastSeg.toLowerCase() === 'full' ||
+        lastSeg.toLowerCase() === 'speedup'
+      ) {
+        targetFileName = lastSeg;
+        rawSegs.pop();
+      }
+    }
+    targetSegments = rawSegs;
   }
 
   if (!doksliFolderId) {
@@ -285,22 +385,20 @@ async function main() {
     (item) => item.mimeType === 'application/vnd.google-apps.folder' && !isSkippedItem(item.name, config.skipPrefix)
   );
 
-  let matchedTop = false;
-  if (targetGameFilter) {
-    const filterLower = targetGameFilter.toLowerCase();
-    const topMatches = gameFolders.filter((gf) => gf.name.toLowerCase().includes(filterLower));
+  if (targetSegments.length > 0) {
+    const firstTarget = targetSegments[0];
+    const topMatches = gameFolders.filter((gf) => matchSegment(gf.name, firstTarget));
+
     if (topMatches.length > 0) {
       gameFolders = topMatches;
-      matchedTop = true;
-      console.log(`🎯 Memfilter game dengan kata kunci: "${targetGameFilter}" (${gameFolders.length} folder game cocok).`);
+      console.log(`🎯 Target path cocok di folder game induk: "${topMatches[0].name}" (hanya menelusuri game ini).`);
     } else {
-      console.log(`🎯 Kata kunci "${targetGameFilter}" tidak cocok di folder induk, akan menelusuri seluruh game dan memfilter di level sub-game/episode.`);
+      console.error(`❌ [ERROR] Folder game "${firstTarget}" tidak ditemukan di Google Drive!`);
+      console.error(`   Path harus diawali dari nama folder game tingkat pertama (contoh: --path="chilla's art/The Bathhouse/01:03:20").`);
+      console.error(`   Daftar folder game yang tersedia di Google Drive:`);
+      gameFolders.forEach((gf) => console.error(`   - "${gf.name}"`));
+      process.exit(1);
     }
-  }
-
-  if (gameFolders.length === 0) {
-    console.warn('⚠️ Tidak ada folder game yang ditemukan atau sesuai dengan filter.');
-    process.exit(0);
   }
 
   console.log(`🔍 [TAHAP 2/3] Menelusuri seluruh klip dan mengecek keberadaan "speedup.mp4"...`);
@@ -309,19 +407,37 @@ async function main() {
     const g = gameFolders[idx];
     process.stdout.write(`   [${idx + 1}/${gameFolders.length}] Menelusuri game: "${g.name}"... `);
     const beforeCount = crawlResults.length;
-    await crawlForSpeedupCandidates(drive, g, { gameName: g.name, epsName: '' }, config.skipPrefix, crawlResults);
+    await crawlForSpeedupCandidates(
+      drive,
+      g,
+      { gameName: g.name, epsName: '', pathSegments: [g.name] },
+      config.skipPrefix,
+      crawlResults
+    );
     const foundInGame = crawlResults.length - beforeCount;
     console.log(`(${foundInGame} klip terdeteksi)`);
   }
 
-  if (targetGameFilter && !matchedTop) {
-    const filterLower = targetGameFilter.toLowerCase();
-    crawlResults = crawlResults.filter((c) =>
-      c.gameName.toLowerCase().includes(filterLower) ||
-      (c.epsName && c.epsName.toLowerCase().includes(filterLower)) ||
-      (c.folderName && c.folderName.toLowerCase().includes(filterLower))
-    );
-    console.log(`🎯 Hasil filter dengan kata kunci "${targetGameFilter}": ${crawlResults.length} klip cocok.`);
+  if (targetSegments.length > 0 || targetFileName) {
+    crawlResults = crawlResults.filter((c) => {
+      if (targetSegments.length > 0 && !isPathMatch(c.pathSegments, targetSegments)) {
+        return false;
+      }
+      if (targetFileName) {
+        const baseTarget = targetFileName.replace(/^!+\s*/, '').replace(/\.[^.]+$/, '').toLowerCase();
+        const fullBase = c.fullFile?.name.replace(/^!+\s*/, '').replace(/\.[^.]+$/, '').toLowerCase();
+        const speedupBase = c.speedupFile?.name.replace(/^!+\s*/, '').replace(/\.[^.]+$/, '').toLowerCase();
+        return baseTarget === fullBase || baseTarget === speedupBase;
+      }
+      return true;
+    });
+    console.log(`🎯 Hasil filter dengan target path "${targetPath}": ${crawlResults.length} klip cocok.`);
+  }
+
+  if (crawlResults.length === 0) {
+    console.warn(`⚠️ Tidak ada klip Doksli yang cocok dengan target path: "${targetPath}".`);
+    console.warn(`   Pastikan penulisan nama game/episode/klip persis sesuai susunan folder di Google Drive.`);
+    process.exit(0);
   }
 
   // Pisahkan antara yang sudah memiliki speedup.mp4 vs yang belum
@@ -367,7 +483,7 @@ async function main() {
   itemsToProcess.forEach((item, i) => {
     const no = String(i + 1).padEnd(4);
     const gName = (item.gameName.length > 26 ? item.gameName.slice(0, 23) + '...' : item.gameName).padEnd(28);
-    const folderPath = `${item.epsName} > ${item.folderName}`;
+    const folderPath = item.displayPath || `${item.epsName} > ${item.folderName}`;
     const fPath = (folderPath.length > 26 ? folderPath.slice(0, 23) + '...' : folderPath).padEnd(28);
     const srcFile = (item.fullFile.name.length > 28 ? item.fullFile.name.slice(0, 25) + '...' : item.fullFile.name).padEnd(30);
     const status = item.hasSpeedup ? '[FORCE RERENDER]' : '[BELUM ADA]';

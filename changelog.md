@@ -14,7 +14,24 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Replace Static Offset Array with Continuous Math.random for Organic Roulette Stopping
+## [Unreleased] - Support Strict Directory-Based Hierarchical --path Targeting in Speedup Crawler
+- **Konteks Struktural**:
+  - Penjelajahan Berkas Hierarki Tingkat Direktori (*Strict Directory Hierarchy Path Navigation*) ([crawl_speedup_drive.js](file:///d:/projects/clipping/scheduler-uploader/crawl_speedup_drive.js)):
+    - **Kebutuhan**: Menyediakan filter `--path="<path>"` yang fleksibel namun ketat untuk memproses klip atau berkas video tertentu di Google Drive, menggantikan dan menggeneralisasi parameter `--game`.
+    - **Aturan Hierarki Direktori**: Akses WAJIB diawali dari folder tingkat pertama (folder Game), menyerupai navigasi direktori berkas sistem (`game`, `game/eps`, `game/eps/klip`, atau `game/eps/klip/full.mp4`). Penelusuran tidak diizinkan langsung melompati hierarki menuju folder klip tanpa menyertakan nama game induk.
+    - **Pencocokan String Presisi 100%**: Helper `matchSegment` mempertahankan karakter string 100% utuh termasuk spasi, tanda petik tunggal internal (seperti `chilla's art`), dan tanda titik dua pada timestamp (`01:03:20`), dengan toleransi case-insensitive dan toleransi penanda prefix skip (`!`).
+    - **Pruning & Validasi Folder Game Awal (Tahap 1)**: Memeriksa `targetSegments[0]`. Jika tidak ditemukan dalam daftar folder game Google Drive, skrip langsung berhenti seketika dengan kode error 1 dan mencetak daftar folder game yang tersedia, mencegah pemindaian sia-sia ke seluruh isi Drive.
+    - **Pencocokan Prefix Hierarki (Tahap 2)**: `isPathMatch` mencocokkan segmen secara berurutan mulai dari indeks 0, dengan toleransi dummy dash folder (`"-"`) pada game single-stream (`game/-/01:03:20`).
+    - **Dukungan Berkas Video Spesifik**: Jika segmen terakhir adalah nama berkas (seperti `full.mp4`, `speedup.mp4`, dsb), crawler mengekstraknya sebagai `targetFileName` dan menyaring hanya klip yang memiliki berkas sumber/target tersebut.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/crawl_speedup_drive.js`:
+    - Menambahkan helper `matchSegment` dan `isPathMatch`.
+    - Memperbarui `crawlForSpeedupCandidates` untuk mencatat `pathSegments` dan `displayPath`.
+    - Menambahkan parser CLI `--path`, `-p`, dan alias `--game` dengan sanitasi tanda petik terluar shell.
+    - Mengimplementasikan pruning dan validasi folder game pada Tahap 1.
+    - Memperbarui teks panduan CLI `--help`.
+
+## [bfbd819] - Replace Static Offset Array with Continuous Math.random for Organic Roulette Stopping
 - **Konteks Struktural**:
   - Peniadaan Pola Offset Berhenti Sistematis Zigzag (*Dynamic Continuous Stop Offset Architecture*) ([rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js)):
     - **Penyebab Pola Berulang**: Sebelumnya, nilai pergeseran posisi berhenti horizontal kartu (`cardOffset`) diambil dari array statis berulang `randomOffsets = [-0.15, 0.12, -0.10, 0.15, -0.12, 0.10]`. Akibatnya, pada setiap kali kompilasi 5 klip dijalankan, kartu selalu berhenti secara sistematis dan tertebak: Jalur 1 serong kiri, Jalur 2 serong kanan, Jalur 3 serong kiri, Jalur 4 serong kanan, dan Jalur 5 serong kiri.
