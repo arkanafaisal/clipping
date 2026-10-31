@@ -203,40 +203,69 @@ async function uploadCompilationToDrive(drive, finalOutputPath, resultFolderId) 
   console.log('[TAHAP 5/5] Mengunggah video kompilasi ke Google Drive...');
   console.log(` - Target Folder ID : ${resultFolderId}`);
 
+  const maxAttempts = 3;
+  const uploadFileName = path.basename(finalOutputPath);
+  let fileSizeMb = '0';
   try {
-    const uploadFileName = path.basename(finalOutputPath);
-    const fileMetadata = {
-      name: uploadFileName,
-      parents: [resultFolderId],
-    };
-    const media = {
-      mimeType: 'video/mp4',
-      body: fs.createReadStream(finalOutputPath),
-    };
+    fileSizeMb = (fs.statSync(finalOutputPath).size / (1024 * 1024)).toFixed(2);
+  } catch (_) {}
+  console.log(` - Ukuran Berkas   : ${fileSizeMb} MB`);
 
-    const uploadRes = await drive.files.create({
-      requestBody: fileMetadata,
-      media,
-      fields: 'id, name, webViewLink',
-      supportsAllDrives: true,
-    });
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      if (attempt > 1) {
+        console.log(`🔄 [PERCOBAAN ${attempt}/${maxAttempts}] Mengulang unggahan video ke Google Drive...`);
+        // Jeda backoff sebelum mencoba lagi
+        await new Promise((resolve) => setTimeout(resolve, attempt * 3000));
+      }
 
-    console.log(`✅ Berhasil mengunggah video ke Google Drive!`);
-    console.log(` - File ID     : ${uploadRes.data.id}`);
-    if (uploadRes.data.webViewLink) {
-      console.log(` - Link GDrive : ${uploadRes.data.webViewLink}`);
+      const fileMetadata = {
+        name: uploadFileName,
+        parents: [resultFolderId],
+      };
+      // Buat stream baru pada setiap percobaan agar tidak memakai stream yang sudah tertutup
+      const media = {
+        mimeType: 'video/mp4',
+        body: fs.createReadStream(finalOutputPath),
+      };
+
+      const uploadRes = await drive.files.create(
+        {
+          requestBody: fileMetadata,
+          media,
+          fields: 'id, name, webViewLink',
+          supportsAllDrives: true,
+        },
+        {
+          timeout: 600000, // 10 menit batas waktu koneksi soket
+          maxBodyLength: Infinity,
+          maxContentLength: Infinity,
+        }
+      );
+
+      console.log(`✅ Berhasil mengunggah video ke Google Drive!`);
+      console.log(` - File ID     : ${uploadRes.data.id}`);
+      if (uploadRes.data.webViewLink) {
+        console.log(` - Link GDrive : ${uploadRes.data.webViewLink}`);
+      }
+
+      // Hapus file video lokal setelah sukses upload
+      console.log(`\n[CLEANUP] Menghapus video lokal setelah sukses diunggah ke Google Drive...`);
+      try {
+        fs.unlinkSync(finalOutputPath);
+        console.log(`✅ File video lokal berhasil dihapus (${uploadFileName}).`);
+      } catch (_) {}
+      return uploadRes.data;
+    } catch (uploadErr) {
+      console.warn(`⚠️ [PERCOBAAN ${attempt}/${maxAttempts} GAGAL] ${uploadErr.message}`);
+      if (attempt === maxAttempts) {
+        console.error(`❌ Gagal mengunggah video ke Google Drive setelah ${maxAttempts} percobaan.`);
+        console.log(`ℹ️ File video lokal tetap aman tersimpan di: ${finalOutputPath}`);
+        return null;
+      }
     }
-
-    // Hapus file video lokal setelah sukses upload
-    console.log(`\n[CLEANUP] Menghapus video lokal setelah sukses diunggah ke Google Drive...`);
-    fs.unlinkSync(finalOutputPath);
-    console.log(`✅ File video lokal berhasil dihapus (${uploadFileName}).`);
-    return uploadRes.data;
-  } catch (uploadErr) {
-    console.error(`❌ Gagal mengunggah video ke Google Drive:`, uploadErr.message);
-    console.log(`ℹ️ File video lokal tetap aman tersimpan di: ${finalOutputPath}`);
-    return null;
   }
+  return null;
 }
 
 module.exports = {

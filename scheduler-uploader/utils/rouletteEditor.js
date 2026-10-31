@@ -226,15 +226,7 @@ function buildLaneRibbons({
       : allAvailableImages[k % allAvailableImages.length];
 
     // Total jarak tempuh jalur k dari t = 0 segmen pertama hingga berhenti mengunci di segmen k:
-    // - Pada segmen 0 s/d k-1: berputar pada top speed konstan (jarak = k * distPerSegment)
-    // - Pada segmen k: melambat dari top speed ke 0 (jarak = refDist)
     const distTotal = k * distPerSegment + refDist;
-
-    // Pastikan targetCardIndex cukup jauh sehingga pita tidak pernah minus di t = 0 (Segmen 0)
-    const cardsNeededBefore = Math.ceil((distTotal + 540 + laneHeight) / laneHeight);
-    const targetCardIndex = Math.max(8, cardsNeededBefore);
-    const cardsNeededAfter = Math.max(5, Math.ceil(1080 / laneHeight) + 3);
-    const cardsPerRibbon = Math.max(targetCardIndex + cardsNeededAfter, rouletteItems * 3);
 
     // Ambil (rouletteItems - 1) kartu kandidat acak untuk jalur ini
     const candidatePool = allAvailableImages.filter((p) => p !== winningCardPath);
@@ -252,20 +244,25 @@ function buildLaneRibbons({
 
     // Daftar item unik untuk jalur ini: item 0 = kartu pemenang, item 1..N-1 = kandidat
     const laneItems = [winningCardPath, ...otherCandidates];
+    const M = laneItems.length;
 
-    // Susun cardsPerRibbon kartu untuk pita jalur ini
-    // Pastikan pada index targetCardIndex adalah winningCardPath!
+    // Pastikan panjang 1 siklus periodik L = Meff * laneHeight > 1080 (lebar layar)
+    // agar maksimal hanya ada 1 kartu pemenang di layar dalam satu saat
+    const minCyclesNeeded = Math.max(1, Math.ceil(1080 / (M * laneHeight)));
+    const effItems = [];
+    for (let cy = 0; cy < minCyclesNeeded; cy++) {
+      effItems.push(...laneItems);
+    }
+    const Meff = effItems.length;
+    const periodWidth = Meff * laneHeight; // Panjang 1 putaran periodik (L)
+
+    // Bangun pita yang memuat 1 siklus penuh (periodWidth) ditambah kartu ekstra untuk menutup layar 1080 px
+    // Total kartu hanya berkisar 15 - 25 kartu, bebas dari limitasi command line 32KB Windows
+    const extraCards = Math.ceil(1080 / laneHeight) + 2;
+    const totalCards = Meff + extraCards;
     const cardImages = [];
-    for (let c = 0; c < cardsPerRibbon; c++) {
-      if (c === targetCardIndex) {
-        cardImages.push(winningCardPath);
-      } else {
-        const itemIdx = (c + k * 2 + 1) % laneItems.length;
-        const chosen = (itemIdx === 0 && otherCandidates.length > 0)
-          ? otherCandidates[c % otherCandidates.length]
-          : laneItems[itemIdx];
-        cardImages.push(chosen);
-      }
+    for (let c = 0; c < totalCards; c++) {
+      cardImages.push(effItems[c % Meff]);
     }
 
     // Buat input argumen FFmpeg hstack menggunakan spawnSync langsung (aman dari batasan cmd.exe Windows)
@@ -291,28 +288,26 @@ function buildLaneRibbons({
     }
 
     // Hitung posisi koordinat X saat berhenti dengan offset acak natural
-    const targetCenter = targetCardIndex * laneHeight + laneHeight / 2;
+    // Tengah kartu 0 ada di laneHeight / 2. Garis pointer vertikal di X = 540.
     const offsetFrac = randomOffsets[k % randomOffsets.length];
     const cardOffset = Math.round(laneHeight * offsetFrac);
-    const stopCenter = targetCenter + cardOffset;
-    const xStop = Math.max(0, Math.round(stopCenter - 540));
-    const totalRibbonWidth = cardsPerRibbon * laneHeight;
+    const xStopRaw = Math.round(laneHeight / 2 + cardOffset - 540);
+    const xStopTarget = ((xStopRaw % periodWidth) + periodWidth) % periodWidth;
 
     // Titik koordinat X pita pada t = 0 segmen pertama (Segmen 0)
-    // Menjamin lintasan kontinu 100% tanpa pernah melompat kartu antar segmen
-    const xStartInitial = xStop - distTotal;
+    // Menjamin (xStartInitial + distTotal) % periodWidth === xStopTarget secara presisi
+    const xStartInitial = ((xStopTarget - (distTotal % periodWidth)) % periodWidth + periodWidth) % periodWidth;
 
-    // Posisi X kartu terpilih di layar 1080px saat pita berada di posisi xStop:
-    const cardScreenX = (targetCardIndex * laneHeight) - xStop;
+    // Posisi X kartu terpilih di layar 1080px saat pita berada di posisi xStopTarget:
+    const cardScreenX = ((540 - Math.round(laneHeight / 2) - cardOffset) % 1080 + 1080) % 1080;
 
     ribbonResults.push({
       laneIndex: k,
       ribbonImgPath,
-      targetCardIndex,
+      periodWidth,
       xStartInitial,
-      xStop,
+      xStopTarget,
       cardScreenX,
-      totalRibbonWidth,
       distPerSegment,
       distTotal,
       refDist,
@@ -379,21 +374,20 @@ function renderRouletteSpinSegment({
     inputArgs.push('-loop', '1', '-i', r.ribbonImgPath);
 
     let xExpr = '';
-    const maxX = Math.max(100, r.totalRibbonWidth - 1080);
-    const xStop = Math.min(r.xStop, maxX);
+    const L = r.periodWidth;
+    const sStart = currentMomentIndex * r.distPerSegment;
 
     if (k < currentMomentIndex) {
-      // Jalur yang sudah berhenti pada segmen sebelumnya -> Tetap diam di posisinya
-      xExpr = `${xStop}`;
+      // Jalur yang sudah berhenti pada segmen sebelumnya -> Tetap diam di posisi xStopTarget
+      xExpr = `${r.xStopTarget}`;
     } else if (k === currentMomentIndex) {
-      // Jalur aktif saat ini -> Bergerak dari topSpeed lalu melambat halus (quadratic ease-out) dan berhenti tepat di xStop saat t = stopTime
-      const xStart = Math.max(0, xStop - refDist);
-      xExpr = `if(gte(t\\,${stopTime})\\,${xStop}\\,${xStart}+${refDist}*(1-pow(1-(t/${stopTime})\\,2)))`;
+      // Jalur aktif saat ini -> Bergerak dari topSpeed lalu melambat halus (quadratic ease-out) dan berhenti tepat di xStopTarget saat t = stopTime
+      const decelExpr = `if(gte(t\\,${stopTime})\\,${r.refDist}\\,${r.refDist}*(1-pow(1-(t/${stopTime})\\,2)))`;
+      xExpr = `mod(${r.xStartInitial}+${sStart}+${decelExpr}\\,${L})`;
     } else {
       // Jalur selanjutnya yang belum tiba gilirannya -> Berputar kontinu pada topSpeed yang SAMA PERSIS
-      // Dimulai persis di mana segmen sebelumnya berakhir (xStartInitial + currentMomentIndex * distPerSegment)
-      const xStartInThisSegment = r.xStartInitial + currentMomentIndex * r.distPerSegment;
-      xExpr = `min(${maxX}\\,${xStartInThisSegment}+t*${topSpeed})`;
+      // Dimulai persis di mana segmen sebelumnya berakhir
+      xExpr = `mod(${r.xStartInitial}+${sStart}+t*${topSpeed}\\,${L})`;
     }
 
     cropFilters.push(`[${k}:v]crop=1080:${laneHeight}:${xExpr}:0[lane${k}]`);

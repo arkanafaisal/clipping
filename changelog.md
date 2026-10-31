@@ -14,7 +14,24 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Continuous Seamless Roulette Trajectory, Upfront Generation, and Synchronized Freeze-Fade Transitions
+## [Unreleased] - Fix Ribbon Building Command Length Crash and Add Google Drive Upload Retries
+- **Konteks Struktural**:
+  - Arsitektur Pita Periodik Kompak (*Compact Periodic Ribbon Generation*) ([rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js)):
+    - **Penyebab Masalah (Galat Ribbon #4)**: Pada konfigurasi 5 jalur horizontal dan kecepatan tinggi, perhitungan pita sebelumnya membangun strip gambar linier sepanjang total jarak tempuh seluruh segmen ($distTotal \approx 46.800$ px), membutuhkan hingga 163 kartu per pita. Pemanggilan `spawnSync` dengan 163 input `-i` dan 163 filter scale/crop menghasilkan string argumen sepanjang lebih dari 33.000 karakter, yang melampaui batas maksimal perintah Windows `CreateProcessW` (32.767 karakter) dan menyebabkan pembuatan pita pada jalur ke-5 (Ribbon #4) gagal secara hening tanpa pesan error.
+    - **Solusi**: Merumuskan arsitektur pita periodik kompak (*compact periodic circular wheel*). Karena kartu kandidat per jalur hanya berkisar $M$ item unik, pita hanya perlu dibuat sepanjang $M_{eff}$ kartu ditambah kartu penutup layar ($\approx 15 - 25$ kartu total, lebar $\approx 4.000 - 6.000$ px). Pergerakan crop dihitung menggunakan modulo periodik:
+      $$xExpr = \text{mod}(xStartInitial + sStart + \text{pergerakan}(t), \; periodWidth)$$
+      Nilai $xStartInitial$ dihitung secara analitik agar saat deselerasi berhenti, pita tepat mendarat di $xStopTarget \pmod{periodWidth}$. Dengan perubahan ini, panjang argumen FFmpeg terpangkas dari 33.000 karakter menjadi hanya ~2.000 karakter, pita terbebas dari limitasi Windows 32KB dan limitasi dimensi JPEG 65KB, dengan kontinuitas 100% tanpa jumping.
+  - Mekanisme Percobaan Ulang Unggahan Google Drive (*Resilient Drive Upload with Exponential Backoff*) ([compiler.js](file:///d:/projects/clipping/scheduler-uploader/utils/compiler.js)):
+    - **Penyebab Masalah (write ECONNABORTED)**: Unggahan video kompilasi final berukuran besar (30MB - 100MB+) rentan mengalami pemutusan soket oleh jaringan atau Google (`write ECONNABORTED`) jika terjadi fluktuasi koneksi sesaat.
+    - **Solusi**: Menambahkan siklus percobaan ulang otomatis hingga 3 kali percobaan dengan jeda bertingkat (*exponential backoff* 3s, 6s). Setiap percobaan membuat *readable stream* baru (`fs.createReadStream`) serta memperpanjang batas waktu koneksi (*socket timeout*) hingga 10 menit (600.000 ms) dengan `maxBodyLength: Infinity`. Jika koneksi sempat terputus, sistem otomatis menyambung kembali tanpa menggugurkan proses kompilasi.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/utils/rouletteEditor.js`:
+    - Mengganti pita linier 163 kartu menjadi pita periodik kompak ($\approx 15-25$ kartu per pita).
+    - Menghitung $xStartInitial$ berbasis $periodWidth$ dan modulo analitik agar koordinat henti kartu pemenang tepat berada di bawah pointer emas.
+  - `scheduler-uploader/utils/compiler.js`:
+    - Memperbarui `uploadCompilationToDrive` dengan perulangan percobaan ulang hingga 3 kali, pembuatan stream baru per percobaan, dan timeout 10 menit.
+
+## [8ed16fc] - Continuous Seamless Roulette Trajectory, Upfront Generation, and Synchronized Freeze-Fade Transitions
 - **Konteks Struktural**:
   - Peniadaan Fenomena Kartu Melompat (*Zero-Jumping Continuous Trajectory Architecture*) ([rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js)):
     - **Penyebab Masalah**: Sebelumnya, setiap segmen putaran roulette menghitung posisi pita kartu secara independen dari $t = 0$. Jalur yang belum aktif bergerak menggunakan fungsi modulo acak `mod(k*600 + t*topSpeed, maxX)`, sementara saat tiba gilirannya, koordinatnya langsung di-reset ke formula pengereman `xStop - dist`. Akibatnya, saat transisi speedup memudar keluar menampilkan gambar kartu A-B-C, begitu segmen spin berikutnya mulai kartu tiba-tiba "melompat/teleportasi" ke gambar kartu lain.
