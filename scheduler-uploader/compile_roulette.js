@@ -157,13 +157,14 @@ async function main() {
     process.exit(0);
   });
 
-  // 4. Unduh Pool Gambar Meme 1:1 untuk Kartu-Kartu Roulette
-  console.log(`\n📦 [TAHAP 2/4] Menyiapkan pool kartu gambar dan mengunduh video full speedup...`);
+  // 4. Unduh Pool Gambar Meme 1:1 & Seluruh Video Full Speedup Momen Terpilih
+  console.log(`\n📦 [TAHAP 2/4] Mengunduh aset kartu roulette dan video full speedup dari Google Drive...`);
   const imagePool = await downloadMemeImagesPool(drive, config.doksliFolderId, workDir, 30);
 
-  // Unduh gambar meme spesifik untuk masing-masing momen jika ada di foldernya
+  // Unduh gambar kartu dan video untuk masing-masing momen dari Drive
   for (let i = 0; i < laneCount; i++) {
     const m = validMoments[i];
+    const momentIndex = i + 1;
     if (m.memeImageFile && m.memeImageFile.id) {
       const ext = path.extname(m.memeImageFile.name) || '.jpg';
       const localMemePath = path.join(workDir, `moment_meme_${i}${ext}`);
@@ -174,13 +175,23 @@ async function main() {
         m.localMemeImagePath = null;
       }
     }
+
+    // Unduh video full / speedup
+    const rawVideoPath = path.join(workDir, `raw_full_${momentIndex}.mp4`);
+    if (m.speedupFile && !isSkippedItem(m.speedupFile.name, config.skipPrefix)) {
+      console.log(`   ⚡ Mengunduh speedup "${m.gameName}" langsung dari Google Drive...`);
+      await downloadDriveFile(drive, m.speedupFile.id, rawVideoPath);
+    } else {
+      console.log(`   📥 Mengunduh video full "${m.gameName}" dari Google Drive...`);
+      await downloadDriveFile(drive, m.fullFile.id, rawVideoPath);
+    }
+    m.localRawVideoPath = rawVideoPath;
   }
 
-  // 5. Bangun Pita Horizontal (Ribbon) & Pointer Indikator Tengah
-  // Total tinggi roulette = 80% dari 1920 = 1536 px (terpusat vertikal di Y = 192)
+  // 5. Bangun Pita Horizontal (Ribbon) yang Kontinu
   const totalRouletteHeight = 1536;
   const laneHeight = Math.floor(totalRouletteHeight / laneCount);
-  console.log(`   📐 Dimensi: ${laneCount} jalur horizontal, tinggi per jalur: ${laneHeight} px, terpusat vertikal (Y: 192 - 1728).`);
+  console.log(`\n   📐 Dimensi: ${laneCount} jalur horizontal, tinggi per jalur: ${laneHeight} px, terpusat vertikal (Y: 192 - 1728).`);
 
   const spinDuration = parseFloat(config.rouletteSpinDuration) || 4.4;
   const lockDuration = parseFloat(config.rouletteLockDuration) || 1.0;
@@ -200,19 +211,15 @@ async function main() {
     ffmpegBin: config.ffmpegBin,
   });
 
-  // 6. Merender Rangkaian Segmen: [Roulette Spin #k] -> [Speedup Video #k dengan Freeze Fade]
-  console.log(`\n🎬 [TAHAP 3/4] Merender animasi roulette dan merangkai klip speedup dengan freeze fade...`);
-  const allCompilationClips = [];
+  // 6. TAHAP 3A: Render Seluruh Animasi Putaran Roulette Terlebih Dahulu (Create Dulu di Awal)
+  console.log(`\n🎡 [TAHAP 3A/4] Merender seluruh putaran roulette terlebih dahulu (${laneCount} segmen kontinu, zero-jumping)...`);
+  const spinClips = [];
+  const stillSnapshots = [];
 
   for (let k = 0; k < laneCount; k++) {
     const moment = validMoments[k];
     const momentIndex = k + 1;
-    console.log(`\n----------------------------------------------------------------------------------------`);
-    console.log(`🎰 [MOMEN ${momentIndex}/${laneCount}]: "${moment.gameName}"`);
-
-    // Bagian A: Render Animasi Putaran Roulette untuk Momen k
-    // Jalur 0 .. k-1 tetap diam terkunci, Jalur k melambat dan mengunci, Jalur k+1 .. end tetap berputar
-    console.log(`   1. 🎡 Merender putaran roulette (durasi: ${spinDuration}s, deselerasi: ${stopTime}s, lock kartu: ${lockDuration}s, top speed: ${maxSpeed} px/s)...`);
+    console.log(`   🎡 [Segmen ${momentIndex}/${laneCount}] Putaran roulette "${moment.gameName}" (durasi: ${spinDuration}s, deselerasi: ${stopTime}s, lock: ${lockDuration}s)...`);
     const spinOutputPath = path.join(workDir, `roulette_segment_${momentIndex}.mp4`);
     renderRouletteSpinSegment({
       segmentIndex: momentIndex,
@@ -227,10 +234,9 @@ async function main() {
       stopTime,
       maxSpeed,
     });
-    allCompilationClips.push(spinOutputPath);
-    console.log(`      ✅ Segmen putaran roulette #${momentIndex} siap.`);
+    spinClips.push(spinOutputPath);
 
-    // Ekstrak frame terakhir papan roulette yang berhenti untuk latar belakang fade klip speedup
+    // Ambil snapshot frame terakhir papan roulette yang berhenti untuk background transisi speedup
     const bgStillPath = path.join(workDir, `roulette_still_${momentIndex}.jpg`);
     try {
       spawnSync(
@@ -239,41 +245,45 @@ async function main() {
         { stdio: 'ignore' }
       );
     } catch (_) {}
+    stillSnapshots.push(bgStillPath);
+    console.log(`      ✅ Segmen putaran roulette #${momentIndex} & snapshot still siap.`);
+  }
 
-    // Bagian B: Unduh dan Siapkan Video Full Speedup dengan Freeze Fade-In & Freeze Fade-Out
-    console.log(`   2. 📥 Mengunduh video full speedup untuk Momen #${momentIndex}...`);
-    let rawVideoPath = path.join(workDir, `raw_full_${momentIndex}.mp4`);
+  // 7. TAHAP 3B: Render Seluruh Klip Speedup Video dengan Freeze Fade-In & Freeze Fade-Out
+  console.log(`\n🎬 [TAHAP 3B/4] Merangkai video full speedup dengan Freeze Fade di atas snapshot papan roulette...`);
+  const speedupClips = [];
+  const fadeDur = config.rouletteFadeDuration || 0.5;
+  const freezeDur = config.rouletteFreezeDuration !== undefined ? config.rouletteFreezeDuration : 0.5;
+  const boardFreezeDur = config.rouletteBoardFreeze !== undefined ? config.rouletteBoardFreeze : 0.5;
 
-    // Prioritaskan speedup.mp4 siap pakai jika ada di Drive
-    if (moment.speedupFile && !isSkippedItem(moment.speedupFile.name, config.skipPrefix)) {
-      console.log(`      ⚡ Mengunduh "speedup.mp4" langsung dari Google Drive...`);
-      await downloadDriveFile(drive, moment.speedupFile.id, rawVideoPath);
-    } else {
-      console.log(`      📥 Mengunduh "${moment.fullFile.name}" dari Google Drive...`);
-      await downloadDriveFile(drive, moment.fullFile.id, rawVideoPath);
-    }
-
-    const fadeDur = config.rouletteFadeDuration || 0.5;
-    const freezeDur = config.rouletteFreezeDuration !== undefined ? config.rouletteFreezeDuration : 0.5;
-    console.log(`   3. ✂️ Menyiapkan video speedup (fade-in: ${fadeDur}s, freeze awal: ${freezeDur}s, fade-out: ${fadeDur}s)...`);
+  for (let k = 0; k < laneCount; k++) {
+    const moment = validMoments[k];
+    const momentIndex = k + 1;
+    console.log(`   ✂️ [Klip ${momentIndex}/${laneCount}] Menyiapkan speedup "${moment.gameName}" (board freeze: ${boardFreezeDur}s, fade: ${fadeDur}s, freeze doksli: ${freezeDur}s)...`);
     const fadedSpeedupPath = path.join(workDir, `faded_speedup_${momentIndex}.mp4`);
     renderSpeedupClipWithFade({
-      rawVideoPath,
+      rawVideoPath: moment.localRawVideoPath,
       outputPath: fadedSpeedupPath,
       moment,
       workDir,
       config,
-      bgStillPath,
+      bgStillPath: stillSnapshots[k],
       ffmpegBin: config.ffmpegBin,
     });
-    allCompilationClips.push(fadedSpeedupPath);
+    speedupClips.push(fadedSpeedupPath);
     console.log(`      ✅ Video full speedup #${momentIndex} siap.`);
 
-    // Bersihkan file video mentah lokal momen ini
+    // Bersihkan file mentah lokal momen ini
     try {
-      if (fs.existsSync(rawVideoPath)) fs.unlinkSync(rawVideoPath);
-      if (fs.existsSync(bgStillPath)) fs.unlinkSync(bgStillPath);
+      if (fs.existsSync(moment.localRawVideoPath)) fs.unlinkSync(moment.localRawVideoPath);
     } catch (_) {}
+  }
+
+  // 8. Rangkai Seluruh Segmen Berselingan: [Spin 1] -> [Speedup 1] -> [Spin 2] -> [Speedup 2]...
+  const allCompilationClips = [];
+  for (let k = 0; k < laneCount; k++) {
+    allCompilationClips.push(spinClips[k]);
+    allCompilationClips.push(speedupClips[k]);
   }
 
   // 7. Penggabungan Single-Pass Concat Copy 60 FPS

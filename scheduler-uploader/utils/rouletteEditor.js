@@ -197,14 +197,9 @@ function buildLaneRibbons({
 
   const stopTime = Math.max(0.5, Math.round((spinDuration - lockDuration) * 10) / 10);
   const refDist = Math.round((maxSpeed * stopTime) / 2);
+  const distPerSegment = Math.round(spinDuration * maxSpeed);
 
-  // Pastikan jumlah kartu di pita cukup panjang agar pita tidak pernah minus saat mulai melambat
-  const cardsNeededBefore = Math.ceil((refDist + 540 + laneHeight) / laneHeight);
-  const targetCardIndex = Math.max(8, cardsNeededBefore);
-  const cardsNeededAfter = Math.max(5, Math.ceil(1080 / laneHeight) + 3);
-  const cardsPerRibbon = Math.max(targetCardIndex + cardsNeededAfter, rouletteItems * 3);
-
-  console.log(`   🎨 Menyiapkan ${laneCount} pita roulette horizontal (${cardsPerRibbon} kartu, ${rouletteItems} variasi item per jalur, target idx: ${targetCardIndex})...`);
+  console.log(`   🎨 Menyiapkan ${laneCount} pita roulette horizontal (${rouletteItems} variasi item per jalur, continuous motion)...`);
 
   // Gabungkan seluruh kartu lokal momen ke dalam kumpulan gambar agar variasi semakin kaya
   const allAvailableImages = [...imagePool];
@@ -229,6 +224,17 @@ function buildLaneRibbons({
     const winningCardPath = (moment.localMemeImagePath && fs.existsSync(moment.localMemeImagePath))
       ? moment.localMemeImagePath
       : allAvailableImages[k % allAvailableImages.length];
+
+    // Total jarak tempuh jalur k dari t = 0 segmen pertama hingga berhenti mengunci di segmen k:
+    // - Pada segmen 0 s/d k-1: berputar pada top speed konstan (jarak = k * distPerSegment)
+    // - Pada segmen k: melambat dari top speed ke 0 (jarak = refDist)
+    const distTotal = k * distPerSegment + refDist;
+
+    // Pastikan targetCardIndex cukup jauh sehingga pita tidak pernah minus di t = 0 (Segmen 0)
+    const cardsNeededBefore = Math.ceil((distTotal + 540 + laneHeight) / laneHeight);
+    const targetCardIndex = Math.max(8, cardsNeededBefore);
+    const cardsNeededAfter = Math.max(5, Math.ceil(1080 / laneHeight) + 3);
+    const cardsPerRibbon = Math.max(targetCardIndex + cardsNeededAfter, rouletteItems * 3);
 
     // Ambil (rouletteItems - 1) kartu kandidat acak untuk jalur ini
     const candidatePool = allAvailableImages.filter((p) => p !== winningCardPath);
@@ -292,6 +298,10 @@ function buildLaneRibbons({
     const xStop = Math.max(0, Math.round(stopCenter - 540));
     const totalRibbonWidth = cardsPerRibbon * laneHeight;
 
+    // Titik koordinat X pita pada t = 0 segmen pertama (Segmen 0)
+    // Menjamin lintasan kontinu 100% tanpa pernah melompat kartu antar segmen
+    const xStartInitial = xStop - distTotal;
+
     // Posisi X kartu terpilih di layar 1080px saat pita berada di posisi xStop:
     const cardScreenX = (targetCardIndex * laneHeight) - xStop;
 
@@ -299,9 +309,12 @@ function buildLaneRibbons({
       laneIndex: k,
       ribbonImgPath,
       targetCardIndex,
+      xStartInitial,
       xStop,
       cardScreenX,
       totalRibbonWidth,
+      distPerSegment,
+      distTotal,
       refDist,
       maxSpeed,
       stopTime,
@@ -374,12 +387,13 @@ function renderRouletteSpinSegment({
       xExpr = `${xStop}`;
     } else if (k === currentMomentIndex) {
       // Jalur aktif saat ini -> Bergerak dari topSpeed lalu melambat halus (quadratic ease-out) dan berhenti tepat di xStop saat t = stopTime
-      const dist = Math.min(xStop, refDist);
-      const xStart = xStop - dist;
-      xExpr = `if(gte(t\\,${stopTime})\\,${xStop}\\,${xStart}+${dist}*(1-pow(1-(t/${stopTime})\\,2)))`;
+      const xStart = Math.max(0, xStop - refDist);
+      xExpr = `if(gte(t\\,${stopTime})\\,${xStop}\\,${xStart}+${refDist}*(1-pow(1-(t/${stopTime})\\,2)))`;
     } else {
       // Jalur selanjutnya yang belum tiba gilirannya -> Berputar kontinu pada topSpeed yang SAMA PERSIS
-      xExpr = `mod(${k * 600}+t*${topSpeed}\\,${maxX})`;
+      // Dimulai persis di mana segmen sebelumnya berakhir (xStartInitial + currentMomentIndex * distPerSegment)
+      const xStartInThisSegment = r.xStartInitial + currentMomentIndex * r.distPerSegment;
+      xExpr = `min(${maxX}\\,${xStartInThisSegment}+t*${topSpeed})`;
     }
 
     cropFilters.push(`[${k}:v]crop=1080:${laneHeight}:${xExpr}:0[lane${k}]`);
@@ -509,20 +523,29 @@ function renderSpeedupClipWithFade({
   const playDuration = rawDur / clipSpeed;
   const fadeDuration = parseFloat(config?.rouletteFadeDuration) || 0.5;
   const freezeDuration = config?.rouletteFreezeDuration !== undefined ? parseFloat(config.rouletteFreezeDuration) : 0.5;
+  const boardFreezeDuration = config?.rouletteBoardFreeze !== undefined ? parseFloat(config.rouletteBoardFreeze) : 0.5;
 
-  const startFreezeDuration = fadeDuration + freezeDuration;
-  const stopFreezeDuration = fadeDuration;
-  const fadeOutStart = startFreezeDuration + playDuration;
+  // Rangkaian Waktu Transisi Mulus Tanpa Jumping:
+  // 1. [0 s/d boardFreezeDuration]: Papan roulette diam terkunci (still frame, opacity video doksli 0%)
+  // 2. [boardFreezeDuration s/d + fadeDuration]: Video doksli frame 0 memudar masuk (fade-in 0% -> 100%)
+  // 3. [+ freezeDuration]: Video doksli frame 0 ditahan diam pada 100% opacity agar penonton siap & membaca subtitle
+  // 4. [+ playDuration]: Video doksli diputar speedup penuh bersama aliran audionya
+  // 5. [+ freezeDuration]: Video doksli frame terakhir ditahan diam pada 100% opacity ("freeze dulu baru fadeout")
+  // 6. [+ fadeDuration]: Video doksli frame terakhir memudar keluar (fade-out 100% -> 0%) kembali ke papan roulette
+  // 7. [+ boardFreezeDuration]: Papan roulette diam terkunci kembali sebelum putaran segmen berikutnya mulai
+  const startFreezeDuration = boardFreezeDuration + fadeDuration + freezeDuration;
+  const stopFreezeDuration = freezeDuration + fadeDuration + boardFreezeDuration;
+  const fadeOutStart = startFreezeDuration + playDuration + freezeDuration;
   const totalDuration = startFreezeDuration + playDuration + stopFreezeDuration;
   const adelayMs = Math.round(startFreezeDuration * 1000);
 
   // Filter video:
   // 1. Skalakan ke 1080x1920, tempelkan subtitle ASS
-  // 2. Gunakan tpad untuk clone frame awal (freeze selama fade-in + pre-play freeze) dan clone frame akhir (freeze selama fade-out)
-  // 3. Terapkan fade-in (st=0:d=fadeDuration) dan fade-out (st=fadeOutStart:d=fadeDuration)
+  // 2. Gunakan tpad untuk clone frame awal (freeze board + fade-in + pre-play) dan frame akhir (post-play + fade-out + board)
+  // 3. Terapkan fade-in (st=boardFreezeDuration:d=fadeDuration) dan fade-out (st=fadeOutStart:d=fadeDuration)
   const speedFilter = clipSpeed > 1.0 ? `setpts=PTS/${clipSpeed}` : null;
-  const tpadFilter = `tpad=start_mode=clone:start_duration=${startFreezeDuration.toFixed(2)}:stop_mode=clone:stop_duration=${stopFreezeDuration.toFixed(2)}`;
-  const fadeFilter = `fade=t=in:st=0:d=${fadeDuration.toFixed(2)}:alpha=1,fade=t=out:st=${fadeOutStart.toFixed(2)}:d=${fadeDuration.toFixed(2)}:alpha=1`;
+  const tpadFilter = `tpad=start_mode=clone:start_duration=${startFreezeDuration.toFixed(3)}:stop_mode=clone:stop_duration=${stopFreezeDuration.toFixed(3)}`;
+  const fadeFilter = `fade=t=in:st=${boardFreezeDuration.toFixed(3)}:d=${fadeDuration.toFixed(3)}:alpha=1,fade=t=out:st=${fadeOutStart.toFixed(3)}:d=${fadeDuration.toFixed(3)}:alpha=1`;
 
   const inputArgs = ['-i', rawVideoPath];
   let numInputs = 1;
@@ -552,8 +575,9 @@ function renderSpeedupClipWithFade({
   }
 
   // Filter audio:
-  // Tunda audio sebesar adelayMs (fadeDuration + freezeDuration)
-  // sehingga audio dan gerakan video mulai berputar bersamaan secara presisi (tidak miss / mendahului video)
+  // Tunda audio sebesar adelayMs (boardFreezeDuration + fadeDuration + freezeDuration)
+  // sehingga audio dan gerakan video mulai berputar bersamaan secara presisi
+  const afadeStart = startFreezeDuration + playDuration;
   const audioFilters = [];
   if (clipSpeed > 1.0) {
     audioFilters.push(`aformat=sample_rates=44100,asetrate=44100*${clipSpeed},aresample=44100`);
@@ -561,7 +585,7 @@ function renderSpeedupClipWithFade({
   if (adelayMs > 0) {
     audioFilters.push(`adelay=delays=${adelayMs}:all=1`);
   }
-  audioFilters.push(`afade=t=out:st=${fadeOutStart.toFixed(2)}:d=${fadeDuration.toFixed(2)}`);
+  audioFilters.push(`afade=t=out:st=${afadeStart.toFixed(3)}:d=${Math.min(0.2, fadeDuration).toFixed(3)}`);
   audioFilters.push('apad,aresample=async=1:first_pts=0');
 
   const filterComplex = `

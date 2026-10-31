@@ -213,6 +213,9 @@ function getConfig() {
   let rouletteFreezeDuration = parseFloat(process.env.ROULETTE_FREEZE_DURATION || process.env.ROULETTE_PREPLAY_FREEZE || '0.5');
   if (isNaN(rouletteFreezeDuration) || rouletteFreezeDuration < 0.0) rouletteFreezeDuration = 0.5;
 
+  let rouletteBoardFreeze = parseFloat(process.env.ROULETTE_BOARD_FREEZE || process.env.ROULETTE_BOARD_PAUSE || '0.5');
+  if (isNaN(rouletteBoardFreeze) || rouletteBoardFreeze < 0.0) rouletteBoardFreeze = 0.5;
+
   let rouletteItems = parseInt(process.env.ROULETTE_ITEMS || process.env.ROULETTE_ITEM_COUNT || '5', 10);
   if (isNaN(rouletteItems) || rouletteItems < 2) rouletteItems = 5;
 
@@ -317,6 +320,10 @@ function getConfig() {
       const dur = parseFloat(arg.split('=')[1]);
       if (!isNaN(dur) && dur >= 0.0) rouletteFreezeDuration = dur;
     }
+    if (arg.startsWith('--board-freeze=') || arg.startsWith('--roulette-board-freeze=') || arg.startsWith('--board-pause=')) {
+      const dur = parseFloat(arg.split('=')[1]);
+      if (!isNaN(dur) && dur >= 0.0) rouletteBoardFreeze = dur;
+    }
     if (arg.startsWith('--items=') || arg.startsWith('--roulette-items=')) {
       const itm = parseInt(arg.split('=')[1], 10);
       if (!isNaN(itm) && itm >= 2) rouletteItems = itm;
@@ -386,6 +393,7 @@ function getConfig() {
     rouletteLockDuration,
     rouletteFadeDuration,
     rouletteFreezeDuration,
+    rouletteBoardFreeze,
     rouletteItems,
     rouletteMaxSpeed,
     resultFolderId,

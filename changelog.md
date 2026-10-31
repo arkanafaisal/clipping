@@ -14,7 +14,43 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Configurable Max Speed, Natural Random Offset Stop, and Physical Audio Synchronization
+## [Unreleased] - Continuous Seamless Roulette Trajectory, Upfront Generation, and Synchronized Freeze-Fade Transitions
+- **Konteks Struktural**:
+  - Peniadaan Fenomena Kartu Melompat (*Zero-Jumping Continuous Trajectory Architecture*) ([rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js)):
+    - **Penyebab Masalah**: Sebelumnya, setiap segmen putaran roulette menghitung posisi pita kartu secara independen dari $t = 0$. Jalur yang belum aktif bergerak menggunakan fungsi modulo acak `mod(k*600 + t*topSpeed, maxX)`, sementara saat tiba gilirannya, koordinatnya langsung di-reset ke formula pengereman `xStop - dist`. Akibatnya, saat transisi speedup memudar keluar menampilkan gambar kartu A-B-C, begitu segmen spin berikutnya mulai kartu tiba-tiba "melompat/teleportasi" ke gambar kartu lain.
+    - **Solusi**: Merumuskan kontinuitas matematis 100% pada seluruh jalur sepanjang seluruh durasi kompilasi. Total jarak yang ditempuh jalur $k$ sebelum berhenti mengunci di segmen $k$ adalah:
+      $$\text{distTotal}_k = k \cdot (spinDuration \cdot maxSpeed) + refDist$$
+      Titik awal koordinat pita jalur $k$ pada $t = 0$ segmen pertama didefinisikan sebagai $xStartInitial_k = xStop_k - \text{distTotal}_k$.
+      Pada setiap segmen $s < k$, jalur $k$ mulai tepat di koordinat $(xStartInitial_k + s \cdot distPerSegment)$ dan berakhir persis di titik awal segmen berikutnya $(s+1)$. Dengan demikian, seluruh kartu yang terlihat saat transisi freeze-fade berakhir dijamin berada di posisi piksel yang sama persis saat roda kembali berputar tanpa lonjakan sedikit pun (Zero-Jumping).
+  - Prapembuatan Putaran Roulette di Awal (*Upfront Roulette Pre-Generation & Modular Pipeline*) ([compile_roulette.js](file:///d:/projects/clipping/scheduler-uploader/compile_roulette.js)):
+    - Mengatur ulang alur kompilasi menjadi tahapan modular yang jauh lebih rapi, cepat, dan terpisah:
+      - **Tahap 2**: Mengunduh seluruh pool kartu meme dan seluruh video full speedup momen terpilih di awal dari Google Drive, mengeliminasi jeda jaringan saat proses render.
+      - **Tahap 3A**: Merender seluruh segmen putaran roulette (Segmen 1 s/d N) terlebih dahulu dan mengambil snapshot frame diam papan saat berhenti (`roulette_still_k.jpg`).
+      - **Tahap 3B**: Merangkai seluruh video full speedup dengan Freeze Fade-In & Freeze Fade-Out di atas snapshot papan roulette.
+      - **Tahap 4**: Menggabungkan seluruh segmen berselingan `[spin_1, speedup_1, spin_2, speedup_2, ...]` dengan metode Single-Pass 60 FPS CFR concat.
+  - Penambahan Jeda Freeze Papan & Freeze Video Speedup (*Dual-Freeze Fade Transition System*) ([rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js), [config.js](file:///d:/projects/clipping/scheduler-uploader/utils/config.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example)):
+    - Memperkenalkan parameter konfigurasi lingkungan baru `ROULETTE_BOARD_FREEZE` (default: 0.5s, alias `ROULETTE_BOARD_PAUSE` dan argumen CLI `--board-freeze=`).
+    - Menyusun urutan waktu transisi yang sangat mulus dan simetris:
+      1. **Board Freeze Sebelum Fade-In** (`boardFreezeDuration`, 0.5s): Papan roulette diam terkunci dengan kotak seleksi hijau agar penonton dapat membaca kartu pemenang dengan jelas.
+      2. **Fade-In Mulus** (`fadeDuration`, 0.5s): Video doksli memudar masuk (opacity $0\% \to 100\%$) di atas papan.
+      3. **Pre-Play Freeze** (`freezeDuration`, 0.5s): Frame awal video doksli ditahan diam pada 100% opacity agar penonton dapat scanning subtitle & konten sebelum video bergerak.
+      4. **Playback Speedup**: Video doksli diputar bersama aliran audio dengan tunda sinkron (`adelay`).
+      5. **Post-Play Freeze** (`freezeDuration`, 0.5s): Frame terakhir video doksli ditahan diam pada 100% opacity ("freeze dulu baru fadeout").
+      6. **Fade-Out Mulus** (`fadeDuration`, 0.5s): Video doksli memudar keluar (opacity $100\% \to 0\%$) kembali ke papan roulette.
+      7. **Board Freeze Setelah Fade-Out** (`boardFreezeDuration`, 0.5s): Papan roulette diam terkunci kembali sebelum putaran segmen berikutnya mulai berputar secara mulus.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/utils/config.js`:
+    - Menambahkan parsing `rouletteBoardFreeze` dari `ROULETTE_BOARD_FREEZE` dan opsi CLI `--board-freeze=`.
+  - `scheduler-uploader/utils/rouletteEditor.js`:
+    - Memperbarui `buildLaneRibbons` untuk menghitung `distTotal`, `targetCardIndex`, dan `xStartInitial` per jalur secara kontinu.
+    - Memperbarui `renderRouletteSpinSegment` untuk menggunakan koordinat kontinu `xStartInThisSegment + t * topSpeed` tanpa modulo buatan.
+    - Memperbarui `renderSpeedupClipWithFade` dengan pipeline 7-tahap: clone frame awal (board freeze + fade-in + pre-play) dan frame akhir (post-play + fade-out + board freeze).
+  - `scheduler-uploader/compile_roulette.js`:
+    - Mengorganisasi alur kerja menjadi Tahap 2 (download aset), Tahap 3A (render roulette putaran), Tahap 3B (render speedup klip), dan Tahap 4 (concat).
+  - `scheduler-uploader/.env.example`:
+    - Menambahkan dokumentasi konfigurasi `ROULETTE_BOARD_FREEZE=0.5`.
+
+## [2f9ac40] - Configurable Max Speed, Natural Random Offset Stop, and Physical Audio Synchronization
 - **Konteks Struktural**:
   - Konfigurasi Kecepatan Puncak Bebas (*Configurable Max Speed*) ([config.js](file:///d:/projects/clipping/scheduler-uploader/utils/config.js), [rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js), [compile_roulette.js](file:///d:/projects/clipping/scheduler-uploader/compile_roulette.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example)):
     - Memperkenalkan parameter lingkungan baru `ROULETTE_MAX_SPEED` (default: 3600 px/s, alias `ROULETTE_SPEED`, dan argumen CLI `--max-speed=`, `--roulette-speed=`).
