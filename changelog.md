@@ -14,7 +14,18 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Configurable Candidate Items per Roulette, Center Stop Alignment, and Eye-Friendly Gentle Deceleration
+## [Unreleased] - Fix FFmpeg Filtergraph Input Stream Index in Speedup Fade Clip
+- **Konteks Struktural**:
+  - Perbaikan Pemetaan Indeks Aliran Masukan FFmpeg (*FFmpeg Stream Input Index*) ([rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js)):
+    - Mengatasi galat fatal `FFmpeg error in renderSpeedupClipWithFade: Error initializing complex filters: Invalid argument`.
+    - **Penyebab Masalah**: Sebelumnya variabel `bgInputIndex` diinisialisasi menggunakan `inputArgs.length` (jumlah elemen array argumen baris perintah Node.js) yang bernilai 2 ketika `inputArgs = ['-i', rawVideoPath]`. Akibatnya, filter complex memanggil `[2:v]` padahal FFmpeg hanya menerima 2 input (`0:v` dari video mentah dan `1:v` dari still frame latar belakang papan roulette). FFmpeg menolak karena aliran masukan `2:v` tidak pernah ada.
+    - **Solusi**: Mengganti pelacakan input menggunakan penghitung indeks stream eksplisit (`numInputs = 1`, lalu di-increment secara presisi pada setiap penambahan berkas input `-i`). Dengan perbaikan ini, still frame latar belakang dipetakan secara akurat ke `[1:v]` (atau `[2:v]` jika generator audio hening `anullsrc` disisipkan di posisi 1).
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/utils/rouletteEditor.js`:
+    - Menginisialisasi `numInputs = 1` dan memetakan `bgInputIndex` ke `numInputs++`.
+    - Mengharmoniskan fallback video format `format=yuva420p` jika latar still frame tidak digunakan.
+
+## [f775cb0] - Configurable Candidate Items per Roulette, Center Stop Alignment, and Eye-Friendly Gentle Deceleration
 - **Konteks Struktural**:
   - Konfigurasi Variasi Item Kandidat per Jalur Roulette ([rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js), [config.js](file:///d:/projects/clipping/scheduler-uploader/utils/config.js), [compile_roulette.js](file:///d:/projects/clipping/scheduler-uploader/compile_roulette.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example)):
     - Mengatasi masalah pita roulette yang sebelumnya hanya menampilkan 2 variasi gambar.

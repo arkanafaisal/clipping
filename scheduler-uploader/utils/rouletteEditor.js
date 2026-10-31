@@ -470,18 +470,20 @@ function renderSpeedupClipWithFade({
   const fadeFilter = `fade=t=in:st=0:d=${fadeDuration.toFixed(2)}:alpha=1,fade=t=out:st=${fadeOutStart.toFixed(2)}:d=${fadeDuration.toFixed(2)}:alpha=1`;
 
   const inputArgs = ['-i', rawVideoPath];
+  let numInputs = 1;
   let audioInputRef = '0:a';
 
   // Periksa apakah video mentah memiliki aliran audio
   const hasAudio = hasAudioStream(rawVideoPath, ffmpegBin);
   if (!hasAudio) {
+    const nullAudioIndex = numInputs++;
     inputArgs.push('-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo');
-    audioInputRef = '1:a';
+    audioInputRef = `${nullAudioIndex}:a`;
   }
 
   let videoFilterComplex = '';
   if (bgStillPath && fs.existsSync(bgStillPath)) {
-    const bgInputIndex = inputArgs.length;
+    const bgInputIndex = numInputs++;
     inputArgs.push('-loop', '1', '-i', bgStillPath);
     videoFilterComplex = `
       [0:v]${speedFilter ? speedFilter + ',' : ''}${baseScale},ass='${escapedAss}',${tpadFilter},format=yuva420p,${fadeFilter}[fg];
@@ -490,7 +492,7 @@ function renderSpeedupClipWithFade({
     `.replace(/\s+/g, ' ').trim();
   } else {
     videoFilterComplex = `
-      [0:v]${speedFilter ? speedFilter + ',' : ''}${baseScale},ass='${escapedAss}',${tpadFilter},${fadeFilter}[finalv]
+      [0:v]${speedFilter ? speedFilter + ',' : ''}${baseScale},ass='${escapedAss}',${tpadFilter},format=yuva420p,${fadeFilter}[finalv]
     `.replace(/\s+/g, ' ').trim();
   }
 
