@@ -145,14 +145,12 @@ async function crawlForSpeedupCandidates(drive, folder, context, skipPrefix, res
 
   // Kriteria folder klip:
   // 1. Sudah di dalam game
-  // 2. BUKAN folder seri/episode
-  // 3. Bernama dash ("-", "!-") ATAU berformat waktu ("00:xx:xx", "01:xx:xx") ATAU leaf folder
-  const isSeriesFolder = /(^|[\s_!-])(eps|episode|part|season|chapter)\s*\d+/i.test(folder.name.trim());
-  const isDashFolder = /^!?[-—–_]+$/.test(folder.name.trim());
-  const isTimestampFolder = /^!?\d{1,2}:\d{2}:\d{2}$/.test(folder.name.trim());
+  // 2. Dimulai dengan angka (timestamp: "00:xx:xx", "01:xx:xx", dll) ATAU bernama dash ("-", "!-") ATAU leaf folder
+  const cleanName = folder.name.trim().replace(/^!+\s*/, '');
+  const isDashFolder = /^[-—–_]+$/.test(cleanName);
+  const isTimestampFolder = /^\d/.test(cleanName);
   const isClipCandidate =
     context.gameName &&
-    !isSeriesFolder &&
     (isDashFolder || isTimestampFolder || subFolders.length === 0);
 
   if (isClipCandidate) {
@@ -175,12 +173,14 @@ async function crawlForSpeedupCandidates(drive, folder, context, skipPrefix, res
     }
   }
 
-  // Rekursif ke subfolder
+  // Rekursif ke subfolder:
+  // Semua subfolder yang TIDAK diawali angka (dan bukan dash) diperlakukan sebagai seri / episode / subgame (misal: "The Bathhouse", "eps 1")
   for (const sf of subFolders) {
-    const isSfSeries = /(^|[\s_!-])(eps|episode|part|season|chapter)\s*\d+/i.test(sf.name.trim());
+    const cleanSfName = sf.name.trim().replace(/^!+\s*/, '');
+    const isClipFolder = /^\d/.test(cleanSfName) || /^[-—–_]+$/.test(cleanSfName);
     let nextEpsName = context.epsName || '';
-    if (isSfSeries) {
-      nextEpsName = sf.name.trim();
+    if (!isClipFolder) {
+      nextEpsName = context.epsName ? `${context.epsName} ${cleanSfName}` : cleanSfName;
     }
     const nextContext = {
       gameName: context.gameName || folder.name,

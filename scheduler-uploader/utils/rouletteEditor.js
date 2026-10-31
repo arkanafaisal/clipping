@@ -526,29 +526,34 @@ function renderSpeedupClipWithFade({
   config,
   bgStillPath = null,
   ffmpegBin = 'ffmpeg',
+  isUsingSpeedup = false,
 }) {
+  const usingSpeedup = isUsingSpeedup || !!moment.isUsingSpeedup;
   const targetMaxDuration = parseFloat(config.fullVideoMaxDuration) || 5.0;
   const rawDur = getAudioDuration(rawVideoPath, ffmpegBin);
 
   let clipSpeed = 1.0;
-  if (rawDur > targetMaxDuration) {
+  if (!usingSpeedup && rawDur > targetMaxDuration) {
     clipSpeed = Math.round((rawDur / targetMaxDuration) * 100) / 100;
   }
 
-  // Subtitle ASS dua baris: Nama Game \n Waktu
-  const memeAssPath = path.join(workDir, `roulette_speedup_${Date.now()}.ass`);
-  const displayText = getFullVideoDisplayText(moment.gameName, moment.epsName, moment.fullFile?.name, moment.clipFolderName);
-  fs.writeFileSync(
-    memeAssPath,
-    generateFullVideoASS({
-      text: displayText,
-      durationSeconds: 600,
-      posY: config.memeTextY || 360,
-    }),
-    'utf8'
-  );
+  // Subtitle ASS dua baris: Nama Game \n Waktu HANYA jika bukan speedup.mp4 siap pakai (karena speedup.mp4 dari crawler sudah memiliki teks)
+  let escapedAss = null;
+  if (!usingSpeedup) {
+    const memeAssPath = path.join(workDir, `roulette_speedup_${Date.now()}.ass`);
+    const displayText = getFullVideoDisplayText(moment.gameName, moment.epsName, moment.fullFile?.name, moment.clipFolderName);
+    fs.writeFileSync(
+      memeAssPath,
+      generateFullVideoASS({
+        text: displayText,
+        durationSeconds: 600,
+        posY: config.memeTextY || 360,
+      }),
+      'utf8'
+    );
+    escapedAss = memeAssPath.replace(/\\/g, '/').replace(/:/g, '\\:');
+  }
 
-  const escapedAss = memeAssPath.replace(/\\/g, '/').replace(/:/g, '\\:');
   const baseScale = 'scale=1080:1920:force_original_aspect_ratio=decrease:flags=lanczos,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1';
 
   const playDuration = rawDur / clipSpeed;
@@ -571,10 +576,11 @@ function renderSpeedupClipWithFade({
   const adelayMs = Math.round(startFreezeDuration * 1000);
 
   // Filter video:
-  // 1. Skalakan ke 1080x1920, tempelkan subtitle ASS
+  // 1. Skalakan ke 1080x1920 (tempelkan subtitle ASS hanya jika belum ada di speedup.mp4)
   // 2. Gunakan tpad untuk clone frame awal (freeze board + fade-in + pre-play) dan frame akhir (post-play + fade-out + board)
   // 3. Terapkan fade-in (st=boardFreezeDuration:d=fadeDuration) dan fade-out (st=fadeOutStart:d=fadeDuration)
-  const speedFilter = clipSpeed > 1.0 ? `setpts=PTS/${clipSpeed}` : null;
+  const speedFilter = (!usingSpeedup && clipSpeed > 1.0) ? `setpts=PTS/${clipSpeed}` : null;
+  const assPart = escapedAss ? `,ass='${escapedAss}'` : '';
   const tpadFilter = `tpad=start_mode=clone:start_duration=${startFreezeDuration.toFixed(3)}:stop_mode=clone:stop_duration=${stopFreezeDuration.toFixed(3)}`;
   const fadeFilter = `fade=t=in:st=${boardFreezeDuration.toFixed(3)}:d=${fadeDuration.toFixed(3)}:alpha=1,fade=t=out:st=${fadeOutStart.toFixed(3)}:d=${fadeDuration.toFixed(3)}:alpha=1`;
 
@@ -595,13 +601,13 @@ function renderSpeedupClipWithFade({
     const bgInputIndex = numInputs++;
     inputArgs.push('-loop', '1', '-i', bgStillPath);
     videoFilterComplex = `
-      [0:v]${speedFilter ? speedFilter + ',' : ''}${baseScale},ass='${escapedAss}',${tpadFilter},format=yuva420p,${fadeFilter}[fg];
+      [0:v]${speedFilter ? speedFilter + ',' : ''}${baseScale}${assPart},${tpadFilter},format=yuva420p,${fadeFilter}[fg];
       [${bgInputIndex}:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1[bg];
       [bg][fg]overlay=0:0[finalv]
     `.replace(/\s+/g, ' ').trim();
   } else {
     videoFilterComplex = `
-      [0:v]${speedFilter ? speedFilter + ',' : ''}${baseScale},ass='${escapedAss}',${tpadFilter},format=yuva420p,${fadeFilter}[finalv]
+      [0:v]${speedFilter ? speedFilter + ',' : ''}${baseScale}${assPart},${tpadFilter},format=yuva420p,${fadeFilter}[finalv]
     `.replace(/\s+/g, ' ').trim();
   }
 
@@ -610,7 +616,7 @@ function renderSpeedupClipWithFade({
   // sehingga audio dan gerakan video mulai berputar bersamaan secara presisi
   const afadeStart = startFreezeDuration + playDuration;
   const audioFilters = [];
-  if (clipSpeed > 1.0) {
+  if (!usingSpeedup && clipSpeed > 1.0) {
     audioFilters.push(`aformat=sample_rates=44100,asetrate=44100*${clipSpeed},aresample=44100`);
   }
   if (adelayMs > 0) {

@@ -178,7 +178,8 @@ async function main() {
 
     // Unduh video full / speedup
     const rawVideoPath = path.join(workDir, `raw_full_${momentIndex}.mp4`);
-    if (m.speedupFile && !isSkippedItem(m.speedupFile.name, config.skipPrefix)) {
+    const isUsingSpeedup = !!(m.speedupFile && !isSkippedItem(m.speedupFile.name, config.skipPrefix));
+    if (isUsingSpeedup) {
       console.log(`   ⚡ Mengunduh speedup "${m.gameName}" langsung dari Google Drive...`);
       await downloadDriveFile(drive, m.speedupFile.id, rawVideoPath);
     } else {
@@ -186,6 +187,7 @@ async function main() {
       await downloadDriveFile(drive, m.fullFile.id, rawVideoPath);
     }
     m.localRawVideoPath = rawVideoPath;
+    m.isUsingSpeedup = isUsingSpeedup;
   }
 
   // 5. Bangun Pita Horizontal (Ribbon) yang Kontinu
@@ -271,6 +273,7 @@ async function main() {
       config,
       bgStillPath: stillSnapshots[k],
       ffmpegBin: config.ffmpegBin,
+      isUsingSpeedup: moment.isUsingSpeedup,
     });
     speedupClips.push(fadedSpeedupPath);
     console.log(`      ✅ Video full speedup #${momentIndex} siap.`);

@@ -14,7 +14,23 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Confine Roulette Pointer Line Exclusively to Active Lane with Single-Lane Height
+## [Unreleased] - Bypass Subtitle Re-burning for Speedup Videos and Fix Non-Numeric Folder Traversal in Crawler
+- **Konteks Struktural**:
+  - Peniadaan Penimpaan Teks Ganda (*Double-Burn Elimination for Pre-rendered Speedup Clips*) ([compile_roulette.js](file:///d:/projects/clipping/scheduler-uploader/compile_roulette.js), [rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js)):
+    - **Penyebab Masalah**: File `speedup.mp4` yang diunggah ke Google Drive oleh crawler telah memiliki teks judul video yang tertanam secara permanen (*hardcoded/burned-in*). Namun, saat mode roulette mengunduh file `speedup.mp4` tersebut, fungsi `renderSpeedupClipWithFade` secara membabi buta membakar kembali subtitle ASS (`ass='...'`) di atas video yang sama, menyebabkan teks tumpang tindih (*overlap* ganda) dan huruf bertabrakan.
+    - **Solusi**: Menambahkan flag `isUsingSpeedup` pada klip momen. Jika video yang diunduh adalah `speedup.mp4` yang sudah siap pakai, `renderSpeedupClipWithFade` secara otomatis melewati pembuatan dan pembakaran subtitle ASS serta akselerasi ulang audio. Subtitle dan akselerasi hanya diterapkan jika video mentah adalah `full.mp4` (belum memiliki speedup).
+  - Generalisasi Deteksi Seri/Subgame Non-Numerik (*General Non-Numeric Folder Traversal in Crawler*) ([crawl_speedup_drive.js](file:///d:/projects/clipping/scheduler-uploader/crawl_speedup_drive.js)):
+    - **Penyebab Masalah (Kasus Chilla's Art)**: Sebelumnya, crawler hanya menganggap subfolder sebagai episode jika namanya cocok dengan regex kaku `/(eps|episode|part|season|chapter)\s*\d+/i`. Pada antologi game seperti `Chilla's Art/The Bathhouse/...`, folder `"The Bathhouse"` diabaikan sehingga crawler membuat subtitle yang salah (`Chilla's Art\nmenit 15 detik 20` tanpa menyertakan `"The Bathhouse"`).
+    - **Solusi**: Memperbarui aturan penelusuran hierarki folder: semua subfolder yang **TIDAK diawali angka** (dan bukan dash `-`) secara konsisten diperlakukan sebagai nama episode/subgame (`epsName`). Folder yang diawali angka (seperti timestamp `00:15:20`) diperlakukan sebagai folder klip (game tanpa seri/langsung selesai). Hasilnya, crawler menghasilkan teks yang 100% konsisten dengan selector (`Chilla's Art\nThe Bathhouse menit 15 detik 20`).
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/crawl_speedup_drive.js`:
+    - Memperbarui `isClipCandidate` dan perulangan `subFolders` untuk menangkap semua subfolder non-numerik sebagai seri/episode.
+  - `scheduler-uploader/compile_roulette.js`:
+    - Merekam flag `isUsingSpeedup` saat mengunduh dari Google Drive dan meneruskannya ke `renderSpeedupClipWithFade`.
+  - `scheduler-uploader/utils/rouletteEditor.js`:
+    - Melewati pembuatan file subtitle ASS, filter `ass`, serta `speedFilter` dan audio re-sampling saat `usingSpeedup` bernilai true.
+
+## [50991af] - Confine Roulette Pointer Line Exclusively to Active Lane with Single-Lane Height
 - **Konteks Struktural**:
   - Lokalisasi Pointer Jalur Aktif Tunggal (*Single Active Lane Pointer Localization*) ([rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js)):
     - **Penyebab & Kebutuhan Desain**: Sebelumnya, garis pointer emas di tengah layar ($X = 540$) digambar membentang sepanjang tinggi total seluruh tumpukan (`y=0:h=totalStackHeight`), sehingga garis tersebut memotong seluruh 5 jalur sekaligus. Akibatnya, pada jalur yang sudah menang (sudah tidak aktif) maupun jalur latar belakang (belum aktif), garis pointer tetap terlihat dan mengganggu estetika visual.
