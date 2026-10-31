@@ -14,7 +14,27 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Replace Green Highlight Box with Spotlight Dark Overlay and Dim Moving Background Lanes
+## [Unreleased] - Confine Roulette Pointer Line Exclusively to Active Lane with Single-Lane Height
+- **Konteks Struktural**:
+  - Lokalisasi Pointer Jalur Aktif Tunggal (*Single Active Lane Pointer Localization*) ([rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js)):
+    - **Penyebab & Kebutuhan Desain**: Sebelumnya, garis pointer emas di tengah layar ($X = 540$) digambar membentang sepanjang tinggi total seluruh tumpukan (`y=0:h=totalStackHeight`), sehingga garis tersebut memotong seluruh 5 jalur sekaligus. Akibatnya, pada jalur yang sudah menang (sudah tidak aktif) maupun jalur latar belakang (belum aktif), garis pointer tetap terlihat dan mengganggu estetika visual.
+    - **Solusi**: Mengisolasi garis pointer vertikal agar hanya digambar setinggi satu jalur (`h = laneHeight`) tepat pada koordinat vertikal jalur yang sedang aktif (`y = currY`, di mana `currY = currentMomentIndex * laneHeight`):
+      ```javascript
+      const currY = currentMomentIndex * laneHeight;
+      drawFilters.push(`drawbox=x=537:y=${currY}:w=6:h=${laneHeight}:color=0xFFCC00@0.9:t=fill`);
+      drawFilters.push(`drawbox=x=539:y=${currY}:w=2:h=${laneHeight}:color=white@0.95:t=fill`);
+      ```
+      Dengan perubahan ini:
+      1. Garis pointer hanya ada pada roulette yang sedang aktif.
+      2. Ketika giliran roulette tersebut telah selesai (beralih ke segmen berikutnya / sudah tidak aktif), garis pointer pada jalur tersebut otomatis hilang (*disappear*).
+      3. Dijamin hanya ada tepat 1 garis pointer setinggi 1 jalur roulette dalam satu waktu di seluruh tampilan video.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/utils/rouletteEditor.js`:
+    - Mengubah parameter `y` dari `0` menjadi `currY` dan `h` dari `totalStackHeight` menjadi `laneHeight` pada filter `drawbox` pointer tengah.
+    - Menghapus deklarasi ulang `currY` pada blok spotlight aktif untuk menghindari duplikasi variabel.
+    - Meningkatkan penanganan error spawnSync dengan `maxBuffer: 50MB` dan menangkap `res.error` / `res.status` jika stderr kosong.
+
+## [e452491] - Replace Green Highlight Box with Spotlight Dark Overlay and Dim Moving Background Lanes
 - **Konteks Struktural**:
   - Efek Sorotan Lampu Spotlight Multi-Tier (*Multi-Tier Spotlight Dark Overlay Architecture*) ([rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js)):
     - **Penyebab & Kebutuhan Desain**: Kotak border hijau (#00FF66) sebelumnya terasa kaku dan mengaburkan batas estetika kartu. Penonton membutuhkan fokus visual yang tajam langsung ke kartu pemenang tanpa distraksi kartu lain di jalur yang sama maupun jalur lain yang belum aktif.

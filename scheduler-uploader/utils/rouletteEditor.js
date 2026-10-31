@@ -410,9 +410,11 @@ function renderRouletteSpinSegment({
     drawFilters.push(`drawbox=x=0:y=${y}:w=1080:h=3:color=white@0.35:t=fill`);
   }
 
-  // 2. Garis pointer vertikal di tengah (HANYA 1 garis lurus vertikal di X = 540)
-  drawFilters.push(`drawbox=x=537:y=0:w=6:h=${totalStackHeight}:color=0xFFCC00@0.9:t=fill`);
-  drawFilters.push(`drawbox=x=539:y=0:w=2:h=${totalStackHeight}:color=white@0.95:t=fill`);
+  // 2. Garis pointer vertikal di tengah HANYA untuk roulette yang sedang aktif (setinggi 1 jalur)
+  // Ketika roulette sudah tidak aktif (pada segmen/putaran lain), garis pointer di jalur tersebut otomatis hilang
+  const currY = currentMomentIndex * laneHeight;
+  drawFilters.push(`drawbox=x=537:y=${currY}:w=6:h=${laneHeight}:color=0xFFCC00@0.9:t=fill`);
+  drawFilters.push(`drawbox=x=539:y=${currY}:w=2:h=${laneHeight}:color=white@0.95:t=fill`);
 
   // 3. Efek Spotlight Overlay Gelap (Menggelapkan item selain kartu terpilih & meredupkan jalur background)
   // - Jalur masa lalu yang sudah menang sebelumnya (j < currentMomentIndex):
@@ -434,7 +436,6 @@ function renderRouletteSpinSegment({
   // - Jalur aktif saat ini (k === currentMomentIndex):
   //   Saat sedang spin (t < stopTime) TIDAK ADA overlay (terang penuh).
   //   Saat sudah berhenti (t >= stopTime), muncul overlay gelap di kiri & kanan kartu terpilih sehingga hanya kartu terpilih yang tetap terang.
-  const currY = currentMomentIndex * laneHeight;
   const rCurr = ribbons[currentMomentIndex];
   const activeLeftW = rCurr.cardScreenX;
   if (activeLeftW > 0) {
@@ -487,9 +488,9 @@ function renderRouletteSpinSegment({
     outputPath,
   ];
 
-  const res = spawnSync(ffmpegBin, ffmpegArgs, { stdio: 'pipe' });
+  const res = spawnSync(ffmpegBin, ffmpegArgs, { stdio: 'pipe', maxBuffer: 50 * 1024 * 1024 });
   if (res.status !== 0) {
-    const errStr = res.stderr ? res.stderr.toString() : '';
+    const errStr = (res.stderr ? res.stderr.toString() : '') || (res.error ? res.error.message : '') || `status ${res.status}`;
     throw new Error(`FFmpeg error in renderRouletteSpinSegment: ${errStr.slice(-500)}`);
   }
 
