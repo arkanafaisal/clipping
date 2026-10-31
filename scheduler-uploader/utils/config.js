@@ -213,6 +213,9 @@ function getConfig() {
   let rouletteFreezeDuration = parseFloat(process.env.ROULETTE_FREEZE_DURATION || process.env.ROULETTE_PREPLAY_FREEZE || '0.5');
   if (isNaN(rouletteFreezeDuration) || rouletteFreezeDuration < 0.0) rouletteFreezeDuration = 0.5;
 
+  let rouletteItems = parseInt(process.env.ROULETTE_ITEMS || process.env.ROULETTE_ITEM_COUNT || '5', 10);
+  if (isNaN(rouletteItems) || rouletteItems < 2) rouletteItems = 5;
+
   let resultFolderId =
     process.env.GDRIVE_RESULT_FOLDER_ID ||
     process.env.GDRIVE_OUTPUT_FOLDER_ID ||
@@ -311,6 +314,10 @@ function getConfig() {
       const dur = parseFloat(arg.split('=')[1]);
       if (!isNaN(dur) && dur >= 0.0) rouletteFreezeDuration = dur;
     }
+    if (arg.startsWith('--items=') || arg.startsWith('--roulette-items=')) {
+      const itm = parseInt(arg.split('=')[1], 10);
+      if (!isNaN(itm) && itm >= 2) rouletteItems = itm;
+    }
     if (arg.startsWith('--unique-window=') || arg.startsWith('--game-uniqueness=') || arg.startsWith('--uniqueness=') || arg.startsWith('--window=')) {
       const val = parseInt(arg.split('=')[1], 10);
       if (!isNaN(val) && val >= 1) gameUniqueWindow = val;
@@ -372,6 +379,7 @@ function getConfig() {
     rouletteLockDuration,
     rouletteFadeDuration,
     rouletteFreezeDuration,
+    rouletteItems,
     resultFolderId,
     skipPrefix,
     censorGameplay,

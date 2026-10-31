@@ -14,7 +14,31 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Speedup Audio-Video Perfect Synchronization and Pre-Play Freeze Duration
+## [Unreleased] - Configurable Candidate Items per Roulette, Center Stop Alignment, and Eye-Friendly Gentle Deceleration
+- **Konteks Struktural**:
+  - Konfigurasi Variasi Item Kandidat per Jalur Roulette ([rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js), [config.js](file:///d:/projects/clipping/scheduler-uploader/utils/config.js), [compile_roulette.js](file:///d:/projects/clipping/scheduler-uploader/compile_roulette.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example)):
+    - Mengatasi masalah pita roulette yang sebelumnya hanya menampilkan 2 variasi gambar.
+    - Memperkenalkan parameter konfigurasi `ROULETTE_ITEMS` (default: 5, alias `ROULETTE_ITEM_COUNT` dan flag CLI `--items=5`).
+    - Untuk setiap jalur roulette (misal 10 jalur), sistem mengambil 1 kartu target pemenang momen tersebut dan memilih secara acak $(N - 1)$ gambar kandidat lainnya dari kumpulan gambar kartu di Google Drive untuk disusun berdampingan pada pita horizontal.
+    - Memperbarui generator kartu cadangan sintetis pada `downloadMemeImagesPool` agar menggunakan kanvas solid PNG native FFmpeg (mengeliminasi potensi crash SVG).
+  - Presisi Penguncian Kartu Tepat di Tengah (*Zero Miss Center Pointer Stop*) ([rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js)):
+    - Mengeliminasi offset acak off-center yang menyebabkan kotak hijau terlihat meleset (*miss*) jauh dari garis pointer emas tengah.
+    - Piringan roulette kini diprogram untuk berhenti tepat di tengah sumbu kanvas ($X = 540$), memastikan kotak sorotan hijau (`#00FF66`) membingkai kartu pemenang secara simetris $100\%$ presisi tepat di bawah pointer garis emas tengah.
+  - Kecepatan Nyaman Discan Mata & Sinkronisasi Sempurna Top Speed ([rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js)):
+    - Menurunkan kecepatan putaran ekstrem dari sebelumnya ~10 kartu/detik menjadi kecepatan santai yang nyaman discan oleh mata (~2 kartu/detik) dengan memendekkan jarak deselerasi menjadi 3.5 kartu menggunakan kurva *quadratic ease-out* ($n = 2$).
+    - Menjamin secara matematis bahwa kecepatan seluruh jalur background yang belum tiba gilirannya melambat bergerak konstan pada $\text{topSpeed} = \frac{2 \cdot \text{refDist}}{\text{stopTime}}$, yang bernilai **SAMA PERSIS** dengan kecepatan detik ke-0 jalur aktif saat mulai mengerem.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/utils/config.js`:
+    - Menambahkan pembacaan `rouletteItems` dari `process.env.ROULETTE_ITEMS` / `ROULETTE_ITEM_COUNT` (default: 5) dan parser CLI `--items=`.
+  - `scheduler-uploader/utils/rouletteEditor.js`:
+    - Memperbarui `buildLaneRibbons` untuk memilih $(N - 1)$ kandidat acak per jalur dan mengunci koordinat henti `xStop` presisi di $X = 540$.
+    - Mengubah formula deselerasi pada `renderRouletteSpinSegment` ke *quadratic ease-out* dengan `topSpeed = Math.round((2 * refDist) / stopTime)`.
+  - `scheduler-uploader/compile_roulette.js`:
+    - Meneruskan `config.rouletteItems` ke `buildLaneRibbons`.
+  - `scheduler-uploader/.env.example`:
+    - Menambahkan dokumentasi parameter `ROULETTE_ITEMS=5`.
+
+## [71ac45f] - Speedup Audio-Video Perfect Synchronization and Pre-Play Freeze Duration
 - **Konteks Struktural**:
   - Perbaikan Sinkronisasi Audio Speedup & Eliminasi Audio Prematur ([rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js)):
     - Mengatasi masalah audio doksli speedup yang berbunyi mendahului video (*sound miss*): sebelumnya argumen eksekusi FFmpeg menggunakan `-map 0:a?` mentah sehingga string filter audio `af` (penundaan `adelay` dan percepatan nada `asetrate`) tidak pernah diaplikasikan, menyebabkan audio diputar sejak $t = 0$ saat video masih membeku fade-in.

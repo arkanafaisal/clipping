@@ -187,6 +187,7 @@ async function main() {
     moments: validMoments,
     laneCount,
     laneHeight,
+    rouletteItems: config.rouletteItems || 5,
     workDir,
     ffmpegBin: config.ffmpegBin,
   });
