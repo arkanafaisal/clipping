@@ -14,7 +14,23 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Fix Ribbon Building Command Length Crash and Add Google Drive Upload Retries
+## [Unreleased] - Enforce Strictly Even LaneHeight to Eliminate Video Codec Truncation and Highlight Box Misalignment
+- **Konteks Struktural**:
+  - Eliminasi Akumulasi Drift Dimensi Ganjil (*Odd-Dimension Codec Truncation Elimination*) ([compile_roulette.js](file:///d:/projects/clipping/scheduler-uploader/compile_roulette.js), [rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js)):
+    - **Penyebab Masalah**: Saat jumlah klip roulette adalah angka ganjil (seperti `clipCount = 5`), perhitungan tinggi jalur `laneHeight = Math.floor(1536 / 5) = 307` menghasilkan angka ganjil. Standar codec video H.264 (YUV420p chroma subsampling 2x2) dan format kompresi JPEG mewajibkan seluruh resolusi gambar dan pemotongan genap (habis dibagi 2). Akibatnya, saat FFmpeg melakukan `scale=307:307` atau `crop=307:307` untuk menyusun pita horizontal, FFmpeg secara otomatis memotong (*truncate*) lebar tiap kartu menjadi **306 piksel** (dikonfirmasi melalui ffprobe: $13770 \times 306$ px, $13770 / 45 = 306$).
+    - **Dampak pada Kotak Hijau**: JavaScript berasumsi lebar tiap kartu adalah $307$ px ($X = N \times 307$), sementara pita fisik riil FFmpeg bergeser $306$ px per kartu ($X = N \times 306$). Akumulasi selisih 1 piksel per kartu ini menyebabkan pergeseran 15 piksel pada kartu ke-15, 50 piksel pada kartu ke-50, hingga lebih dari 150 piksel pada pita panjang, membuat kotak sorotan hijau (`drawbox`) meleset dari gambar kartu pemenang. Sebaliknya, saat `clipCount = 2, 3, 4`, nilai `laneHeight` selalu berupa angka genap (768, 512, 384) sehingga tidak pernah mengalami pemotongan 1px oleh FFmpeg.
+    - **Solusi**: Menerapkan penjaminan dimensi genap (*strictly even laneHeight enforcement*) di `compile_roulette.js` dan sebagai *guard clause* di `buildLaneRibbons` serta `renderRouletteSpinSegment`:
+      ```javascript
+      laneHeight = laneHeight % 2 === 0 ? laneHeight : laneHeight - 1;
+      ```
+      Pada konfigurasi 5 jalur, `laneHeight` secara konsisten bernilai genap $306$ px di seluruh alur JavaScript dan filter grafis FFmpeg, menjamin koordinat pita fisik dan kotak sorotan hijau terbingkai presisi hingga 0 piksel selisih (*pixel-perfect*).
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/compile_roulette.js`:
+    - Mengubah kalkulasi `laneHeight` menjadi genap (`if (laneHeight % 2 !== 0) laneHeight -= 1`).
+  - `scheduler-uploader/utils/rouletteEditor.js`:
+    - Menambahkan penjaga dimensi genap di awal fungsi `buildLaneRibbons` dan `renderRouletteSpinSegment`.
+
+## [8e8da62] - Fix Ribbon Building Command Length Crash and Add Google Drive Upload Retries
 - **Konteks Struktural**:
   - Arsitektur Pita Periodik Kompak (*Compact Periodic Ribbon Generation*) ([rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js)):
     - **Penyebab Masalah (Galat Ribbon #4)**: Pada konfigurasi 5 jalur horizontal dan kecepatan tinggi, perhitungan pita sebelumnya membangun strip gambar linier sepanjang total jarak tempuh seluruh segmen ($distTotal \approx 46.800$ px), membutuhkan hingga 163 kartu per pita. Pemanggilan `spawnSync` dengan 163 input `-i` dan 163 filter scale/crop menghasilkan string argumen sepanjang lebih dari 33.000 karakter, yang melampaui batas maksimal perintah Windows `CreateProcessW` (32.767 karakter) dan menyebabkan pembuatan pita pada jalur ke-5 (Ribbon #4) gagal secara hening tanpa pesan error.

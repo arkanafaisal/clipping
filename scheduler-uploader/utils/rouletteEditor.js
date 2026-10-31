@@ -182,6 +182,7 @@ function buildLaneRibbons({
   workDir,
   ffmpegBin = 'ffmpeg',
 }) {
+  laneHeight = laneHeight % 2 === 0 ? laneHeight : laneHeight - 1;
   const ribbonsDir = path.join(workDir, 'ribbons');
   if (!fs.existsSync(ribbonsDir)) {
     fs.mkdirSync(ribbonsDir, { recursive: true });
@@ -348,6 +349,7 @@ function renderRouletteSpinSegment({
   stopTime = 3.4,
   maxSpeed = 3600,
 }) {
+  laneHeight = laneHeight % 2 === 0 ? laneHeight : laneHeight - 1;
   const segmentAudioPath = path.join(workDir, `roulette_audio_${segmentIndex}.wav`);
   generateRouletteAudioWav({
     duration: spinDuration,

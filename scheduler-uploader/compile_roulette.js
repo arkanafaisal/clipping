@@ -190,7 +190,8 @@ async function main() {
 
   // 5. Bangun Pita Horizontal (Ribbon) yang Kontinu
   const totalRouletteHeight = 1536;
-  const laneHeight = Math.floor(totalRouletteHeight / laneCount);
+  let laneHeight = Math.floor(totalRouletteHeight / laneCount);
+  if (laneHeight % 2 !== 0) laneHeight -= 1; // Wajib genap agar kompatibel dengan codec video (YUV420p) & JPEG tanpa pemotongan 1px
   console.log(`\n   📐 Dimensi: ${laneCount} jalur horizontal, tinggi per jalur: ${laneHeight} px, terpusat vertikal (Y: 192 - 1728).`);
 
   const spinDuration = parseFloat(config.rouletteSpinDuration) || 4.4;
