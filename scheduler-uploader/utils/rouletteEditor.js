@@ -240,10 +240,10 @@ function buildLaneRibbons({
     }
   }
 
-  // Variasi offset acak natural (antara -15% s/d +15% dari lebar kartu)
-  // Menghasilkan posisi berhenti yang organik dan tidak kaku persis di tengah seperti robot,
-  // sambil menjamin garis penunjuk emas X = 540 tetap memotong jelas kartu pemenang
-  const randomOffsets = [-0.15, 0.12, -0.10, 0.15, -0.12, 0.10];
+  // Variasi offset acak natural murni menggunakan Math.random()
+  // Menghasilkan posisi berhenti yang 100% organik dan dinamis di setiap jalur,
+  // sambil menjamin garis penunjuk emas X = 540 tetap memotong jelas kartu pemenang (margin aman >= 30%)
+  const maxOffsetFrac = 0.20; // Maksimal serong 20% dari lebar kartu ke kiri maupun ke kanan
   const ribbonResults = [];
 
   for (let k = 0; k < laneCount; k++) {
@@ -292,7 +292,12 @@ function buildLaneRibbons({
     ];
     const M = laneItems.length;
 
-    console.log(`   🎨 [Jalur #${k + 1}] Memilih ${M} kartu acak dari pool (posisi kartu pemenang: #${winningIndex + 1}/${M})`);
+    // Hitung posisi offset berhenti acak natural murni menggunakan Math.random() (maksimal ±20% dari lebar kartu)
+    // Menghasilkan posisi berhenti yang 100% organik, tidak monoton / zigzag antar jalur
+    const offsetFrac = (Math.random() * 2 - 1) * maxOffsetFrac;
+    const cardOffset = Math.round(laneHeight * offsetFrac);
+
+    console.log(`   🎨 [Jalur #${k + 1}] Memilih ${M} kartu acak dari pool (kartu pemenang: #${winningIndex + 1}/${M}, offset berhenti: ${cardOffset >= 0 ? '+' : ''}${cardOffset}px)`);
 
     // Pastikan panjang 1 siklus periodik L = Meff * laneHeight > 1080 (lebar layar)
     // agar maksimal hanya ada 1 kartu pemenang di layar dalam satu saat
@@ -335,11 +340,7 @@ function buildLaneRibbons({
       throw new Error(`FFmpeg error building ribbon #${k}: ${errStr.slice(-300)}`);
     }
 
-    // Hitung posisi koordinat X saat berhenti dengan offset acak natural
-    // Tengah kartu pemenang ada di winningIndex * laneHeight + laneHeight / 2.
-    // Garis pointer vertikal di X = 540.
-    const offsetFrac = randomOffsets[k % randomOffsets.length];
-    const cardOffset = Math.round(laneHeight * offsetFrac);
+    // Hitung posisi koordinat X saat berhenti menggunakan cardOffset yang telah diacak di atas
     const winningCardCenterX = winningIndex * laneHeight + Math.round(laneHeight / 2);
     const xStopRaw = Math.round(winningCardCenterX + cardOffset - 540);
     const xStopTarget = ((xStopRaw % periodWidth) + periodWidth) % periodWidth;

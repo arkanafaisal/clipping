@@ -14,7 +14,25 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Enforce Genuine Fisher-Yates Random Sampling and Dynamic Pool for Roulette Cards
+## [Unreleased] - Replace Static Offset Array with Continuous Math.random for Organic Roulette Stopping
+- **Konteks Struktural**:
+  - Peniadaan Pola Offset Berhenti Sistematis Zigzag (*Dynamic Continuous Stop Offset Architecture*) ([rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js)):
+    - **Penyebab Pola Berulang**: Sebelumnya, nilai pergeseran posisi berhenti horizontal kartu (`cardOffset`) diambil dari array statis berulang `randomOffsets = [-0.15, 0.12, -0.10, 0.15, -0.12, 0.10]`. Akibatnya, pada setiap kali kompilasi 5 klip dijalankan, kartu selalu berhenti secara sistematis dan tertebak: Jalur 1 serong kiri, Jalur 2 serong kanan, Jalur 3 serong kiri, Jalur 4 serong kanan, dan Jalur 5 serong kiri.
+    - **Solusi**:
+      1. Menghapus total array statis `randomOffsets`.
+      2. Menggantikannya dengan kalkulasi acak murni menggunakan `Math.random()`:
+         ```javascript
+         const maxOffsetFrac = 0.20; // Rentang serong maksimal ±20% dari lebar kartu
+         const offsetFrac = (Math.random() * 2 - 1) * maxOffsetFrac;
+         const cardOffset = Math.round(laneHeight * offsetFrac);
+         ```
+      3. Menjamin bahwa di setiap generasi kompilasi dan di setiap jalur roulette, posisi berhenti selalu organik, bebas dari pola zigzag tertebak, dan garis pointer tengah ($X = 540$) tetap memotong tegas kartu pemenang dengan margin aman minimal 30% dari tepi kartu.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/utils/rouletteEditor.js`:
+    - Menghapus array statis `randomOffsets`.
+    - Mengintegrasikan perhitungan acak berbasis `Math.random()` dan menampilkan log offset (`offset berhenti: ±Xpx`) di konsol.
+
+## [edc7dbf] - Enforce Genuine Fisher-Yates Random Sampling and Dynamic Pool for Roulette Cards
 - **Konteks Struktural**:
   - Pool Gambar Acak Dinamis & Pengambilan Sekali di Awal (*Dynamic One-time Random Image Pool Architecture*) ([compile_roulette.js](file:///d:/projects/clipping/scheduler-uploader/compile_roulette.js), [rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js)):
     - **Penyebab & Kebutuhan**: Sebelumnya, fungsi `downloadMemeImagesPool` mengunduh 30 gambar pertama dari Google Drive tanpa paginasi penuh dan tanpa pengacakan kandidat, sehingga kartu yang terunduh selalu identik di setiap eksekusi. Selain itu, nilai `ROULETTE_ITEMS` di `.env` (misal 15) tidak digunakan untuk mengukur target kapasitas pool gambar yang diunduh dari Drive.
