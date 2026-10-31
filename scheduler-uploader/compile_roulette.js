@@ -182,12 +182,20 @@ async function main() {
   const laneHeight = Math.floor(totalRouletteHeight / laneCount);
   console.log(`   📐 Dimensi: ${laneCount} jalur horizontal, tinggi per jalur: ${laneHeight} px, terpusat vertikal (Y: 192 - 1728).`);
 
+  const spinDuration = parseFloat(config.rouletteSpinDuration) || 4.4;
+  const lockDuration = parseFloat(config.rouletteLockDuration) || 1.0;
+  const maxSpeed = parseFloat(config.rouletteMaxSpeed) || 3600;
+  const stopTime = Math.max(0.5, Math.round((spinDuration - lockDuration) * 10) / 10);
+
   const ribbons = buildLaneRibbons({
     imagePool,
     moments: validMoments,
     laneCount,
     laneHeight,
     rouletteItems: config.rouletteItems || 5,
+    maxSpeed,
+    spinDuration,
+    lockDuration,
     workDir,
     ffmpegBin: config.ffmpegBin,
   });
@@ -204,11 +212,7 @@ async function main() {
 
     // Bagian A: Render Animasi Putaran Roulette untuk Momen k
     // Jalur 0 .. k-1 tetap diam terkunci, Jalur k melambat dan mengunci, Jalur k+1 .. end tetap berputar
-    const spinDuration = parseFloat(config.rouletteSpinDuration) || 4.4;
-    const lockDuration = parseFloat(config.rouletteLockDuration) || 1.0;
-    const stopTime = Math.max(0.5, Math.round((spinDuration - lockDuration) * 10) / 10);
-
-    console.log(`   1. 🎡 Merender putaran roulette (durasi: ${spinDuration}s, deselerasi: ${stopTime}s, lock kartu: ${lockDuration}s)...`);
+    console.log(`   1. 🎡 Merender putaran roulette (durasi: ${spinDuration}s, deselerasi: ${stopTime}s, lock kartu: ${lockDuration}s, top speed: ${maxSpeed} px/s)...`);
     const spinOutputPath = path.join(workDir, `roulette_segment_${momentIndex}.mp4`);
     renderRouletteSpinSegment({
       segmentIndex: momentIndex,
@@ -221,6 +225,7 @@ async function main() {
       ffmpegBin: config.ffmpegBin,
       spinDuration,
       stopTime,
+      maxSpeed,
     });
     allCompilationClips.push(spinOutputPath);
     console.log(`      ✅ Segmen putaran roulette #${momentIndex} siap.`);

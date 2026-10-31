@@ -75,8 +75,15 @@ async function downloadMemeImagesPool(drive, doksliFolderId, workDir, minCount =
 
 /**
  * Sintesis Efek Suara WAV Roulette Berputar & Berhenti (Wheel Ratchet Ticks + Lock Bell Chime)
+ * Menyelaraskan frekuensi ratchet ticks secara fisik dengan pergerakan pita kartu dan maxSpeed
  */
-function generateRouletteAudioWav({ duration = 4.4, stopTime = 3.4, outputPath }) {
+function generateRouletteAudioWav({
+  duration = 4.4,
+  stopTime = 3.4,
+  maxSpeed = 3600,
+  laneHeight = 768,
+  outputPath,
+}) {
   const sampleRate = 44100;
   const numSamples = Math.max(1, Math.round(sampleRate * duration));
   const numChannels = 2;
@@ -103,15 +110,23 @@ function generateRouletteAudioWav({ duration = 4.4, stopTime = 3.4, outputPath }
   buffer.writeUInt32LE(dataSize, 40);
 
   // 1. Rangkaian Ketukan Ratchet Roda Berputar yang Melambat (0s -> stopTime)
-  // Frekuensi ketukan berkurang dari rapat (~35 Hz) menjadi renggang (~5 Hz) menjelang berhenti
+  // Menghitung titik waktu ratchet tick berbunyi secara fisik selaras dengan pergerakan pita kartu:
+  // Setiap pita kartu berpindah sejauh stepDistance piksel, ratchet berbunyi 1 ketukan.
+  // Persamaan gerak quadratic ease-out: s(t) = maxSpeed * (t - t^2 / (2 * stopTime))
+  const stepDistance = Math.max(120, Math.round(laneHeight / 2.5));
+  const totalDist = (maxSpeed * stopTime) / 2;
   const tickTimes = [];
-  let currT = 0.05;
-  while (currT < stopTime - 0.05) {
-    tickTimes.push(currT);
-    const progress = currT / stopTime; // 0 -> 1
-    // Interval antar tick memanjang seiring deselerasi
-    const interval = 0.03 + 0.16 * Math.pow(progress, 2.5);
-    currT += interval;
+
+  let n = 1;
+  while (true) {
+    const s = n * stepDistance;
+    if (s >= totalDist) break;
+    const D = 1 - (s / totalDist);
+    if (D <= 0) break;
+    const t = stopTime * (1 - Math.sqrt(D));
+    if (t >= stopTime - 0.03) break;
+    tickTimes.push(t);
+    n++;
   }
 
   // 2. Synthesize audio samples
@@ -153,19 +168,43 @@ function generateRouletteAudioWav({ duration = 4.4, stopTime = 3.4, outputPath }
 
 /**
  * Membuat Pita Gambar Horizontal (Ribbon) untuk Setiap Jalur Roulette
- * Menjahit 20 kartu gambar 1:1 berdampingan menjadi 1 strip panjang horizontal
+ * Menjahit strip kartu gambar 1:1 berdampingan menjadi 1 pita panjang horizontal
  */
-function buildLaneRibbons({ imagePool, moments, laneCount, laneHeight, rouletteItems = 5, workDir, ffmpegBin = 'ffmpeg' }) {
+function buildLaneRibbons({
+  imagePool,
+  moments,
+  laneCount,
+  laneHeight,
+  rouletteItems = 5,
+  maxSpeed = 3600,
+  spinDuration = 4.4,
+  lockDuration = 1.0,
+  workDir,
+  ffmpegBin = 'ffmpeg',
+}) {
   const ribbonsDir = path.join(workDir, 'ribbons');
   if (!fs.existsSync(ribbonsDir)) {
     fs.mkdirSync(ribbonsDir, { recursive: true });
+  } else {
+    // Bersihkan pita lama agar tidak bentrok dengan parameter kompilasi baru
+    try {
+      const files = fs.readdirSync(ribbonsDir);
+      for (const f of files) {
+        fs.unlinkSync(path.join(ribbonsDir, f));
+      }
+    } catch (_) {}
   }
 
-  const ribbonResults = [];
-  const cardsPerRibbon = Math.max(16, rouletteItems * 3);
-  const targetCardIndex = Math.floor(cardsPerRibbon / 2); // Kartu target di tengah pita (~index 8)
+  const stopTime = Math.max(0.5, Math.round((spinDuration - lockDuration) * 10) / 10);
+  const refDist = Math.round((maxSpeed * stopTime) / 2);
 
-  console.log(`   🎨 Menyiapkan ${laneCount} pita roulette horizontal (${cardsPerRibbon} kartu, ${rouletteItems} variasi item per jalur)...`);
+  // Pastikan jumlah kartu di pita cukup panjang agar pita tidak pernah minus saat mulai melambat
+  const cardsNeededBefore = Math.ceil((refDist + 540 + laneHeight) / laneHeight);
+  const targetCardIndex = Math.max(8, cardsNeededBefore);
+  const cardsNeededAfter = Math.max(5, Math.ceil(1080 / laneHeight) + 3);
+  const cardsPerRibbon = Math.max(targetCardIndex + cardsNeededAfter, rouletteItems * 3);
+
+  console.log(`   🎨 Menyiapkan ${laneCount} pita roulette horizontal (${cardsPerRibbon} kartu, ${rouletteItems} variasi item per jalur, target idx: ${targetCardIndex})...`);
 
   // Gabungkan seluruh kartu lokal momen ke dalam kumpulan gambar agar variasi semakin kaya
   const allAvailableImages = [...imagePool];
@@ -176,6 +215,12 @@ function buildLaneRibbons({ imagePool, moments, laneCount, laneHeight, rouletteI
       }
     }
   }
+
+  // Variasi offset acak natural (antara -15% s/d +15% dari lebar kartu)
+  // Menghasilkan posisi berhenti yang organik dan tidak kaku persis di tengah seperti robot,
+  // sambil menjamin garis penunjuk emas X = 540 tetap memotong jelas kartu pemenang
+  const randomOffsets = [-0.15, 0.12, -0.10, 0.15, -0.12, 0.10];
+  const ribbonResults = [];
 
   for (let k = 0; k < laneCount; k++) {
     const moment = moments[k];
@@ -217,8 +262,11 @@ function buildLaneRibbons({ imagePool, moments, laneCount, laneHeight, rouletteI
       }
     }
 
-    // Buat input argumen FFmpeg hstack
-    const inputArgs = cardImages.map((p) => `-i "${p}"`).join(' ');
+    // Buat input argumen FFmpeg hstack menggunakan spawnSync langsung (aman dari batasan cmd.exe Windows)
+    const inputArgsArray = [];
+    for (const p of cardImages) {
+      inputArgsArray.push('-i', p);
+    }
     const filterParts = [];
     for (let c = 0; c < cardImages.length; c++) {
       filterParts.push(`[${c}:v]scale=${laneHeight}:${laneHeight}:force_original_aspect_ratio=increase,crop=${laneHeight}:${laneHeight},boxblur=0,pad=${laneHeight}:${laneHeight}:0:0:color=black[v${c}]`);
@@ -226,21 +274,26 @@ function buildLaneRibbons({ imagePool, moments, laneCount, laneHeight, rouletteI
     const hstackInputs = cardImages.map((_, c) => `[v${c}]`).join('');
     const filterComplex = `${filterParts.join(';')};${hstackInputs}hstack=inputs=${cardImages.length}[ribbon]`;
 
-    execSync(
-      `"${ffmpegBin}" -y ${inputArgs} -filter_complex "${filterComplex}" -map "[ribbon]" -q:v 2 "${ribbonImgPath}"`,
-      { stdio: 'ignore' }
+    const res = spawnSync(
+      ffmpegBin,
+      ['-y', ...inputArgsArray, '-filter_complex', filterComplex, '-map', '[ribbon]', '-q:v', '2', ribbonImgPath],
+      { stdio: 'pipe' }
     );
+    if (res.status !== 0) {
+      const errStr = res.stderr ? res.stderr.toString() : '';
+      throw new Error(`FFmpeg error building ribbon #${k}: ${errStr.slice(-300)}`);
+    }
 
-    // Hitung posisi koordinat X saat berhenti tepat di tengah pointer (X = 540)
-    // Pointer vertikal berada tepat di X = 540.
-    // Kartu target berada pada index targetCardIndex dengan lebar laneHeight, pusatnya berada di targetCenter:
+    // Hitung posisi koordinat X saat berhenti dengan offset acak natural
     const targetCenter = targetCardIndex * laneHeight + laneHeight / 2;
-    // Berhenti tepat di tengah pointer agar kotak hijau 100% presisi membingkai kartu tanpa miss
-    const xStop = Math.max(0, Math.round(targetCenter - 540));
+    const offsetFrac = randomOffsets[k % randomOffsets.length];
+    const cardOffset = Math.round(laneHeight * offsetFrac);
+    const stopCenter = targetCenter + cardOffset;
+    const xStop = Math.max(0, Math.round(stopCenter - 540));
     const totalRibbonWidth = cardsPerRibbon * laneHeight;
 
     // Posisi X kartu terpilih di layar 1080px saat pita berada di posisi xStop:
-    const cardScreenX = (targetCardIndex * laneHeight) - xStop; // Pasti = 540 - laneHeight / 2
+    const cardScreenX = (targetCardIndex * laneHeight) - xStop;
 
     ribbonResults.push({
       laneIndex: k,
@@ -249,6 +302,9 @@ function buildLaneRibbons({ imagePool, moments, laneCount, laneHeight, rouletteI
       xStop,
       cardScreenX,
       totalRibbonWidth,
+      refDist,
+      maxSpeed,
+      stopTime,
     });
   }
 
@@ -265,7 +321,7 @@ function generateRoulettePointerImage() {
 /**
  * Merender Satu Segmen Putaran Roulette (Durasi Default ~4.4 Detik, 1080x1920 60 FPS CFR)
  * - Jalur yang sudah menang sebelumnya (0 .. currentMomentIndex - 1): Diam di posisi targetnya.
- * - Jalur saat ini (currentMomentIndex): Bergerak cepat lalu melambat mulus (cubic ease-out) dan berhenti di t = stopTime.
+ * - Jalur saat ini (currentMomentIndex): Bergerak cepat lalu melambat mulus (quadratic ease-out) dan berhenti di t = stopTime.
  * - Jalur berikutnya (currentMomentIndex + 1 .. laneCount - 1): Berputar kontinu dengan kecepatan dasar yang seragam.
  * - Pointer tengah: HANYA 1 garis lurus vertikal di X = 540.
  * - Berhenti sedikit off-center secara natural, dan kartu yang terpilih di-highlight dengan border hijau (#00FF66).
@@ -282,11 +338,14 @@ function renderRouletteSpinSegment({
   ffmpegBin = 'ffmpeg',
   spinDuration = 4.4,
   stopTime = 3.4,
+  maxSpeed = 3600,
 }) {
   const segmentAudioPath = path.join(workDir, `roulette_audio_${segmentIndex}.wav`);
   generateRouletteAudioWav({
     duration: spinDuration,
     stopTime,
+    maxSpeed,
+    laneHeight,
     outputPath: segmentAudioPath,
   });
 
@@ -294,17 +353,13 @@ function renderRouletteSpinSegment({
   const inputArgs = [];
   const cropFilters = [];
 
-  // Hitung perlambatan yang halus dan kecepatan putaran yang nyaman discan mata:
-  // Jarak pengereman refDist = ~3.5 kartu agar deselerasi kecil, santai, dan mudah dibaca penonton
-  const refDist = Math.round(laneHeight * 3.5);
-
+  // Hitung jarak pengereman yang tepat berdasarkan maxSpeed dan stopTime:
+  // Jarak pengereman refDist = (maxSpeed * stopTime) / 2
   // Kurva deselerasi quadratic ease-out (n = 2):
   // x(t) = xStart + dist * (1 - (1 - t/stopTime)^2)
-  // Turunan v(t) = dx/dt = 2 * dist / stopTime * (1 - t/stopTime)
-  // Pada t = 0, v(0) = 2 * dist / stopTime.
-  // Seluruh jalur background (k > currentMomentIndex) harus berputar pada topSpeed ini
-  // agar kecepatan awalnya SAMA PERSIS dengan kecepatan detik 0 jalur aktif!
-  const topSpeed = Math.round((2 * refDist) / stopTime);
+  // Kecepatan puncak awal pada t = 0: v(0) = 2 * dist / stopTime = maxSpeed
+  const refDist = Math.round((maxSpeed * stopTime) / 2);
+  const topSpeed = maxSpeed;
 
   for (let k = 0; k < laneCount; k++) {
     const r = ribbons[k];

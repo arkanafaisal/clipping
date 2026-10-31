@@ -14,7 +14,37 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Fix FFmpeg Filtergraph Input Stream Index in Speedup Fade Clip
+## [Unreleased] - Configurable Max Speed, Natural Random Offset Stop, and Physical Audio Synchronization
+- **Konteks Struktural**:
+  - Konfigurasi Kecepatan Puncak Bebas (*Configurable Max Speed*) ([config.js](file:///d:/projects/clipping/scheduler-uploader/utils/config.js), [rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js), [compile_roulette.js](file:///d:/projects/clipping/scheduler-uploader/compile_roulette.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example)):
+    - Memperkenalkan parameter lingkungan baru `ROULETTE_MAX_SPEED` (default: 3600 px/s, alias `ROULETTE_SPEED`, dan argumen CLI `--max-speed=`, `--roulette-speed=`).
+    - Pengguna dapat leluasa mengatur kecepatan putaran roulette sesuai selera, sementara durasi putaran (`ROULETTE_SPIN_DURATION`) dan durasi penguncian kartu (`ROULETTE_LOCK_DURATION`) tetap dapat dikustomisasi secara terpisah.
+    - Menghitung jarak pengereman deselerasi secara otomatis: $\text{refDist} = \frac{\text{maxSpeed} \cdot \text{stopTime}}{2}$. Seluruh jalur background dan detik ke-0 jalur aktif dijamin bergerak pada kecepatan yang sama persis tanpa ada lompatan kecepatan.
+  - Pemulihan Offset Berhenti Acak Alami (*Natural Random Offset Stop*) ([rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js)):
+    - Mengembalikan variasi posisi henti off-center acak natural (antara $-15\%$ hingga $+15\%$ dari lebar kartu per jalur) sesuai preferensi pengguna agar putaran roulette terlihat organik dan tidak kaku persis di tengah seperti robot.
+    - Memastikan secara geometris bahwa pointer garis emas tengah ($X = 540$) selalu memotong jelas kartu pemenang (berjarak setidaknya $35\%$ dari batas tepi kartu), dan kotak sorotan hijau (`#00FF66`) membingkai kartu pemenang secara presisi $100\%$ tepat di koordinat berhentinya (`cardScreenX`).
+    - Menghitung panjang pita ribbon secara dinamis berdasarkan `refDist` agar pita kartu tidak pernah kurang atau menghasilkan koordinat negatif saat mulai melambat dari kecepatan tinggi.
+  - Sinkronisasi Fisik Efek Suara Ratchet (*Physical Motion-to-Audio Synchronization*) ([rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js)):
+    - Mengatasi masalah audio roulette yang sebelumnya tidak sinkron dengan gerakan visual kartu.
+    - Waktu ketukan derik ratchet kini dihitung secara analitik langsung dari persamaan integral gerak *quadratic ease-out*:
+      $$s(t) = \text{maxSpeed} \cdot \left(t - \frac{t^2}{2 \cdot \text{stopTime}}\right)$$
+    - Setiap kartu berpindah sejauh `stepDistance` piksel, ratchet membunyikan 1 klik. Frekuensi bunyi klik otomatis melambat secara serempak dan harmonis dengan gerakan visual kartu di layar, dan berhenti tepat di milidetik roda berhenti saat denting bel emas berbunyi.
+  - Keamanan Eksekusi Pembuatan Ribbon ([rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js)):
+    - Membersihkan direktori `ribbons/` sebelum perakitan agar berkas pita lama tidak bentrok.
+    - Mengganti `execSync` pembuatan pita hstack menjadi pemanggilan langsung `spawnSync` untuk mencegah limitasi panjang perintah shell Windows cmd.exe.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/utils/config.js`:
+    - Menambahkan pembacaan `rouletteMaxSpeed` dari `.env` dan parser CLI `--max-speed=`.
+  - `scheduler-uploader/utils/rouletteEditor.js`:
+    - Memperbarui `generateRouletteAudioWav` dengan kalkulasi diskriminan quadratic motion $s(t)$.
+    - Memperbarui `buildLaneRibbons` dengan kalkulasi dinamis panjang pita, random offset $-15\%$ s/d $+15\%$, dan eksekusi `spawnSync`.
+    - Memperbarui `renderRouletteSpinSegment` untuk menerima `maxSpeed`.
+  - `scheduler-uploader/compile_roulette.js`:
+    - Meneruskan `config.rouletteMaxSpeed` ke `buildLaneRibbons` dan `renderRouletteSpinSegment`.
+  - `scheduler-uploader/.env.example`:
+    - Menambahkan dokumentasi parameter `ROULETTE_MAX_SPEED=3600`.
+
+## [1a90c40] - Fix FFmpeg Filtergraph Input Stream Index in Speedup Fade Clip
 - **Konteks Struktural**:
   - Perbaikan Pemetaan Indeks Aliran Masukan FFmpeg (*FFmpeg Stream Input Index*) ([rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js)):
     - Mengatasi galat fatal `FFmpeg error in renderSpeedupClipWithFade: Error initializing complex filters: Invalid argument`.
