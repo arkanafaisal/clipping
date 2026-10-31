@@ -348,6 +348,7 @@ function renderRouletteSpinSegment({
   spinDuration = 4.4,
   stopTime = 3.4,
   maxSpeed = 3600,
+  dimOpacity = 0.65,
 }) {
   laneHeight = laneHeight % 2 === 0 ? laneHeight : laneHeight - 1;
   const segmentAudioPath = path.join(workDir, `roulette_audio_${segmentIndex}.wav`);
@@ -413,11 +414,44 @@ function renderRouletteSpinSegment({
   drawFilters.push(`drawbox=x=537:y=0:w=6:h=${totalStackHeight}:color=0xFFCC00@0.9:t=fill`);
   drawFilters.push(`drawbox=x=539:y=0:w=2:h=${totalStackHeight}:color=white@0.95:t=fill`);
 
-  // 3. Kotak sorotan hijau (#00FF66) HANYA untuk sesi aktif saat ini saat t >= stopTime
-  // Sesi lama yang sudah lewat tidak lagi menampilkan kotak hijau sehingga maksimal hanya 1 kotak hijau dalam 1 frame
+  // 3. Efek Spotlight Overlay Gelap (Menggelapkan item selain kartu terpilih & meredupkan jalur background)
+  // - Jalur masa lalu yang sudah menang sebelumnya (j < currentMomentIndex):
+  //   Sifat spotlight "terang sendiri" bertahan permanen hingga akhir kompilasi
+  for (let j = 0; j < currentMomentIndex; j++) {
+    const y = j * laneHeight;
+    const rJ = ribbons[j];
+    const leftW = rJ.cardScreenX;
+    if (leftW > 0) {
+      drawFilters.push(`drawbox=x=0:y=${y}:w=${leftW}:h=${laneHeight}:color=black@${dimOpacity}:t=fill`);
+    }
+    const rightX = rJ.cardScreenX + laneHeight;
+    const rightW = 1080 - rightX;
+    if (rightW > 0) {
+      drawFilters.push(`drawbox=x=${rightX}:y=${y}:w=${rightW}:h=${laneHeight}:color=black@${dimOpacity}:t=fill`);
+    }
+  }
+
+  // - Jalur aktif saat ini (k === currentMomentIndex):
+  //   Saat sedang spin (t < stopTime) TIDAK ADA overlay (terang penuh).
+  //   Saat sudah berhenti (t >= stopTime), muncul overlay gelap di kiri & kanan kartu terpilih sehingga hanya kartu terpilih yang tetap terang.
   const currY = currentMomentIndex * laneHeight;
   const rCurr = ribbons[currentMomentIndex];
-  drawFilters.push(`drawbox=enable='gte(t\\,${stopTime})':x=${rCurr.cardScreenX}:y=${currY}:w=${laneHeight}:h=${laneHeight}:color=0x00FF66:t=6`);
+  const activeLeftW = rCurr.cardScreenX;
+  if (activeLeftW > 0) {
+    drawFilters.push(`drawbox=enable='gte(t\\,${stopTime})':x=0:y=${currY}:w=${activeLeftW}:h=${laneHeight}:color=black@${dimOpacity}:t=fill`);
+  }
+  const activeRightX = rCurr.cardScreenX + laneHeight;
+  const activeRightW = 1080 - activeRightX;
+  if (activeRightW > 0) {
+    drawFilters.push(`drawbox=enable='gte(t\\,${stopTime})':x=${activeRightX}:y=${currY}:w=${activeRightW}:h=${laneHeight}:color=black@${dimOpacity}:t=fill`);
+  }
+
+  // - Jalur background yang belum sesinya (b > currentMomentIndex):
+  //   Diberi overlay gelap penuh sepanjang durasi, namun tetap berputar kontinu di latar belakang agar fokus tertuju ke jalur aktif
+  for (let b = currentMomentIndex + 1; b < laneCount; b++) {
+    const y = b * laneHeight;
+    drawFilters.push(`drawbox=x=0:y=${y}:w=1080:h=${laneHeight}:color=black@${dimOpacity}:t=fill`);
+  }
 
   // Gabungkan seluruh jalur secara vertikal (vstack), letakkan di kanvas 1080x1920 tepat di tengah
   const vstackInputs = Array.from({ length: laneCount }, (_, i) => `[lane${i}]`).join('');

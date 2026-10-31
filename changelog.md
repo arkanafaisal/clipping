@@ -14,7 +14,31 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Enforce Strictly Even LaneHeight to Eliminate Video Codec Truncation and Highlight Box Misalignment
+## [Unreleased] - Replace Green Highlight Box with Spotlight Dark Overlay and Dim Moving Background Lanes
+- **Konteks Struktural**:
+  - Efek Sorotan Lampu Spotlight Multi-Tier (*Multi-Tier Spotlight Dark Overlay Architecture*) ([rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js)):
+    - **Penyebab & Kebutuhan Desain**: Kotak border hijau (#00FF66) sebelumnya terasa kaku dan mengaburkan batas estetika kartu. Penonton membutuhkan fokus visual yang tajam langsung ke kartu pemenang tanpa distraksi kartu lain di jalur yang sama maupun jalur lain yang belum aktif.
+    - **Solusi**: Menggantikan border hijau dengan sistem filter overlay gelap berlapis (*spotlight overlay*):
+      1. **Jalur Aktif Saat Berputar ($t < \text{stopTime}$)**: Tidak diberi overlay gelap (terang penuh 100%) agar animasi perputaran kartu terlihat jelas dan dinamis.
+      2. **Jalur Aktif Saat Berhenti ($t \ge \text{stopTime}$)**: Mengaktifkan filter `drawbox=enable='gte(t\,stopTime)':...:color=black@dimOpacity:t=fill` di sisi kiri ($X = 0 \dots \text{cardScreenX}$) dan sisi kanan ($X = \text{cardScreenX} + \text{laneHeight} \dots 1080$), sehingga kartu yang terpilih menjadi satu-satunya elemen yang terang benderang (*spotlighted*).
+      3. **Ketahanan Status Sorotan Kartu Pemenang (*Permanent Winner Spotlight*)**: Pada jalur-jalur pemenang sebelumnya ($j < \text{currentMomentIndex}$), status spotlight gelap kiri-kanan kartu tetap dipertahankan permanen hingga akhir kompilasi, menjaga rekap visual momen-momen yang telah dimenangkan.
+      4. **Jalur Latar Belakang Redup Bergerak (*Dim Moving Background Lanes*)**: Jalur-jalur yang belum tiba sesinya ($b > \text{currentMomentIndex}$) ditutup overlay gelap penuh ($W = 1080, H = \text{laneHeight}$) dengan `color=black@dimOpacity:t=fill`, tetapi tetap berputar kontinu dengan kecepatan `topSpeed`. Hal ini mempertahankan dinamika roda roulette di latar belakang sekaligus memusatkan 100% perhatian penonton ke jalur yang sedang aktif.
+  - Parameterisasi Opasitas Redup Fleksibel (*Configurable Dim Opacity*) ([config.js](file:///d:/projects/clipping/scheduler-uploader/utils/config.js), [compile_roulette.js](file:///d:/projects/clipping/scheduler-uploader/compile_roulette.js)):
+    - Menambahkan parsing konfigurasi `rouletteDimOpacity` dari variabel lingkungan `ROULETTE_DIM_OPACITY` / `ROULETTE_SPOTLIGHT_OPACITY` (default: 0.65, batas aman 0.05 - 1.0) dan argumen CLI `--dim-opacity=`, `--roulette-dim=`, dan `--spotlight-dim=`.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/utils/rouletteEditor.js`:
+    - Menghapus filter border hijau `drawbox=...:color=0x00FF66:t=6`.
+    - Menerapkan overlay gelap bersyarat pada sisi kiri dan kanan kartu terpilih di jalur aktif saat $t \ge \text{stopTime}$.
+    - Menerapkan overlay gelap permanen di sisi kiri dan kanan kartu pada jalur yang sudah menang sebelumnya.
+    - Menerapkan overlay gelap penuh sepanjang durasi pada jalur background yang belum sesinya tanpa menghentikan perputaran kontinu.
+  - `scheduler-uploader/utils/config.js`:
+    - Menambahkan `rouletteDimOpacity` dengan nilai default `0.65` dan parsing opsi CLI `--dim-opacity=`.
+  - `scheduler-uploader/compile_roulette.js`:
+    - Meneruskan konfigurasi `dimOpacity` dari `config.rouletteDimOpacity` ke pemanggilan `renderRouletteSpinSegment`.
+  - `scheduler-uploader/.env.example`:
+    - Menambahkan dokumentasi konfigurasi `ROULETTE_DIM_OPACITY=0.65`.
+
+## [02f6211] - Enforce Strictly Even LaneHeight to Eliminate Video Codec Truncation and Highlight Box Misalignment
 - **Konteks Struktural**:
   - Eliminasi Akumulasi Drift Dimensi Ganjil (*Odd-Dimension Codec Truncation Elimination*) ([compile_roulette.js](file:///d:/projects/clipping/scheduler-uploader/compile_roulette.js), [rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js)):
     - **Penyebab Masalah**: Saat jumlah klip roulette adalah angka ganjil (seperti `clipCount = 5`), perhitungan tinggi jalur `laneHeight = Math.floor(1536 / 5) = 307` menghasilkan angka ganjil. Standar codec video H.264 (YUV420p chroma subsampling 2x2) dan format kompresi JPEG mewajibkan seluruh resolusi gambar dan pemotongan genap (habis dibagi 2). Akibatnya, saat FFmpeg melakukan `scale=307:307` atau `crop=307:307` untuk menyusun pita horizontal, FFmpeg secara otomatis memotong (*truncate*) lebar tiap kartu menjadi **306 piksel** (dikonfirmasi melalui ffprobe: $13770 \times 306$ px, $13770 / 45 = 306$).

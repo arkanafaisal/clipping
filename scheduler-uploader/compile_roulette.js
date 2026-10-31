@@ -234,6 +234,7 @@ async function main() {
       spinDuration,
       stopTime,
       maxSpeed,
+      dimOpacity: config.rouletteDimOpacity || 0.65,
     });
     spinClips.push(spinOutputPath);
 

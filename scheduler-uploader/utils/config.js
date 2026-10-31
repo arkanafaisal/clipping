@@ -222,6 +222,9 @@ function getConfig() {
   let rouletteMaxSpeed = parseFloat(process.env.ROULETTE_MAX_SPEED || process.env.ROULETTE_SPEED || '3600');
   if (isNaN(rouletteMaxSpeed) || rouletteMaxSpeed < 500) rouletteMaxSpeed = 3600;
 
+  let rouletteDimOpacity = parseFloat(process.env.ROULETTE_DIM_OPACITY || process.env.ROULETTE_SPOTLIGHT_OPACITY || '0.65');
+  if (isNaN(rouletteDimOpacity) || rouletteDimOpacity < 0.1 || rouletteDimOpacity > 1.0) rouletteDimOpacity = 0.65;
+
   let resultFolderId =
     process.env.GDRIVE_RESULT_FOLDER_ID ||
     process.env.GDRIVE_OUTPUT_FOLDER_ID ||
@@ -332,6 +335,10 @@ function getConfig() {
       const spd = parseFloat(arg.split('=')[1]);
       if (!isNaN(spd) && spd >= 500) rouletteMaxSpeed = spd;
     }
+    if (arg.startsWith('--dim-opacity=') || arg.startsWith('--roulette-dim=') || arg.startsWith('--spotlight-dim=')) {
+      const dim = parseFloat(arg.split('=')[1]);
+      if (!isNaN(dim) && dim >= 0.05 && dim <= 1.0) rouletteDimOpacity = dim;
+    }
     if (arg.startsWith('--unique-window=') || arg.startsWith('--game-uniqueness=') || arg.startsWith('--uniqueness=') || arg.startsWith('--window=')) {
       const val = parseInt(arg.split('=')[1], 10);
       if (!isNaN(val) && val >= 1) gameUniqueWindow = val;
@@ -396,6 +403,7 @@ function getConfig() {
     rouletteBoardFreeze,
     rouletteItems,
     rouletteMaxSpeed,
+    rouletteDimOpacity,
     resultFolderId,
     skipPrefix,
     censorGameplay,
