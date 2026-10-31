@@ -14,7 +14,30 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Fixed Lock Freeze Duration and Mathematical Top Speed Synchronization
+## [Unreleased] - Speedup Audio-Video Perfect Synchronization and Pre-Play Freeze Duration
+- **Konteks Struktural**:
+  - Perbaikan Sinkronisasi Audio Speedup & Eliminasi Audio Prematur ([rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js)):
+    - Mengatasi masalah audio doksli speedup yang berbunyi mendahului video (*sound miss*): sebelumnya argumen eksekusi FFmpeg menggunakan `-map 0:a?` mentah sehingga string filter audio `af` (penundaan `adelay` dan percepatan nada `asetrate`) tidak pernah diaplikasikan, menyebabkan audio diputar sejak $t = 0$ saat video masih membeku fade-in.
+    - Mengintegrasikan pemrosesan audio sepenuhnya ke dalam `-filter_complex` (`[${audioInputRef}]...[finala]`) dan memetakannya dengan `-map [finala]`.
+    - Menambahkan fungsi helper `hasAudioStream` untuk mendeteksi ketersediaan track audio secara presisi, dengan fallback otomatis ke generator audio hening stereo (`anullsrc`) jika berkas video mentah tidak memiliki audio.
+  - Penambahan Jeda Diam Pre-Play Doksli (*Pre-Play Freeze Duration*) ([config.js](file:///d:/projects/clipping/scheduler-uploader/utils/config.js), [compile_roulette.js](file:///d:/projects/clipping/scheduler-uploader/compile_roulette.js), [rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example)):
+    - Memperkenalkan parameter lingkungan baru `ROULETTE_FREEZE_DURATION` (default: 0.5 detik, alias `ROULETTE_PREPLAY_FREEZE` dan argumen CLI `--freeze-duration=`).
+    - Setelah animasi fade-in tuntas pada *opacity* 100%, frame awal video doksli ditahan diam (*frozen frame 0*) selama 0.5 detik sebelum video bergerak dan audio berbunyi, memberi jendela waktu bagi penonton untuk memindai gambar dan membaca subtitle dua baris (nama game dan timestamp) agar tidak terasa bertubi-tubi.
+    - Mengkalkulasi penundaan audio (`adelay`) secara matematis tepat sebesar $\text{fadeDuration} + \text{freezeDuration}$ (misal $0.5\text{s} + 0.5\text{s} = 1000\text{ms}$), sehingga gerakan video dan suara audio mulai berputar secara serempak dan presisi $100\%$.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/utils/config.js`:
+    - Menambahkan pembacaan `rouletteFreezeDuration` dari `process.env.ROULETTE_FREEZE_DURATION` / `ROULETTE_PREPLAY_FREEZE` (default: 0.5) dan parser CLI `--freeze-duration=`.
+    - Mengembalikan `rouletteFreezeDuration` pada `getConfig()`.
+  - `scheduler-uploader/utils/rouletteEditor.js`:
+    - Menambahkan fungsi `hasAudioStream`.
+    - Menghitung `startFreezeDuration = fadeDuration + freezeDuration` dan menunda audio sebesar `startFreezeDuration * 1000` ms.
+    - Menyalurkan audio yang dipercepat dan tertunda melalui label filter `[finala]` di dalam `filter_complex`.
+  - `scheduler-uploader/compile_roulette.js`:
+    - Memperbarui teks log proses pembuatan klip speedup agar mencantumkan durasi freeze awal (`freeze awal: ${freezeDur}s`).
+  - `scheduler-uploader/.env.example`:
+    - Menambahkan dokumentasi parameter `ROULETTE_FREEZE_DURATION=0.5`.
+
+## [0ddf7b3] - Fixed Lock Freeze Duration and Mathematical Top Speed Synchronization
 - **Konteks Struktural**:
   - Sinkronisasi Kecepatan Puncak Roda Roulette Background ([rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js)):
     - Mengatasi ketidaksesuaian kecepatan visual di mana jalur background sebelumnya berputar pada kecepatan konstan rendah (1500 px/s) sehingga terkesan melambat di background lalu mendadak melesat cepat kembali saat gilirannya aktif.

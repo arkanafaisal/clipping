@@ -248,7 +248,8 @@ async function main() {
     }
 
     const fadeDur = config.rouletteFadeDuration || 0.5;
-    console.log(`   3. ✂️ Menambahkan transisi freeze fade-in (${fadeDur}s) & freeze fade-out (${fadeDur}s) pada speedup...`);
+    const freezeDur = config.rouletteFreezeDuration !== undefined ? config.rouletteFreezeDuration : 0.5;
+    console.log(`   3. ✂️ Menyiapkan video speedup (fade-in: ${fadeDur}s, freeze awal: ${freezeDur}s, fade-out: ${fadeDur}s)...`);
     const fadedSpeedupPath = path.join(workDir, `faded_speedup_${momentIndex}.mp4`);
     renderSpeedupClipWithFade({
       rawVideoPath,

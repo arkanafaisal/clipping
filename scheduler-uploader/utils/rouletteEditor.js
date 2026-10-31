@@ -372,10 +372,24 @@ function renderRouletteSpinSegment({
 }
 
 /**
- * Menyiapkan Klip Speedup Video Full dengan Animasi Freeze Fade-In & Freeze Fade-Out
- * - Fade-In (0.25s): Frame 0 ditahan (still/freeze frame) sambil bertransisi opacity 0% -> 100%
- * - Playback: Video speedup diputar normal dari awal hingga akhir (~5s) pada opacity 100%
- * - Fade-Out (0.25s): Frame terakhir ditahan (still/freeze frame) sambil bertransisi opacity 100% -> 0%
+ * Memeriksa apakah berkas media memiliki aliran audio (Audio stream)
+ */
+function hasAudioStream(filePath, ffmpegBin = 'ffmpeg') {
+  try {
+    const res = spawnSync(ffmpegBin, ['-i', filePath], { encoding: 'utf8' });
+    const out = (res.stdout || '') + (res.stderr || '');
+    return /Stream #.*Audio:/.test(out);
+  } catch (_) {
+    return false;
+  }
+}
+
+/**
+ * Menyiapkan Klip Speedup Video Full dengan Animasi Freeze Fade-In, Freeze Pre-Play, & Freeze Fade-Out
+ * - Fade-In (fadeDuration): Frame 0 ditahan (still/freeze frame) sambil bertransisi opacity 0% -> 100%
+ * - Pre-Play Freeze (freezeDuration): Frame 0 tetap ditahan diam pada opacity 100% agar penonton dapat scanning subtitle & konten
+ * - Playback (playDuration): Video speedup diputar penuh dan audio disinkronkan tepat di detik video mulai bergerak
+ * - Fade-Out (fadeDuration): Frame terakhir ditahan (still/freeze frame) sambil bertransisi opacity 100% -> 0%
  * - Jika bgStillPath diberikan, transisi fade terjadi di atas latar papan roulette yang berhenti
  */
 function renderSpeedupClipWithFade({
@@ -413,46 +427,71 @@ function renderSpeedupClipWithFade({
 
   const playDuration = rawDur / clipSpeed;
   const fadeDuration = parseFloat(config?.rouletteFadeDuration) || 0.5;
-  const fadeOutStart = fadeDuration + playDuration;
-  const totalDuration = playDuration + (2 * fadeDuration);
-  const adelayMs = Math.round(fadeDuration * 1000);
+  const freezeDuration = config?.rouletteFreezeDuration !== undefined ? parseFloat(config.rouletteFreezeDuration) : 0.5;
+
+  const startFreezeDuration = fadeDuration + freezeDuration;
+  const stopFreezeDuration = fadeDuration;
+  const fadeOutStart = startFreezeDuration + playDuration;
+  const totalDuration = startFreezeDuration + playDuration + stopFreezeDuration;
+  const adelayMs = Math.round(startFreezeDuration * 1000);
 
   // Filter video:
   // 1. Skalakan ke 1080x1920, tempelkan subtitle ASS
-  // 2. Gunakan tpad untuk clone frame awal (freeze selama fade-in) dan clone frame akhir (freeze selama fade-out)
+  // 2. Gunakan tpad untuk clone frame awal (freeze selama fade-in + pre-play freeze) dan clone frame akhir (freeze selama fade-out)
   // 3. Terapkan fade-in (st=0:d=fadeDuration) dan fade-out (st=fadeOutStart:d=fadeDuration)
   const speedFilter = clipSpeed > 1.0 ? `setpts=PTS/${clipSpeed}` : null;
-  const tpadFilter = `tpad=start_mode=clone:start_duration=${fadeDuration}:stop_mode=clone:stop_duration=${fadeDuration}`;
-  const fadeFilter = `fade=t=in:st=0:d=${fadeDuration}:alpha=1,fade=t=out:st=${fadeOutStart.toFixed(2)}:d=${fadeDuration}:alpha=1`;
+  const tpadFilter = `tpad=start_mode=clone:start_duration=${startFreezeDuration.toFixed(2)}:stop_mode=clone:stop_duration=${stopFreezeDuration.toFixed(2)}`;
+  const fadeFilter = `fade=t=in:st=0:d=${fadeDuration.toFixed(2)}:alpha=1,fade=t=out:st=${fadeOutStart.toFixed(2)}:d=${fadeDuration.toFixed(2)}:alpha=1`;
 
-  let filterComplex = '';
-  let inputArgs = ['-i', rawVideoPath];
+  const inputArgs = ['-i', rawVideoPath];
+  let audioInputRef = '0:a';
 
+  // Periksa apakah video mentah memiliki aliran audio
+  const hasAudio = hasAudioStream(rawVideoPath, ffmpegBin);
+  if (!hasAudio) {
+    inputArgs.push('-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo');
+    audioInputRef = '1:a';
+  }
+
+  let videoFilterComplex = '';
   if (bgStillPath && fs.existsSync(bgStillPath)) {
+    const bgInputIndex = inputArgs.length;
     inputArgs.push('-loop', '1', '-i', bgStillPath);
-    filterComplex = `
+    videoFilterComplex = `
       [0:v]${speedFilter ? speedFilter + ',' : ''}${baseScale},ass='${escapedAss}',${tpadFilter},format=yuva420p,${fadeFilter}[fg];
-      [1:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1[bg];
+      [${bgInputIndex}:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1[bg];
       [bg][fg]overlay=0:0[finalv]
     `.replace(/\s+/g, ' ').trim();
   } else {
-    filterComplex = `
+    videoFilterComplex = `
       [0:v]${speedFilter ? speedFilter + ',' : ''}${baseScale},ass='${escapedAss}',${tpadFilter},${fadeFilter}[finalv]
     `.replace(/\s+/g, ' ').trim();
   }
 
   // Filter audio:
-  // Tunda audio sebesar adelayMs (0.25s) agar audio tidak diputar selama animasi fade-in berlangsung
-  const af = clipSpeed > 1.0
-    ? `aformat=sample_rates=44100,asetrate=44100*${clipSpeed},aresample=44100,adelay=delays=${adelayMs}:all=1,afade=t=in:st=${fadeDuration}:d=${fadeDuration},afade=t=out:st=${fadeOutStart.toFixed(2)}:d=${fadeDuration},apad,aresample=async=1:first_pts=0`
-    : `adelay=delays=${adelayMs}:all=1,afade=t=in:st=${fadeDuration}:d=${fadeDuration},afade=t=out:st=${fadeOutStart.toFixed(2)}:d=${fadeDuration},apad,aresample=async=1:first_pts=0`;
+  // Tunda audio sebesar adelayMs (fadeDuration + freezeDuration)
+  // sehingga audio dan gerakan video mulai berputar bersamaan secara presisi (tidak miss / mendahului video)
+  const audioFilters = [];
+  if (clipSpeed > 1.0) {
+    audioFilters.push(`aformat=sample_rates=44100,asetrate=44100*${clipSpeed},aresample=44100`);
+  }
+  if (adelayMs > 0) {
+    audioFilters.push(`adelay=delays=${adelayMs}:all=1`);
+  }
+  audioFilters.push(`afade=t=out:st=${fadeOutStart.toFixed(2)}:d=${fadeDuration.toFixed(2)}`);
+  audioFilters.push('apad,aresample=async=1:first_pts=0');
 
-  let ffmpegArgs = [
+  const filterComplex = `
+    ${videoFilterComplex};
+    [${audioInputRef}]${audioFilters.join(',')}[finala]
+  `.replace(/\s+/g, ' ').trim();
+
+  const ffmpegArgs = [
     '-y',
     ...inputArgs,
     '-filter_complex', filterComplex,
     '-map', '[finalv]',
-    '-map', '0:a?',
+    '-map', '[finala]',
     '-t', totalDuration.toFixed(2),
     '-c:v', 'libx264',
     '-preset', 'fast',
@@ -470,38 +509,10 @@ function renderSpeedupClipWithFade({
     outputPath,
   ];
 
-  let res = spawnSync(ffmpegBin, ffmpegArgs, { stdio: 'pipe' });
+  const res = spawnSync(ffmpegBin, ffmpegArgs, { stdio: 'pipe' });
   if (res.status !== 0) {
-    // Fallback jika video mentah tidak memiliki audio stream: gunakan anullsrc
-    const nullAudioIndex = Math.floor(inputArgs.length / 2);
-    inputArgs.push('-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo');
-    ffmpegArgs = [
-      '-y',
-      ...inputArgs,
-      '-filter_complex', filterComplex,
-      '-map', '[finalv]',
-      '-map', `${nullAudioIndex}:a`,
-      '-t', totalDuration.toFixed(2),
-      '-c:v', 'libx264',
-      '-preset', 'fast',
-      '-crf', '16',
-      '-profile:v', 'high',
-      '-level', '4.2',
-      '-c:a', 'aac',
-      '-ar', '44100',
-      '-ac', '2',
-      '-r', '60',
-      '-fps_mode', 'cfr',
-      '-video_track_timescale', '60000',
-      '-movflags', '+faststart',
-      '-pix_fmt', 'yuv420p',
-      outputPath,
-    ];
-    res = spawnSync(ffmpegBin, ffmpegArgs, { stdio: 'pipe' });
-    if (res.status !== 0) {
-      const errStr = res.stderr ? res.stderr.toString() : '';
-      throw new Error(`FFmpeg error in renderSpeedupClipWithFade: ${errStr.slice(-500)}`);
-    }
+    const errStr = res.stderr ? res.stderr.toString() : '';
+    throw new Error(`FFmpeg error in renderSpeedupClipWithFade: ${errStr.slice(-500)}`);
   }
 
   try {
