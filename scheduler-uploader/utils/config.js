@@ -204,6 +204,9 @@ function getConfig() {
   let rouletteSpinDuration = parseFloat(process.env.ROULETTE_SPIN_DURATION || '4.4');
   if (isNaN(rouletteSpinDuration) || rouletteSpinDuration <= 0.5) rouletteSpinDuration = 4.4;
 
+  let rouletteLockDuration = parseFloat(process.env.ROULETTE_LOCK_DURATION || process.env.ROULETTE_STOP_DURATION || '1.0');
+  if (isNaN(rouletteLockDuration) || rouletteLockDuration < 0.1) rouletteLockDuration = 1.0;
+
   let rouletteFadeDuration = parseFloat(process.env.ROULETTE_FADE_DURATION || '0.5');
   if (isNaN(rouletteFadeDuration) || rouletteFadeDuration < 0.05) rouletteFadeDuration = 0.5;
 
@@ -293,6 +296,10 @@ function getConfig() {
       const dur = parseFloat(arg.split('=')[1]);
       if (!isNaN(dur) && dur > 0.5) rouletteSpinDuration = dur;
     }
+    if (arg.startsWith('--lock-duration=') || arg.startsWith('--stop-duration=') || arg.startsWith('--roulette-lock=')) {
+      const dur = parseFloat(arg.split('=')[1]);
+      if (!isNaN(dur) && dur >= 0.1) rouletteLockDuration = dur;
+    }
     if (arg.startsWith('--fade-duration=') || arg.startsWith('--roulette-fade=')) {
       const dur = parseFloat(arg.split('=')[1]);
       if (!isNaN(dur) && dur >= 0.05) rouletteFadeDuration = dur;
@@ -355,6 +362,7 @@ function getConfig() {
     fullVideoSpeed,
     fullVideoMaxDuration,
     rouletteSpinDuration,
+    rouletteLockDuration,
     rouletteFadeDuration,
     resultFolderId,
     skipPrefix,

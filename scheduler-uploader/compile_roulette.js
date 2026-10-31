@@ -203,7 +203,11 @@ async function main() {
 
     // Bagian A: Render Animasi Putaran Roulette untuk Momen k
     // Jalur 0 .. k-1 tetap diam terkunci, Jalur k melambat dan mengunci, Jalur k+1 .. end tetap berputar
-    console.log(`   1. 🎡 Merender putaran roulette (Jalur #${momentIndex} melambat & mengunci kartu)...`);
+    const spinDuration = parseFloat(config.rouletteSpinDuration) || 4.4;
+    const lockDuration = parseFloat(config.rouletteLockDuration) || 1.0;
+    const stopTime = Math.max(0.5, Math.round((spinDuration - lockDuration) * 10) / 10);
+
+    console.log(`   1. 🎡 Merender putaran roulette (durasi: ${spinDuration}s, deselerasi: ${stopTime}s, lock kartu: ${lockDuration}s)...`);
     const spinOutputPath = path.join(workDir, `roulette_segment_${momentIndex}.mp4`);
     renderRouletteSpinSegment({
       segmentIndex: momentIndex,
@@ -214,8 +218,8 @@ async function main() {
       outputPath: spinOutputPath,
       workDir,
       ffmpegBin: config.ffmpegBin,
-      spinDuration: config.rouletteSpinDuration || 4.4,
-      stopTime: Math.round(((config.rouletteSpinDuration || 4.4) * 0.82) * 10) / 10,
+      spinDuration,
+      stopTime,
     });
     allCompilationClips.push(spinOutputPath);
     console.log(`      ✅ Segmen putaran roulette #${momentIndex} siap.`);

@@ -14,7 +14,30 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Single Active Green Highlight Box per Roulette Session
+## [Unreleased] - Fixed Lock Freeze Duration and Mathematical Top Speed Synchronization
+- **Konteks Struktural**:
+  - Sinkronisasi Kecepatan Puncak Roda Roulette Background ([rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js)):
+    - Mengatasi ketidaksesuaian kecepatan visual di mana jalur background sebelumnya berputar pada kecepatan konstan rendah (1500 px/s) sehingga terkesan melambat di background lalu mendadak melesat cepat kembali saat gilirannya aktif.
+    - Menghitung kecepatan putaran puncak (*top speed*) awal turunan deselerasi *cubic ease-out* pada $t = 0$: $v(0) = \frac{3 \cdot \text{refDist}}{\text{stopTime}}$.
+    - Menerapkan kecepatan $v(0)$ ini secara konsisten dan seragam pada seluruh jalur background ($k > \text{currentMomentIndex}$) yang belum tiba gilirannya melambat. Dengan demikian, semua roda yang berputar bergerak pada kecepatan puncak yang identik di awal, dan pengereman kartu aktif menyambung mulus dari kecepatan latar belakang tanpa ada percepatan mendadak.
+  - Durasi Kunci Kartu Tetap (*Fixed Lock Duration*) & Fleksibilitas Angka Bulat ([config.js](file:///d:/projects/clipping/scheduler-uploader/utils/config.js), [compile_roulette.js](file:///d:/projects/clipping/scheduler-uploader/compile_roulette.js), [rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js), [.env.example](file:///d:/projects/clipping/scheduler-uploader/.env.example)):
+    - Mendukung konfigurasi durasi total putaran roulette bebas (`ROULETTE_SPIN_DURATION`, termasuk angka bulat seperti 3, 4, 5 detik).
+    - Memperkenalkan parameter durasi kunci kartu terpilih `ROULETTE_LOCK_DURATION` (default: 1.0 detik, dengan alias `ROULETTE_STOP_DURATION` / flag `--lock-duration=`) agar kartu pemenang dan kotak hijau selalu diam terbaca jelas selama 1 detik penuh sebelum klip video speedup muncul, berapa pun durasi total yang dipilih pengguna.
+    - Menghitung waktu deselerasi secara otomatis: $\text{stopTime} = \text{spinDuration} - \text{lockDuration}$ (misal durasi 3s $\to$ melambat 2.0s + lock 1.0s; durasi 5s $\to$ melambat 4.0s + lock 1.0s; durasi 4.4s $\to$ melambat 3.4s + lock 1.0s).
+    - Menyesuaikan efek denting lonceng emas ganda (*lock bell chime*) agar meluruh (*decay*) secara harmonis selama durasi `lockDuration`.
+- **Perubahan Kode Penting**:
+  - `scheduler-uploader/utils/config.js`:
+    - Menambahkan pembacaan `rouletteLockDuration` dari `process.env.ROULETTE_LOCK_DURATION` / `ROULETTE_STOP_DURATION` (default: 1.0) dan parser CLI `--lock-duration=` / `--stop-duration=`.
+    - Mengembalikan `rouletteLockDuration` pada fungsi `getConfig()`.
+  - `scheduler-uploader/utils/rouletteEditor.js`:
+    - Menghitung `topSpeed = Math.round((3 * refDist) / stopTime)` dan menggunakannya pada formula pergerakan jalur background: `mod(${k * 600}+t*${topSpeed}\\,${maxX})`.
+    - Menyesuaikan jendela bunyi denting bel emas pada `generateRouletteAudioWav` dengan `duration - stopTime`.
+  - `scheduler-uploader/compile_roulette.js`:
+    - Mengkalkulasi `stopTime = Math.max(0.5, spinDuration - lockDuration)` secara dinamis dan memperbarui log proses putaran.
+  - `scheduler-uploader/.env.example`:
+    - Menambahkan dokumentasi parameter `ROULETTE_LOCK_DURATION=1.0`.
+
+## [f805932] - Single Active Green Highlight Box per Roulette Session
 - **Konteks Struktural**:
   - Pembatasan Kotak Sorotan Hijau Tunggal per Frame ([rouletteEditor.js](file:///d:/projects/clipping/scheduler-uploader/utils/rouletteEditor.js)):
     - Mengubah perilaku kotak sorotan hijau (`#00FF66`) agar **hanya muncul pada sesi jalur aktif saat ini** ketika piringan roulette berhenti mengunci kartu pemenang ($t \ge \text{stopTime}$).

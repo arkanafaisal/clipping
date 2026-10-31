@@ -77,7 +77,7 @@ async function downloadMemeImagesPool(drive, doksliFolderId, workDir, minCount =
 /**
  * Sintesis Efek Suara WAV Roulette Berputar & Berhenti (Wheel Ratchet Ticks + Lock Bell Chime)
  */
-function generateRouletteAudioWav({ duration = 4.4, stopTime = 3.6, outputPath }) {
+function generateRouletteAudioWav({ duration = 4.4, stopTime = 3.4, outputPath }) {
   const sampleRate = 44100;
   const numSamples = Math.max(1, Math.round(sampleRate * duration));
   const numChannels = 2;
@@ -132,10 +132,11 @@ function generateRouletteAudioWav({ duration = 4.4, stopTime = 3.6, outputPath }
 
     // Render lock chime / bell saat roda berhenti di t = stopTime
     const chimeDt = t - stopTime;
-    if (chimeDt >= 0 && chimeDt < 0.8) {
+    const lockDuration = Math.max(0.2, duration - stopTime);
+    if (chimeDt >= 0 && chimeDt < lockDuration) {
       // Dua nada harmonik bel emas (E6 1318Hz & B6 1975Hz)
-      const chime1 = Math.sin(2 * Math.PI * 1318.5 * chimeDt) * Math.exp(-chimeDt * 4.0);
-      const chime2 = Math.sin(2 * Math.PI * 1975.5 * chimeDt) * Math.exp(-chimeDt * 6.0);
+      const chime1 = Math.sin(2 * Math.PI * 1318.5 * chimeDt) * Math.exp(-chimeDt * 3.5);
+      const chime2 = Math.sin(2 * Math.PI * 1975.5 * chimeDt) * Math.exp(-chimeDt * 5.0);
       sampleVal += (chime1 * 0.5 + chime2 * 0.3) * 0.8;
     }
 
@@ -257,7 +258,7 @@ function renderRouletteSpinSegment({
   workDir,
   ffmpegBin = 'ffmpeg',
   spinDuration = 4.4,
-  stopTime = 3.6,
+  stopTime = 3.4,
 }) {
   const segmentAudioPath = path.join(workDir, `roulette_audio_${segmentIndex}.wav`);
   generateRouletteAudioWav({
@@ -269,6 +270,15 @@ function renderRouletteSpinSegment({
   // Susun ekspresi pergerakan horizontal crop untuk tiap-tiap jalur (0 .. laneCount - 1)
   const inputArgs = [];
   const cropFilters = [];
+
+  // Hitung kecepatan awal top speed deselerasi cubic ease-out pada t = 0:
+  // x(t) = xStart + dist * (1 - (1 - t/stopTime)^3)
+  // Turunan v(t) = dx/dt = 3 * dist / stopTime * (1 - t/stopTime)^2
+  // Pada t = 0, v(0) = 3 * dist / stopTime.
+  // Seluruh jalur background (k > currentMomentIndex) harus berputar pada topSpeed ini
+  // agar kecepatan awalnya identik dan tidak terasa melambat di background lalu mendadak kencang lagi saat giliran aktif!
+  const refDist = Math.round(laneHeight * 12);
+  const topSpeed = Math.max(1000, Math.round((3 * refDist) / stopTime));
 
   for (let k = 0; k < laneCount; k++) {
     const r = ribbons[k];
@@ -282,14 +292,13 @@ function renderRouletteSpinSegment({
       // Jalur yang sudah berhenti pada segmen sebelumnya -> Tetap diam di posisinya
       xExpr = `${xStop}`;
     } else if (k === currentMomentIndex) {
-      // Jalur aktif saat ini -> Bergerak cepat lalu melambat (cubic ease-out) dan berhenti tepat di xStop saat t = stopTime
-      const xStart = Math.max(0, xStop - Math.round(laneHeight * 12));
-      const dist = xStop - xStart;
+      // Jalur aktif saat ini -> Bergerak dari topSpeed lalu melambat (cubic ease-out) dan berhenti tepat di xStop saat t = stopTime
+      const dist = Math.min(xStop, refDist);
+      const xStart = xStop - dist;
       xExpr = `if(gte(t\\,${stopTime})\\,${xStop}\\,${xStart}+${dist}*(1-pow(1-(t/${stopTime})\\,3)))`;
     } else {
-      // Jalur selanjutnya yang belum tiba gilirannya -> Berputar kontinu dengan kecepatan yang seragam sama semua
-      const baseSpeed = 1500;
-      xExpr = `mod(${k * 400}+t*${baseSpeed}\\,${maxX})`;
+      // Jalur selanjutnya yang belum tiba gilirannya -> Berputar kontinu pada topSpeed yang identik
+      xExpr = `mod(${k * 600}+t*${topSpeed}\\,${maxX})`;
     }
 
     cropFilters.push(`[${k}:v]crop=1080:${laneHeight}:${xExpr}:0[lane${k}]`);
