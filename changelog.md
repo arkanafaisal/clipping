@@ -14,6 +14,27 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
+## [Unreleased] - Force Original Creator Audio and Filter AI Auto-Dubbed Tracks Across Clip and Full Video Downloads
+- **Konteks Struktural**:
+  - Eliminasi Audio AI Auto-Dubbing / Penyelarasan Bahasa Asli Video ([ytdlp.ts](file:///d:/projects/clipping/mobile/src/constants/ytdlp.ts), [clip_downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/clip_downloader.py), [downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/downloader.py)):
+    - **Penyebab Masalah**: Fitur multi-audio dan auto-dubbing YouTube secara otomatis menyertakan audio berbahasa Inggris (AI-generated auto-dubbed track) pada format terpisah (DASH / HLS / m4a). Saat melakukan stream preview (seleksi klip 480p), aplikasi memutar video progressive MP4 yang selalu menggunakan audio asli kreator (Bahasa Indonesia). Namun saat tombol download ditekan:
+      1. Pemotongan klip via segmen HLS Stage 1 (`clip_downloader.py`) sebelumnya hanya menyortir format audio berdasarkan bitrate (`abr`). Format auto-dubbed Inggris yang memiliki bitrate sama atau lebih tinggi secara keliru terpilih menggantikan audio asli.
+      2. Download video penuh (`download_full_video_direct` & `downloader.py`) menggunakan selector `bestaudio[ext=m4a]` tanpa filter `format_note` dan tanpa `format_sort: ['lang', 'format_note:original']`, sehingga yt-dlp mengunduh track audio auto-dubbed berbahasa Inggris.
+    - **Solusi**:
+      1. Memperbarui `ytdlp.ts` pada konfigurasi `PRIME_CLIP_DOWNLOAD_OPTS`, `DOWNLOAD_YTDL_OPTS`, `PROXY_FULL_VIDEO_YTDL_OPTS`, dan `STREAM_YTDL_OPTS` dengan selector audio bersyarat: `bestvideo+(bestaudio[format_note*=original]/bestaudio[format_note!*=dubbed]/bestaudio)/best` serta menambahkan `format_sort: ['lang', 'format_note:original', 'quality', 'res', 'fps', 'abr']`.
+      2. Menerapkan fungsi pembobotan skor audio `get_audio_score` di `clip_downloader.py` pada seleksi segmen HLS dan progressive MP4 Stage 1: memberikan bobot prioritas tinggi (`+1000`) untuk format dengan penanda `original`, kecocokan bahasa video, dan `language_preference >= 0`, serta memberikan penalti drastis (`-1000`) untuk format bertanda `dubbed`, `auto`, atau `translated`.
+      3. Menyelaraskan `download_full_video_direct` dan `downloader.py` agar secara dinamis menerima parameter format serta format sort dari frontend dengan fallback aman anti-dubbing.
+- **Perubahan Kode Penting**:
+  - `mobile/src/constants/ytdlp.ts`:
+    - Menambahkan `format_sort?: string[];` pada interface `YtdlOpts`.
+    - Memperbarui `PRIME_CLIP_DOWNLOAD_OPTS`, `DOWNLOAD_YTDL_OPTS`, `PROXY_FULL_VIDEO_YTDL_OPTS`, dan `STREAM_YTDL_OPTS` dengan aturan `format_sort` dan audio format selector `(bestaudio[format_note*=original]/bestaudio[format_note!*=dubbed]/bestaudio)`.
+  - `mobile/scripts/utils/clip_downloader.py`:
+    - Menerapkan fungsi pembobotan `get_audio_score` pada penyaringan `hls_a_formats` dan `prog_formats` di Stage 1 HLS segment download.
+    - Menghapus hardcoded format audio pada `run_full_download` dan menggantikannya dengan pembacaan dinamis dari `opts.get("format")` dan `opts.get("format_sort")`.
+    - Menambahkan `format_sort` pada opsi proxy preview 480p.
+  - `mobile/scripts/utils/downloader.py`:
+    - Memperbarui format yt-dlp pada `download_single_clip` dan `download_full_video_robust` dengan selector anti-dubbing dan `format_sort` bahasa asli.
+
 ## [Unreleased] - Support Strict Directory-Based Hierarchical --path Targeting in Speedup Crawler
 - **Konteks Struktural**:
   - Penjelajahan Berkas Hierarki Tingkat Direktori (*Strict Directory Hierarchy Path Navigation*) ([crawl_speedup_drive.js](file:///d:/projects/clipping/scheduler-uploader/crawl_speedup_drive.js)):

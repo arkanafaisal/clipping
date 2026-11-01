@@ -6,6 +6,7 @@
 
 export interface YtdlOpts {
   format?: string;
+  format_sort?: string[];
   skip_download?: boolean;
   quiet?: boolean;
   no_warnings?: boolean;
@@ -23,10 +24,12 @@ export interface YtdlOpts {
 /**
  * Konfigurasi Stream Langsung (Mobile Native Playback):
  * - Resolusi: Maksimal 480p MP4 (ringan dan hemat kuota)
+ * - Audio: Memprioritaskan track audio original / bahasa asli kreator
  * - Client: iOS & Android (Bypass BotGuard dan aman dari challenge SABR)
  */
 export const STREAM_YTDL_OPTS: YtdlOpts = {
   format: 'best[height<=480][ext=mp4]/best[ext=mp4]',
+  format_sort: ['lang', 'format_note:original', 'quality', 'res', 'fps', 'abr'],
   skip_download: true,
   quiet: true,
   no_warnings: true,
@@ -58,19 +61,23 @@ export const HEATMAP_YTDL_OPTS: YtdlOpts = {
 /**
  * Konfigurasi Download Klip Fisik (Masa Depan / Full Quality):
  * - Kualitas: Fixed 1080p / 720p (tidak boleh turun kualitas)
+ * - Audio: Memprioritaskan audio asli kreator dan memfilter track AI auto-dubbing
  * - Client: Web / TV
  */
 export const DOWNLOAD_YTDL_OPTS: YtdlOpts = {
-  format: 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080][ext=mp4]',
+  format: 'bestvideo[height<=1080][ext=mp4]+(bestaudio[format_note*=original][ext=m4a]/bestaudio[format_note!*=dubbed][ext=m4a]/bestaudio[ext=m4a])/best[height<=1080][ext=mp4]',
+  format_sort: ['lang', 'format_note:original', 'quality', 'res', 'fps', 'abr'],
 };
 
 /**
  * Konfigurasi Download Proxy Full Video (Ringan untuk Player UI):
  * - Resolusi: 480p MP4 H.264
+ * - Audio: Memprioritaskan track audio original / bahasa asli kreator
  * - Client: iOS & Android (Bypass BotGuard dan aman dari rate limit)
  */
 export const PROXY_FULL_VIDEO_YTDL_OPTS: YtdlOpts = {
   format: 'best[height<=480][ext=mp4]/best[ext=mp4]',
+  format_sort: ['lang', 'format_note:original', 'quality', 'res', 'fps', 'abr'],
   quiet: true,
   no_warnings: true,
   nocheckcertificate: true,
@@ -85,11 +92,13 @@ export const PROXY_FULL_VIDEO_YTDL_OPTS: YtdlOpts = {
  * Konfigurasi Download Klip Fisik (Prime Quality + Stream Reconnect + Retries):
  * - Kualitas: Prime HD asli YouTube (bestvideo+bestaudio merged ke MP4 1080p 60fps)
  * - Ekstraksi: Multi-client standar yt-dlp (menghindari blokir format YouTube web)
+ * - Audio: Memprioritaskan audio original kreator dan mengecualikan track auto-dubbing / dubbed
  * - FFmpeg: Reconnect streamed stream dan ultrafast encoding
  * - Retry: 15x retry untuk fragment & socket timeout 60s
  */
 export const PRIME_CLIP_DOWNLOAD_OPTS: YtdlOpts = {
-  format: 'bestvideo+bestaudio/best',
+  format: 'bestvideo+(bestaudio[format_note*=original]/bestaudio[format_note!*=dubbed]/bestaudio)/best',
+  format_sort: ['lang', 'format_note:original', 'quality', 'res', 'fps', 'abr'],
   merge_output_format: 'mp4',
   quiet: false,
   no_warnings: true,
