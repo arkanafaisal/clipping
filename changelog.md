@@ -12,9 +12,29 @@ Format Entri:
 
 ---
 
-<!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
-
-## [Unreleased] - Force Original Creator Audio and Filter AI Auto-Dubbed Tracks Across Clip and Full Video Downloads
+<!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
+
+## [Unreleased] - Initialize Programmatic Video Studio Workspace with Vite, React 19, Tailwind CSS v4, and Remotion
+- **Konteks Struktural**:
+  - Inisialisasi Ruang Kerja Programmatic Video Editing ([video-editor/](file:///d:/projects/clipping/video-editor)):
+    - **Penyebab & Kebutuhan**: Proses penyuntingan video langsung melalui skrip FFmpeg (`scheduler-uploader`) menyulitkan verifikasi visual sebelum menjalankan kompilasi penuh. Pengembang memerlukan umpan balik visual instan (*real-time hot-reloading*) untuk melihat tata letak, posisi kartu roulette, efek spotlight, subtitle, dan kurva deselerasi secara langsung di peramban web tanpa harus menunggu proses kompilasi video FFmpeg yang memakan waktu.
+    - **Solusi**:
+      1. Membuat workspace baru `video-editor` di root berbasis **Vite + React 19 + TypeScript**.
+      2. Mengintegrasikan **Tailwind CSS v4** (`@tailwindcss/vite` & `@import "tailwindcss";`) tanpa konfigurasi boilerplate CSS manual (*zero-config raw CSS*).
+      3. Memasang pustaka **Remotion** (`remotion` & `@remotion/player`) untuk rendering video deklaratif berbasis komponen web.
+      4. Menyusun komposisi video vertikal 9:16 (`VerticalShortsComposition.tsx`) beresolusi 1080x1920 @ 30 FPS yang memvisualisasikan header game, bar subtitle dinamis, spotlight overlay gelap, dan simulasi jalur putaran kartu roulette.
+      5. Membangun workbench interaktif di `App.tsx` dengan kendali live parameter (judul, timestamp, jalur aktif roulette, slider spotlight dim opacity) serta pemutar video terintegrasi (@remotion/player) berfitur timeline scrubber, play/pause, dan kecepatan putar dinamis.
+- **Perubahan Kode Penting**:
+  - `video-editor/package.json`: Menambahkan dependensi `remotion`, `@remotion/player`, `react`, `react-dom`, `@tailwindcss/vite`, `tailwindcss`, dan `lucide-react`.
+  - `video-editor/vite.config.ts`: Mengonfigurasi plugin Vite React dan Tailwind CSS v4 pada port dev server 5174.
+  - `video-editor/src/index.css`: Menerapkan `@import "tailwindcss";` dan penataan styling gelap dasar.
+  - `video-editor/src/remotion/types.ts`: Menetapkan antarmuka tipe parameter komposisi vertikal (`VerticalVideoProps`).
+  - `video-editor/src/remotion/compositions/VerticalShortsComposition.tsx`: Mengembangkan komponen komposisi video 9:16 dengan animasi spring header, spotlight carousel kartu roulette, pointer tunggal tengah, dan progress bar.
+  - `video-editor/src/remotion/Root.tsx`: Mendaftarkan komposisi `VerticalShorts` berdurasi 180 frame (6 detik) 1080x1920.
+  - `video-editor/src/App.tsx`: Antarmuka studio pengembang dengan Player Remotion dan panel kontrol parameter real-time.
+  - `video-editor/README.md`: Panduan eksekusi dan arsitektur workspace.
+
+## [147d90f] - Force Original Creator Audio and Filter AI Auto-Dubbed Tracks Across Clip and Full Video Downloads
 - **Konteks Struktural**:
   - Eliminasi Audio AI Auto-Dubbing / Penyelarasan Bahasa Asli Video ([ytdlp.ts](file:///d:/projects/clipping/mobile/src/constants/ytdlp.ts), [clip_downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/clip_downloader.py), [downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/downloader.py)):
     - **Penyebab Masalah**: Fitur multi-audio dan auto-dubbing YouTube secara otomatis menyertakan audio berbahasa Inggris (AI-generated auto-dubbed track) pada format terpisah (DASH / HLS / m4a). Saat melakukan stream preview (seleksi klip 480p), aplikasi memutar video progressive MP4 yang selalu menggunakan audio asli kreator (Bahasa Indonesia). Namun saat tombol download ditekan:
