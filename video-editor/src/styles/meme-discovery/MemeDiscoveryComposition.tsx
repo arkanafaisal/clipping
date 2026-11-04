@@ -26,6 +26,11 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
   passiveName,
   passiveDesc,
   cardColor,
+  titleFontSize,
+  rarityFontSize,
+  descFontSize,
+  passiveNameFontSize,
+  passiveDescFontSize,
   cardImageSrc,
   lastFrameImage,
   targetFrameImage,
@@ -174,6 +179,11 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
             passiveName={passiveName}
             passiveDesc={passiveDesc}
             cardColor={cardColor}
+            titleFontSize={titleFontSize}
+            rarityFontSize={rarityFontSize}
+            descFontSize={descFontSize}
+            passiveNameFontSize={passiveNameFontSize}
+            passiveDescFontSize={passiveDescFontSize}
             imageSrc={cardImageSrc}
             targetFrameImage={targetFrameImage}
             slideProgress={cardSpring}

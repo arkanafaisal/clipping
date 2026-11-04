@@ -8,6 +8,12 @@ interface PokemonCardProps {
   passiveName?: string;
   passiveDesc?: string;
   cardColor?: string; // Warna kustom kartu (hex, misal: "#f59e0b")
+  // Pengaturan ukuran font kustom (pixel)
+  titleFontSize?: number;
+  rarityFontSize?: number;
+  descFontSize?: number;
+  passiveNameFontSize?: number;
+  passiveDescFontSize?: number;
   imageSrc?: string;
   targetFrameImage?: string;
   slideProgress: number; // 0 to 1 (slide-up entrance from bottom)
@@ -21,6 +27,11 @@ export const PokemonCard: React.FC<PokemonCardProps> = ({
   passiveName,
   passiveDesc,
   cardColor = '#f59e0b',
+  titleFontSize = 48,
+  rarityFontSize = 24,
+  descFontSize = 30,
+  passiveNameFontSize = 30,
+  passiveDescFontSize = 24,
   imageSrc,
   targetFrameImage,
   slideProgress,
@@ -117,19 +128,25 @@ export const PokemonCard: React.FC<PokemonCardProps> = ({
           className="flex flex-row items-baseline justify-between gap-4 w-full pb-2 border-b"
           style={{ borderColor: `${cardColor}40` }}
         >
-          <h2 className="text-5xl font-black text-white text-left tracking-tight drop-shadow-[0_2px_10px_rgba(0,0,0,0.9)] leading-[1.25] pb-1 min-w-0 truncate">
+          <h2
+            className="font-black text-white text-left tracking-tight drop-shadow-[0_2px_10px_rgba(0,0,0,0.9)] leading-[1.25] pb-1 min-w-0 truncate"
+            style={{ fontSize: `${titleFontSize}px` }}
+          >
             {displayTitle}
           </h2>
           <span
-            className="text-2xl font-black tracking-wider uppercase shrink-0 drop-shadow"
-            style={{ color: cardColor }}
+            className="font-black tracking-wider uppercase shrink-0 drop-shadow"
+            style={{ color: cardColor, fontSize: `${rarityFontSize}px` }}
           >
             {displayRarity}
           </span>
         </div>
 
-        {/* DIBAWAHNYA LAGI: Deskripsi Biasa (Left Align, Ukuran text-3xl jelas terbaca) */}
-        <p className="text-3xl text-neutral-200 text-left leading-relaxed font-normal w-full px-1 whitespace-pre-line drop-shadow">
+        {/* DIBAWAHNYA LAGI: Deskripsi Biasa (Left Align) */}
+        <p
+          className="text-neutral-200 text-left leading-relaxed font-normal w-full px-1 whitespace-pre-line drop-shadow"
+          style={{ fontSize: `${descFontSize}px` }}
+        >
           {displayDesc}
         </p>
 
@@ -146,13 +163,16 @@ export const PokemonCard: React.FC<PokemonCardProps> = ({
             }}
           >
             <span
-              className="text-3xl font-black uppercase tracking-wider"
-              style={{ color: cardColor }}
+              className="font-black uppercase tracking-wider"
+              style={{ color: cardColor, fontSize: `${passiveNameFontSize}px` }}
             >
               {displayPassiveName}
             </span>
           </div>
-          <p className="text-2xl text-neutral-300 text-left leading-relaxed font-normal px-1 whitespace-pre-line w-full">
+          <p
+            className="text-neutral-300 text-left leading-relaxed font-normal px-1 whitespace-pre-line w-full"
+            style={{ fontSize: `${passiveDescFontSize}px` }}
+          >
             {displayPassiveDesc}
           </p>
         </div>

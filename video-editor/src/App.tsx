@@ -45,6 +45,23 @@ export default function App() {
     initialMeme.cardColor || '#f59e0b'
   );
 
+  // Ukuran font teks kartu (dalam pixel, dapat disetel langsung oleh pengguna)
+  const [titleFontSize, setTitleFontSize] = useState<number>(
+    initialMeme.titleFontSize || 48
+  );
+  const [rarityFontSize, setRarityFontSize] = useState<number>(
+    initialMeme.rarityFontSize || 24
+  );
+  const [descFontSize, setDescFontSize] = useState<number>(
+    initialMeme.descFontSize || 30
+  );
+  const [passiveNameFontSize, setPassiveNameFontSize] = useState<number>(
+    initialMeme.passiveNameFontSize || 30
+  );
+  const [passiveDescFontSize, setPassiveDescFontSize] = useState<number>(
+    initialMeme.passiveDescFontSize || 24
+  );
+
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
 
@@ -60,6 +77,11 @@ export default function App() {
       if (md.passiveName !== undefined) setPassiveName(md.passiveName);
       if (md.passiveDesc !== undefined) setPassiveDesc(md.passiveDesc);
       if (md.cardColor !== undefined) setCardColor(md.cardColor);
+      if (md.titleFontSize) setTitleFontSize(md.titleFontSize);
+      if (md.rarityFontSize) setRarityFontSize(md.rarityFontSize);
+      if (md.descFontSize) setDescFontSize(md.descFontSize);
+      if (md.passiveNameFontSize) setPassiveNameFontSize(md.passiveNameFontSize);
+      if (md.passiveDescFontSize) setPassiveDescFontSize(md.passiveDescFontSize);
     }
   }, [initialData]);
 
@@ -80,6 +102,11 @@ export default function App() {
             if (md.passiveName !== undefined) setPassiveName(md.passiveName);
             if (md.passiveDesc !== undefined) setPassiveDesc(md.passiveDesc);
             if (md.cardColor !== undefined) setCardColor(md.cardColor);
+            if (md.titleFontSize) setTitleFontSize(md.titleFontSize);
+            if (md.rarityFontSize) setRarityFontSize(md.rarityFontSize);
+            if (md.descFontSize) setDescFontSize(md.descFontSize);
+            if (md.passiveNameFontSize) setPassiveNameFontSize(md.passiveNameFontSize);
+            if (md.passiveDescFontSize) setPassiveDescFontSize(md.passiveDescFontSize);
           }
         }
       })
@@ -169,6 +196,11 @@ export default function App() {
               passiveName,
               passiveDesc,
               cardColor,
+              titleFontSize,
+              rarityFontSize,
+              descFontSize,
+              passiveNameFontSize,
+              passiveDescFontSize,
             },
           };
         }
@@ -226,6 +258,11 @@ export default function App() {
                 passiveName: passiveName || undefined,
                 passiveDesc: passiveDesc || undefined,
                 cardColor: cardColor || '#f59e0b',
+                titleFontSize,
+                rarityFontSize,
+                descFontSize,
+                passiveNameFontSize,
+                passiveDescFontSize,
               }}
               durationInFrames={totalFrames}
               fps={30}
@@ -319,30 +356,62 @@ export default function App() {
 
               {/* 2. Judul Kartu */}
               <div>
-                <label className="text-xs font-bold text-neutral-300 block mb-1">
-                  Judul Kartu
-                </label>
-                <input
-                  type="text"
-                  value={cardTitle}
-                  onChange={(e) => setCardTitle(e.target.value)}
-                  placeholder="judul kartu"
-                  className="w-full bg-black border border-neutral-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 transition-colors"
-                />
+                <div className="flex justify-between items-center mb-1">
+                  <label className="text-xs font-bold text-neutral-300">
+                    Judul Kartu
+                  </label>
+                  <span className="text-[10px] text-neutral-500 font-mono">Font Size</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={cardTitle}
+                    onChange={(e) => setCardTitle(e.target.value)}
+                    placeholder="judul kartu"
+                    className="flex-1 bg-black border border-neutral-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 transition-colors"
+                  />
+                  <div className="flex items-center gap-1 shrink-0 bg-neutral-900 border border-neutral-800 rounded-xl px-2 py-1.5" title="Ukuran Font Judul (px)">
+                    <input
+                      type="number"
+                      min="16"
+                      max="100"
+                      value={titleFontSize}
+                      onChange={(e) => setTitleFontSize(Number(e.target.value) || 16)}
+                      className="w-8 bg-transparent text-xs text-amber-400 font-mono text-center focus:outline-none"
+                    />
+                    <span className="text-[10px] text-neutral-500 font-mono">px</span>
+                  </div>
+                </div>
               </div>
 
               {/* 3. Rarity */}
               <div>
-                <label className="text-xs font-bold text-neutral-300 block mb-1">
-                  Rarity Kartu
-                </label>
-                <input
-                  type="text"
-                  value={cardRarity}
-                  onChange={(e) => setCardRarity(e.target.value)}
-                  placeholder="rarity"
-                  className="w-full bg-black border border-neutral-800 rounded-xl px-3 py-2 text-xs text-amber-400 font-bold focus:outline-none focus:border-amber-500 transition-colors"
-                />
+                <div className="flex justify-between items-center mb-1">
+                  <label className="text-xs font-bold text-neutral-300">
+                    Rarity Kartu
+                  </label>
+                  <span className="text-[10px] text-neutral-500 font-mono">Font Size</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={cardRarity}
+                    onChange={(e) => setCardRarity(e.target.value)}
+                    placeholder="rarity"
+                    className="flex-1 bg-black border border-neutral-800 rounded-xl px-3 py-2 text-xs text-amber-400 font-bold focus:outline-none focus:border-amber-500 transition-colors"
+                  />
+                  <div className="flex items-center gap-1 shrink-0 bg-neutral-900 border border-neutral-800 rounded-xl px-2 py-1.5" title="Ukuran Font Rarity (px)">
+                    <input
+                      type="number"
+                      min="12"
+                      max="80"
+                      value={rarityFontSize}
+                      onChange={(e) => setRarityFontSize(Number(e.target.value) || 12)}
+                      className="w-8 bg-transparent text-xs text-amber-400 font-mono text-center focus:outline-none"
+                    />
+                    <span className="text-[10px] text-neutral-500 font-mono">px</span>
+                  </div>
+                </div>
               </div>
 
               {/* 4. Warna Tema Kartu */}
@@ -370,44 +439,92 @@ export default function App() {
 
               {/* 5. Deskripsi Kartu (Biasa) */}
               <div>
-                <label className="text-xs font-bold text-neutral-300 block mb-1">
-                  Deskripsi Kartu (Maks 40 Kata)
-                </label>
-                <textarea
-                  rows={2}
-                  value={cardDesc}
-                  onChange={(e) => setCardDesc(e.target.value)}
-                  placeholder="ini deskripsi panjang, maksimal 40 kata"
-                  className="w-full bg-black border border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-200 focus:outline-none focus:border-amber-500 transition-colors resize-none"
-                />
+                <div className="flex justify-between items-center mb-1">
+                  <label className="text-xs font-bold text-neutral-300">
+                    Deskripsi Kartu (Maks 40 Kata)
+                  </label>
+                  <span className="text-[10px] text-neutral-500 font-mono">Font Size</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <textarea
+                    rows={2}
+                    value={cardDesc}
+                    onChange={(e) => setCardDesc(e.target.value)}
+                    placeholder="ini deskripsi panjang, maksimal 40 kata"
+                    className="flex-1 bg-black border border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-200 focus:outline-none focus:border-amber-500 transition-colors resize-none"
+                  />
+                  <div className="flex items-center gap-1 shrink-0 bg-neutral-900 border border-neutral-800 rounded-xl px-2 py-1.5 mt-0.5" title="Ukuran Font Deskripsi (px)">
+                    <input
+                      type="number"
+                      min="12"
+                      max="80"
+                      value={descFontSize}
+                      onChange={(e) => setDescFontSize(Number(e.target.value) || 12)}
+                      className="w-8 bg-transparent text-xs text-amber-400 font-mono text-center focus:outline-none"
+                    />
+                    <span className="text-[10px] text-neutral-500 font-mono">px</span>
+                  </div>
+                </div>
               </div>
 
               {/* 6. Nama Pasif (Jimat / Kekuatan Lucu) */}
               <div>
-                <label className="text-xs font-bold text-neutral-300 block mb-1">
-                  Nama Pasif (Jimat)
-                </label>
-                <input
-                  type="text"
-                  value={passiveName}
-                  onChange={(e) => setPassiveName(e.target.value)}
-                  placeholder="pasif"
-                  className="w-full bg-black border border-neutral-800 rounded-xl px-3 py-2 text-xs text-amber-300 font-semibold focus:outline-none focus:border-amber-500 transition-colors"
-                />
+                <div className="flex justify-between items-center mb-1">
+                  <label className="text-xs font-bold text-neutral-300">
+                    Nama Pasif (Jimat)
+                  </label>
+                  <span className="text-[10px] text-neutral-500 font-mono">Font Size</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={passiveName}
+                    onChange={(e) => setPassiveName(e.target.value)}
+                    placeholder="pasif"
+                    className="flex-1 bg-black border border-neutral-800 rounded-xl px-3 py-2 text-xs text-amber-300 font-semibold focus:outline-none focus:border-amber-500 transition-colors"
+                  />
+                  <div className="flex items-center gap-1 shrink-0 bg-neutral-900 border border-neutral-800 rounded-xl px-2 py-1.5" title="Ukuran Font Nama Pasif (px)">
+                    <input
+                      type="number"
+                      min="14"
+                      max="80"
+                      value={passiveNameFontSize}
+                      onChange={(e) => setPassiveNameFontSize(Number(e.target.value) || 14)}
+                      className="w-8 bg-transparent text-xs text-amber-400 font-mono text-center focus:outline-none"
+                    />
+                    <span className="text-[10px] text-neutral-500 font-mono">px</span>
+                  </div>
+                </div>
               </div>
 
               {/* 7. Deskripsi Pasif */}
               <div>
-                <label className="text-xs font-bold text-neutral-300 block mb-1">
-                  Deskripsi Pasif
-                </label>
-                <textarea
-                  rows={2}
-                  value={passiveDesc}
-                  onChange={(e) => setPassiveDesc(e.target.value)}
-                  placeholder="ini deskripsi pasif"
-                  className="w-full bg-black border border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-300 focus:outline-none focus:border-amber-500 transition-colors resize-none"
-                />
+                <div className="flex justify-between items-center mb-1">
+                  <label className="text-xs font-bold text-neutral-300">
+                    Deskripsi Pasif
+                  </label>
+                  <span className="text-[10px] text-neutral-500 font-mono">Font Size</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <textarea
+                    rows={2}
+                    value={passiveDesc}
+                    onChange={(e) => setPassiveDesc(e.target.value)}
+                    placeholder="ini deskripsi pasif"
+                    className="flex-1 bg-black border border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-300 focus:outline-none focus:border-amber-500 transition-colors resize-none"
+                  />
+                  <div className="flex items-center gap-1 shrink-0 bg-neutral-900 border border-neutral-800 rounded-xl px-2 py-1.5 mt-0.5" title="Ukuran Font Deskripsi Pasif (px)">
+                    <input
+                      type="number"
+                      min="12"
+                      max="80"
+                      value={passiveDescFontSize}
+                      onChange={(e) => setPassiveDescFontSize(Number(e.target.value) || 12)}
+                      className="w-8 bg-transparent text-xs text-amber-400 font-mono text-center focus:outline-none"
+                    />
+                    <span className="text-[10px] text-neutral-500 font-mono">px</span>
+                  </div>
+                </div>
               </div>
 
               {/* Tombol Simpan ke data.json */}

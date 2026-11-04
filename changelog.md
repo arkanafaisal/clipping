@@ -14,7 +14,20 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Animal Kaiser 2:3 Card Ratio, Flex Row Title/Rarity, Left Alignment, Descender Clipping Fix, and Custom Theme Color
+## [Unreleased] - Per-Field Card Font Size Controls in Sidebar and Dynamic Inline Styling
+- **Konteks Struktural**:
+  - Penambahan Kontrol Ukuran Font Per-Input Teks Kartu ([App.tsx](file:///d:/projects/clipping/video-editor/src/App.tsx), [PokemonCard.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/PokemonCard.tsx), [MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), [types.ts](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/types.ts), [data.json](file:///d:/projects/clipping/video-editor/src/data.json)):
+    - **Penyebab & Kebutuhan**: Pengguna meminta agar setiap input teks kartu (Judul, Rarity, Deskripsi, Nama Pasif, Deskripsi Pasif) dilengkapi input ukuran font (fontSize dalam px) di sisi kanannya, sehingga pengguna memiliki kebebasan penuh untuk menyesuaikan ukuran teks yang paling proporsional sesuai panjang kalimat masing-masing.
+    - **Solusi**:
+      1. Di [`App.tsx`](file:///d:/projects/clipping/video-editor/src/App.tsx), menambahkan input number fontSize (dengan indikator `px`) persis di sebelah kanan setiap input teks kartu, mengikatnya dengan state (`titleFontSize`, `rarityFontSize`, `descFontSize`, `passiveNameFontSize`, `passiveDescFontSize`), serta menyimpannya ke `data.json`.
+      2. Di [`PokemonCard.tsx`](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/PokemonCard.tsx), menerapkan nilai fontSize tersebut secara inline (`style={{ fontSize: `${...}px` }}`) dengan default terukur (48px judul, 24px rarity, 30px deskripsi, 30px nama pasif, 24px deskripsi pasif).
+      3. Di [`types.ts`](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/types.ts) dan [`MemeDiscoveryComposition.tsx`](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), menambahkan dukungan prop untuk kelima nilai fontSize.
+- **Perubahan Kode Penting**:
+  - `video-editor/src/App.tsx`: Form input ukuran font di sebelah kanan setiap input teks kartu.
+  - `video-editor/src/styles/meme-discovery/components/PokemonCard.tsx`: Penerapan dinamis `fontSize` inline style per elemen teks.
+  - `video-editor/src/data.json`: Penyimpanan properti font size ke metadata momen.
+
+## [119e896] - Animal Kaiser 2:3 Card Ratio, Flex Row Title/Rarity, Left Alignment, Descender Clipping Fix, and Custom Theme Color
 - **Konteks Struktural**:
   - Penegakan Rasio 2:3 Animal Kaiser, Format Rata Kiri & Kustomisasi Warna ([PokemonCard.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/PokemonCard.tsx), [MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), [types.ts](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/types.ts), [App.tsx](file:///d:/projects/clipping/video-editor/src/App.tsx), [data.json](file:///d:/projects/clipping/video-editor/src/data.json)):
     - **Penyebab & Kebutuhan**:

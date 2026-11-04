@@ -1,5 +1,5 @@
 {
-  "lastUpdate": "2026-11-04 16:50:36",
+  "lastUpdate": "2026-11-04 16:55:55",
   "totalMoments": 1,
   "moments": [
     {
@@ -34,9 +34,14 @@
         "cardTitle": "jangan jemput aku..",
         "cardRarity": "EPIC",
         "cardDesc": "Pria tua yang masih mau hidup",
-        "passiveName": "Tatapan Kutukan Hoki",
+        "passiveName": "kesempatan kedua",
         "passiveDesc": "Memberikan kekebalan dari rasa kaget dan memicu auto-subscribe bagi penonton yang tertawa.",
-        "cardColor": "#f59e0b"
+        "cardColor": "#f59e0b",
+        "titleFontSize": 50,
+        "rarityFontSize": 24,
+        "descFontSize": 30,
+        "passiveNameFontSize": 30,
+        "passiveDescFontSize": 24
       }
     }
   ]
