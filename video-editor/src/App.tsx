@@ -145,27 +145,8 @@ export default function App() {
     ? `/temp/${currentMoment.path}/image.jpg`
     : undefined;
 
-  // Tangkapan frame beku statis (canvas) agar bebas jeda hitam & bebas seek delay
-  const [lastFrameImage, setLastFrameImage] = useState<string | undefined>();
+  // Tangkapan frame beku statis target x momen puncak (canvas)
   const [targetFrameImage, setTargetFrameImage] = useState<string | undefined>();
-
-  // 1. Ekstrak frame terakhir video (untuk fase jeda & rewind, diekstrak sekali per video)
-  useEffect(() => {
-    if (!videoSrc) return;
-    let isCancelled = false;
-
-    captureVideoFrame(videoSrc, Math.max(0, videoDurationSeconds - 0.45))
-      .then((lastImg) => {
-        if (!isCancelled) setLastFrameImage(lastImg);
-      })
-      .catch((err) => {
-        console.warn('Gagal ekstrak last frame:', err);
-      });
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [videoSrc, videoDurationSeconds]);
 
   // 2. Ekstrak frame target x momen puncak (update dinamis saat user mengubah timestamp, debounced 200ms)
   useEffect(() => {
@@ -271,7 +252,6 @@ export default function App() {
                 targetUndoTimestamp: targetTimestamp,
                 totalVideoDurationSeconds: videoDurationSeconds,
                 cardImageSrc: imageSrc,
-                lastFrameImage,
                 targetFrameImage,
                 title: currentMoment?.memeDiscovery?.title || 'Meme Discovery: Momen Langka!',
                 gameTitle: currentMoment?.name || 'Grim Reaper',

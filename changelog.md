@@ -14,7 +14,21 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - 3D Perspective Card Flip Reveal Entrance Animation with Text Unveiling at Zero-Width Edge
+## [Unreleased] - Elimination of Last-Frame Canvas Extraction in Favor of Seamless In-Place Video Freeze
+- **Konteks Struktural**:
+  - Penghapusan Mekanisme Ekstraksi Frame Terakhir & Penerapan Freeze Alami In-Place ([MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), [App.tsx](file:///d:/projects/clipping/video-editor/src/App.tsx), [types.ts](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/types.ts)):
+    - **Penyebab & Kebutuhan**: Mekanisme `lastFrameImage` sebelumnya mengekstrak frame menggunakan kanvas offscreen di `videoDurationSeconds - 0.45` yang menyebabkan efek melompat (frame jump) saat pergantian dari video bergerak ke gambar statis. Pengguna meminta mekanisme capture frame terakhir dihilangkan sepenuhnya: video dibiarkan diputar biasa, tidak langsung di-unmount/dihancurkan saat selesai, tidak melakukan replay/jump back, ditahan (freeze) selama jeda pause dan animasi skip mundur YouTube, dan baru ditutup/dilepas setelah tertutupi penuh secara sempurna oleh frame puncak target x (`targetFrameImage`).
+    - **Solusi**:
+      1. Di [`MemeDiscoveryComposition.tsx`](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), membungkus pemutar `<Video>` dalam komponen bawaan Remotion `<Freeze frame={Math.min(frame, playEndFrame - 1)}>`. Dengan ini, saat video mencapai frame akhir, pemutar video tetap berada di DOM dan terkunci mulus di frame terakhir (`playEndFrame - 1`) tanpa pernah memicu event ended, replay, maupun seek jump.
+      2. Mempertahankan pemutar video yang ter-freeze tersebut aktif selama fase jeda pause dan efek skip YouTube (`frame < skipEndFrame`).
+      3. Begitu animasi skip selesai (`frame >= skipEndFrame`), gambar frame puncak target x (`targetFrameImage`) yang memiliki ukuran identik 1080x1920 menutupi layar 100%, sehingga `<Video>` aman dilepas tanpa risiko jeda atau glitch visual.
+      4. Di [`App.tsx`](file:///d:/projects/clipping/video-editor/src/App.tsx) dan [`types.ts`](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/types.ts), menghapus seluruh state, hook ekstraksi kanvas, dan prop `lastFrameImage`, menghemat beban komputasi dan memori browser secara signifikan.
+- **Perubahan Kode Penting**:
+  - `video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx`: Penggunaan `<Freeze frame={Math.min(frame, playEndFrame - 1)}>` untuk freeze in-place tanpa jump.
+  - `video-editor/src/App.tsx`: Penghapusan state dan ekstraksi `lastFrameImage`.
+  - `video-editor/src/styles/meme-discovery/types.ts`: Pembersihan interface prop dari `lastFrameImage`.
+
+## [f882fd1] - 3D Perspective Card Flip Reveal Entrance Animation with Text Unveiling at Zero-Width Edge
 - **Konteks Struktural**:
   - Peningkatan Animasi Masuk Kartu Menjadi 3D Perspective Flip ([PokemonCard.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/PokemonCard.tsx), [MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx)):
     - **Penyebab & Kebutuhan**: Pengguna menginginkan animasi masuk kartu yang jauh lebih dinamis dan sinematik: kartu muncul dari bawah dalam ukuran kecil dengan hanya menampilkan kartu dan gambarnya saja (seluruh teks disembunyikan/opacity 0). Begitu mencapai tengah, kartu berputar secara 3D horizontal (membalik kartu ke arah kamera). Tepat saat kartu berada di titik tengah putaran dengan proyeksi lebar paling tipis (edge-on view / zero-width), teks dimunculkan (opacity 1), lalu kartu menyelesaikan putaran dan membesar penuh ke ukuran normal (scale 1.0).

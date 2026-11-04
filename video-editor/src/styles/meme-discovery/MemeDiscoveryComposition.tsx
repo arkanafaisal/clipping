@@ -1,8 +1,8 @@
 import React from 'react';
 import {
   AbsoluteFill,
+  Freeze,
   Img,
-  Sequence,
   spring,
   useCurrentFrame,
   useVideoConfig,
@@ -33,7 +33,6 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
   passiveNameFontSize,
   passiveDescFontSize,
   cardImageSrc,
-  lastFrameImage,
   targetFrameImage,
   showSafeZoneGuides = false,
 }) => {
@@ -75,7 +74,6 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
 
   // ========================================================
   // STATE FASE AKTIF:
-  const isPlayingFull = frame < playEndFrame;
   const isEndPaused = frame >= playEndFrame && frame < skipStartFrame;
   const isSkipping = frame >= skipStartFrame && frame < skipEndFrame;
   const isFlashing = frame >= flashStartFrame && frame < flashEndFrame;
@@ -96,41 +94,34 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
   return (
     <AbsoluteFill className="bg-black text-white font-sans overflow-hidden select-none">
       {/* ======================================================== */}
-      {/* 1. LAYER VIDEO / GAMBAR FRAME BEKU (Zero Stalls / 0 Seek)  */}
+      {/* 1. LAYER VIDEO SEAMLESS: Play natural & Freeze di akhir  */}
+      {/* Tanpa destroy/jump, video ditahan hingga frame puncak    */}
       {/* ======================================================== */}
       <AbsoluteFill className="overflow-hidden flex items-center justify-center bg-black">
-        {/* A. Video diputar murni hanya pada rentang Sequence (0 -> playEndFrame) */}
-        {isPlayingFull && videoSrc && (
-          <Sequence from={0} durationInFrames={playEndFrame}>
+        {/* A. Video diputar murni & difreeze di frame terakhir selama jeda pause & skip YouTube (tanpa destroy/jump/replay) */}
+        {frame < skipEndFrame && videoSrc && (
+          <Freeze frame={Math.min(frame, playEndFrame - 1)}>
             <Video
               src={videoSrc}
               className="w-full h-full object-cover"
             />
-          </Sequence>
+          </Freeze>
         )}
 
-        {/* B. Setelah video selesai & selama jeda pause serta skip YouTube: Gambar statis frame terakhir */}
-        {!isPlayingFull && frame < skipEndFrame && (
-          lastFrameImage ? (
-            <Img
-              src={lastFrameImage}
-              className="w-full h-full object-cover"
-            />
-          ) : null
-        )}
-
-        {/* C. Setelah skip YouTube selesai: Frame puncak target x murni dari full video (BUKAN image.jpg kartu) */}
-        {!isPlayingFull && frame >= skipEndFrame && (
+        {/* B. Setelah animasi skip YouTube selesai: Frame puncak target x (menutupi penuh layar 100%) */}
+        {frame >= skipEndFrame && (
           targetFrameImage ? (
             <Img
               src={targetFrameImage}
               className="w-full h-full object-cover"
             />
-          ) : lastFrameImage ? (
-            <Img
-              src={lastFrameImage}
-              className="w-full h-full object-cover"
-            />
+          ) : videoSrc ? (
+            <Freeze frame={playEndFrame - 1}>
+              <Video
+                src={videoSrc}
+                className="w-full h-full object-cover"
+              />
+            </Freeze>
           ) : null
         )}
 
