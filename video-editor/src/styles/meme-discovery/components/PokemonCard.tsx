@@ -67,11 +67,11 @@ export const PokemonCard: React.FC<PokemonCardProps> = ({
         opacity: Math.min(1, slideProgress * 2.5),
       }}
     >
-      {/* 1. Holographic Rainbow Sheen Foil Layer */}
+      {/* 1. Holographic Rainbow Sheen Foil Layer (GPU Accelerated Alpha Blending) */}
       <div
-        className="absolute inset-0 pointer-events-none opacity-35 mix-blend-color-dodge z-30"
+        className="absolute inset-0 pointer-events-none opacity-30 z-30"
         style={{
-          background: `linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.85) 45%, rgba(255,215,0,0.85) 50%, rgba(0,255,255,0.85) 55%, transparent 75%)`,
+          background: `linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.7) 45%, rgba(255,220,120,0.75) 50%, rgba(130,240,255,0.7) 55%, transparent 75%)`,
           transform: `translateX(${shineX}%)`,
         }}
       />

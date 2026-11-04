@@ -1,8 +1,8 @@
 import React from 'react';
 import {
   AbsoluteFill,
-  Freeze,
   Img,
+  Sequence,
   spring,
   useCurrentFrame,
   useVideoConfig,
@@ -45,11 +45,10 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
 
   // 1. Posisi timestamp target x (relatif dari detik 0)
   const targetUndoSeconds = parseTimestampToSeconds(targetUndoTimestamp);
-  const targetFrame = Math.round(targetUndoSeconds * fps);
 
-  // 2. Durasi video penuh
+  // 2. Durasi video penuh (berhenti 0.08s sebelum EOF fisik agar browser tidak freeze di event 'ended')
   const totalSeconds = totalVideoDurationSeconds || 10.95;
-  const playEndFrame = Math.round(totalSeconds * fps); // frame akhir video
+  const playEndFrame = Math.max(1, Math.floor((totalSeconds - 0.08) * fps));
 
   // Jumlah detik lompatan mundur: total - x detik
   const skipAmountSeconds = Math.max(0, totalSeconds - targetUndoSeconds);
@@ -82,9 +81,7 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
   const isPlayingFull = frame < playEndFrame;
   const isEndPaused = frame >= playEndFrame && frame < skipStartFrame;
   const isSkipping = frame >= skipStartFrame && frame < skipEndFrame;
-  const isViewingFunnyFrame = frame >= skipEndFrame && frame < flashStartFrame;
   const isFlashing = frame >= flashStartFrame && frame < flashEndFrame;
-  const isPostFlashPause = frame >= flashEndFrame && frame < cardStartFrame;
   const isCardRevealed = frame >= cardStartFrame;
 
   // Progress flash shutter
@@ -102,58 +99,52 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
   return (
     <AbsoluteFill className="bg-black text-white font-sans overflow-hidden select-none">
       {/* ======================================================== */}
-      {/* 1. VIDEO LAYER: Mengisi Penuh 100% Canvas 1080x1920        */}
-      {/*    Video full.mp4 sudah memiliki format 9:16 dan safe zone */}
+      {/* 1. LAYER VIDEO / GAMBAR FRAME BEKU (Zero Stalls / 0 Seek)  */}
       {/* ======================================================== */}
-      {/* 1. LAYER VIDEO / GAMBAR FRAME BEKU (Video Player Sembunyi Begitu Video Selesai) */}
       <AbsoluteFill className="overflow-hidden flex items-center justify-center bg-black">
-        {isPlayingFull ? (
-          /* A. Putar video penuh utuh terlebih dahulu menggunakan video player */
-          videoSrc ? (
+        {/* A. Video diputar murni hanya pada rentang Sequence (0 -> playEndFrame) */}
+        {isPlayingFull && videoSrc && (
+          <Sequence from={0} durationInFrames={playEndFrame}>
             <Video
               src={videoSrc}
               className="w-full h-full object-cover"
             />
-          ) : (
-            <div className="text-center p-8 text-neutral-500 font-mono text-sm">
-              Video tidak ditemukan. Jalankan <code className="text-amber-400">npm run download</code>
-            </div>
-          )
-        ) : frame < skipEndFrame ? (
-          /* B. Video player disembunyikan! Tampilkan gambar freezed frame terakhir video (tanpa jeda/seek) */
+          </Sequence>
+        )}
+
+        {/* B. Setelah video selesai & selama jeda pause serta skip YouTube: Gambar statis frame terakhir */}
+        {!isPlayingFull && frame < skipEndFrame && (
           lastFrameImage ? (
             <Img
               src={lastFrameImage}
               className="w-full h-full object-cover"
             />
-          ) : videoSrc ? (
-            <Freeze frame={Math.max(0, playEndFrame - 1)}>
-              <Video
-                src={videoSrc}
-                className="w-full h-full object-cover pointer-events-none"
-              />
-            </Freeze>
           ) : null
-        ) : (
-          /* C. Setelah efek skip YouTube selesai: Langsung ganti ke freezed frame target momen lucu */
+        )}
+
+        {/* C. Setelah skip YouTube selesai: Langsung gambar frame target / kartu (0 seek, 0 delay) */}
+        {!isPlayingFull && frame >= skipEndFrame && (
           targetFrameImage ? (
             <Img
               src={targetFrameImage}
               className="w-full h-full object-cover"
             />
-          ) : videoSrc ? (
-            <Freeze frame={targetFrame}>
-              <Video
-                src={videoSrc}
-                className="w-full h-full object-cover pointer-events-none"
-              />
-            </Freeze>
+          ) : cardImageSrc ? (
+            <Img
+              src={cardImageSrc}
+              className="w-full h-full object-cover"
+            />
+          ) : lastFrameImage ? (
+            <Img
+              src={lastFrameImage}
+              className="w-full h-full object-cover"
+            />
           ) : null
         )}
 
-        {/* Video Dimming Overlay saat kartu muncul */}
+        {/* Video Dimming Overlay saat kartu muncul (Solid dark overlay tanpa filter blur berat) */}
         {isCardRevealed && (
-          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm transition-all duration-300 z-20" />
+          <div className="absolute inset-0 bg-black/85 transition-opacity duration-300 z-20" />
         )}
       </AbsoluteFill>
 
@@ -221,7 +212,7 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
       {/* ======================================================== */}
       {title && (
         <div className="absolute top-[3%] left-0 right-0 px-8 flex flex-col items-center gap-1.5 z-30 pointer-events-none">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-black/80 border border-neutral-700/80 shadow-2xl backdrop-blur-md">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-black/80 border border-neutral-700/80 shadow-2xl">
             <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
             <span className="text-xs font-bold tracking-wider uppercase text-neutral-300">
               {gameTitle}
