@@ -6,7 +6,7 @@ Workspace programmatic video editing berbasis **Vite + React 19 + Tailwind CSS v
 
 - **Live Interactive Player (`@remotion/player`)**: Pratinjau animasi, transisi kartu, easing curve, dan font secara real-time tanpa perlu menunggu kompilasi FFmpeg.
 - **Google Drive Asset Integration**:
-  - Metadata tersimpan rapi di `src/data/metadata.json` (dan `public/metadata.json`).
+  - Metadata tersimpan dalam satu file terpadu di `src/data.json`.
   - Berkas video mentah (`full.mp4`) diunduh sesuai kebutuhan (*on-demand*) ke `public/temp/` via CLI interaktif.
   - Remotion `<Video />` memutar berkas lokal `public/temp/<momen>/full.mp4` secara mulus tanpa membebani repositori Git.
 - **Tailwind CSS v4 (`@tailwindcss/vite`)**: Styling modern zero-runtime langsung di dalam komposisi video Remotion.
@@ -40,3 +40,4 @@ Jika ada folder momen baru yang ditambahkan di Google Drive:
 ```bash
 npm run sync
 ```
+Hasil sinkronisasi akan langsung memperbarui `src/data.json`.

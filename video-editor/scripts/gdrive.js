@@ -21,12 +21,24 @@ if (fs.existsSync(envPath)) {
 const GDRIVE_ROOT_FOLDER_ID =
   process.env.GDRIVE_ROOT_FOLDER_ID || '1UT6ifvTpa1IFUfnr8vFkRoUOd1p1dm3x';
 
-const METADATA_PATHS = [
-  path.join(rootDir, 'src', 'data', 'metadata.json'),
-  path.join(rootDir, 'public', 'metadata.json'),
-];
+// File metadata tunggal di dalam folder src
+const DATA_PATH = path.join(rootDir, 'src', 'data.json');
 
 const TEMP_DIR = path.join(rootDir, 'public', 'temp');
+
+/**
+ * Format tanggal ke human-readable string (tahun-bulan-hari jam:menit:detik)
+ */
+export function formatHumanDate(d = new Date()) {
+  const pad = (n) => String(n).padStart(2, '0');
+  const year = d.getFullYear();
+  const month = pad(d.getMonth() + 1);
+  const day = pad(d.getDate());
+  const hours = pad(d.getHours());
+  const minutes = pad(d.getMinutes());
+  const seconds = pad(d.getSeconds());
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
 
 /**
  * Mendapatkan OAuth2 Google Drive client
@@ -116,7 +128,6 @@ export async function crawlGoogleDrive(drive, parentId = GDRIVE_ROOT_FOLDER_ID, 
       id: parentId,
       name: path.basename(currentPath),
       path: currentPath,
-      folderId: parentId,
       files: {
         full: fullFile
           ? {
@@ -161,7 +172,7 @@ export async function crawlGoogleDrive(drive, parentId = GDRIVE_ROOT_FOLDER_ID, 
 }
 
 /**
- * Sinkronkan metadata dari Google Drive ke metadata.json
+ * Sinkronkan metadata dari Google Drive ke src/data.json
  */
 export async function syncMetadata() {
   console.log(`\n🔄 Menyinkronkan metadata dari Google Drive...`);
@@ -171,32 +182,27 @@ export async function syncMetadata() {
   const moments = await crawlGoogleDrive(drive, GDRIVE_ROOT_FOLDER_ID, '');
 
   const metadata = {
-    updatedAt: new Date().toISOString(),
-    rootFolderId: GDRIVE_ROOT_FOLDER_ID,
+    lastUpdate: formatHumanDate(new Date()),
     totalMoments: moments.length,
     moments,
   };
 
-  for (const metaPath of METADATA_PATHS) {
-    fs.mkdirSync(path.dirname(metaPath), { recursive: true });
-    fs.writeFileSync(metaPath, JSON.stringify(metadata, null, 2), 'utf8');
-    console.log(`   ✅ Metadata tersimpan: ${path.relative(rootDir, metaPath)}`);
-  }
+  fs.mkdirSync(path.dirname(DATA_PATH), { recursive: true });
+  fs.writeFileSync(DATA_PATH, JSON.stringify(metadata, null, 2), 'utf8');
+  console.log(`   ✅ Metadata tersimpan: ${path.relative(rootDir, DATA_PATH)}`);
 
   return metadata;
 }
 
 /**
- * Muat metadata dari metadata.json lokal
+ * Muat metadata dari src/data.json lokal
  */
 export function loadMetadata() {
-  for (const metaPath of METADATA_PATHS) {
-    if (fs.existsSync(metaPath)) {
-      try {
-        return JSON.parse(fs.readFileSync(metaPath, 'utf8'));
-      } catch (e) {
-        // continue
-      }
+  if (fs.existsSync(DATA_PATH)) {
+    try {
+      return JSON.parse(fs.readFileSync(DATA_PATH, 'utf8'));
+    } catch (e) {
+      // continue
     }
   }
   return null;
@@ -272,7 +278,7 @@ export async function runInteractiveCLI() {
   let metadata = loadMetadata();
 
   if (!metadata || !metadata.moments || metadata.moments.length === 0) {
-    console.log('⚠️ Metadata lokal belum ditemukan. Menjalankan sinkronisasi awal...');
+    console.log('⚠️ File src/data.json belum ditemukan. Menjalankan sinkronisasi awal...');
     metadata = await syncMetadata();
   }
 
@@ -285,8 +291,7 @@ export async function runInteractiveCLI() {
     console.log('\n==============================================================');
     console.log('   🎬 GOOGLE DRIVE MOMENT DOWNLOADER (VIDEO-EDITOR)');
     console.log('==============================================================');
-    console.log(`Folder Induk ID : ${metadata.rootFolderId}`);
-    console.log(`Terakhir Update : ${metadata.updatedAt || 'Baru'}`);
+    console.log(`Terakhir Update : ${metadata.lastUpdate || 'Baru'}`);
     console.log(`Total Momen     : ${metadata.moments.length}\n`);
 
     console.log('Daftar Momen yang Tersedia:');

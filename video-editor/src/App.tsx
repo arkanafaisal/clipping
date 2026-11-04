@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Player } from '@remotion/player';
 import { VerticalShortsComposition } from './remotion/compositions/VerticalShortsComposition';
 import { VerticalVideoProps } from './remotion/types';
-import metadata from './data/metadata.json';
+import data from './data.json';
 import {
   Film,
   Sliders,
@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 
 export default function App() {
-  const moments = metadata.moments || [];
+  const moments = data.moments || [];
   const initialMoment = moments[0];
 
   const [selectedMomentName, setSelectedMomentName] = useState<string>(
@@ -180,7 +180,7 @@ export default function App() {
             {currentMoment && (
               <div className="p-3.5 rounded-xl bg-neutral-950/80 border border-neutral-800 text-xs space-y-2">
                 <div className="flex justify-between items-center text-neutral-400">
-                  <span>Folder ID:</span>
+                  <span>Drive ID:</span>
                   <span className="font-mono text-neutral-300 text-[11px]">
                     {currentMoment.id.substring(0, 16)}...
                   </span>
@@ -195,6 +195,12 @@ export default function App() {
                   <span>Lokasi Lokal:</span>
                   <span className="font-mono text-emerald-400 text-[11px]">
                     public/{currentMoment.files.full?.tempRelPath}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-neutral-400">
+                  <span>Update:</span>
+                  <span className="font-mono text-amber-300 text-[11px]">
+                    {data.lastUpdate || 'Baru'}
                   </span>
                 </div>
               </div>

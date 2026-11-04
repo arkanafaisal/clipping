@@ -16,7 +16,22 @@ Format Entri:
 
 
 
-## [Unreleased] - Implement Google Drive Metadata Crawler and Interactive On-Demand Downloader for Remotion Playback
+## [Unreleased] - Consolidate Metadata into Single src/data.json, Remove Redundant IDs, and Humanize Timestamp
+- **Konteks Struktural**:
+  - Konsolidasi Berkas Metadata & Penyederhanaan Properti ([data.json](file:///d:/projects/clipping/video-editor/src/data.json), [gdrive.js](file:///d:/projects/clipping/video-editor/scripts/gdrive.js)):
+    - **Penyebab & Kebutuhan**: Sebelumnya metadata disimpan di dua lokasi berbeda (`src/data/metadata.json` dan `public/metadata.json`) yang redundan. Selain itu, objek momen memuat properti `folderId` yang identik dengan `id`, root metadata memuat `rootFolderId` yang sebenarnya sudah tersimpan di `.env`, dan format tanggal menggunakan ISO string yang kurang ramah dibaca manusia.
+    - **Solusi**:
+      1. Menyatukan metadata ke dalam satu berkas tunggal yang ringkas: `video-editor/src/data.json` dan menghapus berkas redundan di `public/metadata.json` serta folder `src/data/`.
+      2. Menghapus properti `folderId` dari setiap momen (hanya mempertahankan `id`) dan menghapus `rootFolderId` dari root metadata.
+      3. Mengubah format penanda waktu menjadi format bahasa manusia (`YYYY-MM-DD HH:mm:ss`) pada properti `lastUpdate` via helper `formatHumanDate`.
+      4. Memperbarui import di `App.tsx` menjadi `import data from './data.json'` dan menyelaraskan skrip crawler/downloader di `gdrive.js`.
+- **Perubahan Kode Penting**:
+  - `video-editor/src/data.json`: Berkas metadata tunggal dengan struktur bersih tanpa properti ganda.
+  - `video-editor/scripts/gdrive.js`: Menghapus duplikasi penyimpanan public, menerapkan `formatHumanDate`, dan memperbarui path ke `src/data.json`.
+  - `video-editor/src/App.tsx`: Membaca langsung dari `./data.json` dan menampilkan `data.lastUpdate`.
+  - `video-editor/README.md`: Memperbarui dokumentasi metadata ke `src/data.json`.
+
+## [5383bd6] - Implement Google Drive Metadata Crawler and Interactive On-Demand Downloader for Remotion Playback
 - **Konteks Struktural**:
   - Sinkronisasi Aset Google Drive & Pemutaran Video Lokal On-Demand ([video-editor/scripts/gdrive.js](file:///d:/projects/clipping/video-editor/scripts/gdrive.js), [metadata.json](file:///d:/projects/clipping/video-editor/src/data/metadata.json)):
     - **Penyebab & Kebutuhan**: File video mentah (`full.mp4`) berukuran puluhan hingga ratusan megabyte sehingga tidak mungkin disimpan di repositori Git. Pengembang membutuhkan skema penyimpanan metadata terpusat (`metadata.json`) yang mencatat ID folder, nama file, ukuran, dan path Google Drive, serta mekanisme pengunduhan lokal interaktif (*on-demand*) ke direktori sementara (`public/temp/`) agar video dapat langsung diuji putar di Remotion (`<Video src="..." />`).
