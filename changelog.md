@@ -14,7 +14,28 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Per-Field Card Font Size Controls in Sidebar and Dynamic Inline Styling
+## [Unreleased] - Justify-Around Title Row, Flex-Start Vertical Stacking, Multi-Skill Support (Max 3), and Minimalist Clean Skill Title Styling
+- **Konteks Struktural**:
+  - Penyesuaian Layout Vertikal, Justify Around & Multi-Skill Kartu ([PokemonCard.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/PokemonCard.tsx), [MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), [types.ts](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/types.ts), [App.tsx](file:///d:/projects/clipping/video-editor/src/App.tsx), [data.json](file:///d:/projects/clipping/video-editor/src/data.json)):
+    - **Penyebab & Kebutuhan**:
+      1. Judul dan rarity diatur menggunakan `justify-around` (bukan `between`) agar lebih seimbang dengan nafas padding di tepi kiri dan kanan.
+      2. Elemen teks kartu disusun secara `flex-start` dengan jarak vertikal (gap) yang tetap/fixed (`gap-5`), sehingga jika teks sedikit, area bawah dibiarkan kosong alami kartu tanpa terbentang kejauhan secara artifisial.
+      3. Konsep 'pasif' diganti menjadi sistem 'skill' dengan dukungan hingga 3 slot skill. Jika skill ke-x dikosongkan, kartu tidak menampilkan skill tersebut. Pada kartu, hanya nama dan deskripsi skill yang ditampilkan tanpa prefix seperti "skill 1: " atau "1.".
+      4. Judul nama skill tidak lagi menggunakan background pill badge terpisah agar terhindar dari overstyling (hanya dibedakan melalui warna tema `cardColor` dan ukuran font).
+      5. Setiap slot skill pada sidebar dilengkapi input nama skill, textarea deskripsi, dan field font size (px) bersebelahan.
+    - **Solusi**:
+      1. Di [`PokemonCard.tsx`](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/PokemonCard.tsx), mengubah baris judul & rarity menjadi `justify-around`, mengubah kontainer isi kartu menjadi `flex-col justify-start items-start gap-5`, dan merender daftar `activeSkills` tanpa background badge tambahan pada nama skill.
+      2. Di [`types.ts`](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/types.ts), menambahkan interface `CardSkill` (`name`, `desc`, `nameFontSize`, `descFontSize`) dan field `skills?: CardSkill[]`.
+      3. Di [`MemeDiscoveryComposition.tsx`](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), meneruskan prop `skills` ke komponen `<PokemonCard />`.
+      4. Di [`App.tsx`](file:///d:/projects/clipping/video-editor/src/App.tsx), mengintegrasikan state `skills` (3 slot dengan fallback legacy `passiveName`), form input skill dinamis pada sidebar lengkap dengan kontrol `fontSize`, serta integrasi penyimpanan ke `data.json`.
+      5. Di [`data.json`](file:///d:/projects/clipping/video-editor/src/data.json), menambahkan struktur data array `skills`.
+- **Perubahan Kode Penting**:
+  - `video-editor/src/styles/meme-discovery/components/PokemonCard.tsx`: `justify-around` pada baris judul, `justify-start gap-5` pada body kartu, rendering daftar multi-skill tanpa badge pill.
+  - `video-editor/src/styles/meme-discovery/types.ts`: Interface `CardSkill` dan tipe prop `skills`.
+  - `video-editor/src/App.tsx`: State, handler, dan form kontrol 3 slot skill dengan kontrol ukuran font per baris.
+  - `video-editor/src/data.json`: Metadata array `skills`.
+
+## [5f16df4] - Per-Field Card Font Size Controls in Sidebar and Dynamic Inline Styling
 - **Konteks Struktural**:
   - Penambahan Kontrol Ukuran Font Per-Input Teks Kartu ([App.tsx](file:///d:/projects/clipping/video-editor/src/App.tsx), [PokemonCard.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/PokemonCard.tsx), [MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), [types.ts](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/types.ts), [data.json](file:///d:/projects/clipping/video-editor/src/data.json)):
     - **Penyebab & Kebutuhan**: Pengguna meminta agar setiap input teks kartu (Judul, Rarity, Deskripsi, Nama Pasif, Deskripsi Pasif) dilengkapi input ukuran font (fontSize dalam px) di sisi kanannya, sehingga pengguna memiliki kebebasan penuh untuk menyesuaikan ukuran teks yang paling proporsional sesuai panjang kalimat masing-masing.

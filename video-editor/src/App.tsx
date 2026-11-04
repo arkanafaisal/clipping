@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Player, PlayerRef } from '@remotion/player';
 import { MemeDiscoveryComposition } from './styles/meme-discovery/MemeDiscoveryComposition';
 import { RouletteQuizComposition } from './styles/roulette-quiz/RouletteQuizComposition';
+import { CardSkill } from './styles/meme-discovery/types';
 import initialData from './data.json';
 import { captureVideoFrame } from './utils/frameCapture';
 import { parseTimestampToSeconds } from './utils/time';
@@ -21,6 +22,27 @@ export default function App() {
     (window as any).playerRef = playerRef;
   }, []);
 
+  // Helper parsing skill kartu (maks 3 skill dengan fallback legacy passive)
+  const getInitialSkills = (md?: any): CardSkill[] => {
+    if (Array.isArray(md?.skills) && md.skills.length > 0) {
+      return [
+        md.skills[0] || { name: '', desc: '', nameFontSize: 28, descFontSize: 22 },
+        md.skills[1] || { name: '', desc: '', nameFontSize: 28, descFontSize: 22 },
+        md.skills[2] || { name: '', desc: '', nameFontSize: 28, descFontSize: 22 },
+      ];
+    }
+    return [
+      {
+        name: md?.passiveName || 'kesempatan kedua',
+        desc: md?.passiveDesc || 'memberikan 70% chance untuk lolos dari grim reaper. hanya berlaku 1 kali.',
+        nameFontSize: md?.passiveNameFontSize || 28,
+        descFontSize: md?.passiveDescFontSize || 22,
+      },
+      { name: '', desc: '', nameFontSize: 28, descFontSize: 22 },
+      { name: '', desc: '', nameFontSize: 28, descFontSize: 22 },
+    ];
+  };
+
   // Input dan teks kartu Meme Discovery
   const initialMeme = currentMoment?.memeDiscovery || {};
   const [targetTimestamp, setTargetTimestamp] = useState<string>(
@@ -34,12 +56,6 @@ export default function App() {
   );
   const [cardDesc, setCardDesc] = useState<string>(
     initialMeme.cardDesc || ''
-  );
-  const [passiveName, setPassiveName] = useState<string>(
-    initialMeme.passiveName || ''
-  );
-  const [passiveDesc, setPassiveDesc] = useState<string>(
-    initialMeme.passiveDesc || ''
   );
   const [cardColor, setCardColor] = useState<string>(
     initialMeme.cardColor || '#f59e0b'
@@ -55,12 +71,23 @@ export default function App() {
   const [descFontSize, setDescFontSize] = useState<number>(
     initialMeme.descFontSize || 30
   );
-  const [passiveNameFontSize, setPassiveNameFontSize] = useState<number>(
-    initialMeme.passiveNameFontSize || 30
+
+  // State daftar skill (maksimal 3 skill)
+  const [skills, setSkills] = useState<CardSkill[]>(() =>
+    getInitialSkills(initialMeme)
   );
-  const [passiveDescFontSize, setPassiveDescFontSize] = useState<number>(
-    initialMeme.passiveDescFontSize || 24
-  );
+
+  const handleSkillChange = (
+    index: number,
+    field: keyof CardSkill,
+    value: string | number
+  ) => {
+    setSkills((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], [field]: value };
+      return next;
+    });
+  };
 
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
@@ -74,14 +101,11 @@ export default function App() {
       if (md.cardTitle !== undefined) setCardTitle(md.cardTitle);
       if (md.cardRarity !== undefined) setCardRarity(md.cardRarity);
       if (md.cardDesc !== undefined) setCardDesc(md.cardDesc);
-      if (md.passiveName !== undefined) setPassiveName(md.passiveName);
-      if (md.passiveDesc !== undefined) setPassiveDesc(md.passiveDesc);
       if (md.cardColor !== undefined) setCardColor(md.cardColor);
       if (md.titleFontSize) setTitleFontSize(md.titleFontSize);
       if (md.rarityFontSize) setRarityFontSize(md.rarityFontSize);
       if (md.descFontSize) setDescFontSize(md.descFontSize);
-      if (md.passiveNameFontSize) setPassiveNameFontSize(md.passiveNameFontSize);
-      if (md.passiveDescFontSize) setPassiveDescFontSize(md.passiveDescFontSize);
+      setSkills(getInitialSkills(md));
     }
   }, [initialData]);
 
@@ -99,14 +123,11 @@ export default function App() {
             if (md.cardTitle !== undefined) setCardTitle(md.cardTitle);
             if (md.cardRarity !== undefined) setCardRarity(md.cardRarity);
             if (md.cardDesc !== undefined) setCardDesc(md.cardDesc);
-            if (md.passiveName !== undefined) setPassiveName(md.passiveName);
-            if (md.passiveDesc !== undefined) setPassiveDesc(md.passiveDesc);
             if (md.cardColor !== undefined) setCardColor(md.cardColor);
             if (md.titleFontSize) setTitleFontSize(md.titleFontSize);
             if (md.rarityFontSize) setRarityFontSize(md.rarityFontSize);
             if (md.descFontSize) setDescFontSize(md.descFontSize);
-            if (md.passiveNameFontSize) setPassiveNameFontSize(md.passiveNameFontSize);
-            if (md.passiveDescFontSize) setPassiveDescFontSize(md.passiveDescFontSize);
+            setSkills(getInitialSkills(md));
           }
         }
       })
@@ -193,14 +214,16 @@ export default function App() {
               cardTitle,
               cardRarity,
               cardDesc,
-              passiveName,
-              passiveDesc,
               cardColor,
               titleFontSize,
               rarityFontSize,
               descFontSize,
-              passiveNameFontSize,
-              passiveDescFontSize,
+              skills,
+              // Tetap simpan legacy passive untuk kompatibilitas data
+              passiveName: skills[0]?.name || '',
+              passiveDesc: skills[0]?.desc || '',
+              passiveNameFontSize: skills[0]?.nameFontSize || 28,
+              passiveDescFontSize: skills[0]?.descFontSize || 22,
             },
           };
         }
@@ -255,14 +278,11 @@ export default function App() {
                 cardTitle: cardTitle || undefined,
                 cardRarity: cardRarity || undefined,
                 cardDesc: cardDesc || undefined,
-                passiveName: passiveName || undefined,
-                passiveDesc: passiveDesc || undefined,
+                skills,
                 cardColor: cardColor || '#f59e0b',
                 titleFontSize,
                 rarityFontSize,
                 descFontSize,
-                passiveNameFontSize,
-                passiveDescFontSize,
               }}
               durationInFrames={totalFrames}
               fps={30}
@@ -467,64 +487,90 @@ export default function App() {
                 </div>
               </div>
 
-              {/* 6. Nama Pasif (Jimat / Kekuatan Lucu) */}
-              <div>
-                <div className="flex justify-between items-center mb-1">
+              {/* 6. Daftar Skill Kartu (Maksimal 3 Skill, Skill 2 & 3 Opsional) */}
+              <div className="pt-2 border-t border-neutral-900 space-y-3.5">
+                <div className="flex items-center justify-between">
                   <label className="text-xs font-bold text-neutral-300">
-                    Nama Pasif (Jimat)
+                    Skill Kartu (Maks. 3)
                   </label>
-                  <span className="text-[10px] text-neutral-500 font-mono">Font Size</span>
+                  <span className="text-[10px] text-neutral-500">Kosongkan jika tidak ada</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={passiveName}
-                    onChange={(e) => setPassiveName(e.target.value)}
-                    placeholder="pasif"
-                    className="flex-1 bg-black border border-neutral-800 rounded-xl px-3 py-2 text-xs text-amber-300 font-semibold focus:outline-none focus:border-amber-500 transition-colors"
-                  />
-                  <div className="flex items-center gap-1 shrink-0 bg-neutral-900 border border-neutral-800 rounded-xl px-2 py-1.5" title="Ukuran Font Nama Pasif (px)">
-                    <input
-                      type="number"
-                      min="14"
-                      max="80"
-                      value={passiveNameFontSize}
-                      onChange={(e) => setPassiveNameFontSize(Number(e.target.value) || 14)}
-                      className="w-8 bg-transparent text-xs text-amber-400 font-mono text-center focus:outline-none"
-                    />
-                    <span className="text-[10px] text-neutral-500 font-mono">px</span>
-                  </div>
-                </div>
-              </div>
 
-              {/* 7. Deskripsi Pasif */}
-              <div>
-                <div className="flex justify-between items-center mb-1">
-                  <label className="text-xs font-bold text-neutral-300">
-                    Deskripsi Pasif
-                  </label>
-                  <span className="text-[10px] text-neutral-500 font-mono">Font Size</span>
-                </div>
-                <div className="flex items-start gap-2">
-                  <textarea
-                    rows={2}
-                    value={passiveDesc}
-                    onChange={(e) => setPassiveDesc(e.target.value)}
-                    placeholder="ini deskripsi pasif"
-                    className="flex-1 bg-black border border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-300 focus:outline-none focus:border-amber-500 transition-colors resize-none"
-                  />
-                  <div className="flex items-center gap-1 shrink-0 bg-neutral-900 border border-neutral-800 rounded-xl px-2 py-1.5 mt-0.5" title="Ukuran Font Deskripsi Pasif (px)">
-                    <input
-                      type="number"
-                      min="12"
-                      max="80"
-                      value={passiveDescFontSize}
-                      onChange={(e) => setPassiveDescFontSize(Number(e.target.value) || 12)}
-                      className="w-8 bg-transparent text-xs text-amber-400 font-mono text-center focus:outline-none"
-                    />
-                    <span className="text-[10px] text-neutral-500 font-mono">px</span>
+                {skills.map((skill, index) => (
+                  <div
+                    key={index}
+                    className="p-3 rounded-xl bg-neutral-900/60 border border-neutral-800/80 space-y-2.5"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-semibold text-neutral-300">
+                        Skill {index + 1} {index > 0 ? '(Opsional)' : ''}
+                      </span>
+                      <span className="text-[10px] text-neutral-500 font-mono">Font Size</span>
+                    </div>
+
+                    {/* Nama Skill */}
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={skill.name}
+                        onChange={(e) => handleSkillChange(index, 'name', e.target.value)}
+                        placeholder={`nama skill ${index + 1}`}
+                        className="flex-1 bg-black border border-neutral-800 rounded-xl px-3 py-2 text-xs text-amber-300 font-semibold focus:outline-none focus:border-amber-500 transition-colors"
+                      />
+                      <div
+                        className="flex items-center gap-1 shrink-0 bg-neutral-900 border border-neutral-800 rounded-xl px-2 py-1.5"
+                        title={`Ukuran Font Nama Skill ${index + 1} (px)`}
+                      >
+                        <input
+                          type="number"
+                          min="12"
+                          max="80"
+                          value={skill.nameFontSize || 28}
+                          onChange={(e) =>
+                            handleSkillChange(
+                              index,
+                              'nameFontSize',
+                              Number(e.target.value) || 12
+                            )
+                          }
+                          className="w-8 bg-transparent text-xs text-amber-400 font-mono text-center focus:outline-none"
+                        />
+                        <span className="text-[10px] text-neutral-500 font-mono">px</span>
+                      </div>
+                    </div>
+
+                    {/* Deskripsi Skill */}
+                    <div className="flex items-start gap-2">
+                      <textarea
+                        rows={2}
+                        value={skill.desc}
+                        onChange={(e) => handleSkillChange(index, 'desc', e.target.value)}
+                        placeholder={`deskripsi skill ${index + 1}`}
+                        className="flex-1 bg-black border border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-300 focus:outline-none focus:border-amber-500 transition-colors resize-none"
+                      />
+                      <div
+                        className="flex items-center gap-1 shrink-0 bg-neutral-900 border border-neutral-800 rounded-xl px-2 py-1.5 mt-0.5"
+                        title={`Ukuran Font Deskripsi Skill ${index + 1} (px)`}
+                      >
+                        <input
+                          type="number"
+                          min="10"
+                          max="80"
+                          value={skill.descFontSize || 22}
+                          onChange={(e) =>
+                            handleSkillChange(
+                              index,
+                              'descFontSize',
+                              Number(e.target.value) || 10
+                            )
+                          }
+                          className="w-8 bg-transparent text-xs text-amber-400 font-mono text-center focus:outline-none"
+                        />
+                        <span className="text-[10px] text-neutral-500 font-mono">px</span>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                ))}
               </div>
 
               {/* Tombol Simpan ke data.json */}

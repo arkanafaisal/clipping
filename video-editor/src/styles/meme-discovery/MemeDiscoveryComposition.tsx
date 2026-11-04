@@ -23,6 +23,7 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
   cardTitle,
   cardRarity,
   cardDesc,
+  skills,
   passiveName,
   passiveDesc,
   cardColor,
@@ -176,6 +177,7 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
             cardTitle={cardTitle}
             cardRarity={cardRarity}
             cardDesc={cardDesc}
+            skills={skills}
             passiveName={passiveName}
             passiveDesc={passiveDesc}
             cardColor={cardColor}

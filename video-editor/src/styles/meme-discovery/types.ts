@@ -1,3 +1,10 @@
+export interface CardSkill {
+  name: string;
+  desc: string;
+  nameFontSize?: number;
+  descFontSize?: number;
+}
+
 export interface MemeDiscoveryProps {
   videoSrc: string;
   title?: string;
@@ -10,6 +17,7 @@ export interface MemeDiscoveryProps {
   cardTitle?: string;
   cardRarity?: string;
   cardDesc?: string;
+  skills?: CardSkill[]; // Daftar skill kartu (maks 3 skill)
   passiveName?: string;
   passiveDesc?: string;
   cardColor?: string; // Warna tema kartu kustom (hex, misal: "#f59e0b")

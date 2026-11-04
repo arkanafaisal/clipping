@@ -1,5 +1,5 @@
 {
-  "lastUpdate": "2026-11-04 16:55:55",
+  "lastUpdate": "2026-11-04 17:05:43",
   "totalMoments": 1,
   "moments": [
     {
@@ -32,16 +32,36 @@
         "targetUndoTimestamp": "00:07.105",
         "title": "Meme Discovery: Momen Langka!",
         "cardTitle": "jangan jemput aku..",
-        "cardRarity": "EPIC",
+        "cardRarity": "Mythic",
         "cardDesc": "Pria tua yang masih mau hidup",
+        "skills": [
+          {
+            "name": "kesempatan kedua",
+            "desc": "70% chance untuk lolos dari grim reaper. hanya berlaku 1 kali.",
+            "nameFontSize": 32,
+            "descFontSize": 26
+          },
+          {
+            "name": "",
+            "desc": "",
+            "nameFontSize": 28,
+            "descFontSize": 22
+          },
+          {
+            "name": "",
+            "desc": "",
+            "nameFontSize": 28,
+            "descFontSize": 22
+          }
+        ],
+        "cardColor": "#fb3232",
+        "titleFontSize": 48,
+        "rarityFontSize": 32,
+        "descFontSize": 32,
         "passiveName": "kesempatan kedua",
-        "passiveDesc": "Memberikan kekebalan dari rasa kaget dan memicu auto-subscribe bagi penonton yang tertawa.",
-        "cardColor": "#f59e0b",
-        "titleFontSize": 50,
-        "rarityFontSize": 24,
-        "descFontSize": 30,
-        "passiveNameFontSize": 30,
-        "passiveDescFontSize": 24
+        "passiveDesc": "70% chance untuk lolos dari grim reaper. hanya berlaku 1 kali.",
+        "passiveNameFontSize": 32,
+        "passiveDescFontSize": 26
       }
     }
   ]
