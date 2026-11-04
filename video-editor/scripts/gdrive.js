@@ -118,55 +118,56 @@ export async function crawlGoogleDrive(drive, parentId = GDRIVE_ROOT_FOLDER_ID, 
 
   // Jika folder ini memiliki berkas video (seperti full.mp4)
   if (videoFiles.length > 0 && currentPath !== '') {
-    const fullFile = videoFiles.find((f) => f.name.toLowerCase() === 'full.mp4') || videoFiles[0];
+    // Rule 24: Strictly require exact "full.mp4" and skip folders lacking it
+    const fullFile = videoFiles.find((f) => f.name.toLowerCase() === 'full.mp4');
     const cutFile = videoFiles.find((f) => f.name.toLowerCase() === 'cut.mp4');
     const imageFile = videoFiles.find(
       (f) => f.name.toLowerCase() === 'image.jpg' || f.name.toLowerCase().endsWith('.png')
     );
 
-    moments.push({
-      id: parentId,
-      name: path.basename(currentPath),
-      path: currentPath,
-      files: {
-        full: fullFile
-          ? {
-              id: fullFile.id,
-              name: fullFile.name,
-              mimeType: fullFile.mimeType,
-              size: Number(fullFile.size || 0),
-              sizeFormatted: formatBytes(Number(fullFile.size || 0)),
-              durationSeconds: fullFile.videoMediaMetadata?.durationMillis
-                ? parseFloat((Number(fullFile.videoMediaMetadata.durationMillis) / 1000).toFixed(2))
-                : null,
-              durationFormatted: fullFile.videoMediaMetadata?.durationMillis
-                ? `${(Number(fullFile.videoMediaMetadata.durationMillis) / 1000).toFixed(2)}s`
-                : null,
-              width: fullFile.videoMediaMetadata?.width || 1080,
-              height: fullFile.videoMediaMetadata?.height || 1920,
-              tempRelPath: `temp/${currentPath}/${fullFile.name}`,
-            }
-          : null,
-        cut: cutFile
-          ? {
-              id: cutFile.id,
-              name: cutFile.name,
-              size: Number(cutFile.size || 0),
-              sizeFormatted: formatBytes(Number(cutFile.size || 0)),
-              tempRelPath: `temp/${currentPath}/${cutFile.name}`,
-            }
-          : null,
-        image: imageFile
-          ? {
-              id: imageFile.id,
-              name: imageFile.name,
-              size: Number(imageFile.size || 0),
-              sizeFormatted: formatBytes(Number(imageFile.size || 0)),
-              tempRelPath: `temp/${currentPath}/${imageFile.name}`,
-            }
-          : null,
-      },
-    });
+    if (fullFile) {
+      moments.push({
+        id: parentId,
+        name: path.basename(currentPath),
+        path: currentPath,
+        files: {
+          full: {
+            id: fullFile.id,
+            name: fullFile.name,
+            mimeType: fullFile.mimeType,
+            size: Number(fullFile.size || 0),
+            sizeFormatted: formatBytes(Number(fullFile.size || 0)),
+            durationSeconds: fullFile.videoMediaMetadata?.durationMillis
+              ? parseFloat((Number(fullFile.videoMediaMetadata.durationMillis) / 1000).toFixed(2))
+              : null,
+            durationFormatted: fullFile.videoMediaMetadata?.durationMillis
+              ? `${(Number(fullFile.videoMediaMetadata.durationMillis) / 1000).toFixed(2)}s`
+              : null,
+            width: fullFile.videoMediaMetadata?.width || 1080,
+            height: fullFile.videoMediaMetadata?.height || 1920,
+            tempRelPath: `temp/${currentPath}/${fullFile.name}`,
+          },
+          cut: cutFile
+            ? {
+                id: cutFile.id,
+                name: cutFile.name,
+                size: Number(cutFile.size || 0),
+                sizeFormatted: formatBytes(Number(cutFile.size || 0)),
+                tempRelPath: `temp/${currentPath}/${cutFile.name}`,
+              }
+            : null,
+          image: imageFile
+            ? {
+                id: imageFile.id,
+                name: imageFile.name,
+                size: Number(imageFile.size || 0),
+                sizeFormatted: formatBytes(Number(imageFile.size || 0)),
+                tempRelPath: `temp/${currentPath}/${imageFile.name}`,
+              }
+            : null,
+        },
+      });
+    }
   }
 
   // Telusuri subfolder-subfolder
@@ -186,8 +187,34 @@ export async function syncMetadata() {
   console.log(`\n🔄 Menyinkronkan metadata dari Google Drive...`);
   console.log(`   Root Folder ID: ${GDRIVE_ROOT_FOLDER_ID}`);
 
+  // Muat data lama untuk mempertahankan konfigurasi custom style (seperti memeDiscovery)
+  const existingMomentsMap = new Map();
+  if (fs.existsSync(DATA_PATH)) {
+    try {
+      const oldData = JSON.parse(fs.readFileSync(DATA_PATH, 'utf8'));
+      if (Array.isArray(oldData.moments)) {
+        for (const m of oldData.moments) {
+          if (m.id) existingMomentsMap.set(m.id, m);
+          if (m.name) existingMomentsMap.set(m.name, m);
+        }
+      }
+    } catch (e) {
+      // abaikan error baca data lama
+    }
+  }
+
   const drive = getDriveClient();
   const moments = await crawlGoogleDrive(drive, GDRIVE_ROOT_FOLDER_ID, '');
+
+  // Gabungkan konfigurasi custom yang sudah ada (misal memeDiscovery)
+  for (const m of moments) {
+    const existing = existingMomentsMap.get(m.id) || existingMomentsMap.get(m.name);
+    if (existing) {
+      if (existing.memeDiscovery) {
+        m.memeDiscovery = existing.memeDiscovery;
+      }
+    }
+  }
 
   const metadata = {
     lastUpdate: formatHumanDate(new Date()),

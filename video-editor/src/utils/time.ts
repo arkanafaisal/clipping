@@ -48,3 +48,4 @@ export function framesToTimestamp(frame: number, fps: number): string {
 export function timestampToFrames(ts: string, fps: number): number {
   return Math.round(parseTimestampToSeconds(ts) * fps);
 }
+

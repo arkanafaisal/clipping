@@ -14,7 +14,29 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Modularize Video Editing Styles, Integrate Video Duration Metadata, and Implement Meme Discovery with Millisecond Frame Inspector
+## [Unreleased] - Persist Style Edit Config in data.json, Enforce 80% Safe Zone Canvas, and Remove Frame Inspector
+- **Konteks Struktural**:
+  - Konfigurasi Style Edit Terintegrasi Metadata & Safe Zone Medsos ([data.json](file:///d:/projects/clipping/video-editor/src/data.json), [MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), [App.tsx](file:///d:/projects/clipping/video-editor/src/App.tsx)):
+    - **Penyebab & Kebutuhan**: Pengguna telah menemukan cara menentukan detik & milidetik target secara manual melalui aplikasi video editor ponsel (relatif dari awal video), sehingga perkakas `FrameInspector` tidak lagi diperlukan dan perlu dihapus agar codebase tetap ramping. Nilai konfigurasi style edit (seperti `targetUndoTimestamp`, `rewindDurationSeconds`, teks judul, status kartu pokemon) dipindahkan langsung ke dalam `src/data.json` di bawah properti `memeDiscovery`. Selain itu, pada platform media sosial (Shorts/Reels/TikTok), area atas dan bawah layar sering tertutup status bar, caption, dan navigasi antarmuka aplikasi. Oleh karena itu, kanvas 9:16 (1080x1920) harus menerapkan aturan safe zone vertikal 80% (top 10% dan bottom 10% sebagai dinding hitam pembatas), dengan seluruh elemen video dan kartu 1:1 terkonsentrasi di dalam 80% area aman di tengah.
+    - **Solusi**:
+      1. Menghapus berkas `video-editor/src/components/FrameInspector.tsx` dan folder `src/components/` serta membersihkan import-nya di `App.tsx`.
+      2. Menambahkan properti konfigurasi `memeDiscovery` pada momen di `src/data.json` dan memperbarui `scripts/gdrive.js` agar selalu mempertahankan (*merge*) properti kustom pada momen saat sinkronisasi metadata dijalankan, serta memperketat pencarian `full.mp4` tanpa fallback sembarangan (Rule 24).
+      3. Menata ulang `MemeDiscoveryComposition.tsx` agar membagi kanvas 9:16 menjadi:
+         - Dinding hitam atas 10% (192px) untuk melindungi area tertutup UI medsos.
+         - Safe zone tengah 80% (1536px) untuk pemutaran video `object-contain`, animasi undo, shutter flash, dan reveal kartu Pokemon 1:1.
+         - Dinding hitam bawah 10% (192px) untuk melindungi area tertutup caption dan tombol interaksi medsos.
+         - Banner header ditempatkan tepat di batas atas safe zone (`top-[10.5%]`), dan kartu Pokemon 1:1 diposisikan tepat di tengah area aman dengan dukungan `whitespace-pre-line` (Rule 23).
+      4. Menambahkan toggle visual "Safe Zone 80%" pada header studio di `App.tsx` untuk mempermudah pengecekan batas area aman secara interaktif di browser.
+- **Perubahan Kode Penting**:
+  - `video-editor/src/components/FrameInspector.tsx`: Dihapus untuk merampingkan ukuran kode.
+  - `video-editor/src/data.json`: Menyimpan skema konfigurasi style `memeDiscovery` per momen.
+  - `video-editor/scripts/gdrive.js`: Mempertahankan konfigurasi `memeDiscovery` saat sinkronisasi dan menegakkan pencarian `full.mp4` persis tanpa fallback acak.
+  - `video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx`: Pembagian kanvas 80% safe zone dan dinding hitam 10% atas/bawah.
+  - `video-editor/src/styles/meme-discovery/components/PokemonCard.tsx`: Menambahkan `whitespace-pre-line` untuk mendukung pemisahan baris manual.
+  - `video-editor/src/styles/meme-discovery/types.ts`: Menambahkan properti `showSafeZoneGuides?: boolean;`.
+  - `video-editor/src/App.tsx`: Menghubungkan pembacaan konfigurasi langsung dari `data.json` dan menambahkan tombol toggle panduan visual safe zone 80%.
+
+## [4269db4] - Modularize Video Editing Styles, Integrate Video Duration Metadata, and Implement Meme Discovery with Millisecond Frame Inspector
 - **Konteks Struktural**:
   - Restrukturisasi Modular Style Edit & Utilitas Waktu Bersama ([video-editor/src/styles/](file:///d:/projects/clipping/video-editor/src/styles/), [video-editor/src/utils/time.ts](file:///d:/projects/clipping/video-editor/src/utils/time.ts)):
     - **Penyebab & Kebutuhan**: Proyek akan memiliki banyak ragam variasi gaya video editing (misalnya "Meme Discovery", "Roulette Quiz", dll.). Komposisi yang menumpuk di satu folder membuat arsitektur sulit dikembangkan dan tidak modular. Selain itu, pengguna membutuhkan style edit baru "Meme Discovery" (video berputar normal, di akhir terjadi animasi rewind/undo ke frame spesifik facecam lucu, shutter flash kamera putih halus, dan reveal kartu Pokemon holographic 1:1), serta mekanisme akurat untuk mendapatkan nilai detik & milidetik target tanpa menebak-nebak.

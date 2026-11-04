@@ -120,7 +120,7 @@ export const PokemonCard: React.FC<PokemonCardProps> = ({
               999+
             </span>
           </div>
-          <p className="text-[11px] text-neutral-300 leading-snug">
+          <p className="text-[11px] text-neutral-300 leading-snug whitespace-pre-line">
             {attackDesc}
           </p>
         </div>
@@ -133,3 +133,4 @@ export const PokemonCard: React.FC<PokemonCardProps> = ({
     </div>
   );
 };
+

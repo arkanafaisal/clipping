@@ -4,7 +4,6 @@ import { MemeDiscoveryComposition } from './styles/meme-discovery/MemeDiscoveryC
 import { MemeDiscoveryProps } from './styles/meme-discovery/types';
 import { RouletteQuizComposition } from './styles/roulette-quiz/RouletteQuizComposition';
 import { RouletteQuizProps } from './styles/roulette-quiz/types';
-import { FrameInspector } from './components/FrameInspector';
 import data from './data.json';
 import {
   Film,
@@ -16,7 +15,9 @@ import {
   CheckCircle2,
   HardDrive,
   CreditCard,
-  Clock,
+  ShieldAlert,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 
 type StyleMode = 'meme-discovery' | 'roulette-quiz';
@@ -30,6 +31,7 @@ export default function App() {
     initialMoment?.name || 'grim reaper'
   );
   const [playbackRate, setPlaybackRate] = useState<number>(1);
+  const [showSafeZoneGuides, setShowSafeZoneGuides] = useState<boolean>(false);
 
   const currentMoment = moments.find((m) => m.name === selectedMomentName) || initialMoment;
   const currentVideoSrc = currentMoment ? `/temp/${currentMoment.path}/full.mp4` : '/temp/grim reaper/full.mp4';
@@ -37,24 +39,37 @@ export default function App() {
     ? `/temp/${currentMoment.path}/image.jpg`
     : undefined;
 
-  // Duration in frames (default 330 frames = 11s)
   const videoDurationSeconds = currentMoment?.files.full?.durationSeconds || 10.95;
   const totalFrames = Math.max(180, Math.round(videoDurationSeconds * 30));
+
+  // Initial config from data.json's memeDiscovery
+  const initialMemeConfig = currentMoment?.memeDiscovery || {
+    targetUndoTimestamp: '00:03.466',
+    rewindDurationSeconds: 0.8,
+    title: 'Meme Discovery: Momen Langka!',
+    cardTitle: 'Grim Reaper Facecam',
+    cardSubtitle: 'Meme Discovery Series #01',
+    cardRarity: '⭐⭐⭐⭐⭐ SSR LEGENDARY',
+    hp: 9999,
+    attackName: 'Ekspresi Lucu Jumpscare',
+    attackDesc: 'Menatap tajam ke kamera dengan ekspresi bingung yang memicu tawa penonton.',
+  };
 
   // State for Meme Discovery style
   const [memeProps, setMemeProps] = useState<MemeDiscoveryProps>({
     videoSrc: currentVideoSrc,
-    title: 'Meme Discovery: Momen Langka!',
+    title: initialMemeConfig.title,
     gameTitle: currentMoment?.name || 'Grim Reaper',
-    targetUndoTimestamp: '00:03.466',
-    rewindDurationSeconds: 0.8,
-    cardTitle: 'Grim Reaper Facecam',
-    cardSubtitle: 'Meme Discovery Series #01',
-    cardRarity: '⭐⭐⭐⭐⭐ SSR LEGENDARY',
+    targetUndoTimestamp: initialMemeConfig.targetUndoTimestamp,
+    rewindDurationSeconds: initialMemeConfig.rewindDurationSeconds,
+    cardTitle: initialMemeConfig.cardTitle,
+    cardSubtitle: initialMemeConfig.cardSubtitle,
+    cardRarity: initialMemeConfig.cardRarity,
     cardImageSrc: currentImageSrc,
-    hp: 9999,
-    attackName: 'Ekspresi Lucu Jumpscare',
-    attackDesc: 'Menatap tajam ke kamera dengan ekspresi bingung yang memicu tawa penonton.',
+    hp: initialMemeConfig.hp,
+    attackName: initialMemeConfig.attackName,
+    attackDesc: initialMemeConfig.attackDesc,
+    showSafeZoneGuides,
   });
 
   // State for Roulette Quiz style
@@ -76,12 +91,20 @@ export default function App() {
     if (m) {
       const videoPath = `/temp/${m.path}/full.mp4`;
       const imagePath = m.files.image ? `/temp/${m.path}/image.jpg` : undefined;
+      const mConfig = m.memeDiscovery || initialMemeConfig;
 
       setMemeProps((prev) => ({
         ...prev,
         gameTitle: m.name,
         videoSrc: videoPath,
         cardImageSrc: imagePath,
+        title: mConfig.title || prev.title,
+        targetUndoTimestamp: mConfig.targetUndoTimestamp || prev.targetUndoTimestamp,
+        cardTitle: mConfig.cardTitle || prev.cardTitle,
+        cardRarity: mConfig.cardRarity || prev.cardRarity,
+        hp: mConfig.hp || prev.hp,
+        attackName: mConfig.attackName || prev.attackName,
+        attackDesc: mConfig.attackDesc || prev.attackDesc,
       }));
 
       setQuizProps((prev) => ({
@@ -90,6 +113,13 @@ export default function App() {
         videoSrc: videoPath,
       }));
     }
+  };
+
+  // Toggle safe zone guides
+  const toggleSafeZoneGuides = () => {
+    const nextVal = !showSafeZoneGuides;
+    setShowSafeZoneGuides(nextVal);
+    setMemeProps((prev) => ({ ...prev, showSafeZoneGuides: nextVal }));
   };
 
   return (
@@ -142,9 +172,22 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-3">
+            <button
+              onClick={toggleSafeZoneGuides}
+              className={`text-xs px-2.5 py-1.5 rounded-md border font-mono flex items-center gap-1.5 transition-colors ${
+                showSafeZoneGuides
+                  ? 'bg-red-950/80 border-red-700 text-red-300'
+                  : 'bg-neutral-800/80 border-neutral-700/60 text-neutral-400 hover:text-neutral-200'
+              }`}
+              title="Toggle garis panduan Safe Zone 80% (area tertutup medsos atas & bawah)"
+            >
+              {showSafeZoneGuides ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+              Safe Zone 80%
+            </button>
+
             <div className="text-xs font-mono text-neutral-400 bg-neutral-800/80 px-3 py-1.5 rounded-md border border-neutral-700/60 flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              1080x1920 (9:16) • 30 FPS • {totalFrames} Frames
+              1080x1920 (9:16) • 80% Safe Area
             </div>
           </div>
         </header>
@@ -155,7 +198,10 @@ export default function App() {
             {activeStyle === 'meme-discovery' ? (
               <Player
                 component={MemeDiscoveryComposition}
-                inputProps={memeProps}
+                inputProps={{
+                  ...memeProps,
+                  showSafeZoneGuides,
+                }}
                 durationInFrames={totalFrames}
                 fps={30}
                 compositionWidth={1080}
@@ -207,7 +253,7 @@ export default function App() {
       <aside className="w-96 flex flex-col bg-neutral-900/40 backdrop-blur-xl shrink-0">
         <div className="h-14 px-6 border-b border-neutral-800 flex items-center gap-2 text-sm font-semibold text-neutral-200">
           <Sliders className="w-4 h-4 text-amber-400" />
-          {activeStyle === 'meme-discovery' ? 'Meme Discovery Controls' : 'Roulette Quiz Controls'}
+          {activeStyle === 'meme-discovery' ? 'Meme Discovery Config' : 'Roulette Quiz Controls'}
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
@@ -245,19 +291,25 @@ export default function App() {
             {currentMoment && (
               <div className="p-3.5 rounded-xl bg-neutral-950/80 border border-neutral-800 text-xs space-y-2">
                 <div className="flex justify-between items-center text-neutral-400">
-                  <span>File & Ukuran:</span>
+                  <span>File Video:</span>
                   <span className="font-semibold text-neutral-200">
                     {currentMoment.files.full?.name || 'full.mp4'} ({currentMoment.files.full?.sizeFormatted})
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-neutral-400">
-                  <span>Durasi Video:</span>
+                  <span>Durasi Asli:</span>
                   <span className="font-mono text-amber-400 font-bold">
                     {currentMoment.files.full?.durationFormatted || 'N/A'} ({videoDurationSeconds}s)
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-neutral-400">
-                  <span>Kartu 1:1 Image:</span>
+                  <span>Safe Zone Canvas:</span>
+                  <span className="font-mono text-emerald-400 text-[11px]">
+                    9:16 (80% Area Aman Aktif)
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-neutral-400">
+                  <span>Aset Kartu 1:1:</span>
                   <span className="font-mono text-neutral-300 text-[11px]">
                     {currentMoment.files.image ? 'Tersedia di Drive (image.jpg)' : 'Freeze Frame Video'}
                   </span>
@@ -271,37 +323,27 @@ export default function App() {
           {/* Section 2: Conditional Controls based on Style */}
           {activeStyle === 'meme-discovery' ? (
             <div className="space-y-6">
-              {/* Precision Millisecond Frame Inspector Tool */}
-              <div className="space-y-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-neutral-400 flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-amber-400" />
-                  Alat Pencari Detik & Milidetik Undo
-                </span>
-                <FrameInspector
-                  fps={30}
-                  totalDurationSeconds={videoDurationSeconds}
-                  currentTarget={memeProps.targetUndoTimestamp}
-                  onSetTargetUndo={(timestamp) => {
-                    setMemeProps((prev) => ({
-                      ...prev,
-                      targetUndoTimestamp: timestamp,
-                    }));
-                  }}
-                />
+              {/* Callout Info: Konfigurasi data.json */}
+              <div className="p-3 rounded-xl bg-amber-950/30 border border-amber-500/30 text-xs space-y-1.5 text-amber-200">
+                <div className="flex items-center gap-1.5 font-bold text-amber-300">
+                  <ShieldAlert className="w-3.5 h-3.5" />
+                  Konfigurasi Tersinkron `data.json`
+                </div>
+                <p className="text-[11px] text-amber-200/80 leading-snug">
+                  Nilai detik & milidetik undo diinput manual dari video editor HP (relatif dari awal video), dan tersimpan pada properti <code className="bg-black/50 px-1 py-0.5 rounded text-amber-300 font-mono">memeDiscovery</code> di `data.json`.
+                </p>
               </div>
-
-              <hr className="border-neutral-800" />
 
               {/* Meme Discovery Props */}
               <div className="space-y-4">
                 <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-neutral-400">
                   <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                  Konfigurasi Video & Undo
+                  Parameter Seek Undo Video
                 </div>
 
                 <div>
                   <label className="text-xs font-medium text-neutral-300 block mb-1">
-                    Judul Banner Atas
+                    Judul Banner Atas (Safe Zone)
                   </label>
                   <input
                     type="text"
@@ -314,7 +356,7 @@ export default function App() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs font-medium text-neutral-300 block mb-1">
-                      Target Undo
+                      Target Undo (MM:SS.mmm)
                     </label>
                     <input
                       type="text"
@@ -328,7 +370,7 @@ export default function App() {
 
                   <div>
                     <label className="text-xs font-medium text-neutral-300 block mb-1">
-                      Durasi Undo (dtk)
+                      Durasi Undo (detik)
                     </label>
                     <input
                       type="number"
@@ -352,12 +394,12 @@ export default function App() {
               <div className="space-y-4">
                 <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-neutral-400">
                   <CreditCard className="w-3.5 h-3.5 text-amber-400" />
-                  Kustomisasi Kartu Holographic
+                  Kustomisasi Kartu Holographic 1:1
                 </div>
 
                 <div>
                   <label className="text-xs font-medium text-neutral-300 block mb-1">
-                    Nama Kartu / Karakter
+                    Nama Karakter Kartu
                   </label>
                   <input
                     type="text"
@@ -370,7 +412,7 @@ export default function App() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs font-medium text-neutral-300 block mb-1">
-                      Rarity Kartu
+                      Rarity Bintang
                     </label>
                     <input
                       type="text"
@@ -409,7 +451,7 @@ export default function App() {
 
                 <div>
                   <label className="text-xs font-medium text-neutral-300 block mb-1">
-                    Deskripsi Efek Kartu
+                    Deskripsi Efek Kartu (Dukung \n manual)
                   </label>
                   <textarea
                     rows={2}

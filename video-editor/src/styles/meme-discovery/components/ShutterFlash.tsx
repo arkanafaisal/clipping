@@ -35,3 +35,4 @@ export const ShutterFlash: React.FC<ShutterFlashProps> = ({ progress }) => {
     </div>
   );
 };
+

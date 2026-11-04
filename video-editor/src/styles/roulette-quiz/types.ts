@@ -9,3 +9,4 @@ export interface RouletteQuizProps {
   dimOpacity?: number;
   [key: string]: unknown;
 }
+

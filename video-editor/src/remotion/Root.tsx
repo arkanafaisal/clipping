@@ -18,7 +18,7 @@ export const RemotionRoot: React.FC = () => {
         defaultProps={{
           title: 'Meme Discovery: Momen Langka!',
           gameTitle: 'Grim Reaper',
-          targetUndoTimestamp: '00:03.450',
+          targetUndoTimestamp: '00:03.466',
           rewindDurationSeconds: 0.8,
           videoSrc: '/temp/grim reaper/full.mp4',
           cardTitle: 'Grim Reaper Facecam',
@@ -27,6 +27,7 @@ export const RemotionRoot: React.FC = () => {
           hp: 9999,
           attackName: 'Ekspresi Lucu Jumpscare',
           attackDesc: 'Menatap tajam ke kamera dengan ekspresi bingung yang memicu tawa penonton.',
+          showSafeZoneGuides: false,
         }}
       />
 

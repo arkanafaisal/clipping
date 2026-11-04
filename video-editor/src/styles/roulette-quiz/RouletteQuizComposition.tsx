@@ -180,3 +180,4 @@ export const RouletteQuizComposition: React.FC<RouletteQuizProps> = ({
     </AbsoluteFill>
   );
 };
+
