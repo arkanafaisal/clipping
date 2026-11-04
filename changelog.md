@@ -14,7 +14,34 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Strict Video Frozen Frame Isolation on Post-Skip Background and Dynamic Debounced Timestamp Frame Seeking
+## [Unreleased] - Minimalist Meme Amulet Card Redesign, Proportional Typography, and Studio Sidebar Live Editing
+- **Konteks Struktural**:
+  - Redesain Kartu Meme Koleksi Minimalis & Panel Editor Sidebar ([PokemonCard.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/PokemonCard.tsx), [MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), [types.ts](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/types.ts), [App.tsx](file:///d:/projects/clipping/video-editor/src/App.tsx), [data.json](file:///d:/projects/clipping/video-editor/src/data.json)):
+    - **Penyebab & Kebutuhan (prompts.md:L2)**: Pengguna meminta agar kartu meme didesain ulang menjadi minimalis (bukan lagi format kartu battle Pokemon TCG yang padat):
+      1. Karena format gambar facecam adalah 1:1, lebarnya tidak boleh `w-full` agar tidak memakan seluruh tinggi layar dan menyisakan ruang lega untuk teks di bawahnya (diberi padding horizontal).
+      2. Tidak boleh ada teks sama sekali di atas gambar (bagian paling atas langsung gambar 1:1).
+      3. Di bawah gambar langsung judul kartu dalam satu `flex-col` dengan rarity (tanpa teks pembantu seperti "Rarity: ").
+      4. Di bawahnya lagi deskripsi kartu (maksimal 40 kata), dan di bawahnya lagi kotak pasif (seperti jimat/kekuatan lucu).
+      5. Teks fleksibel dengan placeholder default: "Judul Kartu", "Rarity", "Ini deskripsi panjang, maksimal 40 kata", "Pasif", dan "Ini deskripsi pasif".
+      6. Ukuran teks diperbesar dan dibuat proporsional untuk kanvas 1080x1920 sehingga terbaca jelas di preview.
+      7. Menambahkan input form di sidebar web editor untuk seluruh field kartu sehingga pengguna dapat mengedit teks dan menyimpannya langsung ke `data.json`.
+    - **Solusi**:
+      1. Di [`PokemonCard.tsx`](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/PokemonCard.tsx), merombak total struktur anatomi kartu:
+         - Menghapus header bar atas, species info strip, battle stats (weakness, resistance, retreat cost), dan attack damage multiplier.
+         - Bagian paling atas langsung menampilkan foto facecam 1:1 (`w-[430px]` di dalam kartu `w-[700px]` dengan padding horizontal `px-8`), menjaga total tinggi kartu hanya ~840px (sangat proporsional dan tidak menabrak batas atas/bawah).
+         - Di bawah gambar terdapat blok judul kartu (`text-4xl font-black`) dan rarity (`text-xl font-extrabold text-amber-400`).
+         - Di bawahnya deskripsi utama (`text-2xl text-neutral-200`) dan kartu pasif jimat beraksen border emas/amber (`text-2xl font-black` nama pasif dan `text-xl text-neutral-300` deskripsi pasif).
+         - Mengimplementasikan fallback otomatis ke teks placeholder jika nilai field kosong atau tidak ditemukan di `data.json`.
+      2. Di [`types.ts`](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/types.ts) dan [`MemeDiscoveryComposition.tsx`](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), menyederhanakan interface props kartu menjadi `cardTitle`, `cardRarity`, `cardDesc`, `passiveName`, `passiveDesc`.
+      3. Di [`App.tsx`](file:///d:/projects/clipping/video-editor/src/App.tsx), melengkapi sidebar studio dengan form input interaktif untuk Judul Kartu, Rarity, Deskripsi, Nama Pasif, dan Deskripsi Pasif. Semua nilai terikat dua arah dengan live preview dan tersimpan otomatis ke `src/data.json` saat tombol ditekan.
+      4. Di [`data.json`](file:///d:/projects/clipping/video-editor/src/data.json), menyelaraskan skema properti `memeDiscovery` momen "grim reaper" dengan data kartu minimalis jimat yang baru.
+- **Perubahan Kode Penting**:
+  - `video-editor/src/styles/meme-discovery/components/PokemonCard.tsx`: Redesain minimalis jimat, padding horizontal gambar 1:1, eliminasi header atas, tipografi proporsional 1080x1920.
+  - `video-editor/src/styles/meme-discovery/types.ts` & `MemeDiscoveryComposition.tsx`: Pembersihan skema props kartu.
+  - `video-editor/src/App.tsx`: Form input kartu di sidebar editor & sinkronisasi data dua arah.
+  - `video-editor/src/data.json`: Struktur data kartu meme discovery baru.
+
+## [ba852b3] - Strict Video Frozen Frame Isolation on Post-Skip Background and Dynamic Debounced Timestamp Frame Seeking
 - **Konteks Struktural**:
   - Isolasi Mutlak Background Frame Beku Video Pasca-Skip & Ekstraksi Dinamis Timestamp ([MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), [frameCapture.ts](file:///d:/projects/clipping/video-editor/src/utils/frameCapture.ts), [App.tsx](file:///d:/projects/clipping/video-editor/src/App.tsx)):
     - **Penyebab & Kebutuhan**: Pengguna mendapati bahwa setelah efek skip mundur (di posisi timestamp x), background video malah menampilkan `image.jpg` (gambar facecam kartu) dan bukan frame beku dari video asli `full.mp4`. Pengguna menegaskan bahwa `image.jpg` HANYA untuk kartu koleksi meme (`PokemonCard.tsx`), sedangkan latar belakang video setelah skip HARUS murni merupakan frame beku dari `full.mp4` pada detik target (`targetUndoTimestamp`). Selain itu, pengguna melaporkan bahwa saat mengubah input timestamp (misal ke detik 2 atau 7.1), frame yang ter-freeze tidak berubah (statis/tidak responsif).

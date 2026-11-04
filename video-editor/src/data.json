@@ -1,5 +1,5 @@
 {
-  "lastUpdate": "2026-11-04 10:44:35",
+  "lastUpdate": "2026-11-04 10:49:59",
   "totalMoments": 1,
   "moments": [
     {
@@ -30,14 +30,12 @@
       },
       "memeDiscovery": {
         "targetUndoTimestamp": "00:07.105",
-        "rewindDurationSeconds": 0.8,
         "title": "Meme Discovery: Momen Langka!",
         "cardTitle": "Grim Reaper Facecam",
-        "cardSubtitle": "Meme Discovery Series #01",
         "cardRarity": "⭐⭐⭐⭐⭐ SSR LEGENDARY",
-        "hp": 9999,
-        "attackName": "Ekspresi Lucu Jumpscare",
-        "attackDesc": "Menatap tajam ke kamera dengan ekspresi bingung yang memicu tawa penonton."
+        "cardDesc": "Menatap tajam ke kamera dengan ekspresi bingung yang memicu tawa penonton.",
+        "passiveName": "Tatapan Kutukan Hoki",
+        "passiveDesc": "Memberikan kekebalan dari rasa kaget dan memicu auto-subscribe bagi penonton yang tertawa."
       }
     }
   ]

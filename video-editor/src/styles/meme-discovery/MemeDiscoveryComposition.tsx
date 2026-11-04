@@ -18,27 +18,17 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
   videoSrc,
   title = 'Meme Discovery: Momen Langka!',
   gameTitle = 'Grim Reaper',
-  targetUndoTimestamp = '00:03.466',
+  targetUndoTimestamp = '00:07.105',
   totalVideoDurationSeconds = 10.95,
-  cardTitle = 'Grim Reaper Facecam',
-  cardSubtitle = 'Meme Discovery Series #01',
-  cardRarity = '⭐⭐⭐⭐⭐ SSR LEGENDARY',
+  cardTitle,
+  cardRarity,
+  cardDesc,
+  passiveName,
+  passiveDesc,
   cardImageSrc,
   lastFrameImage,
   targetFrameImage,
-  hp = 9999,
-  attackName = 'Ekspresi Lucu Jumpscare',
-  attackDesc = 'Menatap tajam ke kamera dengan ekspresi bingung yang memicu tawa penonton.',
   showSafeZoneGuides = false,
-  stage = 'BASIC MEME',
-  energyType = '⚡',
-  speciesInfo = "NO. 001 Facecam • HT: 5'11\" • WT: 0 lbs • Rare Discovery Edition",
-  abilityName = 'Momen Spontan',
-  abilityDesc = 'Setiap kali viewer tertawa atau kaget, kartu ini memicu auto-subscribe.',
-  weakness = '⚡ x2',
-  resistance = '🛡️ -30',
-  retreatCost = '⚪⚪',
-  illustrator = 'Illus. Antigravity Editor',
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -173,31 +163,19 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
         </div>
       )}
 
-      {/* Kartu Meme 1:1 Holographic Pokemon TCG Meluncur Naik DARI BAWAH ke Tengah */}
+      {/* Kartu Koleksi Meme Minimalis Meluncur Naik DARI BAWAH ke Tengah */}
       {isCardRevealed && (
         <div className="absolute inset-0 flex items-center justify-center z-40 p-4">
           <PokemonCard
             cardTitle={cardTitle}
-            cardSubtitle={cardSubtitle}
             cardRarity={cardRarity}
+            cardDesc={cardDesc}
+            passiveName={passiveName}
+            passiveDesc={passiveDesc}
             imageSrc={cardImageSrc}
             targetFrameImage={targetFrameImage}
-            videoSrc={videoSrc}
-            targetUndoSeconds={targetUndoSeconds}
-            hp={hp}
-            attackName={attackName}
-            attackDesc={attackDesc}
             slideProgress={cardSpring}
             frame={frame}
-            stage={stage}
-            energyType={energyType}
-            speciesInfo={speciesInfo}
-            abilityName={abilityName}
-            abilityDesc={abilityDesc}
-            weakness={weakness}
-            resistance={resistance}
-            retreatCost={retreatCost}
-            illustrator={illustrator}
           />
         </div>
       )}

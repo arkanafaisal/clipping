@@ -21,10 +21,26 @@ export default function App() {
     (window as any).playerRef = playerRef;
   }, []);
 
-  // Input timestamp posisi frame relatif dari detik 0
-  const initialTimestamp =
-    currentMoment?.memeDiscovery?.targetUndoTimestamp || '00:03.466';
-  const [targetTimestamp, setTargetTimestamp] = useState<string>(initialTimestamp);
+  // Input dan teks kartu Meme Discovery
+  const initialMeme = currentMoment?.memeDiscovery || {};
+  const [targetTimestamp, setTargetTimestamp] = useState<string>(
+    initialMeme.targetUndoTimestamp || '00:07.105'
+  );
+  const [cardTitle, setCardTitle] = useState<string>(
+    initialMeme.cardTitle || ''
+  );
+  const [cardRarity, setCardRarity] = useState<string>(
+    initialMeme.cardRarity || ''
+  );
+  const [cardDesc, setCardDesc] = useState<string>(
+    initialMeme.cardDesc || ''
+  );
+  const [passiveName, setPassiveName] = useState<string>(
+    initialMeme.passiveName || ''
+  );
+  const [passiveDesc, setPassiveDesc] = useState<string>(
+    initialMeme.passiveDesc || ''
+  );
 
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
@@ -37,8 +53,14 @@ export default function App() {
         if (res.metadata) {
           setData(res.metadata);
           const updatedMoment = res.metadata.moments?.[0];
-          if (updatedMoment?.memeDiscovery?.targetUndoTimestamp) {
-            setTargetTimestamp(updatedMoment.memeDiscovery.targetUndoTimestamp);
+          const md = updatedMoment?.memeDiscovery;
+          if (md) {
+            if (md.targetUndoTimestamp) setTargetTimestamp(md.targetUndoTimestamp);
+            if (md.cardTitle !== undefined) setCardTitle(md.cardTitle);
+            if (md.cardRarity !== undefined) setCardRarity(md.cardRarity);
+            if (md.cardDesc !== undefined) setCardDesc(md.cardDesc);
+            if (md.passiveName !== undefined) setPassiveName(md.passiveName);
+            if (md.passiveDesc !== undefined) setPassiveDesc(md.passiveDesc);
           }
         }
       })
@@ -122,6 +144,11 @@ export default function App() {
             memeDiscovery: {
               ...(m.memeDiscovery || {}),
               targetUndoTimestamp: targetTimestamp,
+              cardTitle,
+              cardRarity,
+              cardDesc,
+              passiveName,
+              passiveDesc,
             },
           };
         }
@@ -173,12 +200,11 @@ export default function App() {
                 targetFrameImage,
                 title: currentMoment?.memeDiscovery?.title || 'Meme Discovery: Momen Langka!',
                 gameTitle: currentMoment?.name || 'Grim Reaper',
-                cardTitle: currentMoment?.memeDiscovery?.cardTitle || 'Grim Reaper Facecam',
-                cardSubtitle: currentMoment?.memeDiscovery?.cardSubtitle || 'Meme Discovery Series #01',
-                cardRarity: currentMoment?.memeDiscovery?.cardRarity || '⭐⭐⭐⭐⭐ SSR LEGENDARY',
-                hp: currentMoment?.memeDiscovery?.hp || 9999,
-                attackName: currentMoment?.memeDiscovery?.attackName || 'Ekspresi Lucu Jumpscare',
-                attackDesc: currentMoment?.memeDiscovery?.attackDesc || 'Menatap tajam ke kamera dengan ekspresi bingung yang memicu tawa penonton.',
+                cardTitle: cardTitle || undefined,
+                cardRarity: cardRarity || undefined,
+                cardDesc: cardDesc || undefined,
+                passiveName: passiveName || undefined,
+                passiveDesc: passiveDesc || undefined,
               }}
               durationInFrames={totalFrames}
               fps={30}
@@ -215,65 +241,136 @@ export default function App() {
         </div>
       </div>
 
-      {/* SIDEBAR MINIMALIS: Hanya Detail Mode Aktif, Back Button, Input Timestamp & Save */}
-      <aside className="w-80 h-screen border-l border-neutral-900 bg-neutral-950/90 flex flex-col justify-between p-6 shrink-0">
-        <div className="space-y-6">
-          {/* Header Bar: Back Button & Detail Mode Aktif */}
-          <div className="flex items-center justify-between pb-4 border-b border-neutral-900">
-            <button
-              onClick={() =>
-                setActiveStyle(
-                  activeStyle === 'meme-discovery'
-                    ? 'roulette-quiz'
-                    : 'meme-discovery'
-                )
-              }
-              className="inline-flex items-center gap-1.5 text-xs text-neutral-400 hover:text-white transition-colors py-1 px-2 rounded-lg hover:bg-neutral-900"
-              title="Ganti Mode / Kembali"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Ganti Mode</span>
-            </button>
+      {/* SIDEBAR EDITING: Input Detail Kartu Meme, Posisi Timestamp, dan Simpan ke data.json */}
+      <aside className="w-88 h-screen border-l border-neutral-900 bg-neutral-950/95 flex flex-col justify-between p-5 shrink-0 overflow-hidden">
+        {/* Header Bar: Back Button & Detail Mode Aktif */}
+        <div className="flex items-center justify-between pb-3.5 border-b border-neutral-900 shrink-0">
+          <button
+            onClick={() =>
+              setActiveStyle(
+                activeStyle === 'meme-discovery'
+                  ? 'roulette-quiz'
+                  : 'meme-discovery'
+              )
+            }
+            className="inline-flex items-center gap-1.5 text-xs text-neutral-400 hover:text-white transition-colors py-1 px-2 rounded-lg hover:bg-neutral-900 cursor-pointer"
+            title="Ganti Mode / Kembali"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Ganti Mode</span>
+          </button>
 
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-neutral-900 border border-neutral-800 text-xs font-semibold text-amber-300">
-              {activeStyle === 'meme-discovery' ? (
-                <>
-                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                  Meme Discovery
-                </>
-              ) : (
-                <>
-                  <Layers className="w-3.5 h-3.5 text-amber-400" />
-                  Roulette Quiz
-                </>
-              )}
-            </div>
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-neutral-900 border border-neutral-800 text-xs font-semibold text-amber-300">
+            {activeStyle === 'meme-discovery' ? (
+              <>
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                Meme Discovery
+              </>
+            ) : (
+              <>
+                <Layers className="w-3.5 h-3.5 text-amber-400" />
+                Roulette Quiz
+              </>
+            )}
           </div>
+        </div>
 
-          {/* Kontrol Input: Hanya Posisi Frame Target Undo & Tombol Save */}
+        {/* Form Input Scrollable */}
+        <div className="flex-1 overflow-y-auto py-3 space-y-3.5 pr-1 scrollbar-thin scrollbar-thumb-neutral-800">
           {activeStyle === 'meme-discovery' ? (
-            <div className="space-y-4">
+            <>
+              {/* 1. Posisi Frame Target Undo */}
               <div>
-                <label className="text-xs font-bold text-neutral-300 block mb-1.5">
+                <label className="text-xs font-bold text-neutral-300 block mb-1">
                   Posisi Frame Target Undo
                 </label>
                 <input
                   type="text"
                   value={targetTimestamp}
                   onChange={(e) => setTargetTimestamp(e.target.value)}
-                  placeholder="00:03.466"
-                  className="w-full bg-black border border-neutral-800 rounded-xl px-3.5 py-2.5 text-sm font-mono text-amber-400 focus:outline-none focus:border-amber-500 transition-colors"
+                  placeholder="00:07.105"
+                  className="w-full bg-black border border-neutral-800 rounded-xl px-3 py-2 text-xs font-mono text-amber-400 focus:outline-none focus:border-amber-500 transition-colors"
                 />
-                <p className="text-[11px] text-neutral-500 mt-1.5">
-                  Format <code className="text-neutral-400">MM:SS.mmm</code> relatif dari detik 0 video (hasil cek HP).
+                <p className="text-[10px] text-neutral-500 mt-1">
+                  Format <code className="text-neutral-400">MM:SS.mmm</code> relatif dari detik 0 video.
                 </p>
               </div>
 
-              {/* Tombol Simpan Otomatis ke data.json */}
+              {/* 2. Judul Kartu */}
+              <div>
+                <label className="text-xs font-bold text-neutral-300 block mb-1">
+                  Judul Kartu
+                </label>
+                <input
+                  type="text"
+                  value={cardTitle}
+                  onChange={(e) => setCardTitle(e.target.value)}
+                  placeholder="Judul Kartu"
+                  className="w-full bg-black border border-neutral-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 transition-colors"
+                />
+              </div>
+
+              {/* 3. Rarity */}
+              <div>
+                <label className="text-xs font-bold text-neutral-300 block mb-1">
+                  Rarity Kartu
+                </label>
+                <input
+                  type="text"
+                  value={cardRarity}
+                  onChange={(e) => setCardRarity(e.target.value)}
+                  placeholder="Rarity"
+                  className="w-full bg-black border border-neutral-800 rounded-xl px-3 py-2 text-xs text-amber-400 font-bold focus:outline-none focus:border-amber-500 transition-colors"
+                />
+              </div>
+
+              {/* 4. Deskripsi Kartu (Biasa) */}
+              <div>
+                <label className="text-xs font-bold text-neutral-300 block mb-1">
+                  Deskripsi Kartu (Maks 40 Kata)
+                </label>
+                <textarea
+                  rows={2}
+                  value={cardDesc}
+                  onChange={(e) => setCardDesc(e.target.value)}
+                  placeholder="Ini deskripsi panjang, maksimal 40 kata"
+                  className="w-full bg-black border border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-200 focus:outline-none focus:border-amber-500 transition-colors resize-none"
+                />
+              </div>
+
+              {/* 5. Nama Pasif (Jimat / Kekuatan Lucu) */}
+              <div>
+                <label className="text-xs font-bold text-neutral-300 block mb-1">
+                  Nama Pasif (Jimat)
+                </label>
+                <input
+                  type="text"
+                  value={passiveName}
+                  onChange={(e) => setPassiveName(e.target.value)}
+                  placeholder="Pasif"
+                  className="w-full bg-black border border-neutral-800 rounded-xl px-3 py-2 text-xs text-amber-300 font-semibold focus:outline-none focus:border-amber-500 transition-colors"
+                />
+              </div>
+
+              {/* 6. Deskripsi Pasif */}
+              <div>
+                <label className="text-xs font-bold text-neutral-300 block mb-1">
+                  Deskripsi Pasif
+                </label>
+                <textarea
+                  rows={2}
+                  value={passiveDesc}
+                  onChange={(e) => setPassiveDesc(e.target.value)}
+                  placeholder="Ini deskripsi pasif"
+                  className="w-full bg-black border border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-300 focus:outline-none focus:border-amber-500 transition-colors resize-none"
+                />
+              </div>
+
+              {/* Tombol Simpan ke data.json */}
               <button
                 onClick={handleSave}
                 disabled={isSaving}
-                className="w-full py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600 disabled:opacity-50 text-black font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-lg shadow-amber-500/10 cursor-pointer"
+                className="w-full py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600 disabled:opacity-50 text-black font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-lg shadow-amber-500/10 cursor-pointer mt-2"
               >
                 {saveStatus ? (
                   <>
@@ -287,16 +384,16 @@ export default function App() {
                   </>
                 )}
               </button>
-            </div>
+            </>
           ) : (
-            <div className="text-xs text-neutral-500 leading-relaxed">
+            <div className="text-xs text-neutral-500 leading-relaxed py-4">
               Mode Roulette Quiz aktif. Klik tombol "Ganti Mode" untuk kembali ke Meme Discovery.
             </div>
           )}
         </div>
 
         {/* Footer Minimalis Status Ringkas */}
-        <div className="text-[10px] font-mono text-neutral-600 border-t border-neutral-900/80 pt-3 flex justify-between items-center">
+        <div className="text-[10px] font-mono text-neutral-600 border-t border-neutral-900/80 pt-3 flex justify-between items-center shrink-0">
           <span>9:16 • 80% Safe</span>
           <span className="text-neutral-500">{currentMoment?.name}</span>
         </div>
