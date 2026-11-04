@@ -1,5 +1,5 @@
 import React from 'react';
-import { Composition } from 'remotion';
+import { Composition, staticFile } from 'remotion';
 import '../index.css';
 import { MemeDiscoveryComposition } from '../styles/meme-discovery/MemeDiscoveryComposition';
 import { RouletteQuizComposition } from '../styles/roulette-quiz/RouletteQuizComposition';
@@ -13,11 +13,10 @@ export const RemotionRoot: React.FC = () => {
   const videoFrames = Math.round(videoDurationSeconds * 30);
   const totalFrames = videoFrames + 12 + 22 + 18 + 10 + 15 + 105;
 
-  const videoSrc = currentMoment
-    ? `/temp/${currentMoment.path}/full.mp4`
-    : '/temp/grim reaper/full.mp4';
+  // Gunakan staticFile Remotion agar aset di public/ terpetakan tepat di Remotion CLI & Player
+  const videoSrc = staticFile('temp/full.mp4');
   const imageSrc = currentMoment?.files?.image
-    ? `/temp/${currentMoment.path}/image.jpg`
+    ? staticFile('temp/image.jpg')
     : undefined;
 
   return (

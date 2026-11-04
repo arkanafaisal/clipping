@@ -138,11 +138,9 @@ export default function App() {
 
   const videoDurationSeconds =
     currentMoment?.files?.full?.durationSeconds || 10.95;
-  const videoSrc = currentMoment
-    ? `/temp/${currentMoment.path}/full.mp4`
-    : '/temp/grim reaper/full.mp4';
+  const videoSrc = '/temp/full.mp4';
   const imageSrc = currentMoment?.files?.image
-    ? `/temp/${currentMoment.path}/image.jpg`
+    ? '/temp/image.jpg'
     : undefined;
 
   // Tangkapan frame beku statis target x momen puncak (canvas)
