@@ -16,7 +16,15 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Wrap Sound Effects with staticFile to Resolve 404 in Remotion CLI
+## [Unreleased] - Revert Config.setPublicDir to Preserve Standard Remotion Public File Routing
+- **Konteks Struktural**:
+  - Penghapusan `Config.setPublicDir` ([remotion.config.ts](file:///d:/projects/clipping/video-editor/remotion.config.ts)):
+    - **Penyebab & Kebutuhan**: Pemasangan eksplisit `Config.setPublicDir` menyebabkan Remotion menambahkan prefix `/public/` pada URL berkas (`/public/temp/full.mp4`) yang memicu error 404 pada web server lokal Remotion.
+    - **Solusi**: Menghapus `Config.setPublicDir` dari `remotion.config.ts` agar Remotion kembali menggunakan routing standar `/temp/full.mp4` dan `/sfx/...` yang sudah terbukti berhasil memutar video.
+- **Perubahan Kode Penting**:
+  - `video-editor/remotion.config.ts`: Menghapus baris `Config.setPublicDir`.
+
+## [14f84e1] - Wrap Sound Effects with staticFile to Resolve 404 in Remotion CLI
 - **Konteks Struktural**:
   - Resolusi Path File Audio SFX Remotion CLI ([MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx)):
     - **Penyebab & Kebutuhan**: Saat merender frame 346, Remotion CLI gagal mengunduh aset audio shutter kamera (`http://localhost:3000/sfx/camera-shutter.webm: status code 404`). Hal ini terjadi karena audio shutter kamera dan harp glissando menggunakan string path literal (`/sfx/...`) yang tidak dibungkus `staticFile(...)`, sehingga Webpack/Remotion tidak memetakan file audio di folder `public/sfx/` ke temporary build bundle saat rendering CLI.
