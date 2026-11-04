@@ -28,47 +28,61 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
   showSafeZoneGuides = false,
 }) => {
   const frame = useCurrentFrame();
-  const { fps, durationInFrames } = useVideoConfig();
+  const { fps } = useVideoConfig();
 
-  // 1. Posisi timestamp target x yang diinput manual (relatif terhadap detik 0)
+  // 1. Posisi timestamp target x (relatif dari detik 0)
   const targetUndoSeconds = parseTimestampToSeconds(targetUndoTimestamp);
 
-  // 2. Durasi video penuh yang diputar utuh tanpa gangguan (frame 0 sampai playEndFrame)
+  // 2. Durasi video penuh
   const totalSeconds = totalVideoDurationSeconds || 10.95;
-  const playEndFrame = Math.round(totalSeconds * fps);
+  const playEndFrame = Math.round(totalSeconds * fps); // frame akhir video
 
-  // 3. Jumlah detik lompat ke belakang: (total - x) detik dihitung otomatis
+  // Jumlah detik lompatan mundur: total - x detik
   const skipAmountSeconds = Math.max(0, totalSeconds - targetUndoSeconds);
 
-  // 4. Durasi efek skip ala video player (20 frame = ~0.66 detik)
-  const skipEffectFrames = 20;
-  const skipStartFrame = playEndFrame;
-  const skipEndFrame = skipStartFrame + skipEffectFrames;
+  // ========================================================
+  // SEKUENSIAL JEDA ANTAR KEJADIAN (STORYBOARD):
+  // 1. Play full video utuh tanpa gangguan: 0 -> playEndFrame
+  // 2. Jeda freeze akhir video + pause icon ringan (12 frame = 0.4s)
+  const endPauseFrames = 12;
+  const skipStartFrame = playEndFrame + endPauseFrames;
 
-  // 5. Durasi flash shutter kamera (10 frame = ~0.33 detik)
+  // 3. Efek skip kebelakang ala YouTube di sisi kiri (22 frame = ~0.73s)
+  const skipFrames = 22;
+  const skipEndFrame = skipStartFrame + skipFrames;
+
+  // 4. Jeda menampilkan freezed frame lucu agar viewer bisa menangkapnya (18 frame = 0.6s)
+  const funnyFramePauseFrames = 18;
+  const flashStartFrame = skipEndFrame + funnyFramePauseFrames;
+
+  // 5. Efek screenshot camera shutter flash putih (10 frame = ~0.33s)
   const flashFrames = 10;
-  const flashStartFrame = skipEndFrame;
   const flashEndFrame = flashStartFrame + flashFrames;
 
-  // 6. Reveal kartu Pokemon 1:1 sampai akhir composition
-  const cardStartFrame = flashStartFrame + 3;
+  // 6. Jeda pasca-screenshot persis 0.5 detik (15 frame pada 30fps)
+  const postScreenshotPauseFrames = 15;
+  const cardStartFrame = flashEndFrame + postScreenshotPauseFrames;
 
-  // State fase aktif
-  const isPlayingFull = frame < skipStartFrame;
+  // ========================================================
+  // STATE FASE AKTIF:
+  const isPlayingFull = frame < playEndFrame;
+  const isEndPaused = frame >= playEndFrame && frame < skipStartFrame;
   const isSkipping = frame >= skipStartFrame && frame < skipEndFrame;
+  const isViewingFunnyFrame = frame >= skipEndFrame && frame < flashStartFrame;
   const isFlashing = frame >= flashStartFrame && frame < flashEndFrame;
+  const isPostFlashPause = frame >= flashEndFrame && frame < cardStartFrame;
   const isCardRevealed = frame >= cardStartFrame;
 
-  // Progress flash shutter (0 sampai 1)
+  // Progress flash shutter
   const flashProgress = isFlashing
     ? (frame - flashStartFrame) / flashFrames
     : 0;
 
-  // Spring entrance pop-up kartu
+  // Spring entrance meluncur dari bawah ke tengah (slide-up)
   const cardSpring = spring({
     frame: frame - cardStartFrame,
     fps,
-    config: { damping: 13, mass: 0.7, stiffness: 120 },
+    config: { damping: 15, mass: 0.8, stiffness: 90 },
   });
 
   return (
@@ -90,13 +104,21 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
       <div className="absolute top-[10%] bottom-[10%] inset-x-0 overflow-hidden flex items-center justify-center bg-black">
         {videoSrc ? (
           <div className="relative w-full h-full overflow-hidden flex items-center justify-center">
-            {/* Play video full utuh terlebih dahulu; setelah selesai langsung seek ke timestamp target x */}
+            {/* Play video full utuh terlebih dahulu */}
             {isPlayingFull ? (
               <Video
                 src={videoSrc}
                 className="w-full h-full object-contain"
               />
+            ) : isEndPaused ? (
+              /* Freeze frame terakhir video saat jeda pause */
+              <Video
+                src={videoSrc}
+                startFrom={Math.max(0, playEndFrame - 2)}
+                className="w-full h-full object-contain pointer-events-none"
+              />
             ) : (
+              /* Langsung seek persis pada detik frame lucu x */
               <Video
                 src={videoSrc}
                 startFrom={Math.round(targetUndoSeconds * fps)}
@@ -115,23 +137,34 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
           </div>
         )}
 
-        {/* Efek visual skip ke belakang ala video player (SEBANYAK total - x detik) */}
+        {/* Ikon Pause Ringan Transparan saat video baru selesai */}
+        {isEndPaused && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
+            <div className="w-20 h-20 rounded-full bg-black/50 border border-white/20 flex items-center justify-center opacity-30 shadow-2xl">
+              <div className="flex gap-2.5">
+                <div className="w-2.5 h-8 bg-white rounded-sm" />
+                <div className="w-2.5 h-8 bg-white rounded-sm" />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Efek Skip Kebelakang persis seperti YouTube di bagian KIRI */}
         {isSkipping && (
           <RewindEffect
-            progress={(frame - skipStartFrame) / skipEffectFrames}
+            progress={(frame - skipStartFrame) / skipFrames}
             skipAmountSeconds={skipAmountSeconds}
-            targetTimestampText={targetUndoTimestamp}
           />
         )}
 
-        {/* Camera Shutter White Flash */}
+        {/* Camera Shutter White Flash (Screenshot Efek) */}
         {isFlashing && (
           <div className="absolute inset-0 z-30 pointer-events-none">
             <ShutterFlash progress={flashProgress} />
           </div>
         )}
 
-        {/* Reveal Kartu Pokemon 1:1 Holographic Center Stage */}
+        {/* Kartu Meme 1:1 Holographic Meluncur Naik DARI BAWAH */}
         {isCardRevealed && (
           <div className="absolute inset-0 flex items-center justify-center z-40 p-4">
             <PokemonCard
@@ -144,7 +177,7 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
               hp={hp}
               attackName={attackName}
               attackDesc={attackDesc}
-              scaleProgress={cardSpring}
+              slideProgress={cardSpring}
               frame={frame}
             />
           </div>
@@ -163,7 +196,7 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
             </span>
             <span className="text-neutral-600">•</span>
             <span className="text-[11px] font-mono text-amber-400 font-semibold">
-              SEEK: {targetUndoTimestamp} (-{skipAmountSeconds.toFixed(1)}s)
+              SEEK: {targetUndoTimestamp} (-{Math.round(skipAmountSeconds)}s)
             </span>
           </div>
 

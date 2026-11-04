@@ -7,11 +7,11 @@ import { VerticalShortsComposition } from './compositions/VerticalShortsComposit
 export const RemotionRoot: React.FC = () => {
   return (
     <>
-      {/* Style 1: Meme Discovery (Full Play -> Skip Back -> Flash -> Holographic 1:1 Card Reveal) */}
+      {/* Style 1: Meme Discovery (Sequential: Full Play -> Pause -> YouTube Skip -> Funny Frame View -> Flash -> 0.5s Pause -> Card Slide Up) */}
       <Composition
         id="MemeDiscovery"
         component={MemeDiscoveryComposition}
-        durationInFrames={449} // 329f video (10.95s) + 20f skip + 10f flash + 90f card = 449 frames (~15s)
+        durationInFrames={511} // 329f video (10.95s) + 182f sekuens jeda sinematik = 511 frames (~17s)
         fps={30}
         width={1080}
         height={1920}

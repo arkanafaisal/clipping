@@ -11,7 +11,7 @@ interface PokemonCardProps {
   hp?: number;
   attackName?: string;
   attackDesc?: string;
-  scaleProgress: number; // 0 to 1 (spring entrance)
+  slideProgress: number; // 0 to 1 (slide-up entrance from bottom)
   frame: number;
 }
 
@@ -25,7 +25,7 @@ export const PokemonCard: React.FC<PokemonCardProps> = ({
   hp = 9999,
   attackName = 'Ekspresi Lucu Jumpscare',
   attackDesc = 'Membuat penonton tertawa terpingkal-pingkal dan langsung subscribe.',
-  scaleProgress,
+  slideProgress,
   frame,
 }) => {
   // Holographic shine angle & position
@@ -35,19 +35,22 @@ export const PokemonCard: React.FC<PokemonCardProps> = ({
     [-200, 300]
   );
 
+  // Animasi meluncur dari bawah ke tengah (slide-up from bottom)
+  const translateY = interpolate(slideProgress, [0, 1], [900, 0]);
+
   return (
     <div
-      className="relative w-[520px] rounded-3xl p-4 bg-gradient-to-br from-amber-300 via-yellow-500 to-amber-600 shadow-[0_0_50px_rgba(250,204,21,0.6)] border-4 border-yellow-200 select-none overflow-hidden"
+      className="relative w-[520px] rounded-3xl p-4 bg-gradient-to-br from-amber-300 via-yellow-500 to-amber-600 shadow-[0_0_60px_rgba(250,204,21,0.65)] border-4 border-yellow-200 select-none overflow-hidden"
       style={{
-        transform: `scale(${scaleProgress}) rotate(${(1 - scaleProgress) * -8}deg)`,
-        opacity: Math.min(1, scaleProgress * 1.5),
+        transform: `translateY(${translateY}px)`,
+        opacity: Math.min(1, slideProgress * 2.5),
       }}
     >
       {/* Holographic Sheen Layer */}
       <div
-        className="absolute inset-0 pointer-events-none opacity-40 mix-blend-color-dodge z-30"
+        className="absolute inset-0 pointer-events-none opacity-45 mix-blend-color-dodge z-30"
         style={{
-          background: `linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.8) 45%, rgba(255,200,0,0.8) 50%, rgba(0,255,255,0.8) 55%, transparent 75%)`,
+          background: `linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.85) 45%, rgba(255,200,0,0.8) 50%, rgba(0,255,255,0.8) 55%, transparent 75%)`,
           transform: `translateX(${shineX}%)`,
         }}
       />
@@ -133,4 +136,3 @@ export const PokemonCard: React.FC<PokemonCardProps> = ({
     </div>
   );
 };
-

@@ -14,7 +14,29 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Implement Video Player Skip Backward Effect and Streamline Studio Web UI to Minimalist Full Height
+## [Unreleased] - Implement YouTube-Style Double-Tap Skip Backward Effect, Refined Freeze Pauses, and Card Slide-Up Entrance
+- **Konteks Struktural**:
+  - Penataan Ulang Storyboard Sekuensial Meme Discovery & Efek Skip YouTube ([MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), [RewindEffect.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/RewindEffect.tsx), [PokemonCard.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/PokemonCard.tsx)):
+    - **Penyebab & Kebutuhan**: Pengguna menginginkan alur kejadian visual yang runut dan memiliki jeda antar aksi yang jelas agar penonton dapat mencerna maksud video dengan nyaman:
+      1. Video diputar utuh tanpa gangguan sampai selesai.
+      2. Begitu selesai, frame terakhir dibekukan (*freeze*) dengan jeda singkat dan ikon pause transparan ringan di tengah (bukan layar hitam).
+      3. Muncul efek skip kebelakang persis seperti YouTube (setengah lingkaran/kubah gelombang putih melengkung di sisi kiri, 3 panah beriak ke kiri `◀◀◀`, dan teks durasi detik).
+      4. Setelah efek skip, layar menampilkan frame beku momen lucu dengan jeda yang cukup agar penonton bisa melihat ekspresinya.
+      5. Terjadi efek shutter flash kamera putih halus.
+      6. Ada jeda 0.5 detik (15 frame) pasca-screenshot sebelum kartu meme muncul.
+      7. Kartu meme 1:1 meluncur naik dari bawah (*slide-up from bottom*) ke tengah safe zone 80%.
+    - **Solusi**:
+      1. Mengganti visual skip di `RewindEffect.tsx` menjadi efek double-tap YouTube asli di sisi kiri layar dengan kubah busur `rounded-r-full`, animasi riak 3 chevron `◀◀◀`, dan teks `{N} detik`.
+      2. Mengatur sekuens berurutan di `MemeDiscoveryComposition.tsx` dengan jeda freeze frame akhir + pause icon transparan (12 frame), efek skip YouTube (22 frame), jeda pandang frame lucu (18 frame), flash shutter (10 frame), jeda 0.5s pasca-screenshot (15 frame), dan tampilan kartu (105 frame).
+      3. Memperbarui `PokemonCard.tsx` agar meluncur naik dari bawah ke tengah (`translateY: 900px -> 0px` via spring animation) di dalam safe zone 80%.
+      4. Menyelaraskan total durasi composition di `Root.tsx` dan `App.tsx` (511 frame ~17.03s).
+- **Perubahan Kode Penting**:
+  - `video-editor/src/styles/meme-discovery/components/RewindEffect.tsx`: Efek skip kebelakang identik dengan YouTube double-tap di sisi kiri layar.
+  - `video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx`: Sekuens visual berjenjang dengan jeda jeda teratur dan freeze video tanpa jeda hitam.
+  - `video-editor/src/styles/meme-discovery/components/PokemonCard.tsx`: Animasi entrance kartu meluncur dari bawah layar (`slideProgress`).
+  - `video-editor/src/App.tsx` & `Root.tsx`: Penyesuaian total durasi frame sekuensial (511 frame).
+
+## [225c86f] - Implement Video Player Skip Backward Effect and Streamline Studio Web UI to Minimalist Full Height
 - **Konteks Struktural**:
   - Penyederhanaan Tampilan Web Studio & Efek Skip Mundur Video Player ([App.tsx](file:///d:/projects/clipping/video-editor/src/App.tsx), [MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), [RewindEffect.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/RewindEffect.tsx), [vite.config.ts](file:///d:/projects/clipping/video-editor/vite.config.ts)):
     - **Penyebab & Kebutuhan**: Karena kanvas video berformat potret 9:16, keberadaan header/navbar di bagian atas web memotong tinggi viewport laptop sehingga kanvas video tidak bisa dinikmati dengan tinggi maksimal. Pengguna menginginkan antarmuka tools pribadi yang ultra-minimalis tanpa ornamen pemercantik (menghapus navbar, judul project, deskripsi, pemilih momen, kustomisasi kartu, dll.) dan hanya menyisakan detail mode aktif, back button, input posisi frame target undo, dan tombol simpan otomatis ke `data.json`. Pada style edit "Meme Discovery", pengguna meminta alur pemutaran video penuh secara utuh terlebih dahulu dari awal hingga akhir tanpa gangguan, lalu setelah selesai barulah muncul efek visual skip kebelakang ala video player (menampilkan lompatan sebanyak `total - x` detik) dan otomatis langsung men-seek video ke timestamp `x` yang ditentukan secara instan.

@@ -31,10 +31,16 @@ export default function App() {
     ? `/temp/${currentMoment.path}/image.jpg`
     : undefined;
 
-  // Total durasi sekuens video:
-  // Video full (Math.round(totalVideoDurationSeconds * 30)) + 20f skip + 10f flash + 90f kartu reveal
+  // Total durasi sekuens video berurutan:
+  // 1. Video full play (Math.round(totalVideoDurationSeconds * 30))
+  // 2. Jeda freeze akhir + pause icon (12f)
+  // 3. YouTube skip backward effect (22f)
+  // 4. Jeda viewer mencerna frame lucu (18f)
+  // 5. Screenshot shutter flash (10f)
+  // 6. Jeda 0.5 detik pasca-screenshot (15f)
+  // 7. Kartu meme slide-up dari bawah (105f)
   const videoFrames = Math.round(videoDurationSeconds * 30);
-  const totalFrames = videoFrames + 20 + 10 + 90;
+  const totalFrames = videoFrames + 12 + 22 + 18 + 10 + 15 + 105;
 
   // Simpan nilai baru ke data.json via server endpoint
   const handleSave = async () => {
