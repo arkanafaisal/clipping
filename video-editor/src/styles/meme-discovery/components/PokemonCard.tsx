@@ -7,6 +7,7 @@ interface PokemonCardProps {
   cardDesc?: string;
   passiveName?: string;
   passiveDesc?: string;
+  cardColor?: string; // Warna kustom kartu (hex, misal: "#f59e0b")
   imageSrc?: string;
   targetFrameImage?: string;
   slideProgress: number; // 0 to 1 (slide-up entrance from bottom)
@@ -19,6 +20,7 @@ export const PokemonCard: React.FC<PokemonCardProps> = ({
   cardDesc,
   passiveName,
   passiveDesc,
+  cardColor = '#f59e0b',
   imageSrc,
   targetFrameImage,
   slideProgress,
@@ -43,10 +45,13 @@ export const PokemonCard: React.FC<PokemonCardProps> = ({
 
   return (
     <div
-      className="relative w-[680px] h-[952px] rounded-[36px] p-5 bg-gradient-to-b from-amber-300 via-amber-500 to-amber-700 shadow-[0_0_100px_rgba(245,158,11,0.6),0_30px_70px_rgba(0,0,0,0.95)] border-2 border-yellow-200/90 select-none overflow-hidden"
+      className="relative w-[760px] h-[1140px] rounded-[38px] p-5 border-2 select-none overflow-hidden"
       style={{
         transform: `translateY(${translateY}px)`,
         opacity: Math.min(1, slideProgress * 2.5),
+        borderColor: `${cardColor}ee`,
+        background: `linear-gradient(to bottom, ${cardColor}dd, ${cardColor}88 40%, ${cardColor}44 80%, ${cardColor}bb)`,
+        boxShadow: `0 0 100px ${cardColor}55, 0 30px 70px rgba(0,0,0,0.95)`,
       }}
     >
       {/* 1. Holographic Rainbow Sheen Foil Layer (GPU Accelerated Alpha Blending) */}
@@ -58,11 +63,17 @@ export const PokemonCard: React.FC<PokemonCardProps> = ({
         }}
       />
 
-      {/* 2. Body Dalam Kartu (Minimalis Jimat Koleksi Meme - Rasio Autentik 5:7 Pokemon TCG) */}
-      <div className="relative w-full h-full rounded-[26px] bg-gradient-to-b from-neutral-900 via-neutral-950 to-black p-6 border border-amber-500/40 flex flex-col justify-between items-center">
-        {/* BAGIAN PALING ATAS: Murni Gambar 1:1, tidak full width (ada padding x kanan-kiri), ukuran compact ~350px */}
+      {/* 2. Body Dalam Kartu (Minimalis Jimat Koleksi Meme - Rasio 2:3 Animal Kaiser) */}
+      <div
+        className="relative w-full h-full rounded-[28px] bg-gradient-to-b from-neutral-900 via-neutral-950 to-black p-7 border flex flex-col justify-between items-start"
+        style={{ borderColor: `${cardColor}55` }}
+      >
+        {/* BAGIAN PALING ATAS: Murni Gambar 1:1, tidak full width (ada padding x), ukuran compact ~380px */}
         <div className="w-full flex justify-center pt-1">
-          <div className="relative w-[350px] aspect-square rounded-2xl overflow-hidden border-2 border-amber-400/90 bg-black shadow-2xl flex items-center justify-center shrink-0">
+          <div
+            className="relative w-[380px] aspect-square rounded-2xl overflow-hidden border-2 bg-black shadow-2xl flex items-center justify-center shrink-0"
+            style={{ borderColor: `${cardColor}dd` }}
+          >
             {imageSrc ? (
               <Img
                 src={imageSrc}
@@ -81,37 +92,67 @@ export const PokemonCard: React.FC<PokemonCardProps> = ({
               </div>
             )}
 
-            {/* Aksen Sudut Emas Mewah */}
-            <div className="absolute top-2 left-2 w-3.5 h-3.5 border-t-2 border-l-2 border-yellow-300 pointer-events-none" />
-            <div className="absolute top-2 right-2 w-3.5 h-3.5 border-t-2 border-r-2 border-yellow-300 pointer-events-none" />
-            <div className="absolute bottom-2 left-2 w-3.5 h-3.5 border-b-2 border-l-2 border-yellow-300 pointer-events-none" />
-            <div className="absolute bottom-2 right-2 w-3.5 h-3.5 border-b-2 border-r-2 border-yellow-300 pointer-events-none" />
+            {/* Aksen Sudut Mewah Dinamis */}
+            <div
+              className="absolute top-2 left-2 w-4 h-4 border-t-2 border-l-2 pointer-events-none"
+              style={{ borderColor: cardColor }}
+            />
+            <div
+              className="absolute top-2 right-2 w-4 h-4 border-t-2 border-r-2 pointer-events-none"
+              style={{ borderColor: cardColor }}
+            />
+            <div
+              className="absolute bottom-2 left-2 w-4 h-4 border-b-2 border-l-2 pointer-events-none"
+              style={{ borderColor: cardColor }}
+            />
+            <div
+              className="absolute bottom-2 right-2 w-4 h-4 border-b-2 border-r-2 pointer-events-none"
+              style={{ borderColor: cardColor }}
+            />
           </div>
         </div>
 
-        {/* DIBAWAH GAMBAR: Judul Kartu + Flex Col Rarity (Ukuran besar & jelas terbaca) */}
-        <div className="flex flex-col items-center text-center gap-2 px-4 w-full">
-          <h2 className="text-5xl font-black tracking-tight text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.9)] line-clamp-2">
+        {/* DIBAWAH GAMBAR: Judul Kartu FLEX ROW dengan Rarity (Ruang tinggi cukup agar huruf g, j tidak terpotong) */}
+        <div
+          className="flex flex-row items-baseline justify-between gap-4 w-full pb-2 border-b"
+          style={{ borderColor: `${cardColor}40` }}
+        >
+          <h2 className="text-5xl font-black text-white text-left tracking-tight drop-shadow-[0_2px_10px_rgba(0,0,0,0.9)] leading-[1.25] pb-1 min-w-0 truncate">
             {displayTitle}
           </h2>
-          <span className="text-2xl font-black text-amber-400 tracking-wider">
+          <span
+            className="text-2xl font-black tracking-wider uppercase shrink-0 drop-shadow"
+            style={{ color: cardColor }}
+          >
             {displayRarity}
           </span>
         </div>
 
-        {/* DIBAWAHNYA LAGI: Deskripsi Biasa (Ukuran text-3xl jelas terbaca) */}
-        <p className="text-3xl text-neutral-200 text-center leading-relaxed font-normal px-4 whitespace-pre-line drop-shadow">
+        {/* DIBAWAHNYA LAGI: Deskripsi Biasa (Left Align, Ukuran text-3xl jelas terbaca) */}
+        <p className="text-3xl text-neutral-200 text-left leading-relaxed font-normal w-full px-1 whitespace-pre-line drop-shadow">
           {displayDesc}
         </p>
 
-        {/* DIBAWAHNYA LAGI: Pasif (Kekuatan / Jimat Lucu) */}
-        <div className="w-full rounded-2xl bg-neutral-900/90 border-2 border-amber-500/40 p-5 flex flex-col items-center gap-2.5 text-center shadow-inner">
-          <div className="px-5 py-1 rounded-full bg-amber-500/20 border border-amber-400/40">
-            <span className="text-3xl font-black text-amber-300 uppercase tracking-wider">
+        {/* DIBAWAHNYA LAGI: Pasif (Left Align, Jimat Lucu) */}
+        <div
+          className="w-full rounded-2xl bg-neutral-900/95 border-2 p-6 flex flex-col items-start gap-3 shadow-inner"
+          style={{ borderColor: `${cardColor}60` }}
+        >
+          <div
+            className="px-5 py-1.5 rounded-full border inline-block"
+            style={{
+              backgroundColor: `${cardColor}25`,
+              borderColor: `${cardColor}60`,
+            }}
+          >
+            <span
+              className="text-3xl font-black uppercase tracking-wider"
+              style={{ color: cardColor }}
+            >
               {displayPassiveName}
             </span>
           </div>
-          <p className="text-2xl text-neutral-300 leading-relaxed font-normal px-2 whitespace-pre-line">
+          <p className="text-2xl text-neutral-300 text-left leading-relaxed font-normal px-1 whitespace-pre-line w-full">
             {displayPassiveDesc}
           </p>
         </div>

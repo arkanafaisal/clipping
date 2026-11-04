@@ -25,6 +25,7 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
   cardDesc,
   passiveName,
   passiveDesc,
+  cardColor,
   cardImageSrc,
   lastFrameImage,
   targetFrameImage,
@@ -172,6 +173,7 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
             cardDesc={cardDesc}
             passiveName={passiveName}
             passiveDesc={passiveDesc}
+            cardColor={cardColor}
             imageSrc={cardImageSrc}
             targetFrameImage={targetFrameImage}
             slideProgress={cardSpring}

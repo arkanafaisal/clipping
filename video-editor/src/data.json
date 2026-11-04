@@ -1,5 +1,5 @@
 {
-  "lastUpdate": "2026-11-04 16:18:29",
+  "lastUpdate": "2026-11-04 16:50:36",
   "totalMoments": 1,
   "moments": [
     {
@@ -31,11 +31,12 @@
       "memeDiscovery": {
         "targetUndoTimestamp": "00:07.105",
         "title": "Meme Discovery: Momen Langka!",
-        "cardTitle": "Grim Reaper Facecam",
-        "cardRarity": "⭐⭐⭐⭐⭐ SSR LEGENDARY",
-        "cardDesc": "Menatap tajam ke kamera dengan ekspresi bingung yang memicu tawa penonton.",
+        "cardTitle": "jangan jemput aku..",
+        "cardRarity": "EPIC",
+        "cardDesc": "Pria tua yang masih mau hidup",
         "passiveName": "Tatapan Kutukan Hoki",
-        "passiveDesc": "Memberikan kekebalan dari rasa kaget dan memicu auto-subscribe bagi penonton yang tertawa."
+        "passiveDesc": "Memberikan kekebalan dari rasa kaget dan memicu auto-subscribe bagi penonton yang tertawa.",
+        "cardColor": "#f59e0b"
       }
     }
   ]

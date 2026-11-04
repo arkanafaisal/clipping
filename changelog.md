@@ -14,7 +14,29 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Reactive Synchronization Between data.json on Disk and Studio State
+## [Unreleased] - Animal Kaiser 2:3 Card Ratio, Flex Row Title/Rarity, Left Alignment, Descender Clipping Fix, and Custom Theme Color
+- **Konteks Struktural**:
+  - Penegakan Rasio 2:3 Animal Kaiser, Format Rata Kiri & Kustomisasi Warna ([PokemonCard.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/PokemonCard.tsx), [MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), [types.ts](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/types.ts), [App.tsx](file:///d:/projects/clipping/video-editor/src/App.tsx), [data.json](file:///d:/projects/clipping/video-editor/src/data.json)):
+    - **Penyebab & Kebutuhan**:
+      1. Ukuran kartu diperbesar dengan rasio persis **2:3** seperti kartu arcade Animal Kaiser agar teks lebih besar dan terbaca.
+      2. Mengatasi masalah teks terpotong di bagian bawah pada huruf dengan ekor menggantung (descenders seperti `g`, `j`, `p`, `y`).
+      3. Judul kartu dan rarity ditata dalam satu baris horizontal (`flex-row`), dengan judul di kiri dan rarity di kanan.
+      4. Seluruh teks (deskripsi dan kotak pasif) dibuat rata kiri (`text-left`).
+      5. Menambahkan input warna custom di sidebar dan disimpan ke `data.json` agar border, glow, aksen sudut, rarity, dan badge pasif dapat diubah warnanya sesuai selera.
+    - **Solusi**:
+      1. Di [`PokemonCard.tsx`](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/PokemonCard.tsx), mengubah dimensi kartu menjadi `w-[760px] h-[1140px]` (persis rasio 2:3 Animal Kaiser).
+      2. Mengatur line height judul menjadi `leading-[1.25] pb-1` tanpa clipping, sehingga huruf `j`, `g`, `p`, `y` tidak terpotong bagian bawahnya.
+      3. Menyusun judul dan rarity dalam satu baris `flex flex-row items-baseline justify-between gap-4 w-full pb-2 border-b`.
+      4. Mengubah perataan teks deskripsi dan kotak pasif menjadi rata kiri (`text-left`).
+      5. Menerapkan prop `cardColor` dinamis pada border, box-shadow ambient glow, aksen sudut, teks rarity, dan badge pasif.
+      6. Di [`App.tsx`](file:///d:/projects/clipping/video-editor/src/App.tsx), menambahkan input color picker `<input type="color">` dan field hex di sidebar, serta menyimpannya ke `data.json`.
+- **Perubahan Kode Penting**:
+  - `video-editor/src/styles/meme-discovery/components/PokemonCard.tsx`: Dimensi 760x1140 (2:3), flex-row judul/rarity, rata kiri, descender padding, warna dinamis.
+  - `video-editor/src/App.tsx`: Color picker input di sidebar & integrasi state `cardColor`.
+  - `video-editor/src/styles/meme-discovery/types.ts` & `MemeDiscoveryComposition.tsx`: Dukungan prop `cardColor`.
+  - `video-editor/src/data.json`: Nilai default `cardColor: "#f59e0b"`.
+
+## [085efa6] - Reactive Synchronization Between data.json on Disk and Studio State
 - **Konteks Struktural**:
   - Sinkronisasi Reaktif data.json Langsung ke Studio ([App.tsx](file:///d:/projects/clipping/video-editor/src/App.tsx)):
     - **Penyebab & Kebutuhan**: Saat pengguna mengedit properti kartu secara manual di dalam file `src/data.json` (seperti `cardTitle: "jangan jemput aku"`, `cardRarity: "EPIC"`, `cardDesc: "Pria tua yang masih mau hidup"`), React state di `App.tsx` sebelumnya tidak ter-update karena `useState` hanya diinisialisasi sekali pada saat mount.

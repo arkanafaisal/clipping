@@ -12,6 +12,7 @@ export interface MemeDiscoveryProps {
   cardDesc?: string;
   passiveName?: string;
   passiveDesc?: string;
+  cardColor?: string; // Warna tema kartu kustom (hex, misal: "#f59e0b")
   cardImageSrc?: string; // bisa dari file gambar 1:1 di Drive atau freeze video frame
   // Gambar frame beku statis (hasil tangkapan canvas, menghilangkan jeda/seek video)
   lastFrameImage?: string;

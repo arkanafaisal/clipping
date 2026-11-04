@@ -41,6 +41,9 @@ export default function App() {
   const [passiveDesc, setPassiveDesc] = useState<string>(
     initialMeme.passiveDesc || ''
   );
+  const [cardColor, setCardColor] = useState<string>(
+    initialMeme.cardColor || '#f59e0b'
+  );
 
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
@@ -56,6 +59,7 @@ export default function App() {
       if (md.cardDesc !== undefined) setCardDesc(md.cardDesc);
       if (md.passiveName !== undefined) setPassiveName(md.passiveName);
       if (md.passiveDesc !== undefined) setPassiveDesc(md.passiveDesc);
+      if (md.cardColor !== undefined) setCardColor(md.cardColor);
     }
   }, [initialData]);
 
@@ -75,6 +79,7 @@ export default function App() {
             if (md.cardDesc !== undefined) setCardDesc(md.cardDesc);
             if (md.passiveName !== undefined) setPassiveName(md.passiveName);
             if (md.passiveDesc !== undefined) setPassiveDesc(md.passiveDesc);
+            if (md.cardColor !== undefined) setCardColor(md.cardColor);
           }
         }
       })
@@ -163,6 +168,7 @@ export default function App() {
               cardDesc,
               passiveName,
               passiveDesc,
+              cardColor,
             },
           };
         }
@@ -219,6 +225,7 @@ export default function App() {
                 cardDesc: cardDesc || undefined,
                 passiveName: passiveName || undefined,
                 passiveDesc: passiveDesc || undefined,
+                cardColor: cardColor || '#f59e0b',
               }}
               durationInFrames={totalFrames}
               fps={30}
@@ -338,7 +345,30 @@ export default function App() {
                 />
               </div>
 
-              {/* 4. Deskripsi Kartu (Biasa) */}
+              {/* 4. Warna Tema Kartu */}
+              <div>
+                <label className="text-xs font-bold text-neutral-300 block mb-1">
+                  Warna Tema Kartu
+                </label>
+                <div className="flex items-center gap-2.5">
+                  <input
+                    type="color"
+                    value={cardColor}
+                    onChange={(e) => setCardColor(e.target.value)}
+                    className="w-9 h-9 rounded-lg cursor-pointer bg-black border border-neutral-800 p-0.5 shrink-0"
+                    title="Pilih Warna Tema Kartu"
+                  />
+                  <input
+                    type="text"
+                    value={cardColor}
+                    onChange={(e) => setCardColor(e.target.value)}
+                    placeholder="#f59e0b"
+                    className="flex-1 bg-black border border-neutral-800 rounded-xl px-3 py-2 text-xs font-mono text-amber-400 focus:outline-none focus:border-amber-500 transition-colors uppercase"
+                  />
+                </div>
+              </div>
+
+              {/* 5. Deskripsi Kartu (Biasa) */}
               <div>
                 <label className="text-xs font-bold text-neutral-300 block mb-1">
                   Deskripsi Kartu (Maks 40 Kata)
@@ -352,7 +382,7 @@ export default function App() {
                 />
               </div>
 
-              {/* 5. Nama Pasif (Jimat / Kekuatan Lucu) */}
+              {/* 6. Nama Pasif (Jimat / Kekuatan Lucu) */}
               <div>
                 <label className="text-xs font-bold text-neutral-300 block mb-1">
                   Nama Pasif (Jimat)
@@ -366,7 +396,7 @@ export default function App() {
                 />
               </div>
 
-              {/* 6. Deskripsi Pasif */}
+              {/* 7. Deskripsi Pasif */}
               <div>
                 <label className="text-xs font-bold text-neutral-300 block mb-1">
                   Deskripsi Pasif
