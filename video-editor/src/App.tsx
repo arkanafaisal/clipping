@@ -45,6 +45,20 @@ export default function App() {
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
 
+  // Sinkronisasi otomatis saat data.json diedit langsung di file (Vite HMR)
+  useEffect(() => {
+    setData(initialData);
+    const md = initialData.moments?.[0]?.memeDiscovery;
+    if (md) {
+      if (md.targetUndoTimestamp) setTargetTimestamp(md.targetUndoTimestamp);
+      if (md.cardTitle !== undefined) setCardTitle(md.cardTitle);
+      if (md.cardRarity !== undefined) setCardRarity(md.cardRarity);
+      if (md.cardDesc !== undefined) setCardDesc(md.cardDesc);
+      if (md.passiveName !== undefined) setPassiveName(md.passiveName);
+      if (md.passiveDesc !== undefined) setPassiveDesc(md.passiveDesc);
+    }
+  }, [initialData]);
+
   // Deteksi & download otomatis image.jpg dari Google Drive saat studio direload
   useEffect(() => {
     fetch('/api/check-image')

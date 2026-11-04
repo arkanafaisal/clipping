@@ -14,7 +14,15 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Enforce Authentic 5:7 Pokemon TCG Card Proportions with Balanced Vertical Distribution
+## [Unreleased] - Reactive Synchronization Between data.json on Disk and Studio State
+- **Konteks Struktural**:
+  - Sinkronisasi Reaktif data.json Langsung ke Studio ([App.tsx](file:///d:/projects/clipping/video-editor/src/App.tsx)):
+    - **Penyebab & Kebutuhan**: Saat pengguna mengedit properti kartu secara manual di dalam file `src/data.json` (seperti `cardTitle: "jangan jemput aku"`, `cardRarity: "EPIC"`, `cardDesc: "Pria tua yang masih mau hidup"`), React state di `App.tsx` sebelumnya tidak ter-update karena `useState` hanya diinisialisasi sekali pada saat mount.
+    - **Solusi**: Menambahkan `useEffect([initialData])` di [`App.tsx`](file:///d:/projects/clipping/video-editor/src/App.tsx) yang secara reaktif memperbarui state form dan input player seketika file `src/data.json` di-save oleh pengguna (didukung oleh Vite Hot Module Replacement).
+- **Perubahan Kode Penting**:
+  - `video-editor/src/App.tsx`: Sinkronisasi otomatis `initialData` ke seluruh form state kartu meme.
+
+## [aa76afa] - Enforce Authentic 5:7 Pokemon TCG Card Proportions with Balanced Vertical Distribution
 - **Konteks Struktural**:
   - Penegakan Rasio Asli 5:7 Trading Card Game ([PokemonCard.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/PokemonCard.tsx)):
     - **Penyebab & Kebutuhan (prompts.md:L2)**: Kartu sebelumnya tidak memiliki dimensi tinggi pasti sehingga mengkerut menjadi rasio ~1:1.13 (terlalu kotak/chubby dan tidak mencerminkan siluet ramping kartu koleksi TCG seperti Pokemon/Animal Kaiser).
