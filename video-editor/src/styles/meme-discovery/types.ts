@@ -2,10 +2,10 @@ export interface MemeDiscoveryProps {
   videoSrc: string;
   title?: string;
   gameTitle?: string;
-  // Detik dan milidetik target saat berhenti undo (format: "00:03.466" atau detik float relatif ke awal video)
+  // Posisi timestamp frame relatif terhadap detik 0 (misal: "00:03.466" atau "3.466")
   targetUndoTimestamp: string;
-  // Durasi animasi rewind dalam detik (default: 0.8s)
-  rewindDurationSeconds?: number;
+  // Total durasi video penuh dalam detik (default: 10.95s, dihitung otomatis)
+  totalVideoDurationSeconds?: number;
   // Data kartu Pokemon / Trading Card
   cardTitle?: string;
   cardSubtitle?: string;

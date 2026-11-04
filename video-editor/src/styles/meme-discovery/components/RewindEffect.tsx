@@ -1,51 +1,55 @@
 import React from 'react';
-import { interpolate } from 'remotion';
-import { secondsToTimestamp } from '../../../utils/time';
+import { interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 
 interface RewindEffectProps {
   progress: number; // 0 to 1
-  currentRewindSec: number;
+  skipAmountSeconds: number; // total - x detik
+  targetTimestampText: string;
 }
 
 export const RewindEffect: React.FC<RewindEffectProps> = ({
   progress,
-  currentRewindSec,
+  skipAmountSeconds,
+  targetTimestampText,
 }) => {
-  // Flash opacity of rewind HUD
-  const scanlineShift = (progress * 100) % 20;
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+
+  // Pulse & ripple scale animation
+  const rippleScale = interpolate(progress, [0, 1], [0.8, 1.25]);
+  const opacity = interpolate(progress, [0, 0.2, 0.8, 1], [0, 1, 1, 0]);
 
   return (
-    <div className="absolute inset-0 pointer-events-none z-40 overflow-hidden flex flex-col justify-between p-8">
-      {/* VHS / Rewind Scanlines */}
+    <div
+      className="absolute inset-0 pointer-events-none z-40 flex flex-col items-center justify-center p-6"
+      style={{ opacity }}
+    >
+      {/* Background Dim */}
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
+
+      {/* Modern Video Player Skip-Back Indicator (ala Double-Tap Rewind) */}
       <div
-        className="absolute inset-0 opacity-25 mix-blend-overlay"
+        className="relative flex flex-col items-center gap-3 p-8 rounded-full bg-black/80 border-2 border-amber-400/80 shadow-[0_0_50px_rgba(245,158,11,0.5)]"
         style={{
-          backgroundImage: `repeating-linear-gradient(0deg, rgba(0,0,0,0.5) 0px, rgba(0,0,0,0.5) 2px, transparent 2px, transparent 4px)`,
-          transform: `translateY(${scanlineShift}px)`,
+          transform: `scale(${rippleScale})`,
         }}
-      />
-
-      {/* Top Banner: REWIND / UNDO Status */}
-      <div className="relative self-start inline-flex items-center gap-3 px-4 py-2 rounded-lg bg-red-600/90 text-white font-mono font-black text-sm tracking-widest shadow-2xl animate-pulse">
-        <span>⏪ REWIND / UNDO</span>
-        <span className="w-2 h-2 rounded-full bg-white animate-ping" />
-      </div>
-
-      {/* Center Rewind Overlay Effect */}
-      <div className="relative self-center flex flex-col items-center gap-2 drop-shadow-[0_4px_16px_rgba(0,0,0,0.9)]">
-        <div className="text-6xl font-black text-amber-400 font-mono tracking-tighter">
-          {secondsToTimestamp(currentRewindSec)}
+      >
+        {/* Double Arrow Rewind Icons */}
+        <div className="flex items-center gap-1 text-amber-400 text-5xl font-black tracking-tighter animate-pulse">
+          <span>‹‹</span>
+          <span className="text-4xl text-amber-300">‹</span>
         </div>
-        <span className="text-xs uppercase font-mono font-bold tracking-widest text-neutral-300 bg-black/70 px-3 py-1 rounded">
-          Mencari Frame Momen Terbaik...
-        </span>
-      </div>
 
-      {/* Bottom Bar: Rewind Speed Indicator */}
-      <div className="relative self-end text-xs font-mono font-bold text-amber-300 bg-black/60 px-3 py-1.5 rounded border border-amber-500/30">
-        SPEED: -8.0x REVERSE
+        {/* Skip Amount Counter: -{total - x}s */}
+        <div className="text-center font-mono">
+          <div className="text-4xl font-black text-white tracking-tight drop-shadow">
+            -{skipAmountSeconds.toFixed(1)}s
+          </div>
+          <div className="text-[11px] font-bold uppercase tracking-widest text-amber-300/90 mt-1">
+            SEEK KE {targetTimestampText}
+          </div>
+        </div>
       </div>
     </div>
   );
 };
-

@@ -7,11 +7,11 @@ import { VerticalShortsComposition } from './compositions/VerticalShortsComposit
 export const RemotionRoot: React.FC = () => {
   return (
     <>
-      {/* Style 1: Meme Discovery (Rewind -> Shutter Flash -> Holographic 1:1 Card Reveal) */}
+      {/* Style 1: Meme Discovery (Full Play -> Skip Back -> Flash -> Holographic 1:1 Card Reveal) */}
       <Composition
         id="MemeDiscovery"
         component={MemeDiscoveryComposition}
-        durationInFrames={330} // 11s at 30 fps
+        durationInFrames={449} // 329f video (10.95s) + 20f skip + 10f flash + 90f card = 449 frames (~15s)
         fps={30}
         width={1080}
         height={1920}
@@ -19,7 +19,7 @@ export const RemotionRoot: React.FC = () => {
           title: 'Meme Discovery: Momen Langka!',
           gameTitle: 'Grim Reaper',
           targetUndoTimestamp: '00:03.466',
-          rewindDurationSeconds: 0.8,
+          totalVideoDurationSeconds: 10.95,
           videoSrc: '/temp/grim reaper/full.mp4',
           cardTitle: 'Grim Reaper Facecam',
           cardSubtitle: 'Meme Discovery Series #01',

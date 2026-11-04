@@ -1,7 +1,6 @@
 import React from 'react';
 import {
   AbsoluteFill,
-  interpolate,
   spring,
   useCurrentFrame,
   useVideoConfig,
@@ -18,7 +17,7 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
   title = 'Meme Discovery: Momen Langka!',
   gameTitle = 'Grim Reaper',
   targetUndoTimestamp = '00:03.466',
-  rewindDurationSeconds = 0.8,
+  totalVideoDurationSeconds = 10.95,
   cardTitle = 'Grim Reaper Facecam',
   cardSubtitle = 'Meme Discovery Series #01',
   cardRarity = '⭐⭐⭐⭐⭐ SSR LEGENDARY',
@@ -31,55 +30,41 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
 
-  // Detik target saat berhenti undo (relatif dari awal video)
+  // 1. Posisi timestamp target x yang diinput manual (relatif terhadap detik 0)
   const targetUndoSeconds = parseTimestampToSeconds(targetUndoTimestamp);
 
-  // Time sequence:
-  // 1. Durasi animasi Card Reveal di akhir video: 90 frame (3s)
-  const cardDisplayFrames = 90;
-  // 2. Durasi flash shutter kamera: 10 frame (~0.33s)
-  const flashDurationFrames = 10;
-  // 3. Durasi rewind / undo: rewindDurationSeconds (default 0.8s * 30 = 24 frame)
-  const rewindFrames = Math.max(15, Math.round((rewindDurationSeconds || 0.8) * fps));
+  // 2. Durasi video penuh yang diputar utuh tanpa gangguan (frame 0 sampai playEndFrame)
+  const totalSeconds = totalVideoDurationSeconds || 10.95;
+  const playEndFrame = Math.round(totalSeconds * fps);
 
-  // Sequence Milestones:
-  // Total durasi sekuens penutup = rewindFrames + flashDurationFrames + cardDisplayFrames
-  const endSequenceFrames = rewindFrames + flashDurationFrames + cardDisplayFrames;
-  const playDurationFrames = Math.max(30, durationInFrames - endSequenceFrames);
+  // 3. Jumlah detik lompat ke belakang: (total - x) detik dihitung otomatis
+  const skipAmountSeconds = Math.max(0, totalSeconds - targetUndoSeconds);
 
-  const rewindStartFrame = playDurationFrames;
-  const rewindEndFrame = rewindStartFrame + rewindFrames;
-  const flashStartFrame = rewindEndFrame;
-  const flashEndFrame = flashStartFrame + flashDurationFrames;
+  // 4. Durasi efek skip ala video player (20 frame = ~0.66 detik)
+  const skipEffectFrames = 20;
+  const skipStartFrame = playEndFrame;
+  const skipEndFrame = skipStartFrame + skipEffectFrames;
+
+  // 5. Durasi flash shutter kamera (10 frame = ~0.33 detik)
+  const flashFrames = 10;
+  const flashStartFrame = skipEndFrame;
+  const flashEndFrame = flashStartFrame + flashFrames;
+
+  // 6. Reveal kartu Pokemon 1:1 sampai akhir composition
   const cardStartFrame = flashStartFrame + 3;
 
   // State fase aktif
-  const isPlaying = frame < rewindStartFrame;
-  const isRewinding = frame >= rewindStartFrame && frame < rewindEndFrame;
+  const isPlayingFull = frame < skipStartFrame;
+  const isSkipping = frame >= skipStartFrame && frame < skipEndFrame;
   const isFlashing = frame >= flashStartFrame && frame < flashEndFrame;
   const isCardRevealed = frame >= cardStartFrame;
 
-  // Hitung posisi detik pemutaran video (playback seek)
-  let currentVideoSeconds = frame / fps;
-  if (isRewinding) {
-    const rewindProgress = (frame - rewindStartFrame) / rewindFrames;
-    const playEndSeconds = playDurationFrames / fps;
-    currentVideoSeconds = interpolate(
-      rewindProgress,
-      [0, 1],
-      [playEndSeconds, targetUndoSeconds]
-    );
-  } else if (frame >= rewindEndFrame) {
-    // Freeze persis pada frame target undo
-    currentVideoSeconds = targetUndoSeconds;
-  }
-
   // Progress flash shutter (0 sampai 1)
   const flashProgress = isFlashing
-    ? (frame - flashStartFrame) / flashDurationFrames
+    ? (frame - flashStartFrame) / flashFrames
     : 0;
 
-  // Spring animation pop-up kartu
+  // Spring entrance pop-up kartu
   const cardSpring = spring({
     frame: frame - cardStartFrame,
     fps,
@@ -103,10 +88,10 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
       {/* 2. ACTIVE 80% SAFE ZONE CANVAS (1536px Vertical Safe Area)*/}
       {/* ======================================================== */}
       <div className="absolute top-[10%] bottom-[10%] inset-x-0 overflow-hidden flex items-center justify-center bg-black">
-        {/* Konten Video Utama 9:16 (Centered Vertical) */}
         {videoSrc ? (
           <div className="relative w-full h-full overflow-hidden flex items-center justify-center">
-            {isPlaying ? (
+            {/* Play video full utuh terlebih dahulu; setelah selesai langsung seek ke timestamp target x */}
+            {isPlayingFull ? (
               <Video
                 src={videoSrc}
                 className="w-full h-full object-contain"
@@ -114,7 +99,7 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
             ) : (
               <Video
                 src={videoSrc}
-                startFrom={Math.round(currentVideoSeconds * fps)}
+                startFrom={Math.round(targetUndoSeconds * fps)}
                 className="w-full h-full object-contain pointer-events-none"
               />
             )}
@@ -130,14 +115,13 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
           </div>
         )}
 
-        {/* Rewind / Undo Overlay Glitch & Tape Counter */}
-        {isRewinding && (
-          <div className="absolute inset-0 z-20 pointer-events-none">
-            <RewindEffect
-              progress={(frame - rewindStartFrame) / rewindFrames}
-              currentRewindSec={currentVideoSeconds}
-            />
-          </div>
+        {/* Efek visual skip ke belakang ala video player (SEBANYAK total - x detik) */}
+        {isSkipping && (
+          <RewindEffect
+            progress={(frame - skipStartFrame) / skipEffectFrames}
+            skipAmountSeconds={skipAmountSeconds}
+            targetTimestampText={targetUndoTimestamp}
+          />
         )}
 
         {/* Camera Shutter White Flash */}
@@ -179,7 +163,7 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
             </span>
             <span className="text-neutral-600">•</span>
             <span className="text-[11px] font-mono text-amber-400 font-semibold">
-              UNDO: {targetUndoTimestamp}
+              SEEK: {targetUndoTimestamp} (-{skipAmountSeconds.toFixed(1)}s)
             </span>
           </div>
 
