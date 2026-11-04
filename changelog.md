@@ -16,7 +16,18 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Enforce Hyphenated Space-Free Temp Folder Paths and Clear Asset Status Logs
+## [Unreleased] - Freeze Video at Target Undo Frame Instead of Last Frame During Export
+- **Konteks Struktural**:
+  - Resolusi Tampilan Freezed Frame Puncak saat Ekspor Remotion CLI ([MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx)):
+    - **Penyebab & Kebutuhan**: Pada web preview (`App.tsx`), frame puncak berhasil terlihat karena browser mengekstrak snapshot canvas ke base64 (`targetFrameImage`) secara lokal. Namun saat diekspor melalui Remotion CLI (`npm run render`), `targetFrameImage` bernilai `undefined` sehingga kode masuk ke blok *fallback*. Di blok *fallback* tersebut, `<Freeze>` secara keliru menggunakan `frame={playEndFrame - 1}` (frame terakhir video) alih-alih `frame={targetUndoFrame}` (frame momen puncak). Akibatnya, pada hasil ekspor MP4, animasi rewind YouTube dan shutter flash berjalan di atas frame video yang salah (last frame).
+    - **Solusi**:
+      1. Menghitung `targetUndoFrame` dari timestamp momen target: `Math.max(0, Math.round(targetUndoSeconds * fps))`.
+      2. Mengganti prop `frame={playEndFrame - 1}` pada layer `<Freeze>` pasca-skip menjadi `frame={targetUndoFrame}`, serta menambahkan `volume={0}` agar tidak ada audio video yang berbenturan dengan SFX shutter dan kartu.
+      3. Dengan perbaikan ini, baik di web preview maupun saat diekspor via Remotion CLI, frame yang dibekukan pasca-skip adalah 100% frame momen puncak yang tepat.
+- **Perubahan Kode Penting**:
+  - `video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx`: Menambahkan `targetUndoFrame` dan mengoreksi `<Freeze frame={targetUndoFrame}>` dengan `volume={0}`.
+
+## [e10b76a] - Enforce Hyphenated Space-Free Temp Folder Paths and Clear Asset Status Logs
 - **Konteks Struktural**:
   - Penegakan Slug/Hyphen pada Path Aset Lokal ([scripts/gdrive.js](file:///d:/projects/clipping/video-editor/scripts/gdrive.js), [Root.tsx](file:///d:/projects/clipping/video-editor/src/remotion/Root.tsx), [App.tsx](file:///d:/projects/clipping/video-editor/src/App.tsx), [data.json](file:///d:/projects/clipping/video-editor/src/data.json)):
     - **Penyebab & Kebutuhan**: Folder aset di Google Drive yang memiliki spasi (misalnya `grim reaper`) menyebabkan Remotion, Vite, dan Chromium meng-encode URL dengan `%20` (`http://localhost:3000/temp/grim%20reaper/full.mp4`) yang kerap memicu error HTTP 404 dan pemutaran crash saat rendering. Selain itu, pesan CLI lama `{ videoDownloaded: false }` membingungkan pengguna karena `false` disalahartikan sebagai "gagal download", padahal sebenarnya berarti video sudah ada di lokal sehingga tidak perlu diunduh ulang.

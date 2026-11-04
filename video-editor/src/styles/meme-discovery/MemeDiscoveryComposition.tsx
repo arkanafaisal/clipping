@@ -48,6 +48,7 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
 
   // 1. Posisi timestamp target x (relatif dari detik 0)
   const targetUndoSeconds = parseTimestampToSeconds(targetUndoTimestamp);
+  const targetUndoFrame = Math.max(0, Math.round(targetUndoSeconds * fps));
 
   // 2. Durasi video penuh (berhenti 0.08s sebelum EOF fisik agar browser tidak freeze di event 'ended')
   const totalSeconds = totalVideoDurationSeconds || 10.95;
@@ -124,9 +125,10 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
               className="w-full h-full object-cover"
             />
           ) : videoSrc ? (
-            <Freeze frame={playEndFrame - 1}>
+            <Freeze frame={targetUndoFrame}>
               <Video
                 src={videoSrc}
+                volume={0}
                 className="w-full h-full object-cover"
               />
             </Freeze>
