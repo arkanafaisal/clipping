@@ -32,6 +32,41 @@ function saveDataPlugin(): Plugin {
           res.end('Method Not Allowed');
         }
       });
+
+      // Deteksi & download otomatis image.jpg dari Google Drive saat reload
+      server.middlewares.use('/api/check-image', async (req, res) => {
+        if (req.method === 'GET' || req.method === 'POST') {
+          try {
+            const { syncMomentImage } = await import('./scripts/gdrive.js');
+            const result = await syncMomentImage();
+            const dataPath = path.resolve(__dirname, 'src/data.json');
+            const updatedData = JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
+            res.setHeader('Content-Type', 'application/json');
+            res.end(
+              JSON.stringify({
+                success: true,
+                downloaded: result?.downloaded ?? false,
+                metadata: updatedData,
+              })
+            );
+          } catch (err: any) {
+            console.warn('Sync image warning:', err?.message);
+            const dataPath = path.resolve(__dirname, 'src/data.json');
+            const currentData = JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
+            res.setHeader('Content-Type', 'application/json');
+            res.end(
+              JSON.stringify({
+                success: false,
+                error: err?.message,
+                metadata: currentData,
+              })
+            );
+          }
+        } else {
+          res.statusCode = 405;
+          res.end('Method Not Allowed');
+        }
+      });
     },
   };
 }

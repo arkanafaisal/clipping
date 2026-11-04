@@ -14,6 +14,26 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
+## [Unreleased] - Auto-Detect & Download Google Drive Card Images and Redesign Portrait Collectible Meme Card
+- **Konteks Struktural**:
+  - Deteksi & Auto-Download Gambar Google Drive & Redesain Kartu Koleksi Memes ([gdrive.js](file:///d:/projects/clipping/video-editor/scripts/gdrive.js), [vite.config.ts](file:///d:/projects/clipping/video-editor/vite.config.ts), [App.tsx](file:///d:/projects/clipping/video-editor/src/App.tsx), [PokemonCard.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/PokemonCard.tsx), [GEMINI.md](file:///d:/projects/clipping/GEMINI.md)):
+    - **Penyebab & Kebutuhan**: Pengguna mengunggah gambar facecam 1:1 (`image.jpg`) ke folder Google Drive momen dan meminta agar saat halaman web studio dimuat ulang (reload), sistem secara otomatis mendeteksi keberadaan gambar tersebut di Google Drive, mengunduhnya ke `public/temp/{path}/image.jpg`, memperbarui `data.json`, dan langsung menampilkannya pada video editing. Selain itu, kartu koleksi meme sebelumnya dinilai kurang bagus (proporsi terlalu kotak/stubby 820px dan teks padat menumpuk); pengguna meminta agar kartu meme didesain ulang menjadi kartu koleksi portrait vertikal otentik (rasio trading card 5:7), dengan jendela ilustrasi foto facecam di dalamnya berformat 1:1 square yang presisi. Pengguna juga menambahkan arahan bahwa tidak perlu melakukan test build video penuh di setiap respons, cukup verifikasi visual langsung pada live preview browser.
+    - **Solusi**:
+      1. Menambahkan fungsi `syncMomentImage()` dan `downloadMomentImage()` di [`gdrive.js`](file:///d:/projects/clipping/video-editor/scripts/gdrive.js) untuk mencari dan mengunduh `image.jpg` langsung dari folder Google Drive momen secara cepat (~300ms) tanpa crawling penuh, serta memperbarui metadata `src/data.json`.
+      2. Mendaftarkan middleware endpoint `GET /api/check-image` di [`vite.config.ts`](file:///d:/projects/clipping/video-editor/vite.config.ts).
+      3. Di [`App.tsx`](file:///d:/projects/clipping/video-editor/src/App.tsx), memanggil `/api/check-image` secara otomatis pada saat studio pertama kali di-mount/reload (`useEffect`), memperbarui state data lokal secara instan, serta menyematkan `playerRef` untuk kemudahan navigasi frame.
+      4. Mendesain ulang total [`PokemonCard.tsx`](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/PokemonCard.tsx):
+         - Bentuk kartu portrait vertikal otentik rasio 5:7 (`w-[740px]`, tinggi ~1060px) dengan double border emas/amber metallic, holographic sheen diagonal, dan latar belakang gelap eksklusif.
+         - Jendela foto facecam di tengah dirancang strictly 1:1 square (`aspect-square w-full rounded-2xl`) yang memuat `image.jpg` asli dari Google Drive (dengan fallback canvas offscreen frame jika belum ada).
+         - Tipografi terukur tebal dan tegas untuk kanvas 1080x1920: judul `text-3xl font-black`, HP badge tebal, species info strip, dan panel serangan ringkas dengan `whitespace-pre-line` (Rule 23).
+      5. Menambahkan Rule 26 ke [`GEMINI.md`](file:///d:/projects/clipping/GEMINI.md) untuk tidak menjalankan build video penuh melainkan cukup verifikasi langsung via live studio preview.
+- **Perubahan Kode Penting**:
+  - `video-editor/scripts/gdrive.js`: Fungsi `syncMomentImage()` dan `downloadMomentImage()`.
+  - `video-editor/vite.config.ts`: Endpoint `/api/check-image` untuk auto-download gambar saat reload.
+  - `video-editor/src/App.tsx`: Hook reload sync Google Drive dan integrasi `playerRef`.
+  - `video-editor/src/styles/meme-discovery/components/PokemonCard.tsx`: Redesain kartu portrait vertikal rasio 5:7 dengan jendela foto 1:1 square.
+  - `GEMINI.md`: Rule 26 (Verifikasi via live preview tanpa test build).
+
 ## [Unreleased] - Replace Video Player Seek with Instant Static Frame Captures and Pure White SVG Rewind Icons
 - **Konteks Struktural**:
   - Arsitektur Transisi Frame Statis Murni & Pembersihan Artefak Ikon ([App.tsx](file:///d:/projects/clipping/video-editor/src/App.tsx), [frameCapture.ts](file:///d:/projects/clipping/video-editor/src/utils/frameCapture.ts), [MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), [PokemonCard.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/PokemonCard.tsx), [RewindEffect.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/RewindEffect.tsx)):

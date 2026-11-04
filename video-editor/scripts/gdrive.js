@@ -214,6 +214,15 @@ export async function syncMetadata() {
         m.memeDiscovery = existing.memeDiscovery;
       }
     }
+
+    // Unduh otomatis file image jika ditemukan di Google Drive
+    if (m.files && m.files.image) {
+      try {
+        await downloadMomentImage(drive, m);
+      } catch (err) {
+        console.warn(`   ⚠️ Gagal mengunduh gambar untuk ${m.name}: ${err.message}`);
+      }
+    }
   }
 
   const metadata = {
@@ -294,7 +303,105 @@ export async function downloadMoment(moment) {
     // ignore
   }
 
+  // Unduh juga gambar (image.jpg / png) jika momen memiliki kartu gambar
+  if (moment.files && moment.files.image) {
+    try {
+      await downloadMomentImage(drive, moment);
+    } catch (err) {
+      console.warn(`   ⚠️ Gagal mengunduh gambar untuk ${moment.name}: ${err.message}`);
+    }
+  }
+
   return targetPath;
+}
+
+/**
+ * Mengunduh berkas gambar (image.jpg / png) untuk suatu momen
+ */
+export async function downloadMomentImage(drive, moment) {
+  if (!moment || !moment.files || !moment.files.image) {
+    return null;
+  }
+
+  const imageFile = moment.files.image;
+  const targetDir = path.join(TEMP_DIR, moment.path);
+  const targetPath = path.join(targetDir, imageFile.name);
+
+  // Jika file lokal sudah ada dan ukuran cocok, lewati
+  if (fs.existsSync(targetPath)) {
+    const stat = fs.statSync(targetPath);
+    if (stat.size === imageFile.size && stat.size > 0) {
+      return targetPath;
+    }
+  }
+
+  console.log(`\n🖼️ Mengunduh kartu gambar untuk momen: "${moment.name}"`);
+  console.log(`   File: ${imageFile.name} (Ukuran: ${imageFile.sizeFormatted})`);
+  console.log(`   Tujuan: ${path.relative(rootDir, targetPath)}`);
+
+  await downloadDriveFile(drive, imageFile.id, targetPath, `${moment.name}/${imageFile.name}`);
+
+  // Buat juga salinan ke public/temp/image.jpg agar mudah diakses langsung
+  try {
+    const quickPath = path.join(TEMP_DIR, imageFile.name);
+    fs.copyFileSync(targetPath, quickPath);
+  } catch (e) {
+    // ignore
+  }
+
+  return targetPath;
+}
+
+/**
+ * Periksa keberadaan image.jpg di folder Google Drive suatu momen,
+ * unduh jika ada/berubah, dan perbarui src/data.json secara cepat (~300ms).
+ */
+export async function syncMomentImage(momentPathOrName) {
+  const metadata = loadMetadata();
+  if (!metadata || !metadata.moments) return null;
+
+  const moment = metadata.moments.find(
+    (m) => m.path === momentPathOrName || m.name === momentPathOrName || !momentPathOrName
+  );
+
+  if (!moment) return null;
+
+  const drive = getDriveClient();
+
+  // Cari file image.jpg / png langsung di folder momen tersebut (sangat cepat)
+  const res = await drive.files.list({
+    q: `'${moment.id}' in parents and trashed = false and (name = 'image.jpg' or name = 'image.png' or mimeType contains 'image/')`,
+    fields: 'files(id, name, mimeType, size)',
+    pageSize: 10,
+  });
+
+  const files = res.data.files || [];
+  const imageFile = files.find(
+    (f) => f.name.toLowerCase() === 'image.jpg' || f.name.toLowerCase().endsWith('.png')
+  );
+
+  if (imageFile) {
+    moment.files = moment.files || {};
+    moment.files.image = {
+      id: imageFile.id,
+      name: imageFile.name,
+      size: Number(imageFile.size || 0),
+      sizeFormatted: formatBytes(Number(imageFile.size || 0)),
+      tempRelPath: `temp/${moment.path}/${imageFile.name}`,
+    };
+
+    // Unduh gambar ke folder temp
+    await downloadMomentImage(drive, moment);
+
+    // Simpan metadata terupdate ke data.json
+    metadata.lastUpdate = formatHumanDate(new Date());
+    fs.mkdirSync(path.dirname(DATA_PATH), { recursive: true });
+    fs.writeFileSync(DATA_PATH, JSON.stringify(metadata, null, 2), 'utf8');
+
+    return { moment, metadata, downloaded: true };
+  }
+
+  return { moment, metadata, downloaded: false };
 }
 
 /**
@@ -384,6 +491,14 @@ export async function runInteractiveCLI() {
 if (process.argv[1] && process.argv[1].endsWith('gdrive.js')) {
   if (process.argv.includes('--sync')) {
     syncMetadata().then(() => process.exit(0)).catch((err) => {
+      console.error(err);
+      process.exit(1);
+    });
+  } else if (process.argv.includes('--check-image') || process.argv.includes('--sync-image')) {
+    syncMomentImage().then((res) => {
+      console.log('Sync moment image result:', res?.downloaded ? 'Downloaded image.jpg' : 'No new image');
+      process.exit(0);
+    }).catch((err) => {
       console.error(err);
       process.exit(1);
     });

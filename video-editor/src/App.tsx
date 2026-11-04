@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Player } from '@remotion/player';
+import React, { useState, useEffect, useRef } from 'react';
+import { Player, PlayerRef } from '@remotion/player';
 import { MemeDiscoveryComposition } from './styles/meme-discovery/MemeDiscoveryComposition';
 import { RouletteQuizComposition } from './styles/roulette-quiz/RouletteQuizComposition';
 import initialData from './data.json';
@@ -15,6 +15,11 @@ export default function App() {
   const currentMoment = moments[0]; // momen utama
 
   const [activeStyle, setActiveStyle] = useState<StyleMode>('meme-discovery');
+  const playerRef = useRef<PlayerRef>(null);
+
+  useEffect(() => {
+    (window as any).playerRef = playerRef;
+  }, []);
 
   // Input timestamp posisi frame relatif dari detik 0
   const initialTimestamp =
@@ -23,6 +28,24 @@ export default function App() {
 
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
+
+  // Deteksi & download otomatis image.jpg dari Google Drive saat studio direload
+  useEffect(() => {
+    fetch('/api/check-image')
+      .then((res) => res.json())
+      .then((res) => {
+        if (res.metadata) {
+          setData(res.metadata);
+          const updatedMoment = res.metadata.moments?.[0];
+          if (updatedMoment?.memeDiscovery?.targetUndoTimestamp) {
+            setTargetTimestamp(updatedMoment.memeDiscovery.targetUndoTimestamp);
+          }
+        }
+      })
+      .catch((err) => {
+        console.warn('Auto sync image failed on reload:', err);
+      });
+  }, []);
 
   const videoDurationSeconds =
     currentMoment?.files?.full?.durationSeconds || 10.95;
@@ -116,6 +139,7 @@ export default function App() {
         <div className="h-screen w-auto aspect-[9/16] max-h-screen bg-black flex items-center justify-center relative overflow-hidden shadow-2xl">
           {activeStyle === 'meme-discovery' ? (
             <Player
+              ref={playerRef}
               component={MemeDiscoveryComposition}
               inputProps={{
                 videoSrc,
