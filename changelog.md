@@ -14,7 +14,27 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Layered Magical Reveal Sound Effect on Small Card Emergence
+## [Unreleased] - Fix Video Audio Dropout via Active-Gated Freeze and Trim SFX Leading Silence
+- **Konteks Struktural**:
+  - Perbaikan Dropout Suara Video Utama & Pemotongan Jeda Hening SFX ([MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), [public/sfx/achievement.webm](file:///d:/projects/clipping/video-editor/public/sfx/achievement.webm), [public/sfx/magical-reveal.webm](file:///d:/projects/clipping/video-editor/public/sfx/magical-reveal.webm)):
+    - **Penyebab & Kebutuhan**:
+      1. Suara video utama terkadang tidak keluar/bisu saat diputar di preview, sedangkan suara SFX selalu muncul.
+      2. Kedua file efek suara SFX (`achievement.webm` dan `magical-reveal.webm`) memiliki jeda hening sekitar ~1 detik di awal sebelum suara sebenarnya berbunyi, sehingga pengguna meminta posisi dimulainya audio dianalisis persisnya di detik/milidetik berapa dan dipotong (*trim*) agar pemutaran langsung instan tanpa perlu kompensasi *offset timeline*.
+    - **Analisis Mendalam & Solusi**:
+      1. **Investigasi Audio Video Bisu**: Pada implementasi sebelumnya, elemen pemutar `<Video>` dibungkus langsung dengan `<Freeze frame={Math.min(frame, playEndFrame - 1)}>`. Berdasarkan audit kode internal Remotion (`use-media-audio-state.js` & `freeze.js`), komponen `<Freeze>` secara *default* menyetel `isInsideFreeze = true` dan `isPlaying: () => false`, yang secara otomatis memaksa state `isMutedForPlayback = true` (elemen `<video muted />`) pada timeline Remotion! Solusi: Menggunakan prop resmi Remotion `active={frame >= playEndFrame}` pada `<Freeze active={frame >= playEndFrame} frame={playEndFrame - 1}>` dan menambahkan `volume={1}` eksplisit. Selama `frame < playEndFrame`, `active` bernilai `false` sehingga `isInsideFreeze` mati dan video memutar audio aslinya 100% lancar tanpa interupsi. Begitu mencapai akhir (`frame >= playEndFrame`), freeze aktif mengunci frame terakhir tanpa unmount.
+      2. **Deteksi & Pemotongan Jeda Hening SFX**: Menggunakan filter `silencedetect` FFmpeg untuk mengukur ambang audio:
+         - `achievement.webm`: Hening berakhir tepat pada **1.079s** (1079 ms, ~32 frame pada 30fps).
+         - `magical-reveal.webm`: Hening berakhir tepat pada **1.210s** (1210 ms, ~36 frame pada 30fps).
+         Keduanya langsung dipotong bersih menggunakan FFmpeg tepat di titik awal resonansi audio dan ditimpa ke file aslinya di `video-editor/public/sfx/`, sehingga audio mulai instan di 0.000s.
+      3. **Sinkronisasi Chime Kartu**: Di [`MemeDiscoveryComposition.tsx`](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), pemicu *achievement chime* diselaraskan tepat pada `cardStartFrame + 28`, persis saat rotasi 3D kartu mencapai sudut 90 derajat (lebar 0) dan membalik untuk mengungkap teks kartu.
+- **Perubahan Kode Penting**:
+  - `video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx`:
+    - Mengganti `<Freeze frame={Math.min(frame, playEndFrame - 1)}>` menjadi `<Freeze active={frame >= playEndFrame} frame={playEndFrame - 1}>` dengan `<Video volume={1} />` agar audio video tidak ter-mute oleh freeze context.
+    - Menyelaraskan sekuens pemutaran `achievement.webm` tepat di `cardStartFrame + 28`.
+  - `video-editor/public/sfx/achievement.webm`: Memotong jeda hening 1.07s di awal file agar audio instan di 0.000s.
+  - `video-editor/public/sfx/magical-reveal.webm`: Memotong jeda hening 1.20s di awal file agar glissando harp instan di 0.000s.
+
+## [86d8027] - Layered Magical Reveal Sound Effect on Small Card Emergence
 - **Konteks Struktural**:
   - Penambahan Efek Suara (SFX) Magical Reveal Harp Saat Kartu Kecil Muncul ([MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), [types.ts](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/types.ts), [public/sfx/magical-reveal.webm](file:///d:/projects/clipping/video-editor/public/sfx/magical-reveal.webm)):
     - **Penyebab & Kebutuhan**: Pengguna meminta efek suara tambahan berupa *magical reveal harp glissando* (`https://www.youtube.com/watch?v=SBOlim0WxYU`) yang diputar tepat sejak kartu berukuran kecil pertama kali muncul dari bawah layar, dan bertumpukan (*overlapping*) secara harmonis dengan efek suara *achievement chime* yang berbunyi saat kartu membalik.

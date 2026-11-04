@@ -103,12 +103,13 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
       {/* Tanpa destroy/jump, video ditahan hingga frame puncak    */}
       {/* ======================================================== */}
       <AbsoluteFill className="overflow-hidden flex items-center justify-center bg-black">
-        {/* A. Video diputar murni & difreeze di frame terakhir selama jeda pause & skip YouTube (tanpa destroy/jump/replay) */}
+        {/* A. Video diputar murni & difreeze di frame terakhir saat selesai (tanpa unmount/jump/replay) */}
         {frame < skipEndFrame && videoSrc && (
-          <Freeze frame={Math.min(frame, playEndFrame - 1)}>
+          <Freeze active={frame >= playEndFrame} frame={playEndFrame - 1}>
             <Video
               src={videoSrc}
               className="w-full h-full object-cover"
+              volume={1}
             />
           </Freeze>
         )}
@@ -173,9 +174,9 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
         </Sequence>
       )}
 
-      {/* 2. Sound Effect: Item Discovery / Achievement Chime saat kartu membalik & membuka teks */}
+      {/* 2. Sound Effect: Item Discovery / Achievement Chime saat kartu membalik & membuka teks (frame 28) */}
       {enableSfx && sfxSrc && isCardRevealed && (
-        <Sequence from={cardStartFrame + 27} durationInFrames={75}>
+        <Sequence from={cardStartFrame + 28} durationInFrames={75}>
           <Audio src={sfxSrc} volume={0.85} />
         </Sequence>
       )}
