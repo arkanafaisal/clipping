@@ -27,52 +27,85 @@ export function captureVideoFrame(
     video.preload = 'auto'; // Sangat krusial agar browser langsung mendownload frame
 
     let isDone = false;
+    let timer: any = null;
+
     const cleanup = () => {
       clearTimeout(timer);
-      video.onloadeddata = null;
+      video.oncanplay = null;
       video.onseeked = null;
       video.onerror = null;
       video.src = '';
       video.remove();
     };
 
-    // Timeout keamanan singkat (3.5s)
-    const timer = setTimeout(() => {
+    // Timeout keamanan wajar (5s)
+    timer = setTimeout(() => {
       if (!isDone) {
         isDone = true;
         cleanup();
         reject(new Error(`Timeout mengekstrak frame pada detik ${timeInSeconds}`));
       }
-    }, 3500);
+    }, 5000);
 
-    video.onloadeddata = () => {
-      const maxTime = Math.max(0, (video.duration || 1) - 0.08);
-      const targetTime = Math.max(0, Math.min(timeInSeconds, maxTime));
-      video.currentTime = targetTime;
-    };
-
-    video.onseeked = () => {
+    const doDraw = () => {
       if (isDone) return;
-      isDone = true;
       try {
         const canvas = document.createElement('canvas');
         canvas.width = video.videoWidth || width;
         canvas.height = video.videoHeight || height;
         const ctx = canvas.getContext('2d');
         if (!ctx) {
+          isDone = true;
           cleanup();
           reject(new Error('Gagal mendapatkan 2D context canvas'));
           return;
         }
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
+
+        // Validasi: jika frame masih hitam/kosong (ukuran < 30KB pada 1080x1920), tunggu buffer hardware decoder
+        if (dataUrl.length < 30000) {
+          setTimeout(() => {
+            if (isDone) return;
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const retryData = canvas.toDataURL('image/jpeg', 0.88);
+            if (retryData.length >= 30000) {
+              frameCache.set(cacheKey, retryData);
+            }
+            isDone = true;
+            cleanup();
+            resolve(retryData);
+          }, 70);
+          return;
+        }
+
         frameCache.set(cacheKey, dataUrl);
+        isDone = true;
         cleanup();
         resolve(dataUrl);
       } catch (err) {
+        isDone = true;
         cleanup();
         reject(err);
       }
+    };
+
+    const doSeek = () => {
+      if (isDone) return;
+      const duration = video.duration || 1;
+      const maxTime = Math.max(0, duration - 0.08);
+      const targetTime = Math.max(0, Math.min(timeInSeconds, maxTime));
+
+      video.addEventListener(
+        'seeked',
+        () => {
+          // Beri jeda 60ms agar GPU hardware decoder selesai mem-paint tekstur frame
+          setTimeout(doDraw, 60);
+        },
+        { once: true }
+      );
+
+      video.currentTime = targetTime;
     };
 
     video.onerror = (e) => {
@@ -82,7 +115,8 @@ export function captureVideoFrame(
       reject(new Error(`Error saat memuat video: ${e}`));
     };
 
+    video.addEventListener('canplay', doSeek, { once: true });
     video.src = videoSrc;
-    video.load(); // Inisiasi loading secara eksplisit
+    video.load();
   });
 }

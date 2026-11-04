@@ -60,21 +60,44 @@ export default function App() {
   const [lastFrameImage, setLastFrameImage] = useState<string | undefined>();
   const [targetFrameImage, setTargetFrameImage] = useState<string | undefined>();
 
-  // Tangkap frame terakhir saat videoSrc / videoDuration siap
+  // 1. Ekstrak frame terakhir video (untuk fase jeda & rewind, diekstrak sekali per video)
   useEffect(() => {
     if (!videoSrc) return;
-    captureVideoFrame(videoSrc, Math.max(0, videoDurationSeconds - 0.05))
-      .then((dataUrl) => setLastFrameImage(dataUrl))
-      .catch((err) => console.warn('Gagal ekstrak frame terakhir:', err));
+    let isCancelled = false;
+
+    captureVideoFrame(videoSrc, Math.max(0, videoDurationSeconds - 0.45))
+      .then((lastImg) => {
+        if (!isCancelled) setLastFrameImage(lastImg);
+      })
+      .catch((err) => {
+        console.warn('Gagal ekstrak last frame:', err);
+      });
+
+    return () => {
+      isCancelled = true;
+    };
   }, [videoSrc, videoDurationSeconds]);
 
-  // Tangkap frame target momen lucu setiap kali targetTimestamp berubah
+  // 2. Ekstrak frame target x momen puncak (update dinamis saat user mengubah timestamp, debounced 200ms)
   useEffect(() => {
     if (!videoSrc) return;
-    const targetSec = parseTimestampToSeconds(targetTimestamp);
-    captureVideoFrame(videoSrc, targetSec)
-      .then((dataUrl) => setTargetFrameImage(dataUrl))
-      .catch((err) => console.warn('Gagal ekstrak frame target:', err));
+    let isCancelled = false;
+
+    const timer = setTimeout(() => {
+      const targetSec = parseTimestampToSeconds(targetTimestamp);
+      captureVideoFrame(videoSrc, targetSec)
+        .then((targetImg) => {
+          if (!isCancelled) setTargetFrameImage(targetImg);
+        })
+        .catch((err) => {
+          console.warn('Gagal ekstrak target frame:', err);
+        });
+    }, 200);
+
+    return () => {
+      isCancelled = true;
+      clearTimeout(timer);
+    };
   }, [videoSrc, targetTimestamp]);
 
   // Total durasi sekuens video berurutan:

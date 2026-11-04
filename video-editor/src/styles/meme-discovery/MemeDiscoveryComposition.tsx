@@ -122,16 +122,11 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
           ) : null
         )}
 
-        {/* C. Setelah skip YouTube selesai: Langsung gambar frame target / kartu (0 seek, 0 delay) */}
+        {/* C. Setelah skip YouTube selesai: Frame puncak target x murni dari full video (BUKAN image.jpg kartu) */}
         {!isPlayingFull && frame >= skipEndFrame && (
           targetFrameImage ? (
             <Img
               src={targetFrameImage}
-              className="w-full h-full object-cover"
-            />
-          ) : cardImageSrc ? (
-            <Img
-              src={cardImageSrc}
               className="w-full h-full object-cover"
             />
           ) : lastFrameImage ? (
