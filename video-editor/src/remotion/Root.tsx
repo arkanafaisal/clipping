@@ -13,10 +13,13 @@ export const RemotionRoot: React.FC = () => {
   const videoFrames = Math.round(videoDurationSeconds * 30);
   const totalFrames = videoFrames + 12 + 22 + 18 + 10 + 15 + 105;
 
-  // Gunakan staticFile Remotion agar aset di public/ terpetakan tepat di Remotion CLI & Player
-  const videoSrc = staticFile('temp/full.mp4');
+  // Gunakan staticFile Remotion agar aset di public/ terpetakan tepat di Remotion CLI & Player (tanpa spasi di URL)
+  const momentFolder = currentMoment?.path?.replace(/\s+/g, '-');
+  const videoSrc = momentFolder
+    ? staticFile(`temp/${momentFolder}/full.mp4`)
+    : staticFile('temp/full.mp4');
   const imageSrc = currentMoment?.files?.image
-    ? staticFile('temp/image.jpg')
+    ? (momentFolder ? staticFile(`temp/${momentFolder}/image.jpg`) : staticFile('temp/image.jpg'))
     : undefined;
 
   return (

@@ -1,18 +1,18 @@
 {
-  "lastUpdate": "2026-11-04 20:22:10",
+  "lastUpdate": "2026-11-04 21:10:46",
   "totalMoments": 1,
   "moments": [
     {
       "id": "1x69IP3bZJcow4bH_IQ7yEk51zGtZrSq7",
       "name": "grim reaper",
-      "path": "grim reaper",
+      "path": "grim-reaper",
       "files": {
         "image": {
           "id": "1sC3ZDeHgVbVS1o9kgieM-BL_PpJ5eSZT",
           "name": "image.jpg",
           "size": 160057,
           "sizeFormatted": "156.31 KB",
-          "tempRelPath": "temp/grim reaper/image.jpg"
+          "tempRelPath": "temp/grim-reaper/image.jpg"
         },
         "full": {
           "id": "19R32907wEJq0YS1Fm_8C0Nfp_jnYq2TG",
@@ -24,7 +24,7 @@
           "durationFormatted": "9.85s",
           "width": 1080,
           "height": 1920,
-          "tempRelPath": "temp/grim reaper/full.mp4"
+          "tempRelPath": "temp/grim-reaper/full.mp4"
         }
       },
       "memeDiscovery": {

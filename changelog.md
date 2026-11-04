@@ -16,7 +16,23 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Revert Config.setPublicDir to Preserve Standard Remotion Public File Routing
+## [Unreleased] - Enforce Hyphenated Space-Free Temp Folder Paths and Clear Asset Status Logs
+- **Konteks Struktural**:
+  - Penegakan Slug/Hyphen pada Path Aset Lokal ([scripts/gdrive.js](file:///d:/projects/clipping/video-editor/scripts/gdrive.js), [Root.tsx](file:///d:/projects/clipping/video-editor/src/remotion/Root.tsx), [App.tsx](file:///d:/projects/clipping/video-editor/src/App.tsx), [data.json](file:///d:/projects/clipping/video-editor/src/data.json)):
+    - **Penyebab & Kebutuhan**: Folder aset di Google Drive yang memiliki spasi (misalnya `grim reaper`) menyebabkan Remotion, Vite, dan Chromium meng-encode URL dengan `%20` (`http://localhost:3000/temp/grim%20reaper/full.mp4`) yang kerap memicu error HTTP 404 dan pemutaran crash saat rendering. Selain itu, pesan CLI lama `{ videoDownloaded: false }` membingungkan pengguna karena `false` disalahartikan sebagai "gagal download", padahal sebenarnya berarti video sudah ada di lokal sehingga tidak perlu diunduh ulang.
+    - **Solusi Sesuai Rule 28**:
+      1. Menambahkan fungsi `sanitizePath` pada [`scripts/gdrive.js`](file:///d:/projects/clipping/video-editor/scripts/gdrive.js) yang secara otomatis mengganti semua karakter spasi menjadi tanda strip (`-`), sehingga path folder lokal menjadi `temp/grim-reaper/` bebas spasi dan 100% valid untuk Remotion/Chromium.
+      2. Mengimplementasikan auto-migrasi: jika aset lokal lama berada di folder berkarakter spasi (`temp/grim reaper/`) atau di root `temp/`, file otomatis disalin ke folder `temp/grim-reaper/` tanpa perlu download ulang.
+      3. Memperbarui path aset di [`Root.tsx`](file:///d:/projects/clipping/video-editor/src/remotion/Root.tsx) dan [`App.tsx`](file:///d:/projects/clipping/video-editor/src/App.tsx) agar mengarah ke folder yang sudah disanitasi (`temp/${momentFolder}/...`).
+      4. Mengubah output terminal `--ensure` agar menampilkan pesan status yang jelas dan ramah (`✅ Sudah tersedia di lokal` / `⬇️ Berhasil diunduh`) alih-alih boolean mentah.
+- **Perubahan Kode Penting**:
+  - `video-editor/scripts/gdrive.js`: Penambahan `sanitizePath()`, auto-migrasi folder berkarakter spasi, dan output status aset yang informatif.
+  - `video-editor/src/data.json`: Pembaruan path momen menjadi `grim-reaper` dan relPath `temp/grim-reaper/...`.
+  - `video-editor/src/remotion/Root.tsx`: Sanitasi `momentFolder` pada `staticFile`.
+  - `video-editor/src/App.tsx`: Sanitasi `momentFolder` pada `videoSrc` dan `imageSrc`.
+  - `GEMINI.md`: Penambahan Rule 28 mengenai larangan penggunaan spasi pada direktori aset lokal.
+
+## [6556d2c] - Revert Config.setPublicDir to Preserve Standard Remotion Public File Routing
 - **Konteks Struktural**:
   - Penghapusan `Config.setPublicDir` ([remotion.config.ts](file:///d:/projects/clipping/video-editor/remotion.config.ts)):
     - **Penyebab & Kebutuhan**: Pemasangan eksplisit `Config.setPublicDir` menyebabkan Remotion menambahkan prefix `/public/` pada URL berkas (`/public/temp/full.mp4`) yang memicu error 404 pada web server lokal Remotion.

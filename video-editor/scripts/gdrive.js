@@ -27,6 +27,18 @@ const DATA_PATH = path.join(rootDir, 'src', 'data.json');
 const TEMP_DIR = path.join(rootDir, 'public', 'temp');
 
 /**
+ * Sanitasi path agar tidak ada spasi (ganti spasi dengan hyphen "-")
+ * untuk mencegah error URL encoding (%20) dan 404 pada browser / player.
+ */
+export function sanitizePath(p) {
+  if (!p) return '';
+  return p
+    .split('/')
+    .map((seg) => seg.trim().replace(/\s+/g, '-'))
+    .join('/');
+}
+
+/**
  * Format tanggal ke human-readable string (tahun-bulan-hari jam:menit:detik)
  */
 export function formatHumanDate(d = new Date()) {
@@ -126,10 +138,11 @@ export async function crawlGoogleDrive(drive, parentId = GDRIVE_ROOT_FOLDER_ID, 
     );
 
     if (fullFile) {
+      const cleanPath = sanitizePath(currentPath);
       moments.push({
         id: parentId,
         name: path.basename(currentPath),
-        path: currentPath,
+        path: cleanPath,
         files: {
           full: {
             id: fullFile.id,
@@ -145,7 +158,7 @@ export async function crawlGoogleDrive(drive, parentId = GDRIVE_ROOT_FOLDER_ID, 
               : null,
             width: fullFile.videoMediaMetadata?.width || 1080,
             height: fullFile.videoMediaMetadata?.height || 1920,
-            tempRelPath: `temp/${currentPath}/${fullFile.name}`,
+            tempRelPath: `temp/${cleanPath}/${fullFile.name}`,
           },
           cut: cutFile
             ? {
@@ -153,7 +166,7 @@ export async function crawlGoogleDrive(drive, parentId = GDRIVE_ROOT_FOLDER_ID, 
                 name: cutFile.name,
                 size: Number(cutFile.size || 0),
                 sizeFormatted: formatBytes(Number(cutFile.size || 0)),
-                tempRelPath: `temp/${currentPath}/${cutFile.name}`,
+                tempRelPath: `temp/${cleanPath}/${cutFile.name}`,
               }
             : null,
           image: imageFile
@@ -162,7 +175,7 @@ export async function crawlGoogleDrive(drive, parentId = GDRIVE_ROOT_FOLDER_ID, 
                 name: imageFile.name,
                 size: Number(imageFile.size || 0),
                 sizeFormatted: formatBytes(Number(imageFile.size || 0)),
-                tempRelPath: `temp/${currentPath}/${imageFile.name}`,
+                tempRelPath: `temp/${cleanPath}/${imageFile.name}`,
               }
             : null,
         },
@@ -285,8 +298,10 @@ export async function downloadMoment(moment) {
   }
 
   const drive = getDriveClient();
+  const cleanPath = sanitizePath(moment.path);
+  moment.path = cleanPath;
   const fullFile = moment.files.full;
-  const targetDir = path.join(TEMP_DIR, moment.path);
+  const targetDir = path.join(TEMP_DIR, cleanPath);
   const targetPath = path.join(targetDir, fullFile.name);
 
   console.log(`\n🚀 Mulai proses download untuk momen: "${moment.name}"`);
@@ -323,15 +338,17 @@ export async function downloadMomentImage(drive, moment) {
     return null;
   }
 
+  const cleanPath = sanitizePath(moment.path);
+  moment.path = cleanPath;
   const imageFile = moment.files.image;
-  const targetDir = path.join(TEMP_DIR, moment.path);
+  const targetDir = path.join(TEMP_DIR, cleanPath);
   const targetPath = path.join(targetDir, imageFile.name);
+  const quickPath = path.join(TEMP_DIR, imageFile.name);
 
   // Jika file lokal sudah ada dan ukuran cocok, lewati
   if (fs.existsSync(targetPath)) {
     const stat = fs.statSync(targetPath);
     if (stat.size === imageFile.size && stat.size > 0) {
-      const quickPath = path.join(TEMP_DIR, imageFile.name);
       if (!fs.existsSync(quickPath)) {
         try {
           fs.copyFileSync(targetPath, quickPath);
@@ -349,7 +366,6 @@ export async function downloadMomentImage(drive, moment) {
 
   // Buat juga salinan ke public/temp/image.jpg agar mudah diakses langsung
   try {
-    const quickPath = path.join(TEMP_DIR, imageFile.name);
     fs.copyFileSync(targetPath, quickPath);
   } catch (e) {
     // ignore
@@ -367,10 +383,34 @@ export async function syncMomentImage(momentPathOrName) {
   if (!metadata || !metadata.moments) return null;
 
   const moment = metadata.moments.find(
-    (m) => m.path === momentPathOrName || m.name === momentPathOrName || !momentPathOrName
+    (m) =>
+      m.path === momentPathOrName ||
+      m.name === momentPathOrName ||
+      sanitizePath(m.path) === sanitizePath(momentPathOrName) ||
+      !momentPathOrName
   );
 
   if (!moment) return null;
+
+  const cleanPath = sanitizePath(moment.path);
+  moment.path = cleanPath;
+  const targetDir = path.join(TEMP_DIR, cleanPath);
+  const quickImagePath = path.join(TEMP_DIR, 'image.jpg');
+
+  // Migrasi aset dari folder lama dengan spasi (misal "grim reaper" -> "grim-reaper") jika ada
+  const legacyDir = path.join(TEMP_DIR, moment.name);
+  if (fs.existsSync(legacyDir) && legacyDir !== targetDir) {
+    try {
+      fs.mkdirSync(targetDir, { recursive: true });
+      for (const f of fs.readdirSync(legacyDir)) {
+        const srcF = path.join(legacyDir, f);
+        const dstF = path.join(targetDir, f);
+        if (!fs.existsSync(dstF) && fs.statSync(srcF).isFile()) {
+          fs.copyFileSync(srcF, dstF);
+        }
+      }
+    } catch (e) {}
+  }
 
   const drive = getDriveClient();
 
@@ -393,18 +433,35 @@ export async function syncMomentImage(momentPathOrName) {
       name: imageFile.name,
       size: Number(imageFile.size || 0),
       sizeFormatted: formatBytes(Number(imageFile.size || 0)),
-      tempRelPath: `temp/${moment.path}/${imageFile.name}`,
+      tempRelPath: `temp/${cleanPath}/${imageFile.name}`,
     };
 
-    // Unduh gambar ke folder temp
-    await downloadMomentImage(drive, moment);
+    const targetImagePath = path.join(targetDir, imageFile.name);
+    const fileExistsLocally = fs.existsSync(targetImagePath) && fs.statSync(targetImagePath).size > 0;
+    const quickExistsLocally = fs.existsSync(quickImagePath) && fs.statSync(quickImagePath).size > 0;
+
+    // Sinkronkan salinan lokal jika salah satu ada
+    if (fileExistsLocally && !quickExistsLocally) {
+      try { fs.copyFileSync(targetImagePath, quickImagePath); } catch (e) {}
+    } else if (!fileExistsLocally && quickExistsLocally) {
+      try {
+        fs.mkdirSync(targetDir, { recursive: true });
+        fs.copyFileSync(quickImagePath, targetImagePath);
+      } catch (e) {}
+    }
+
+    let downloaded = false;
+    if (!fs.existsSync(targetImagePath) || fs.statSync(targetImagePath).size === 0) {
+      await downloadMomentImage(drive, moment);
+      downloaded = true;
+    }
 
     // Simpan metadata terupdate ke data.json
     metadata.lastUpdate = formatHumanDate(new Date());
     fs.mkdirSync(path.dirname(DATA_PATH), { recursive: true });
     fs.writeFileSync(DATA_PATH, JSON.stringify(metadata, null, 2), 'utf8');
 
-    return { moment, metadata, downloaded: true };
+    return { moment, metadata, downloaded, alreadyExists: !downloaded };
   }
 
   return { moment, metadata, downloaded: false };
@@ -419,14 +476,35 @@ export async function syncMomentVideo(momentPathOrName) {
   if (!metadata || !metadata.moments) return null;
 
   const moment = metadata.moments.find(
-    (m) => m.path === momentPathOrName || m.name === momentPathOrName || !momentPathOrName
+    (m) =>
+      m.path === momentPathOrName ||
+      m.name === momentPathOrName ||
+      sanitizePath(m.path) === sanitizePath(momentPathOrName) ||
+      !momentPathOrName
   );
 
   if (!moment) return null;
 
-  const targetDir = path.join(TEMP_DIR, moment.path);
+  const cleanPath = sanitizePath(moment.path);
+  moment.path = cleanPath;
+  const targetDir = path.join(TEMP_DIR, cleanPath);
   const targetPath = path.join(targetDir, 'full.mp4');
   const quickPath = path.join(TEMP_DIR, 'full.mp4');
+
+  // Migrasi aset dari folder lama dengan spasi (misal "grim reaper" -> "grim-reaper") jika ada
+  const legacyDir = path.join(TEMP_DIR, moment.name);
+  if (fs.existsSync(legacyDir) && legacyDir !== targetDir) {
+    try {
+      fs.mkdirSync(targetDir, { recursive: true });
+      for (const f of fs.readdirSync(legacyDir)) {
+        const srcF = path.join(legacyDir, f);
+        const dstF = path.join(targetDir, f);
+        if (!fs.existsSync(dstF) && fs.statSync(srcF).isFile()) {
+          fs.copyFileSync(srcF, dstF);
+        }
+      }
+    } catch (e) {}
+  }
 
   const fileExistsLocally = fs.existsSync(targetPath) && fs.statSync(targetPath).size > 0;
   const quickExistsLocally = fs.existsSync(quickPath) && fs.statSync(quickPath).size > 0;
@@ -446,6 +524,7 @@ export async function syncMomentVideo(momentPathOrName) {
 
   // Jika file lokal sudah ada di salah satu folder dan metadata lengkap, tidak perlu download ulang
   if ((fileExistsLocally || quickExistsLocally) && hasMetadata) {
+    moment.files.full.tempRelPath = `temp/${cleanPath}/full.mp4`;
     return { moment, metadata, downloaded: false, alreadyExists: true };
   }
 
@@ -481,11 +560,12 @@ export async function syncMomentVideo(momentPathOrName) {
         : moment.files?.full?.durationFormatted || '10.95s',
       width: fullFile.videoMediaMetadata?.width || 1080,
       height: fullFile.videoMediaMetadata?.height || 1920,
-      tempRelPath: `temp/${moment.path}/${fullFile.name}`,
+      tempRelPath: `temp/${cleanPath}/${fullFile.name}`,
     };
 
     let downloaded = false;
-    if (!fileExistsLocally) {
+    const finalLocalExists = fs.existsSync(targetPath) && fs.statSync(targetPath).size > 0;
+    if (!finalLocalExists) {
       console.log(`\n🎬 Video full.mp4 lokal tidak ditemukan untuk "${moment.name}".`);
       console.log(`   ⬇️ Mengunduh otomatis dari Google Drive...`);
       await downloadDriveFile(drive, fullFile.id, targetPath, `${moment.name}/${fullFile.name}`);
@@ -500,7 +580,7 @@ export async function syncMomentVideo(momentPathOrName) {
     fs.mkdirSync(path.dirname(DATA_PATH), { recursive: true });
     fs.writeFileSync(DATA_PATH, JSON.stringify(metadata, null, 2), 'utf8');
 
-    return { moment, metadata, downloaded };
+    return { moment, metadata, downloaded, alreadyExists: !downloaded };
   }
 
   return { moment, metadata, downloaded: false, notFoundOnDrive: true };
@@ -635,10 +715,15 @@ if (process.argv[1] && process.argv[1].endsWith('gdrive.js')) {
     });
   } else if (process.argv.includes('--check-assets') || process.argv.includes('--ensure')) {
     ensureMomentAssets().then((res) => {
-      console.log('Ensure moment assets complete:', {
-        imageDownloaded: res?.image?.downloaded ?? false,
-        videoDownloaded: res?.video?.downloaded ?? false,
-      });
+      const vidStatus = res?.video?.downloaded
+        ? '⬇️ Berhasil diunduh'
+        : (res?.video?.alreadyExists || res?.video ? '✅ Sudah tersedia di lokal' : '⚠️ Tidak ada video');
+      const imgStatus = res?.image?.downloaded
+        ? '⬇️ Berhasil diunduh'
+        : (res?.image?.alreadyExists || res?.image ? '✅ Sudah tersedia di lokal' : '⚠️ Tidak ada gambar');
+      console.log(`\n📦 Status Aset Momen:`);
+      console.log(`   🎬 Video : ${vidStatus}`);
+      console.log(`   🖼️ Gambar: ${imgStatus}\n`);
       process.exit(0);
     }).catch((err) => {
       console.error(err);

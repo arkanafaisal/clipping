@@ -138,9 +138,12 @@ export default function App() {
 
   const videoDurationSeconds =
     currentMoment?.files?.full?.durationSeconds || 10.95;
-  const videoSrc = '/temp/full.mp4';
+  const momentFolder = currentMoment?.path?.replace(/\s+/g, '-');
+  const videoSrc = momentFolder
+    ? `/temp/${momentFolder}/full.mp4`
+    : '/temp/full.mp4';
   const imageSrc = currentMoment?.files?.image
-    ? '/temp/image.jpg'
+    ? (momentFolder ? `/temp/${momentFolder}/image.jpg` : '/temp/image.jpg')
     : undefined;
 
   // Tangkapan frame beku statis target x momen puncak (canvas)
