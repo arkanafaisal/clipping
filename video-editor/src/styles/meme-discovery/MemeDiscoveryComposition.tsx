@@ -97,116 +97,106 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
   return (
     <AbsoluteFill className="bg-black text-white font-sans overflow-hidden select-none">
       {/* ======================================================== */}
-      {/* 1. TOP UNSAFE AREA: 10% HEIGHT (192px) - PURE BLACK WALL */}
+      {/* 1. VIDEO LAYER: Mengisi Penuh 100% Canvas 1080x1920        */}
+      {/*    Video full.mp4 sudah memiliki format 9:16 dan safe zone */}
       {/* ======================================================== */}
-      <div className="absolute top-0 inset-x-0 h-[10%] bg-black z-30 pointer-events-none flex items-center justify-center">
-        {showSafeZoneGuides && (
-          <div className="w-full h-full border-b-2 border-dashed border-red-500/70 flex items-center justify-center bg-red-950/20 text-red-400 font-mono text-xs font-bold tracking-widest uppercase">
-            ⚠️ Area Unsafe Atas (10% - Status Bar Medsos)
-          </div>
-        )}
-      </div>
+      {videoSrc ? (
+        <AbsoluteFill className="overflow-hidden flex items-center justify-center bg-black">
+          {isPlayingFull ? (
+            <Video
+              src={videoSrc}
+              className="w-full h-full object-cover"
+            />
+          ) : isEndPaused ? (
+            /* Freeze frame terakhir video saat jeda pause */
+            <Video
+              src={videoSrc}
+              startFrom={Math.max(0, playEndFrame - 2)}
+              className="w-full h-full object-cover pointer-events-none"
+            />
+          ) : (
+            /* Langsung seek persis pada detik frame lucu x */
+            <Video
+              src={videoSrc}
+              startFrom={Math.round(targetUndoSeconds * fps)}
+              className="w-full h-full object-cover pointer-events-none"
+            />
+          )}
+
+          {/* Video Dimming Overlay saat kartu muncul */}
+          {isCardRevealed && (
+            <div className="absolute inset-0 bg-black/80 backdrop-blur-sm transition-all duration-300 z-20" />
+          )}
+        </AbsoluteFill>
+      ) : (
+        <div className="text-center p-8 text-neutral-500 font-mono text-sm">
+          Video tidak ditemukan. Jalankan <code className="text-amber-400">npm run download</code>
+        </div>
+      )}
 
       {/* ======================================================== */}
-      {/* 2. ACTIVE 80% SAFE ZONE CANVAS (1536px Vertical Safe Area)*/}
+      {/* 2. OVERLAYS & SEKUENS EFEK MEME DISCOVERY                */}
       {/* ======================================================== */}
-      <div className="absolute top-[10%] bottom-[10%] inset-x-0 overflow-hidden flex items-center justify-center bg-black">
-        {videoSrc ? (
-          <div className="relative w-full h-full overflow-hidden flex items-center justify-center">
-            {/* Play video full utuh terlebih dahulu */}
-            {isPlayingFull ? (
-              <Video
-                src={videoSrc}
-                className="w-full h-full object-contain"
-              />
-            ) : isEndPaused ? (
-              /* Freeze frame terakhir video saat jeda pause */
-              <Video
-                src={videoSrc}
-                startFrom={Math.max(0, playEndFrame - 2)}
-                className="w-full h-full object-contain pointer-events-none"
-              />
-            ) : (
-              /* Langsung seek persis pada detik frame lucu x */
-              <Video
-                src={videoSrc}
-                startFrom={Math.round(targetUndoSeconds * fps)}
-                className="w-full h-full object-contain pointer-events-none"
-              />
-            )}
-
-            {/* Video Dimming Overlay saat kartu muncul */}
-            {isCardRevealed && (
-              <div className="absolute inset-0 bg-black/80 backdrop-blur-sm transition-all duration-300 z-20" />
-            )}
-          </div>
-        ) : (
-          <div className="text-center p-8 text-neutral-500 font-mono text-sm">
-            Video tidak ditemukan. Jalankan <code className="text-amber-400">npm run download</code>
-          </div>
-        )}
-
-        {/* Ikon Pause Ringan Transparan saat video baru selesai */}
-        {isEndPaused && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
-            <div className="w-20 h-20 rounded-full bg-black/50 border border-white/20 flex items-center justify-center opacity-30 shadow-2xl">
-              <div className="flex gap-2.5">
-                <div className="w-2.5 h-8 bg-white rounded-sm" />
-                <div className="w-2.5 h-8 bg-white rounded-sm" />
-              </div>
+      {/* Ikon Pause Ringan Transparan saat video baru selesai */}
+      {isEndPaused && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
+          <div className="w-24 h-24 rounded-full bg-black/50 border border-white/20 flex items-center justify-center opacity-30 shadow-2xl">
+            <div className="flex gap-3">
+              <div className="w-3 h-10 bg-white rounded-sm" />
+              <div className="w-3 h-10 bg-white rounded-sm" />
             </div>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Efek Skip Kebelakang persis seperti YouTube di bagian KIRI */}
-        {isSkipping && (
-          <RewindEffect
-            progress={(frame - skipStartFrame) / skipFrames}
-            skipAmountSeconds={skipAmountSeconds}
+      {/* Efek Skip Kebelakang persis seperti YouTube di bagian KIRI */}
+      {isSkipping && (
+        <RewindEffect
+          progress={(frame - skipStartFrame) / skipFrames}
+          skipAmountSeconds={skipAmountSeconds}
+        />
+      )}
+
+      {/* Camera Shutter White Flash (Screenshot Efek) */}
+      {isFlashing && (
+        <div className="absolute inset-0 z-30 pointer-events-none">
+          <ShutterFlash progress={flashProgress} />
+        </div>
+      )}
+
+      {/* Kartu Meme 1:1 Holographic Pokemon TCG Meluncur Naik DARI BAWAH ke Tengah */}
+      {isCardRevealed && (
+        <div className="absolute inset-0 flex items-center justify-center z-40 p-4">
+          <PokemonCard
+            cardTitle={cardTitle}
+            cardSubtitle={cardSubtitle}
+            cardRarity={cardRarity}
+            imageSrc={cardImageSrc}
+            videoSrc={videoSrc}
+            targetUndoSeconds={targetUndoSeconds}
+            hp={hp}
+            attackName={attackName}
+            attackDesc={attackDesc}
+            slideProgress={cardSpring}
+            frame={frame}
+            stage={stage}
+            energyType={energyType}
+            speciesInfo={speciesInfo}
+            abilityName={abilityName}
+            abilityDesc={abilityDesc}
+            weakness={weakness}
+            resistance={resistance}
+            retreatCost={retreatCost}
+            illustrator={illustrator}
           />
-        )}
-
-        {/* Camera Shutter White Flash (Screenshot Efek) */}
-        {isFlashing && (
-          <div className="absolute inset-0 z-30 pointer-events-none">
-            <ShutterFlash progress={flashProgress} />
-          </div>
-        )}
-
-        {/* Kartu Meme 1:1 Holographic Meluncur Naik DARI BAWAH */}
-        {isCardRevealed && (
-          <div className="absolute inset-0 flex items-center justify-center z-40 p-4">
-            <PokemonCard
-              cardTitle={cardTitle}
-              cardSubtitle={cardSubtitle}
-              cardRarity={cardRarity}
-              imageSrc={cardImageSrc}
-              videoSrc={videoSrc}
-              targetUndoSeconds={targetUndoSeconds}
-              hp={hp}
-              attackName={attackName}
-              attackDesc={attackDesc}
-              slideProgress={cardSpring}
-              frame={frame}
-              stage={stage}
-              energyType={energyType}
-              speciesInfo={speciesInfo}
-              abilityName={abilityName}
-              abilityDesc={abilityDesc}
-              weakness={weakness}
-              resistance={resistance}
-              retreatCost={retreatCost}
-              illustrator={illustrator}
-            />
-          </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* ======================================================== */}
       {/* 3. OPTIONAL HEADER: Tepat di dalam margin atas Safe Zone   */}
       {/* ======================================================== */}
       {title && (
-        <div className="absolute top-[10.5%] left-0 right-0 px-8 flex flex-col items-center gap-1.5 z-30 pointer-events-none">
+        <div className="absolute top-[3%] left-0 right-0 px-8 flex flex-col items-center gap-1.5 z-30 pointer-events-none">
           <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-black/80 border border-neutral-700/80 shadow-2xl backdrop-blur-md">
             <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
             <span className="text-xs font-bold tracking-wider uppercase text-neutral-300">
@@ -225,15 +215,18 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
       )}
 
       {/* ======================================================== */}
-      {/* 4. BOTTOM UNSAFE AREA: 10% HEIGHT (192px) - PURE BLACK WALL */}
+      {/* 4. SAFE ZONE GUIDES (Hanya jika showSafeZoneGuides aktif)  */}
       {/* ======================================================== */}
-      <div className="absolute bottom-0 inset-x-0 h-[10%] bg-black z-30 pointer-events-none flex items-center justify-center">
-        {showSafeZoneGuides && (
-          <div className="w-full h-full border-t-2 border-dashed border-red-500/70 flex items-center justify-center bg-red-950/20 text-red-400 font-mono text-xs font-bold tracking-widest uppercase">
+      {showSafeZoneGuides && (
+        <>
+          <div className="absolute top-0 inset-x-0 h-[10%] border-b-2 border-dashed border-red-500/70 flex items-center justify-center bg-red-950/20 text-red-400 font-mono text-xs font-bold tracking-widest uppercase z-30 pointer-events-none">
+            ⚠️ Area Unsafe Atas (10% - Status Bar Medsos)
+          </div>
+          <div className="absolute bottom-0 inset-x-0 h-[10%] border-t-2 border-dashed border-red-500/70 flex items-center justify-center bg-red-950/20 text-red-400 font-mono text-xs font-bold tracking-widest uppercase z-30 pointer-events-none">
             ⚠️ Area Unsafe Bawah (10% - Caption & Nav Medsos)
           </div>
-        )}
-      </div>
+        </>
+      )}
     </AbsoluteFill>
   );
 };

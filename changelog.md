@@ -14,7 +14,18 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Maximize Video Preview to True Full Viewport Height and Enrich Pokemon Card with Authentic TCG Anatomy and 820px Scale
+## [Unreleased] - Expand Video to Full 100% Canvas Height in Meme Discovery by Eliminating Artificial Safe Zone Squeeze
+- **Konteks Struktural**:
+  - Penataan Layer Video Remotion Penuh 100% Edge-to-Edge ([MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx)):
+    - **Penyebab & Kebutuhan**: Sebelumnya komponen video dibungkus di dalam container `top-[10%] bottom-[10%]` dengan `object-contain` serta ditutupi oleh dinding hitam statis 10% di atas dan 10% di bawah. Karena video `full.mp4` sudah beresolusi 9:16 (1080x1920) dan kontennya sudah berada di dalam safe zone 80% secara native dari hasil editing pengguna, pembatasan 80% tambahan di Remotion menyebabkan video terkompresi ganda menjadi 864x1536 dengan pilar hitam tebal di kiri, kanan, atas, dan bawah. Hal ini membuat preview video di laptop pengguna tidak mencapai 100% tinggi layar dan tampak kecil di tengah layar.
+    - **Solusi**:
+      1. Menghilangkan pembungkus `top-[10%] bottom-[10%]` dan dinding hitam pemotong, lalu menempatkan `<Video>` langsung di dalam `<AbsoluteFill>` dengan `className="w-full h-full object-cover"` sehingga video membentang penuh 100% dari pixel 0 hingga 1920 tanpa letterbox/pillarbox buatan.
+      2. Kontrol player Remotion di bagian bawah kini melayang secara wajar di atas frame video terbawah dan auto-hide saat video diputar, memaksimalkan area pandang preview vertikal setinggi-tingginya di layar laptop.
+      3. Kartu Pokemon TCG (820px) tetap berpusat di tengah kanvas safe zone 80% dengan latar video yang teredup halus (dimming blur).
+- **Perubahan Kode Penting**:
+  - `video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx`: Menjadikan layer `<Video>` memenuhi `<AbsoluteFill>` 100% canvas dan membersihkan div black wall statis pereduksi tinggi video.
+
+## [ff89766] - Maximize Video Preview to True Full Viewport Height and Enrich Pokemon Card with Authentic TCG Anatomy and 820px Scale
 - **Konteks Struktural**:
   - Penskalaan Penuh Preview Layar Studio & Anatomi Otentik Kartu Pokemon TCG ([App.tsx](file:///d:/projects/clipping/video-editor/src/App.tsx), [PokemonCard.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/PokemonCard.tsx), [MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx)):
     - **Penyebab & Kebutuhan**: Pengguna meminta agar kanvas video potret 9:16 di antarmuka web studio dapat benar-benar memanfaatkan 100% tinggi layar laptop tanpa celah padding/margin (maksimum sebesar mungkin), dengan kontrol player di bagian bawah yang auto-hide saat diputar. Selain itu, kartu meme di Remotion sebelumnya berukuran relatif kecil (520px) dan belum menyerupai kartu Pokemon asli secara menyeluruh. Pengguna meminta agar kartu diperbesar secara signifikan serta memuat elemen-elemen anatomi otentik kartu Pokémon Trading Card Game (TCG): bukan hanya gambar 1:1, melainkan judul kartu tebal, stage evolusi (Basic Meme), status HP & simbol elemen energi, bilah info spesies Pokedex, kotak Ability (Poké-Power), serangan dengan biaya energi & angka damage, serta bilah Weakness/Resistance/Retreat dan footer kolektor.
