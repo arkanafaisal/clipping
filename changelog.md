@@ -14,7 +14,23 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Camera Shutter Sound Effect on Screenshot White Flash Effect
+## [Unreleased] - Remotion Video Export Setup with CLI and Tailwind v4 Bundling
+- **Konteks Struktural**:
+  - Konfigurasi Pipeline Render Video Ekspor MP4 ([remotion.config.ts](file:///d:/projects/clipping/video-editor/remotion.config.ts), [src/remotion/index.ts](file:///d:/projects/clipping/video-editor/src/remotion/index.ts), [src/remotion/Root.tsx](file:///d:/projects/clipping/video-editor/src/remotion/Root.tsx), [package.json](file:///d:/projects/clipping/package.json)):
+    - **Penyebab & Kebutuhan**: Pengguna menanyakan cara export video (apakah melalui `npm run build`). `npm run build` merupakan perintah kompilasi web statis Vite (`dist/`), bukan perender video Remotion. Dibutuhkan konfigurasi rendering engine resmi Remotion (`@remotion/cli` & `@remotion/tailwind-v4`) agar komposisi video dapat diekspor langsung menjadi file `.mp4`.
+    - **Solusi**:
+      1. Memasang paket devDependencies resmi `@remotion/cli` dan `@remotion/tailwind-v4` (versi 4.0.540).
+      2. Membuat [`remotion.config.ts`](file:///d:/projects/clipping/video-editor/remotion.config.ts) dengan `enableTailwind` override untuk integrasi mulus Tailwind CSS v4 pada Webpack bundler internal Remotion.
+      3. Membuat entrypoint registrasi root [`src/remotion/index.ts`](file:///d:/projects/clipping/video-editor/src/remotion/index.ts) menggunakan `registerRoot(RemotionRoot)`.
+      4. Di [`Root.tsx`](file:///d:/projects/clipping/video-editor/src/remotion/Root.tsx), mengimpor file style utama `../index.css` dan menghubungkan `defaultProps` komposisi `MemeDiscovery` langsung ke `data.json` aktif (judul, rarity, deskripsi, warna, ukuran font, skill, durasi video, path video & gambar).
+      5. Menambahkan script perintah `"render"` di `video-editor/package.json` dan shortcut root `package.json` (`npm run render`), sehingga pengguna dapat mengekspor video ke format `.mp4` cukup dengan menjalankan satu perintah terminal `npm run render`.
+- **Perubahan Kode Penting**:
+  - `video-editor/remotion.config.ts`: Konfigurasi bundler Remotion untuk Tailwind v4.
+  - `video-editor/src/remotion/index.ts`: Entry point registrasi root Remotion CLI.
+  - `video-editor/src/remotion/Root.tsx`: Impor CSS global dan sinkronisasi `defaultProps` dinamis dari `data.json`.
+  - `video-editor/package.json` & `package.json`: Script perintah render CLI (`npm run render`).
+
+## [697897f] - Camera Shutter Sound Effect on Screenshot White Flash Effect
 - **Konteks Struktural**:
   - Penambahan Efek Suara (SFX) Camera Shutter Saat Screenshot Shutter Flash ([MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), [types.ts](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/types.ts), [public/sfx/camera-shutter.webm](file:///d:/projects/clipping/video-editor/public/sfx/camera-shutter.webm)):
     - **Penyebab & Kebutuhan**: Pengguna meminta efek suara camera shutter click (`https://www.youtube.com/watch?v=zczNH5JDgMs`) diputar persis saat efek *screenshot white flash* menyala, dengan jeda hening di awal file audio dipotong terlebih dahulu agar bunyi jepretan kamera langsung menyala instan tanpa jeda.

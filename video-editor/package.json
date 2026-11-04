@@ -7,6 +7,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
+    "render": "remotion render src/remotion/index.ts MemeDiscovery out.mp4",
+    "render:quiz": "remotion render src/remotion/index.ts RouletteQuiz out-quiz.mp4",
     "sync": "node scripts/gdrive.js --sync",
     "download": "node scripts/gdrive.js",
     "gdrive": "node scripts/gdrive.js"
@@ -23,6 +25,8 @@
     "tailwindcss": "^4.0.0"
   },
   "devDependencies": {
+    "@remotion/cli": "^4.0.540",
+    "@remotion/tailwind-v4": "^4.0.540",
     "@types/node": "^22.13.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",

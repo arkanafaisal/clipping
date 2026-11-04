@@ -1,5 +1,5 @@
 {
-  "lastUpdate": "2026-11-04 19:33:01",
+  "lastUpdate": "2026-11-04 20:01:28",
   "totalMoments": 1,
   "moments": [
     {
@@ -7,24 +7,11 @@
       "name": "grim reaper",
       "path": "grim reaper",
       "files": {
-        "full": {
-          "id": "1hTWQuMUMHeuwg0wi1tT2bi9oTw4Xrsz-",
-          "name": "full.mp4",
-          "mimeType": "video/mp4",
-          "size": 11883580,
-          "sizeFormatted": "11.33 MB",
-          "durationSeconds": 10.95,
-          "durationFormatted": "10.95s",
-          "width": 1080,
-          "height": 1920,
-          "tempRelPath": "temp/grim reaper/full.mp4"
-        },
-        "cut": null,
         "image": {
-          "id": "12W0Jpsk8Fl8XMWpXjsSmJh7ZRIpewryW",
+          "id": "1sC3ZDeHgVbVS1o9kgieM-BL_PpJ5eSZT",
           "name": "image.jpg",
-          "size": 75108,
-          "sizeFormatted": "73.35 KB",
+          "size": 160057,
+          "sizeFormatted": "156.31 KB",
           "tempRelPath": "temp/grim reaper/image.jpg"
         }
       },
