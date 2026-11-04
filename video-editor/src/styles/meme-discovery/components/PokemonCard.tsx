@@ -1,5 +1,5 @@
 import React from 'react';
-import { interpolate, Video } from 'remotion';
+import { Freeze, interpolate, Video } from 'remotion';
 
 interface PokemonCardProps {
   cardTitle: string;
@@ -113,11 +113,12 @@ export const PokemonCard: React.FC<PokemonCardProps> = ({
           ) : videoSrc ? (
             /* Fallback Otomatis: Video Frame Beku pada Detik Target x */
             <div className="w-full h-full relative">
-              <Video
-                src={videoSrc}
-                startFrom={Math.round(targetUndoSeconds * 30)}
-                className="w-full h-full object-cover pointer-events-none"
-              />
+              <Freeze frame={Math.round(targetUndoSeconds * 30)}>
+                <Video
+                  src={videoSrc}
+                  className="w-full h-full object-cover pointer-events-none"
+                />
+              </Freeze>
             </div>
           ) : (
             <div className="w-full h-full flex items-center justify-center text-6xl bg-neutral-900 text-neutral-600">

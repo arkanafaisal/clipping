@@ -14,7 +14,24 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Expand Video to Full 100% Canvas Height in Meme Discovery by Eliminating Artificial Safe Zone Squeeze
+## [Unreleased] - Fix Dynamic Frame Seeking and Freezing via Remotion Freeze Component
+- **Konteks Struktural**:
+  - Sinkronisasi Akurat Frame Target x & Fallback Kartu ([MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), [PokemonCard.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/PokemonCard.tsx), [time.ts](file:///d:/projects/clipping/video-editor/src/utils/time.ts)):
+    - **Penyebab & Kebutuhan**: Pengguna mendapati bahwa mengubah timestamp posisi frame (misalnya menjadi `7.1` atau `2`) pada input web studio tidak mengubah frame yang ter-freeze di video maupun frame cuplikan fallback pada kartu Pokemon TCG (tampilan tetap statis pada akhir video).
+    - **Akar Masalah**: Sebelumnya kode menggunakan properti `startFrom={offset}` pada tag `<Video>`. Di Remotion, `startFrom` hanya menambahkan offset playback relatif terhadap frame komposisi yang berjalan (`(frame + offset)`), bukan menghentikan/membekukan pemutaran. Pada frame 350+ (fase review & kartu), kalkulasi `(350 + offset)` melampaui total durasi video (10.95s / 328 frame), sehingga video selalu terhenti statis di detik terakhir video tanpa peduli nilai timestamp yang diinput. Selain itu, parsing timestamp belum menoleransi format desimal koma (misal `7,1`).
+    - **Solusi**:
+      1. Mengganti pola `startFrom` dengan komponen resmi Remotion `<Freeze frame={targetFrame}>` baik pada background video maupun pada frame cuplikan fallback di `PokemonCard.tsx`.
+      2. Pada sekuens storyboard:
+         - Saat video diputar (0 s/d `playEndFrame`): memutar video secara utuh.
+         - Saat jeda pause dan animasi skip YouTube (`frame < skipEndFrame`): dibekukan tepat pada frame terakhir video (`playEndFrame - 1`).
+         - Begitu efek skip YouTube selesai (`frame >= skipEndFrame`): langsung dibekukan secara dinamis dan presisi pada `targetFrame` (`Math.round(targetUndoSeconds * fps)`).
+      3. Di `time.ts`, menambahkan normalisasi tanda koma (`,`) menjadi titik (`.`) agar input gaya penulisan desimal lokal Indonesia (seperti `7,1`) tetap diparse sebagai nilai float yang valid.
+- **Perubahan Kode Penting**:
+  - `video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx`: Menggunakan `<Freeze frame={targetFrame}>` pasca-skip YouTube.
+  - `video-editor/src/styles/meme-discovery/components/PokemonCard.tsx`: Menggunakan `<Freeze frame={...}>` untuk fallback gambar kartu 1:1.
+  - `video-editor/src/utils/time.ts`: Normalisasi koma ke titik pada `parseTimestampToSeconds`.
+
+## [8198b27] - Expand Video to Full 100% Canvas Height in Meme Discovery by Eliminating Artificial Safe Zone Squeeze
 - **Konteks Struktural**:
   - Penataan Layer Video Remotion Penuh 100% Edge-to-Edge ([MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx)):
     - **Penyebab & Kebutuhan**: Sebelumnya komponen video dibungkus di dalam container `top-[10%] bottom-[10%]` dengan `object-contain` serta ditutupi oleh dinding hitam statis 10% di atas dan 10% di bawah. Karena video `full.mp4` sudah beresolusi 9:16 (1080x1920) dan kontennya sudah berada di dalam safe zone 80% secara native dari hasil editing pengguna, pembatasan 80% tambahan di Remotion menyebabkan video terkompresi ganda menjadi 864x1536 dengan pilar hitam tebal di kiri, kanan, atas, dan bawah. Hal ini membuat preview video di laptop pengguna tidak mencapai 100% tinggi layar dan tampak kecil di tengah layar.

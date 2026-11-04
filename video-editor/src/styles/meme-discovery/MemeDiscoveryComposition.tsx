@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   AbsoluteFill,
+  Freeze,
   spring,
   useCurrentFrame,
   useVideoConfig,
@@ -41,6 +42,7 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
 
   // 1. Posisi timestamp target x (relatif dari detik 0)
   const targetUndoSeconds = parseTimestampToSeconds(targetUndoTimestamp);
+  const targetFrame = Math.round(targetUndoSeconds * fps);
 
   // 2. Durasi video penuh
   const totalSeconds = totalVideoDurationSeconds || 10.95;
@@ -103,24 +105,27 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
       {videoSrc ? (
         <AbsoluteFill className="overflow-hidden flex items-center justify-center bg-black">
           {isPlayingFull ? (
+            /* 1. Putar video penuh utuh tanpa gangguan */
             <Video
               src={videoSrc}
               className="w-full h-full object-cover"
             />
-          ) : isEndPaused ? (
-            /* Freeze frame terakhir video saat jeda pause */
-            <Video
-              src={videoSrc}
-              startFrom={Math.max(0, playEndFrame - 2)}
-              className="w-full h-full object-cover pointer-events-none"
-            />
+          ) : frame < skipEndFrame ? (
+            /* 2. Jeda pause & animasi skip YouTube: Bekukan di frame terakhir video */
+            <Freeze frame={Math.max(0, playEndFrame - 1)}>
+              <Video
+                src={videoSrc}
+                className="w-full h-full object-cover pointer-events-none"
+              />
+            </Freeze>
           ) : (
-            /* Langsung seek persis pada detik frame lucu x */
-            <Video
-              src={videoSrc}
-              startFrom={Math.round(targetUndoSeconds * fps)}
-              className="w-full h-full object-cover pointer-events-none"
-            />
+            /* 3. Setelah efek skip: Bekukan PERSIS di targetFrame (detik frame lucu x) */
+            <Freeze frame={targetFrame}>
+              <Video
+                src={videoSrc}
+                className="w-full h-full object-cover pointer-events-none"
+              />
+            </Freeze>
           )}
 
           {/* Video Dimming Overlay saat kartu muncul */}

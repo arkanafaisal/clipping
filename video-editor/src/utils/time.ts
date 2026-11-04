@@ -3,7 +3,8 @@
  */
 export function parseTimestampToSeconds(ts: string): number {
   if (!ts) return 0;
-  const parts = ts.trim().split(':');
+  const normalized = ts.trim().replace(',', '.');
+  const parts = normalized.split(':');
   if (parts.length === 1) {
     return parseFloat(parts[0]) || 0;
   }
