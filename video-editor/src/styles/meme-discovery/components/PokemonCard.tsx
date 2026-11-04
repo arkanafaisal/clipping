@@ -58,19 +58,19 @@ export const PokemonCard: React.FC<PokemonCardProps> = ({
   // Resolusi daftar skill (maks 3) - kosongkan jika tidak diisi user
   const activeSkills: CardSkill[] = skills
     ? skills.filter(
-        (s) =>
-          (s.name && s.name.trim() !== '') ||
-          (s.desc && s.desc.trim() !== '')
-      )
+      (s) =>
+        (s.name && s.name.trim() !== '') ||
+        (s.desc && s.desc.trim() !== '')
+    )
     : (passiveName || passiveDesc)
       ? [
-          {
-            name: passiveName || 'pasif',
-            desc: passiveDesc || 'ini deskripsi pasif',
-            nameFontSize: passiveNameFontSize || 28,
-            descFontSize: passiveDescFontSize || 22,
-          },
-        ]
+        {
+          name: passiveName || 'pasif',
+          desc: passiveDesc || 'ini deskripsi pasif',
+          nameFontSize: passiveNameFontSize || 28,
+          descFontSize: passiveDescFontSize || 22,
+        },
+      ]
       : [];
 
   return (
@@ -142,13 +142,13 @@ export const PokemonCard: React.FC<PokemonCardProps> = ({
           </div>
         </div>
 
-        {/* DIBAWAH GAMBAR: Judul Kartu FLEX ROW dengan Rarity (Justify Around, ruang tinggi cukup agar descender tidak terpotong) */}
+        {/* DIBAWAH GAMBAR: Judul Kartu FLEX ROW dengan Rarity (Justify Center, ruang tinggi cukup agar descender tidak terpotong) */}
         <div
-          className="flex flex-row items-baseline justify-around gap-4 w-full pb-2 border-b"
+          className="flex flex-row items-baseline justify-center gap-6 w-full pb-2 border-b"
           style={{ borderColor: `${cardColor}40` }}
         >
           <h2
-            className="font-black text-white text-left tracking-tight drop-shadow-[0_2px_10px_rgba(0,0,0,0.9)] leading-[1.25] pb-1 min-w-0"
+            className="font-black text-white text-center tracking-tight drop-shadow-[0_2px_10px_rgba(0,0,0,0.9)] leading-[1.25] pb-1 min-w-0"
             style={{ fontSize: `${titleFontSize}px` }}
           >
             {displayTitle}
@@ -161,10 +161,10 @@ export const PokemonCard: React.FC<PokemonCardProps> = ({
           </span>
         </div>
 
-        {/* DIBAWAHNYA LAGI: Deskripsi Biasa (Left Align) */}
+        {/* DIBAWAHNYA LAGI: Deskripsi Kartu Biasa (Justify Center / Rata Tengah) */}
         {displayDesc && (
           <p
-            className="text-neutral-200 text-left leading-relaxed font-normal w-full px-1 whitespace-pre-line drop-shadow"
+            className="text-neutral-200 text-center leading-relaxed font-normal w-full px-4 whitespace-pre-line drop-shadow"
             style={{ fontSize: `${descFontSize}px` }}
           >
             {displayDesc}

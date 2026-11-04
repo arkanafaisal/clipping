@@ -1,5 +1,5 @@
 {
-  "lastUpdate": "2026-11-04 17:05:43",
+  "lastUpdate": "2026-11-04 17:12:29",
   "totalMoments": 1,
   "moments": [
     {
@@ -36,8 +36,14 @@
         "cardDesc": "Pria tua yang masih mau hidup",
         "skills": [
           {
-            "name": "kesempatan kedua",
-            "desc": "70% chance untuk lolos dari grim reaper. hanya berlaku 1 kali.",
+            "name": "its not your time!",
+            "desc": "70% chance untuk lolos dari kejaran grim reaper. hanya berlaku 1 kali.",
+            "nameFontSize": 32,
+            "descFontSize": 26
+          },
+          {
+            "name": "survival cry",
+            "desc": "+6 movement speed selama 10 detik saat bertemu grim reaper",
             "nameFontSize": 32,
             "descFontSize": 26
           },
@@ -46,20 +52,14 @@
             "desc": "",
             "nameFontSize": 28,
             "descFontSize": 22
-          },
-          {
-            "name": "",
-            "desc": "",
-            "nameFontSize": 28,
-            "descFontSize": 22
           }
         ],
-        "cardColor": "#fb3232",
-        "titleFontSize": 48,
+        "cardColor": "#f93943",
+        "titleFontSize": 46,
         "rarityFontSize": 32,
         "descFontSize": 32,
-        "passiveName": "kesempatan kedua",
-        "passiveDesc": "70% chance untuk lolos dari grim reaper. hanya berlaku 1 kali.",
+        "passiveName": "its not your time!",
+        "passiveDesc": "70% chance untuk lolos dari kejaran grim reaper. hanya berlaku 1 kali.",
         "passiveNameFontSize": 32,
         "passiveDescFontSize": 26
       }

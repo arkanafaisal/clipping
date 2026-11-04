@@ -14,7 +14,18 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Justify-Around Title Row, Flex-Start Vertical Stacking, Multi-Skill Support (Max 3), and Minimalist Clean Skill Title Styling
+## [Unreleased] - Center Alignment for Card Title and Description (Justify Center & Text Center)
+- **Konteks Struktural**:
+  - Penyelarasan Posisi Teks Judul & Deskripsi Kartu ke Tengah ([PokemonCard.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/PokemonCard.tsx)):
+    - **Penyebab & Kebutuhan**: Pengguna merasa posisi judul dan deskripsi kartu di sebelah kiri (`text-left`) terlihat canggung/kurang seimbang ("dikiri agak aneh sih jujur") pada kanvas kartu bertema koleksi yang elemen gambar utamanya berada di tengah. Pengguna meminta judul dan deskripsi kartu (di luar deskripsi skill) disejajarkan ke tengah (`justify-center` dan `text-center`).
+    - **Solusi**:
+      1. Di [`PokemonCard.tsx`](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/PokemonCard.tsx), mengubah baris judul & rarity menjadi `flex-row items-baseline justify-center gap-6` dengan teks judul `text-center`.
+      2. Mengubah perataan teks deskripsi kartu menjadi `text-center w-full px-4`, sehingga duduk simetris di tengah di bawah gambar dan judul kartu.
+      3. Mempertahankan perataan kiri pada daftar skill di dalam boks skill masing-masing sesuai instruksi pengguna.
+- **Perubahan Kode Penting**:
+  - `video-editor/src/styles/meme-discovery/components/PokemonCard.tsx`: Perataan tengah (`justify-center gap-6`, `text-center`) untuk judul, rarity, dan deskripsi kartu.
+
+## [22efd73] - Justify-Around Title Row, Flex-Start Vertical Stacking, Multi-Skill Support (Max 3), and Minimalist Clean Skill Title Styling
 - **Konteks Struktural**:
   - Penyesuaian Layout Vertikal, Justify Around & Multi-Skill Kartu ([PokemonCard.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/PokemonCard.tsx), [MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), [types.ts](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/types.ts), [App.tsx](file:///d:/projects/clipping/video-editor/src/App.tsx), [data.json](file:///d:/projects/clipping/video-editor/src/data.json)):
     - **Penyebab & Kebutuhan**:
@@ -4058,119 +4069,5 @@ Format Entri:
   1. Penghapusan Total SubtitleEditModal (Bottom Modal):
      - Menghapus komponen modal [SubtitleEditModal.tsx](file:///d:/projects/clipping/mobile/src/components/SubtitleEditModal.tsx) secara permanen sesuai spesifikasi hierarki layer antarmuka pengguna (menghilangkan popup terpisah).
   2. Implementasi CapCut-Style Horizontal Mini Track Subtitle Layer:
-     - Menggantikan baris Extend dan Crop pada [FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx) saat klip berstatus `done` dengan mini track horizontal 100% lebar layar dan baris editor/action inline.
-     - Setiap cue subtitle dirender sebagai pill interaktif yang dapat digeser (drag horizontal via `PanResponder`) untuk mengatur waktu `start`, serta diklik untuk memilih dan memposisikan seek pemutar video.
-     - Indikator jarum playhead bergerak realtime mengikuti `currentClipTime` terhadap durasi klip.
-  3. Strict Single-Line Non-Overlapping Subtitle Logic:
-     - Implementasi algoritma normalisasi `normalizeSingleTrackCues` pada [api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts) untuk membersihkan newline menjadi 1 baris, mengurutkan kronologis waktu, menggabungkan start yang identik, dan memotong tumpang-tindih rentang cue secara otomatis.
-  4. Dynamic Cue Customization & Instant Player Render:
-     - Penyesuaian teks secara langsung via single-line TextInput, pengatur ukuran font (`fontSize`), penghapusan cue (`handleDeleteCue`), penambahan manual (`handleAddCue` pada `currentClipTime`), serta tombol cepat pengambil subtitle YouTube per bahasa (ID, EN, JA).
-     - Subtitle aktif dirender langsung pada video player melalui [SubtitleOverlay.tsx](file:///d:/projects/clipping/mobile/src/components/feed/SubtitleOverlay.tsx) secara instan tanpa animasi transisi.
-- **Perubahan Kode Penting**:
-  - [mobile/src/components/SubtitleEditModal.tsx](file:///d:/projects/clipping/mobile/src/components/SubtitleEditModal.tsx):
-    - Dihapus total dari repositori.
-  - [mobile/src/components/FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
-    - Menghapus import dan JSX `SubtitleEditModal`.
-    - Menghubungkan handler mini track subtitle, helper seek relatif (`handleSeekRelative`), dan binding cue aktif ke `SubtitleOverlay`.
-  - [mobile/src/components/feed/FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx):
-    - Mengganti space crop/extend saat `status === 'done'` dengan `miniTrackWrapper`, subkomponen `SubtitleCuePill`, dan baris editor/action cue.
-  - [mobile/src/components/feed/SubtitleOverlay.tsx](file:///d:/projects/clipping/mobile/src/components/feed/SubtitleOverlay.tsx):
-    - Menambahkan dukungan prop `fontSize` dinamis.
-  - [mobile/src/hooks/useClipSubtitle.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipSubtitle.ts):
-    - Menyediakan state `selectedCueId`, `isFetchingSubtitles`, dan handler `handleAddCue`, `handleUpdateCue`, `handleShiftCueTime`, `handleDeleteCue`, `handleFetchSubtitles`.
-  - [mobile/src/services/api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts):
-    - Menambahkan properti `fontSize` pada interface `SubtitleCue`, serta fungsi `normalizeSingleTrackCues` dan integrasinya pada `sliceCuesForClip`.
-
-## [dbdfbf3] - Neutralize Time Range Display and Millisecond Edit Colors in FeedTopControls
-- **Konteks Struktural**:
-  1. Harmonisasi Warna Elemen Rentang Waktu:
-     - Menghilangkan diferensiasi warna hijau (`#34d399`) pada start dan merah (`#fb7185`) pada end di [FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx).
-     - Menjadikan warna teks, border input, dan placeholder keduanya seragam netral (`rgba(255, 255, 255, 0.95)` dan border `rgba(255, 255, 255, 0.35)`) agar tidak tumpang-tindih makna dengan warna fungsional status Done (hijau), Trash (merah), Extend (hijau), dan Crop (merah).
-- **Perubahan Kode Penting**:
-  - [mobile/src/components/feed/FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx):
-    - Mengganti styling `timeStartText` dan `timeEndText` menjadi `timeNumberText` standar netral.
-    - Menyatukan style input `timeInputStart` dan `timeInputEnd` ke dalam `timeInput` netral dengan border `rgba(255, 255, 255, 0.35)`.
-
-## [b4ff2c8] - Extract useClipSubtitle Hook for Subtitle Preview and Cue Management
-- **Konteks Struktural**:
-  1. Ekstraksi Logika Subtitle ke Hook Terpisah:
-     - Memindahkan state subtitle, overlay visibility, modal edit visibility, dan lifecycle auto-load file subtitle dari [FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx) ke dalam custom hook [useClipSubtitle.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipSubtitle.ts).
-     - Menjaga 100% keselarasan alur logika asli: pemuatan otomatis file subtitle tersimpan (`loadClipSubtitle`) saat klip aktif berganti, manajemen `subtitlesRef` untuk sinkronisasi cue realtime 100ms dengan time update video player, serta toggle visibilitas dan edit modal.
-     - Menyediakan method dan state terisolasi: `subtitles`, `setSubtitles`, `activeSubtitleText`, `setActiveSubtitleText`, `isSubtitleVisible`, `setIsSubtitleVisible`, `subtitleModalVisible`, dan `setSubtitleModalVisible`.
-- **Perubahan Kode Penting**:
-  - [mobile/src/hooks/useClipSubtitle.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipSubtitle.ts):
-    - Dibuat baru dengan fungsi hook `useClipSubtitle` dan interface `UseClipSubtitleParams`.
-  - [mobile/src/components/FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
-    - Mengimpor dan mengonsumsi `useClipSubtitle`.
-    - Menghapus deklarasi state subtitle lokal dan effect auto-load subtitle.
-
-## [c023ed5] - Extract useClipDownload Hook for Background Download Management
-- **Konteks Struktural**:
-  1. Ekstraksi Logika Unduhan Klip ke Hook Terpisah:
-     - Memindahkan seluruh state dan lifecycle proses unduhan klip dari [FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx) ke dalam custom hook [useClipDownload.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipDownload.ts).
-     - Menjaga 100% keselarasan alur logika asli: polling realtime file progress 300ms dari background Python engine (`clip_progress_{clipId}.json`), deteksi otomatis keberadaan file fisik di storage saat klip aktif berstatus 'done', cleanup interval saat unmount, pembaruan status klip ke LocalStorage draft, dan auto-switch playback ke file lokal setelah unduhan selesai.
-     - Menyediakan method dan state terisolasi: `downloadingClips`, `downloadedClips`, `downloadProgress`, `cookiesModalVisible`, `getDownloadProgressLabel`, dan `handleDownloadClip`.
-- **Perubahan Kode Penting**:
-  - [mobile/src/hooks/useClipDownload.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipDownload.ts):
-    - Dibuat baru dengan fungsi hook `useClipDownload` dan interface `UseClipDownloadParams`.
-  - [mobile/src/components/FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
-    - Mengimpor dan mengonsumsi `useClipDownload`.
-    - Menghapus deklarasi state unduhan lokal, poller interval, dan handler `handleDownloadClip`.
-
-## [2687d0f] - Extract useClipPlayer Hook for Video Playback and Controls
-- **Konteks Struktural**:
-  1. Ekstraksi Logika Pemutar Video & Navigasi Playback:
-     - Memindahkan seluruh state, lifecycle listener video player (`expo-video`), dan debounced seek handler dari [FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx) ke dalam custom hook [useClipPlayer.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipPlayer.ts).
-     - Menjaga 100% keselarasan alur logika asli: loop playback segmen (file fisik lokal vs stream YouTube online), sinkronisasi realtime cue subtitle dengan time update player, auto-recovery saat stream URL expired (`forceRefresh = true`), listener hardware back press Android, serta central debounced seek (0ms untuk file lokal, 500ms trailing-edge untuk stream YouTube).
-     - Menyediakan kontrol pemutar terisolasi: `syncPlayerSourceForClip`, `centralizedSeek`, `togglePlayPause`, `skipSeconds`, dan `initializeStreamAndPlayback`.
-- **Perubahan Kode Penting**:
-  - [mobile/src/hooks/useClipPlayer.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipPlayer.ts):
-    - Dibuat baru dengan fungsi hook `useClipPlayer` dan interface `UseClipPlayerParams`.
-  - [mobile/src/hooks/useClipData.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipData.ts):
-    - Menambahkan parameter opsional `clipsRef` dan `activeClipIdRef` agar referensi data klip dapat dibagikan secara sinkron dengan `useClipPlayer`.
-  - [mobile/src/components/FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
-    - Mengimpor dan mengonsumsi `useClipPlayer`.
-    - Menghapus listener `timeUpdate`, `statusChange`, deklarasi player state lokal, dan handler kontrol pemutar manual.
-
-## [8e44eec] - Extract useClipData Hook for Feed Data and State Management
-- **Konteks Struktural**:
-  1. Ekstraksi Logika Pengelolaan Data Klip ke Hook Terpisah:
-     - Memindahkan logika pengelolaan data klip dari [FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx) ke dalam custom hook [useClipData.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipData.ts).
-     - Menjaga 100% keselarasan alur logika asli: inisialisasi draf LocalStorage, ekstraksi fallback Heatmap AI, pre-scanning keberadaan file MP4 fisik di direktori shared/internal sandbox, debounce auto-save 400ms ke LocalStorage, kalkulasi `activeClip` & memoized `clipColumns`.
-     - Menyediakan handler manipulasi klip atomik: `handleUpdateStart`, `handleUpdateEnd`, `handleMsTimeChange`, `handleSelectClip`, `handleToggleDone`, dan `handleToggleTrash`.
-- **Perubahan Kode Penting**:
-  - [mobile/src/hooks/useClipData.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipData.ts):
-    - Dibuat baru dengan fungsi hook `useClipData` dan interface `UseClipDataParams`.
-  - [mobile/src/components/FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
-    - Mengimpor dan mengonsumsi `useClipData`.
-    - Menghapus deklarasi state lokal, effect pemuatan data, dan handler manipulasi klip yang kini didelegasikan sepenuhnya ke hook.
-
-## [d8d90e9] - Modularize FeedScreen UI Components (TopControls, PlaybackControls, Carousel, SubtitleOverlay)
-- **Konteks Struktural**:
-  1. Pemisahan Modular UI [FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
-     - Memecah file berukuran monolith (>2,000 baris) menjadi modul-modul komponen UI terpisah di direktori [mobile/src/components/feed/](file:///d:/projects/clipping/mobile/src/components/feed/).
-     - Seluruh logika, state, callbacks, layout, dan styling dipindahkan 100% tanpa mengubah tampilan (*pixel-perfect / parity visual*).
-  2. Sub-Komponen yang Dibentuk:
-     - [timeUtils.ts](file:///d:/projects/clipping/mobile/src/components/feed/timeUtils.ts): Ekstraksi utility helper format waktu (`formatTime`, `formatTimeWithMs`, `formatDisplayTime`).
-     - [ClipCardItem.tsx](file:///d:/projects/clipping/mobile/src/components/feed/ClipCardItem.tsx): Komponen kartu klip independen yang di-memoize dengan styling badge rank, status card (active, done, trash), dan format waktu.
-     - [FeedClipCarousel.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedClipCarousel.tsx): Container grid horizontal 2 baris untuk kartu-kartu klip.
-     - [SubtitleOverlay.tsx](file:///d:/projects/clipping/mobile/src/components/feed/SubtitleOverlay.tsx): Realtime preview layer pill overlay subtitle di atas video player.
-     - [FeedPlaybackControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedPlaybackControls.tsx): Bagian kontrol playback bawah (scrubber track, progress fill, scrubber knob, dan tombol seek -15s, -3s, play/pause, +5s, +15s).
-     - [FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx): Bagian kontrol klip atas (baris time range, status/download/subtitle buttons, edit milidetik inline, baris fine-tune Extend +5/+1s dan Crop -5/-1s) lengkap beserta styles lokalnya.
-- **Perubahan Kode Penting**:
-  - [mobile/src/components/feed/timeUtils.ts](file:///d:/projects/clipping/mobile/src/components/feed/timeUtils.ts):
-    - Dibuat baru dengan fungsi pembantu pemformatan waktu.
-  - [mobile/src/components/feed/ClipCardItem.tsx](file:///d:/projects/clipping/mobile/src/components/feed/ClipCardItem.tsx):
-    - Dibuat baru dengan komponen kartu item klip dan styling terisolasi.
-  - [mobile/src/components/feed/FeedClipCarousel.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedClipCarousel.tsx):
-    - Dibuat baru sebagai pembungkus scroll carousel horizontal 2 baris.
-  - [mobile/src/components/feed/SubtitleOverlay.tsx](file:///d:/projects/clipping/mobile/src/components/feed/SubtitleOverlay.tsx):
-    - Dibuat baru untuk merender overlay subtitle realtime.
-  - [mobile/src/components/feed/FeedPlaybackControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedPlaybackControls.tsx):
-    - Dibuat baru untuk merender progress scrubber dan tombol pemutar.
-  - [mobile/src/components/feed/FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx):
-    - Dibuat baru untuk merender baris atas rentang waktu, download progress, fine-tuning, dan edit milidetik.
-  - [mobile/src/components/FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
-    - Mengimpor komponen-komponen baru dari `./feed/`.
-    - Menghapus komponen lokal, inline JSX lama, dan gaya-gaya spesifik yang tela
+     - Menggantikan baris Extend dan Crop 
 ... [truncated for diff preview]
