@@ -9,6 +9,7 @@ import {
   useCurrentFrame,
   useVideoConfig,
   Video,
+  staticFile,
 } from 'remotion';
 import { MemeDiscoveryProps } from './types';
 import { parseTimestampToSeconds } from '../../utils/time';
@@ -171,14 +172,28 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
       {/* 1. Sound Effect: Camera Shutter Click saat efek screenshot flash putih */}
       {enableSfx && cameraShutterSfxSrc && frame >= flashStartFrame && (
         <Sequence from={flashStartFrame} durationInFrames={45}>
-          <Audio src={cameraShutterSfxSrc} volume={0.9} />
+          <Audio
+            src={
+              cameraShutterSfxSrc.startsWith('http')
+                ? cameraShutterSfxSrc
+                : staticFile(cameraShutterSfxSrc.replace(/^\//, ''))
+            }
+            volume={0.9}
+          />
         </Sequence>
       )}
 
       {/* 2. Sound Effect: Magical Reveal Harp Glissando saat kartu kecil muncul dari bawah */}
       {enableSfx && (sfxSrc || cardEmergeSfxSrc) && isCardRevealed && (
         <Sequence from={cardStartFrame} durationInFrames={120}>
-          <Audio src={sfxSrc || cardEmergeSfxSrc} volume={0.85} />
+          <Audio
+            src={
+              (sfxSrc || cardEmergeSfxSrc)!.startsWith('http')
+                ? (sfxSrc || cardEmergeSfxSrc)!
+                : staticFile((sfxSrc || cardEmergeSfxSrc)!.replace(/^\//, ''))
+            }
+            volume={0.85}
+          />
         </Sequence>
       )}
 

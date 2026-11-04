@@ -16,7 +16,15 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Two-Way Local Asset Synchronization to Prevent Redundant Re-Downloads
+## [Unreleased] - Wrap Sound Effects with staticFile to Resolve 404 in Remotion CLI
+- **Konteks Struktural**:
+  - Resolusi Path File Audio SFX Remotion CLI ([MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx)):
+    - **Penyebab & Kebutuhan**: Saat merender frame 346, Remotion CLI gagal mengunduh aset audio shutter kamera (`http://localhost:3000/sfx/camera-shutter.webm: status code 404`). Hal ini terjadi karena audio shutter kamera dan harp glissando menggunakan string path literal (`/sfx/...`) yang tidak dibungkus `staticFile(...)`, sehingga Webpack/Remotion tidak memetakan file audio di folder `public/sfx/` ke temporary build bundle saat rendering CLI.
+    - **Solusi**: Di [`MemeDiscoveryComposition.tsx`](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), membungkus seluruh sumber audio `cameraShutterSfxSrc` dan `sfxSrc` menggunakan `staticFile(...)` bawaan Remotion, sehingga Chromium headless dapat memuat dan mencampur seluruh audio SFX secara mulus saat render MP4.
+- **Perubahan Kode Penting**:
+  - `video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx`: Pembungkusan `staticFile(...)` pada elemen `<Audio />`.
+
+## [8dbf5d5] - Two-Way Local Asset Synchronization to Prevent Redundant Re-Downloads
 - **Konteks Struktural**:
   - Sinkronisasi Salinan Aset Lokal Dua Arah ([scripts/gdrive.js](file:///d:/projects/clipping/video-editor/scripts/gdrive.js)):
     - **Penyebab & Kebutuhan**: Pengguna menanyakan mengapa file video yang sudah ada di `public/temp/grim reaper/full.mp4` tidak disalin langsung ke `public/temp/full.mp4` jika salah satunya sudah ada, sehingga berisiko terunduh ulang dari Google Drive.
@@ -3992,30 +4000,5 @@ Format Entri:
      - Menambahkan tombol indikator posisi `Posisi (X, Y)` di sebelah tombol `+ Subtitle` pada toolbar editor [FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx).
   2. Sistem Koordinat Relatif Berbasis Titik Pusat (Center Anchor) pada Skala 0 - 100:
      - Nilai koordinat X dan Y menggunakan skala perbandingan dimensi frame video (0 sampai 100, bukan pixel), di mana X=50 adalah horizontal center, dan Y=85 adalah area lower-third standar.
-     - Titik pusat teks subtitle (`textContainer`) diukur secara presisi via `onLayout` dan di-offset dengan `translateX: -width/2` dan `translateY: -height/2`. Titik tengah blok teks selalu terkunci di `(X%, Y%)`.
-     - Nilai input berupa raw numeric input yang fleksibel mendukung angka negatif (misal `-3` untuk posisi di luar frame) maupun lebih dari 100 (misal `101`).
-  3. Modal Pengaturan Posisi dengan Quick Preset:
-     - Modal menyediakan input raw untuk X dan Y, tombol preset instan (Kiri 25, Tengah 50, Kanan 75 untuk X; Atas 15, Tengah 50, Bawah 85 untuk Y), tombol reset default, serta tombol simpan.
-     - Posisi tersimpan otomatis ke dalam struktur data file JSON klip (`style.positionX`, `style.positionY`) dan dimuat kembali secara otomatis saat membuka klip.
-- **Perubahan Kode Penting**:
-  - [mobile/src/components/feed/SubtitleOverlay.tsx](file:///d:/projects/clipping/mobile/src/components/feed/SubtitleOverlay.tsx):
-    - Menerima `positionX` dan `positionY` (default 50 dan 85).
-    - Menghitung pergeseran anchor titik tengah teks secara dinamis berdasarkan hasil ukur `onLayout`.
-  - [mobile/src/hooks/useClipSubtitle.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipSubtitle.ts):
-    - Menambahkan state `subtitlePosition` dan handler `handleUpdateSubtitlePosition`.
-    - Menyimpan dan memulihkan nilai posisi pada file JSON klip.
-  - [mobile/src/components/FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
-    - Menghubungkan state posisi dari `useClipSubtitle` ke `SubtitleOverlay` dan `FeedTopControls`.
-  - [mobile/src/components/feed/FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx):
-    - Menambahkan tombol `Posisi (X, Y)` dan Modal interaktif untuk pengaturan posisi global.
-  - [mobile/src/services/api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts):
-    - Menstandardisasi `DEFAULT_SUBTITLE_STYLE.positionX` (50) dan `positionY` (85).
-
-## [63d72b7] - Dock Video Player Directly Above Bottom Controls in Fixed 16:9 Landscape Frame and Align Subtitle Position
-- **Konteks Struktural**:
-  1. Frame Video Player Fixed 16:9 Landscape (`videoBox169`):
-     - Mengisolasi rasio aspek pemutar video menjadi fixed 16:9 landscape (`width: '100%'`, `aspectRatio: 16 / 9`, `overflow: 'hidden'`) di dalam [FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx).
-     - Video internal (`<VideoView>`) disetel dengan `contentFit="contain"`. Jika sumber video YouTube berformat portrait (9:16) atau rasio non-standar lainnya, video otomatis menyesuaikan proporsi di dalam frame 16:9 dengan black pillarbox samping dan tidak pernah meluap (overflow) ataupun terpotong ke luar layar.
-  2. Penempatan Rapat ke Atas Kontrol Playback Bawah (`justifyContent: 'flex-end'`):
-     - Mengubah kontainer tengah `playerContainer` agar merapatkan frame video 16:9 persis di atas kompon
+     - Titik pusat teks subtitle (`textContainer`) diukur secara p
 ... [truncated for diff preview]
