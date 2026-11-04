@@ -1,5 +1,5 @@
 import React from 'react';
-import { Img, interpolate } from 'remotion';
+import { Easing, Img, interpolate } from 'remotion';
 import { CardSkill } from '../types';
 
 interface PokemonCardProps {
@@ -18,7 +18,8 @@ interface PokemonCardProps {
   passiveDescFontSize?: number;
   imageSrc?: string;
   targetFrameImage?: string;
-  slideProgress: number; // 0 to 1 (slide-up entrance from bottom)
+  slideProgress?: number; // legacy fallback
+  cardRelativeFrame?: number; // Frame relatif sejak kemunculan kartu
   frame: number;
 }
 
@@ -38,17 +39,93 @@ export const PokemonCard: React.FC<PokemonCardProps> = ({
   imageSrc,
   targetFrameImage,
   slideProgress,
+  cardRelativeFrame,
   frame,
 }) => {
-  // Efek kilau holographic foil diagonal (GPU Accelerated)
-  const shineX = interpolate(
-    (frame * 3) % 200,
-    [0, 200],
-    [-200, 300]
-  );
+  // Resolusi frame animasi kartu
+  const relFrame =
+    cardRelativeFrame !== undefined
+      ? cardRelativeFrame
+      : (slideProgress ?? 0) * 45;
 
-  // Animasi kartu meluncur naik DARI BAWAH layar ke tengah safe zone
-  const translateY = interpolate(slideProgress, [0, 1], [1400, 0]);
+  // ============================================================
+  // ANIMASI MASUK KARTU (3D FLIP REVEAL TIMING):
+  // 1. RelFrame 0 - 18: Meluncur naik dari bawah, ukuran kecil (scale 0.48 -> 0.72), teks tersembunyi
+  // 2. RelFrame 18 - 28: Berputar horizontal 3D (rotateY: 0deg -> 90deg), width mengecil hingga 0
+  // 3. RelFrame 28 - 40: Tepat di width 0 (frame 28), teks dibuka (opacity 1)!
+  //    Lanjut berputar (-90deg -> 0deg) sambil membesar ke ukuran penuh (scale 1.0) dengan subtle pop
+  // 4. RelFrame >= 40: Kartu penuh stabil di tengah safe zone
+  // ============================================================
+  let translateY = 0;
+  let scale = 1;
+  let rotateY = 0;
+  let textOpacity = 0;
+  let cardOpacity = 1;
+
+  if (relFrame < 18) {
+    translateY = interpolate(relFrame, [0, 18], [1300, 0], {
+      extrapolateLeft: 'clamp',
+      extrapolateRight: 'clamp',
+      easing: Easing.out(Easing.cubic),
+    });
+    scale = interpolate(relFrame, [0, 18], [0.48, 0.72], {
+      extrapolateLeft: 'clamp',
+      extrapolateRight: 'clamp',
+      easing: Easing.out(Easing.cubic),
+    });
+    cardOpacity = interpolate(relFrame, [0, 5], [0, 1], {
+      extrapolateLeft: 'clamp',
+      extrapolateRight: 'clamp',
+    });
+    rotateY = 0;
+    textOpacity = 0;
+  } else if (relFrame < 28) {
+    translateY = 0;
+    cardOpacity = 1;
+    scale = interpolate(relFrame, [18, 28], [0.72, 0.76], {
+      extrapolateLeft: 'clamp',
+      extrapolateRight: 'clamp',
+    });
+    rotateY = interpolate(relFrame, [18, 28], [0, 90], {
+      extrapolateLeft: 'clamp',
+      extrapolateRight: 'clamp',
+      easing: Easing.in(Easing.quad),
+    });
+    textOpacity = 0;
+  } else if (relFrame < 40) {
+    translateY = 0;
+    cardOpacity = 1;
+    // Tepat saat width paling tipis (frame 28), teks dimunculkan!
+    rotateY = interpolate(relFrame, [28, 40], [-90, 0], {
+      extrapolateLeft: 'clamp',
+      extrapolateRight: 'clamp',
+      easing: Easing.out(Easing.cubic),
+    });
+    scale = interpolate(relFrame, [28, 40], [0.76, 1.0], {
+      extrapolateLeft: 'clamp',
+      extrapolateRight: 'clamp',
+      easing: Easing.out(Easing.back(1.2)),
+    });
+    textOpacity = 1;
+  } else {
+    translateY = 0;
+    cardOpacity = 1;
+    scale = 1;
+    rotateY = 0;
+    textOpacity = 1;
+  }
+
+  // Efek kilau holographic foil: menyapu kartu begitu kartu selesai membalik
+  const shineX =
+    relFrame < 28
+      ? -200
+      : relFrame < 60
+        ? interpolate(relFrame, [28, 60], [-200, 300], {
+            extrapolateLeft: 'clamp',
+            extrapolateRight: 'clamp',
+            easing: Easing.out(Easing.cubic),
+          })
+        : interpolate((frame * 2.5) % 200, [0, 200], [-200, 300]);
 
   // Fallbacks placeholder persis sesuai arahan prompts.md:L2
   const displayTitle = cardTitle || 'judul kartu';
@@ -58,27 +135,28 @@ export const PokemonCard: React.FC<PokemonCardProps> = ({
   // Resolusi daftar skill (maks 3) - kosongkan jika tidak diisi user
   const activeSkills: CardSkill[] = skills
     ? skills.filter(
-      (s) =>
-        (s.name && s.name.trim() !== '') ||
-        (s.desc && s.desc.trim() !== '')
-    )
+        (s) =>
+          (s.name && s.name.trim() !== '') ||
+          (s.desc && s.desc.trim() !== '')
+      )
     : (passiveName || passiveDesc)
       ? [
-        {
-          name: passiveName || 'pasif',
-          desc: passiveDesc || 'ini deskripsi pasif',
-          nameFontSize: passiveNameFontSize || 28,
-          descFontSize: passiveDescFontSize || 22,
-        },
-      ]
+          {
+            name: passiveName || 'pasif',
+            desc: passiveDesc || 'ini deskripsi pasif',
+            nameFontSize: passiveNameFontSize || 28,
+            descFontSize: passiveDescFontSize || 22,
+          },
+        ]
       : [];
 
   return (
     <div
       className="relative w-[760px] h-[1140px] rounded-[38px] p-5 border-2 select-none overflow-hidden"
       style={{
-        transform: `translateY(${translateY}px)`,
-        opacity: Math.min(1, slideProgress * 2.5),
+        transform: `translateY(${translateY}px) scale(${scale}) rotateY(${rotateY}deg)`,
+        transformStyle: 'preserve-3d',
+        opacity: cardOpacity,
         borderColor: `${cardColor}ee`,
         background: `linear-gradient(to bottom, ${cardColor}dd, ${cardColor}88 40%, ${cardColor}44 80%, ${cardColor}bb)`,
         boxShadow: `0 0 100px ${cardColor}55, 0 30px 70px rgba(0,0,0,0.95)`,
@@ -142,10 +220,14 @@ export const PokemonCard: React.FC<PokemonCardProps> = ({
           </div>
         </div>
 
-        {/* DIBAWAH GAMBAR: Judul Kartu FLEX ROW dengan Rarity (Justify Center, ruang tinggi cukup agar descender tidak terpotong) */}
+        {/* DIBAWAH GAMBAR: Judul Kartu FLEX ROW dengan Rarity (Justify Center, muncul pasca-flip) */}
         <div
           className="flex flex-row items-baseline justify-center gap-6 w-full pb-2 border-b"
-          style={{ borderColor: `${cardColor}40` }}
+          style={{
+            borderColor: `${cardColor}40`,
+            opacity: textOpacity,
+            visibility: textOpacity > 0 ? 'visible' : 'hidden',
+          }}
         >
           <h2
             className="font-black text-white text-center tracking-tight drop-shadow-[0_2px_10px_rgba(0,0,0,0.9)] leading-[1.25] pb-1 min-w-0"
@@ -161,19 +243,29 @@ export const PokemonCard: React.FC<PokemonCardProps> = ({
           </span>
         </div>
 
-        {/* DIBAWAHNYA LAGI: Deskripsi Kartu Biasa (Justify Center / Rata Tengah) */}
+        {/* DIBAWAHNYA LAGI: Deskripsi Kartu Biasa (Justify Center / Rata Tengah, muncul pasca-flip) */}
         {displayDesc && (
           <p
             className="text-neutral-200 text-center leading-relaxed font-normal w-full px-4 whitespace-pre-line drop-shadow"
-            style={{ fontSize: `${descFontSize}px` }}
+            style={{
+              fontSize: `${descFontSize}px`,
+              opacity: textOpacity,
+              visibility: textOpacity > 0 ? 'visible' : 'hidden',
+            }}
           >
             {displayDesc}
           </p>
         )}
 
-        {/* DIBAWAHNYA LAGI: Daftar Skill (Maksimal 3, Judul tanpa background pill / no overstyling, hanya nama & deskripsi) */}
+        {/* DIBAWAHNYA LAGI: Daftar Skill (Maksimal 3, Judul tanpa background pill / no overstyling, muncul pasca-flip) */}
         {activeSkills.length > 0 && (
-          <div className="w-full flex flex-col gap-3.5">
+          <div
+            className="w-full flex flex-col gap-3.5"
+            style={{
+              opacity: textOpacity,
+              visibility: textOpacity > 0 ? 'visible' : 'hidden',
+            }}
+          >
             {activeSkills.map((skill, idx) => (
               <div
                 key={idx}

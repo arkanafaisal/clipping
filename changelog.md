@@ -14,7 +14,22 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Center Alignment for Card Title and Description (Justify Center & Text Center)
+## [Unreleased] - 3D Perspective Card Flip Reveal Entrance Animation with Text Unveiling at Zero-Width Edge
+- **Konteks Struktural**:
+  - Peningkatan Animasi Masuk Kartu Menjadi 3D Perspective Flip ([PokemonCard.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/PokemonCard.tsx), [MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx)):
+    - **Penyebab & Kebutuhan**: Pengguna menginginkan animasi masuk kartu yang jauh lebih dinamis dan sinematik: kartu muncul dari bawah dalam ukuran kecil dengan hanya menampilkan kartu dan gambarnya saja (seluruh teks disembunyikan/opacity 0). Begitu mencapai tengah, kartu berputar secara 3D horizontal (membalik kartu ke arah kamera). Tepat saat kartu berada di titik tengah putaran dengan proyeksi lebar paling tipis (edge-on view / zero-width), teks dimunculkan (opacity 1), lalu kartu menyelesaikan putaran dan membesar penuh ke ukuran normal (scale 1.0).
+    - **Solusi**:
+      1. Di [`MemeDiscoveryComposition.tsx`](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), menambahkan `perspective: 1800` pada kontainer pembungkus kartu serta meneruskan `cardRelativeFrame={Math.max(0, frame - cardStartFrame)}` ke komponen kartu.
+      2. Di [`PokemonCard.tsx`](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/PokemonCard.tsx), membagi sekuens animasi masuk menjadi 3 fase berbasis frame relatif:
+         - **Fase 1 (Frame 0-18)**: Translasi vertikal meluncur naik dari bawah (`1300px` ke `0px`), ukuran kecil (`scale: 0.48 -> 0.72`), dengan teks disembunyikan (`textOpacity: 0` dan `visibility: hidden`).
+         - **Fase 2A (Frame 18-28)**: Rotasi 3D horizontal `rotateY: 0deg -> 90deg` hingga kartu berada tepat tegak lurus kamera (proyeksi lebar 0 px).
+         - **Fase 2B (Frame 28-40)**: Tepat di titik nol lebar (frame 28), teks diaktifkan (`textOpacity: 1`). Rotasi berlanjut dari `-90deg -> 0deg` sambil membesar ke skala penuh `1.0` dengan pantulan subtle pop (`Easing.back(1.2)`).
+         - **Fase 3 (Frame 40+)**: Kartu stabil di tengah, diiringi sapuan kilau foil holographic rainbow foil sheen yang menyapu kartu begitu teks terbuka.
+- **Perubahan Kode Penting**:
+  - `video-editor/src/styles/meme-discovery/components/PokemonCard.tsx`: Interpolasi 3D `rotateY`, `scale`, `translateY`, dan conditional `textOpacity` di zero-width frame.
+  - `video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx`: Prop `cardRelativeFrame` dan inline `perspective: 1800`.
+
+## [4a0026f] - Center Alignment for Card Title and Description (Justify Center & Text Center)
 - **Konteks Struktural**:
   - Penyelarasan Posisi Teks Judul & Deskripsi Kartu ke Tengah ([PokemonCard.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/PokemonCard.tsx)):
     - **Penyebab & Kebutuhan**: Pengguna merasa posisi judul dan deskripsi kartu di sebelah kiri (`text-left`) terlihat canggung/kurang seimbang ("dikiri agak aneh sih jujur") pada kanvas kartu bertema koleksi yang elemen gambar utamanya berada di tengah. Pengguna meminta judul dan deskripsi kartu (di luar deskripsi skill) disejajarkan ke tengah (`justify-center` dan `text-center`).

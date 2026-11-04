@@ -170,9 +170,12 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
         </div>
       )}
 
-      {/* Kartu Koleksi Meme Minimalis Meluncur Naik DARI BAWAH ke Tengah */}
+      {/* Kartu Koleksi Meme Minimalis: Muncul kecil dari bawah, lalu Flip 3D Reveal Teks di Tengah */}
       {isCardRevealed && (
-        <div className="absolute inset-0 flex items-center justify-center z-40 p-4">
+        <div
+          className="absolute inset-0 flex items-center justify-center z-40 p-4"
+          style={{ perspective: 1800 }}
+        >
           <PokemonCard
             cardTitle={cardTitle}
             cardRarity={cardRarity}
@@ -189,6 +192,7 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
             imageSrc={cardImageSrc}
             targetFrameImage={targetFrameImage}
             slideProgress={cardSpring}
+            cardRelativeFrame={Math.max(0, frame - cardStartFrame)}
             frame={frame}
           />
         </div>
