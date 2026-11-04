@@ -5,6 +5,7 @@ import {
   spring,
   useCurrentFrame,
   useVideoConfig,
+  Video,
 } from 'remotion';
 import { VerticalVideoProps } from '../types';
 
@@ -13,7 +14,8 @@ export const VerticalShortsComposition: React.FC<VerticalVideoProps> = ({
   gameTitle,
   timestampText,
   captionText,
-  showRoulettePreview = true,
+  showRoulettePreview = false,
+  videoSrc,
   activeLaneIndex = 1,
   dimOpacity = 0.65,
 }) => {
@@ -31,7 +33,6 @@ export const VerticalShortsComposition: React.FC<VerticalVideoProps> = ({
   const bannerOpacity = interpolate(bannerProgress, [0, 1], [0, 1]);
 
   // Roulette lane horizontal scrolling simulation
-  // Frame 0-120: high speed spin -> deceleration -> lock
   const spinProgress = interpolate(
     frame,
     [0, 30, 90, 130],
@@ -100,11 +101,23 @@ export const VerticalShortsComposition: React.FC<VerticalVideoProps> = ({
         </h1>
       </div>
 
-      {/* MIDDLE SECTION: Video Canvas / Roulette Lanes Simulation */}
+      {/* MIDDLE SECTION: Video Canvas / Roulette / Real Video Playback */}
       <div className="absolute inset-x-8 top-52 bottom-64 rounded-3xl overflow-hidden border border-neutral-800 bg-neutral-900 shadow-2xl flex flex-col justify-center items-center">
-        {showRoulettePreview ? (
+        {videoSrc ? (
+          /* Actual Video from Google Drive / Temp Folder */
+          <div className="relative w-full h-full bg-black flex items-center justify-center overflow-hidden">
+            <Video
+              src={videoSrc}
+              className="w-full h-full object-cover"
+            />
+            {/* Watermark / Source Tag */}
+            <div className="absolute top-4 right-4 px-3 py-1 rounded-md bg-black/60 border border-white/10 text-xs font-mono text-amber-300 backdrop-blur-md">
+              Google Drive Stream (temp)
+            </div>
+          </div>
+        ) : showRoulettePreview ? (
+          /* Roulette Lanes Simulation */
           <div className="relative w-full h-full flex flex-col justify-around py-6 bg-neutral-950">
-            {/* Multiple Lanes Stack (simulating 3 lanes) */}
             {[0, 1, 2].map((laneIdx) => {
               const isActive = laneIdx === activeLaneIndex;
               const laneScrollX = isActive ? -(spinProgress % 1800) : -(frame * 4) % 1800;
@@ -114,7 +127,6 @@ export const VerticalShortsComposition: React.FC<VerticalVideoProps> = ({
                   key={laneIdx}
                   className="relative w-full h-36 overflow-hidden border-y border-neutral-800/80 bg-neutral-900/40"
                 >
-                  {/* Moving Cards Ribbon */}
                   <div
                     className="absolute flex items-center gap-4 h-full px-4"
                     style={{
@@ -135,7 +147,6 @@ export const VerticalShortsComposition: React.FC<VerticalVideoProps> = ({
                     ))}
                   </div>
 
-                  {/* Spotlight Dark Overlay for Non-Active lanes or Winner highlight */}
                   {!isActive && (
                     <div
                       className="absolute inset-0 bg-black pointer-events-none transition-opacity"
@@ -143,7 +154,6 @@ export const VerticalShortsComposition: React.FC<VerticalVideoProps> = ({
                     />
                   )}
 
-                  {/* Single-Lane Active Pointer Line (Golden pointer at center) */}
                   {isActive && (
                     <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-1.5 bg-gradient-to-b from-amber-300 via-yellow-400 to-amber-500 shadow-[0_0_16px_rgba(250,204,21,0.9)] z-20 pointer-events-none">
                       <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-4 h-4 bg-yellow-400 rotate-45" />
@@ -160,7 +170,7 @@ export const VerticalShortsComposition: React.FC<VerticalVideoProps> = ({
               🎬
             </div>
             <p className="text-neutral-400 text-xl font-medium max-w-md">
-              Area Konten Video Utama (9:16 Vertical Stage)
+              Pilih video di panel kanan untuk memutar berkas dari Google Drive.
             </p>
           </div>
         )}

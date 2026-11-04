@@ -9,16 +9,17 @@ export const RemotionRoot: React.FC = () => {
       <Composition
         id="VerticalShorts"
         component={VerticalShortsComposition}
-        durationInFrames={180} // 6 seconds at 30 fps
+        durationInFrames={300} // 10 seconds at 30 fps
         fps={30}
         width={1080}
         height={1920}
         defaultProps={{
-          title: 'Tebak Momen Paling Lucu!',
-          gameTitle: "Chilla's Art: The Bathhouse",
-          timestampText: '00:15:20',
-          captionText: 'Detik-detik penampakan muncul di balik tirai kamar mandi...',
-          showRoulettePreview: true,
+          title: 'Grim Reaper Momen Seru',
+          gameTitle: 'Grim Reaper',
+          timestampText: '00:00:10',
+          captionText: 'Momen penampakan Grim Reaper di Google Drive!',
+          videoSrc: '/temp/grim reaper/full.mp4',
+          showRoulettePreview: false,
           activeLaneIndex: 1,
           dimOpacity: 0.65,
         }}

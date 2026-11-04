@@ -6,11 +6,16 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "sync": "node scripts/gdrive.js --sync",
+    "download": "node scripts/gdrive.js",
+    "gdrive": "node scripts/gdrive.js"
   },
   "dependencies": {
     "@remotion/player": "^4.0.260",
     "@tailwindcss/vite": "^4.0.0",
+    "dotenv": "^18.0.9",
+    "googleapis": "^189.0.0",
     "lucide-react": "^1.16.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

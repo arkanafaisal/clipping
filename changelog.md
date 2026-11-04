@@ -12,28 +12,70 @@ Format Entri:
 
 ---
 
-<!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
-
-## [Unreleased] - Initialize Programmatic Video Studio Workspace with Vite, React 19, Tailwind CSS v4, and Remotion
-- **Konteks Struktural**:
-  - Inisialisasi Ruang Kerja Programmatic Video Editing ([video-editor/](file:///d:/projects/clipping/video-editor)):
-    - **Penyebab & Kebutuhan**: Proses penyuntingan video langsung melalui skrip FFmpeg (`scheduler-uploader`) menyulitkan verifikasi visual sebelum menjalankan kompilasi penuh. Pengembang memerlukan umpan balik visual instan (*real-time hot-reloading*) untuk melihat tata letak, posisi kartu roulette, efek spotlight, subtitle, dan kurva deselerasi secara langsung di peramban web tanpa harus menunggu proses kompilasi video FFmpeg yang memakan waktu.
-    - **Solusi**:
-      1. Membuat workspace baru `video-editor` di root berbasis **Vite + React 19 + TypeScript**.
-      2. Mengintegrasikan **Tailwind CSS v4** (`@tailwindcss/vite` & `@import "tailwindcss";`) tanpa konfigurasi boilerplate CSS manual (*zero-config raw CSS*).
-      3. Memasang pustaka **Remotion** (`remotion` & `@remotion/player`) untuk rendering video deklaratif berbasis komponen web.
-      4. Menyusun komposisi video vertikal 9:16 (`VerticalShortsComposition.tsx`) beresolusi 1080x1920 @ 30 FPS yang memvisualisasikan header game, bar subtitle dinamis, spotlight overlay gelap, dan simulasi jalur putaran kartu roulette.
-      5. Membangun workbench interaktif di `App.tsx` dengan kendali live parameter (judul, timestamp, jalur aktif roulette, slider spotlight dim opacity) serta pemutar video terintegrasi (@remotion/player) berfitur timeline scrubber, play/pause, dan kecepatan putar dinamis.
-- **Perubahan Kode Penting**:
-  - `video-editor/package.json`: Menambahkan dependensi `remotion`, `@remotion/player`, `react`, `react-dom`, `@tailwindcss/vite`, `tailwindcss`, dan `lucide-react`.
-  - `video-editor/vite.config.ts`: Mengonfigurasi plugin Vite React dan Tailwind CSS v4 pada port dev server 5174.
-  - `video-editor/src/index.css`: Menerapkan `@import "tailwindcss";` dan penataan styling gelap dasar.
-  - `video-editor/src/remotion/types.ts`: Menetapkan antarmuka tipe parameter komposisi vertikal (`VerticalVideoProps`).
-  - `video-editor/src/remotion/compositions/VerticalShortsComposition.tsx`: Mengembangkan komponen komposisi video 9:16 dengan animasi spring header, spotlight carousel kartu roulette, pointer tunggal tengah, dan progress bar.
-  - `video-editor/src/remotion/Root.tsx`: Mendaftarkan komposisi `VerticalShorts` berdurasi 180 frame (6 detik) 1080x1920.
-  - `video-editor/src/App.tsx`: Antarmuka studio pengembang dengan Player Remotion dan panel kontrol parameter real-time.
-  - `video-editor/README.md`: Panduan eksekusi dan arsitektur workspace.
-
+<!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
+
+
+
+## [Unreleased] - Implement Google Drive Metadata Crawler and Interactive On-Demand Downloader for Remotion Playback
+- **Konteks Struktural**:
+  - Sinkronisasi Aset Google Drive & Pemutaran Video Lokal On-Demand ([video-editor/scripts/gdrive.js](file:///d:/projects/clipping/video-editor/scripts/gdrive.js), [metadata.json](file:///d:/projects/clipping/video-editor/src/data/metadata.json)):
+    - **Penyebab & Kebutuhan**: File video mentah (`full.mp4`) berukuran puluhan hingga ratusan megabyte sehingga tidak mungkin disimpan di repositori Git. Pengembang membutuhkan skema penyimpanan metadata terpusat (`metadata.json`) yang mencatat ID folder, nama file, ukuran, dan path Google Drive, serta mekanisme pengunduhan lokal interaktif (*on-demand*) ke direktori sementara (`public/temp/`) agar video dapat langsung diuji putar di Remotion (`<Video src="..." />`).
+    - **Solusi**:
+      1. Mengembangkan modul utilitas Google Drive `video-editor/scripts/gdrive.js` yang terhubung via OAuth2 Google API (`token.json`) dan membaca `GDRIVE_ROOT_FOLDER_ID` dari `.env`.
+      2. Menerapkan fungsi `syncMetadata()` yang menjelajahi struktur direktori Drive secara rekursif, memetakan momen game (seperti folder `"grim reaper"`), dan mencatat detail berkas `full.mp4` ke file metadata terpadu `src/data/metadata.json` dan `public/metadata.json`.
+      3. Membuat antarmuka CLI interaktif (`npm run download` / `npm run sync`): menampilkan daftar momen bernomor dengan indikator status lokal `[TERUNDUH]` / `[BELUM DIUNDUH]`, dan mengunduh berkas terpilih via streaming pipeline ke `public/temp/<momen>/full.mp4`.
+      4. Memperbarui `VerticalShortsComposition.tsx` dan `App.tsx` agar secara dinamis memutar berkas `full.mp4` lokal menggunakan komponen `<Video />` Remotion dengan pemilih momen langsung di sidebar.
+      5. Menambahkan `temp/` dan `public/temp/` ke `.gitignore` untuk mencegah berkas biner video masuk ke version control.
+- **Perubahan Kode Penting**:
+  - `video-editor/scripts/gdrive.js`: Modul sinkronisasi metadata Drive, downloader streaming dengan progress bar, dan antarmuka CLI interaktif.
+  - `video-editor/src/data/metadata.json` & `video-editor/public/metadata.json`: Basis data metadata momen dan berkas video Google Drive.
+  - `video-editor/src/remotion/types.ts`: Menambahkan properti `videoSrc?: string;` pada `VerticalVideoProps`.
+  - `video-editor/src/remotion/compositions/VerticalShortsComposition.tsx`: Mengintegrasikan pemutar `<Video />` Remotion saat `videoSrc` aktif.
+  - `video-editor/src/App.tsx`: Dropdown pemilih momen berbasis metadata, switch toggle video asli vs roulette, dan petunjuk CLI downloader.
+  - `video-editor/package.json`: Menambahkan skrip `"download"`, `"sync"`, dan dependensi `googleapis` serta `dotenv`.
+  - `video-editor/README.md`: Dokumentasi alur kerja Google Drive downloader dan pemutaran video lokal.
+  - `video-editor/.gitignore`: Mengabaikan `temp/` dan `public/temp/`.
+
+## [ade6cd8] - Initialize Programmatic Video Studio Workspace with Vite, React 19, Tailwind CSS v4, and Remotion
+
+- **Konteks Struktural**:
+
+  - Inisialisasi Ruang Kerja Programmatic Video Editing ([video-editor/](file:///d:/projects/clipping/video-editor)):
+
+    - **Penyebab & Kebutuhan**: Proses penyuntingan video langsung melalui skrip FFmpeg (`scheduler-uploader`) menyulitkan verifikasi visual sebelum menjalankan kompilasi penuh. Pengembang memerlukan umpan balik visual instan (*real-time hot-reloading*) untuk melihat tata letak, posisi kartu roulette, efek spotlight, subtitle, dan kurva deselerasi secara langsung di peramban web tanpa harus menunggu proses kompilasi video FFmpeg yang memakan waktu.
+
+    - **Solusi**:
+
+      1. Membuat workspace baru `video-editor` di root berbasis **Vite + React 19 + TypeScript**.
+
+      2. Mengintegrasikan **Tailwind CSS v4** (`@tailwindcss/vite` & `@import "tailwindcss";`) tanpa konfigurasi boilerplate CSS manual (*zero-config raw CSS*).
+
+      3. Memasang pustaka **Remotion** (`remotion` & `@remotion/player`) untuk rendering video deklaratif berbasis komponen web.
+
+      4. Menyusun komposisi video vertikal 9:16 (`VerticalShortsComposition.tsx`) beresolusi 1080x1920 @ 30 FPS yang memvisualisasikan header game, bar subtitle dinamis, spotlight overlay gelap, dan simulasi jalur putaran kartu roulette.
+
+      5. Membangun workbench interaktif di `App.tsx` dengan kendali live parameter (judul, timestamp, jalur aktif roulette, slider spotlight dim opacity) serta pemutar video terintegrasi (@remotion/player) berfitur timeline scrubber, play/pause, dan kecepatan putar dinamis.
+
+- **Perubahan Kode Penting**:
+
+  - `video-editor/package.json`: Menambahkan dependensi `remotion`, `@remotion/player`, `react`, `react-dom`, `@tailwindcss/vite`, `tailwindcss`, dan `lucide-react`.
+
+  - `video-editor/vite.config.ts`: Mengonfigurasi plugin Vite React dan Tailwind CSS v4 pada port dev server 5174.
+
+  - `video-editor/src/index.css`: Menerapkan `@import "tailwindcss";` dan penataan styling gelap dasar.
+
+  - `video-editor/src/remotion/types.ts`: Menetapkan antarmuka tipe parameter komposisi vertikal (`VerticalVideoProps`).
+
+  - `video-editor/src/remotion/compositions/VerticalShortsComposition.tsx`: Mengembangkan komponen komposisi video 9:16 dengan animasi spring header, spotlight carousel kartu roulette, pointer tunggal tengah, dan progress bar.
+
+  - `video-editor/src/remotion/Root.tsx`: Mendaftarkan komposisi `VerticalShorts` berdurasi 180 frame (6 detik) 1080x1920.
+
+  - `video-editor/src/App.tsx`: Antarmuka studio pengembang dengan Player Remotion dan panel kontrol parameter real-time.
+
+  - `video-editor/README.md`: Panduan eksekusi dan arsitektur workspace.
+
+
+
 ## [147d90f] - Force Original Creator Audio and Filter AI Auto-Dubbed Tracks Across Clip and Full Video Downloads
 - **Konteks Struktural**:
   - Eliminasi Audio AI Auto-Dubbing / Penyelarasan Bahasa Asli Video ([ytdlp.ts](file:///d:/projects/clipping/mobile/src/constants/ytdlp.ts), [clip_downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/clip_downloader.py), [downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/downloader.py)):

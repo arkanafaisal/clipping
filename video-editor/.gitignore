@@ -1,3 +1,8 @@
+.env
+token.json
+temp/
+public/temp/
+
 # Logs
 logs
 *.log
