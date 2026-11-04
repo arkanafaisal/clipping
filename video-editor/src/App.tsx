@@ -88,9 +88,9 @@ export default function App() {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-black text-neutral-100 select-none">
-      {/* AREA UTAMA: Video Canvas 9:16 Memaksimalkan Full Height Laptop (Tanpa Navbar) */}
-      <div className="flex-1 h-screen flex items-center justify-center p-2 bg-neutral-950">
-        <div className="h-full aspect-[9/16] bg-black rounded-xl overflow-hidden shadow-2xl flex items-center justify-center border border-neutral-900">
+      {/* AREA UTAMA: Video Canvas 9:16 Full Height Laptop (100% Height Tanpa Navbar/Padding) */}
+      <div className="flex-1 h-screen flex items-center justify-center bg-black overflow-hidden p-0 m-0">
+        <div className="h-screen w-auto aspect-[9/16] max-h-screen bg-black flex items-center justify-center relative overflow-hidden shadow-2xl">
           {activeStyle === 'meme-discovery' ? (
             <Player
               component={MemeDiscoveryComposition}

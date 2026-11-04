@@ -14,7 +14,29 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Implement YouTube-Style Double-Tap Skip Backward Effect, Refined Freeze Pauses, and Card Slide-Up Entrance
+## [Unreleased] - Maximize Video Preview to True Full Viewport Height and Enrich Pokemon Card with Authentic TCG Anatomy and 820px Scale
+- **Konteks Struktural**:
+  - Penskalaan Penuh Preview Layar Studio & Anatomi Otentik Kartu Pokemon TCG ([App.tsx](file:///d:/projects/clipping/video-editor/src/App.tsx), [PokemonCard.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/PokemonCard.tsx), [MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx)):
+    - **Penyebab & Kebutuhan**: Pengguna meminta agar kanvas video potret 9:16 di antarmuka web studio dapat benar-benar memanfaatkan 100% tinggi layar laptop tanpa celah padding/margin (maksimum sebesar mungkin), dengan kontrol player di bagian bawah yang auto-hide saat diputar. Selain itu, kartu meme di Remotion sebelumnya berukuran relatif kecil (520px) dan belum menyerupai kartu Pokemon asli secara menyeluruh. Pengguna meminta agar kartu diperbesar secara signifikan serta memuat elemen-elemen anatomi otentik kartu Pokémon Trading Card Game (TCG): bukan hanya gambar 1:1, melainkan judul kartu tebal, stage evolusi (Basic Meme), status HP & simbol elemen energi, bilah info spesies Pokedex, kotak Ability (Poké-Power), serangan dengan biaya energi & angka damage, serta bilah Weakness/Resistance/Retreat dan footer kolektor.
+    - **Solusi**:
+      1. Menghilangkan padding (`p-0 m-0`) pada wrapper canvas di `App.tsx` dan menetapkan kanvas 9:16 langsung pada `h-screen max-h-screen aspect-[9/16]` sehingga tinggi pemutar video memenuhi 100vh layar laptop secara penuh dari ujung atas hingga bawah.
+      2. Memperbesar ukuran kartu di `PokemonCard.tsx` dari `520px` menjadi `820px` (menempati ~76% lebar kanvas 1080px dan ~1200px dari tinggi safe zone 1536px), memberikan kesan kartu koleksi yang megah, tebal, dan sangat mudah dibaca.
+      3. Mengintegrasikan elemen anatomi Pokémon TCG lengkap:
+         - Top bar: badge stage `BASIC MEME`, judul nama karakter, status HP tebal, dan lambang tipe energi (`⚡`).
+         - Bingkai ilustrasi emas 1:1 dengan aksen sudut metallic bevel (mendukung `image.jpg` Drive atau fallback frame video beku).
+         - Bilah informasi spesies Pokédex: nomor koleksi, tipe, tinggi, dan berat.
+         - Kotak Ability (`Ability: Momen Spontan` dengan efek pemicu auto-subscribe).
+         - Serangan utama dengan biaya energi, nama jurus, angka damage `999+`, dan deskripsi dengan `whitespace-pre-line` (Rule 23).
+         - Bilah battle modifier: Weakness (`⚡ x2`), Resistance (`🛡️ -30`), dan Retreat Cost (`⚪⚪`).
+         - Footer kolektor: nama ilustrator, set code `SSP 001/100`, rarity `⭐⭐⭐⭐⭐ SSR LEGENDARY`, dan hak cipta TCG.
+      4. Menghubungkan seluruh props anatomi kartu ke `MemeDiscoveryComposition.tsx` dan `types.ts`.
+- **Perubahan Kode Penting**:
+  - `video-editor/src/App.tsx`: Layout canvas studio 100% full height (`h-screen p-0 m-0`).
+  - `video-editor/src/styles/meme-discovery/components/PokemonCard.tsx`: Penskalaan `w-[820px]` dan implementasi anatomi Pokémon TCG lengkap (stage, HP, Pokedex strip, Ability, Attack energy, Weakness/Resistance/Retreat, collector footer).
+  - `video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx`: Pass-through props anatomi TCG.
+  - `video-editor/src/styles/meme-discovery/types.ts`: Menambahkan definisi props Pokemon TCG.
+
+## [ebc9391] - Implement YouTube-Style Double-Tap Skip Backward Effect, Refined Freeze Pauses, and Card Slide-Up Entrance
 - **Konteks Struktural**:
   - Penataan Ulang Storyboard Sekuensial Meme Discovery & Efek Skip YouTube ([MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), [RewindEffect.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/RewindEffect.tsx), [PokemonCard.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/PokemonCard.tsx)):
     - **Penyebab & Kebutuhan**: Pengguna menginginkan alur kejadian visual yang runut dan memiliki jeda antar aksi yang jelas agar penonton dapat mencerna maksud video dengan nyaman:

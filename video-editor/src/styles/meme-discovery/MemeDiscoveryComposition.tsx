@@ -26,6 +26,15 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
   attackName = 'Ekspresi Lucu Jumpscare',
   attackDesc = 'Menatap tajam ke kamera dengan ekspresi bingung yang memicu tawa penonton.',
   showSafeZoneGuides = false,
+  stage = 'BASIC MEME',
+  energyType = '⚡',
+  speciesInfo = "NO. 001 Facecam • HT: 5'11\" • WT: 0 lbs • Rare Discovery Edition",
+  abilityName = 'Momen Spontan',
+  abilityDesc = 'Setiap kali viewer tertawa atau kaget, kartu ini memicu auto-subscribe.',
+  weakness = '⚡ x2',
+  resistance = '🛡️ -30',
+  retreatCost = '⚪⚪',
+  illustrator = 'Illus. Antigravity Editor',
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -179,6 +188,15 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
               attackDesc={attackDesc}
               slideProgress={cardSpring}
               frame={frame}
+              stage={stage}
+              energyType={energyType}
+              speciesInfo={speciesInfo}
+              abilityName={abilityName}
+              abilityDesc={abilityDesc}
+              weakness={weakness}
+              resistance={resistance}
+              retreatCost={retreatCost}
+              illustrator={illustrator}
             />
           </div>
         )}
