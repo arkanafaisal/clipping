@@ -331,6 +331,12 @@ export async function downloadMomentImage(drive, moment) {
   if (fs.existsSync(targetPath)) {
     const stat = fs.statSync(targetPath);
     if (stat.size === imageFile.size && stat.size > 0) {
+      const quickPath = path.join(TEMP_DIR, imageFile.name);
+      if (!fs.existsSync(quickPath)) {
+        try {
+          fs.copyFileSync(targetPath, quickPath);
+        } catch (e) {}
+      }
       return targetPath;
     }
   }
@@ -423,15 +429,23 @@ export async function syncMomentVideo(momentPathOrName) {
   const quickPath = path.join(TEMP_DIR, 'full.mp4');
 
   const fileExistsLocally = fs.existsSync(targetPath) && fs.statSync(targetPath).size > 0;
+  const quickExistsLocally = fs.existsSync(quickPath) && fs.statSync(quickPath).size > 0;
   const hasMetadata = Boolean(moment.files && moment.files.full && moment.files.full.id);
 
-  // Jika file lokal sudah ada dan metadata sudah lengkap, tidak perlu unduh ulang
-  if (fileExistsLocally && hasMetadata) {
-    if (!fs.existsSync(quickPath)) {
-      try {
-        fs.copyFileSync(targetPath, quickPath);
-      } catch (e) {}
-    }
+  // Sinkronkan salinan lokal jika salah satu sudah ada (hindari download ulang)
+  if (fileExistsLocally && !quickExistsLocally) {
+    try {
+      fs.copyFileSync(targetPath, quickPath);
+    } catch (e) {}
+  } else if (!fileExistsLocally && quickExistsLocally) {
+    try {
+      fs.mkdirSync(targetDir, { recursive: true });
+      fs.copyFileSync(quickPath, targetPath);
+    } catch (e) {}
+  }
+
+  // Jika file lokal sudah ada di salah satu folder dan metadata lengkap, tidak perlu download ulang
+  if ((fileExistsLocally || quickExistsLocally) && hasMetadata) {
     return { moment, metadata, downloaded: false, alreadyExists: true };
   }
 

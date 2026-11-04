@@ -16,7 +16,15 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Fix Remotion CLI Asset Resolution via staticFile and PublicDir Config
+## [Unreleased] - Two-Way Local Asset Synchronization to Prevent Redundant Re-Downloads
+- **Konteks Struktural**:
+  - Sinkronisasi Salinan Aset Lokal Dua Arah ([scripts/gdrive.js](file:///d:/projects/clipping/video-editor/scripts/gdrive.js)):
+    - **Penyebab & Kebutuhan**: Pengguna menanyakan mengapa file video yang sudah ada di `public/temp/grim reaper/full.mp4` tidak disalin langsung ke `public/temp/full.mp4` jika salah satunya sudah ada, sehingga berisiko terunduh ulang dari Google Drive.
+    - **Solusi**: Di [`scripts/gdrive.js`](file:///d:/projects/clipping/video-editor/scripts/gdrive.js), menambahkan sinkronisasi lokal dua arah: jika file sudah ada di folder momen (`temp/grim reaper/`), sistem langsung menyalinnya secara lokal ke root temp (`temp/full.mp4`) dalam 0 detik tanpa menyentuh Google Drive sama sekali, dan sebaliknya.
+- **Perubahan Kode Penting**:
+  - `video-editor/scripts/gdrive.js`: Sinkronisasi dua arah `temp/<moment.path>/` dan `temp/`.
+
+## [21e5a8e] - Fix Remotion CLI Asset Resolution via staticFile and PublicDir Config
 - **Konteks Struktural**:
   - Resolusi Aset Video Remotion CLI & Public Directory Binding ([Root.tsx](file:///d:/projects/clipping/video-editor/src/remotion/Root.tsx), [remotion.config.ts](file:///d:/projects/clipping/video-editor/remotion.config.ts), [App.tsx](file:///d:/projects/clipping/video-editor/src/App.tsx)):
     - **Penyebab & Kebutuhan**: Saat render CLI dieksekusi, Chromium headless memicu error 404 pada URL aset video (`http://localhost:3000/temp/grim%20reaper/full.mp4`) yang mengakibatkan `MediaPlaybackError: Format error`. Hal ini disebabkan oleh: (1) path aset folder `public` belum dibungkus helper resmi `staticFile()` bawaan Remotion, (2) spasi pada nama path `grim reaper` di-encode menjadi `%20` sehingga gagal dimapping oleh server statis lokal, dan (3) direktori `publicDir` belum dikunci secara absolut di `remotion.config.ts`.
