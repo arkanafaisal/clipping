@@ -29,9 +29,10 @@ export interface MemeDiscoveryProps {
   passiveDescFontSize?: number;
   cardImageSrc?: string; // bisa dari file gambar 1:1 di Drive atau freeze video frame
   targetFrameImage?: string;
-  // Efek Suara Magical Reveal Harp Glissando saat kartu muncul
-  sfxSrc?: string;
+  // Efek Suara (SFX)
+  sfxSrc?: string; // SFX Magical Reveal saat kartu kecil muncul dari bawah
   cardEmergeSfxSrc?: string; // fallback alias kompatibilitas
+  cameraShutterSfxSrc?: string; // SFX Camera Shutter saat screenshot frame momen
   enableSfx?: boolean;
   // Panduan visual safe zone 80% (untuk inspeksi di browser editor)
   showSafeZoneGuides?: boolean;

@@ -38,6 +38,7 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
   targetFrameImage,
   sfxSrc = '/sfx/magical-reveal.webm',
   cardEmergeSfxSrc,
+  cameraShutterSfxSrc = '/sfx/camera-shutter.webm',
   enableSfx = true,
   showSafeZoneGuides = false,
 }) => {
@@ -167,7 +168,14 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
         </div>
       )}
 
-      {/* Sound Effect: Magical Reveal Harp Glissando saat kartu kecil muncul dari bawah */}
+      {/* 1. Sound Effect: Camera Shutter Click saat efek screenshot flash putih */}
+      {enableSfx && cameraShutterSfxSrc && frame >= flashStartFrame && (
+        <Sequence from={flashStartFrame} durationInFrames={45}>
+          <Audio src={cameraShutterSfxSrc} volume={0.9} />
+        </Sequence>
+      )}
+
+      {/* 2. Sound Effect: Magical Reveal Harp Glissando saat kartu kecil muncul dari bawah */}
       {enableSfx && (sfxSrc || cardEmergeSfxSrc) && isCardRevealed && (
         <Sequence from={cardStartFrame} durationInFrames={120}>
           <Audio src={sfxSrc || cardEmergeSfxSrc} volume={0.85} />

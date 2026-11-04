@@ -14,7 +14,22 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Remove Discord Chime SFX in Favor of Magical Reveal Harp Only
+## [Unreleased] - Camera Shutter Sound Effect on Screenshot White Flash Effect
+- **Konteks Struktural**:
+  - Penambahan Efek Suara (SFX) Camera Shutter Saat Screenshot Shutter Flash ([MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), [types.ts](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/types.ts), [public/sfx/camera-shutter.webm](file:///d:/projects/clipping/video-editor/public/sfx/camera-shutter.webm)):
+    - **Penyebab & Kebutuhan**: Pengguna meminta efek suara camera shutter click (`https://www.youtube.com/watch?v=zczNH5JDgMs`) diputar persis saat efek *screenshot white flash* menyala, dengan jeda hening di awal file audio dipotong terlebih dahulu agar bunyi jepretan kamera langsung menyala instan tanpa jeda.
+    - **Solusi**:
+      1. Mengunduh aset audio camera shutter menggunakan `yt-dlp` ke direktori publik editor.
+      2. Menganalisis jeda hening menggunakan filter `silencedetect` FFmpeg: hening awal berdurasi **2.136 detik** (suara jepretan baru dimulai pada **2.143s**).
+      3. Memotong (*trim*) jeda hening 2.12 detik di awal file audio menggunakan FFmpeg dan menyimpannya sebagai [`video-editor/public/sfx/camera-shutter.webm`](file:///d:/projects/clipping/video-editor/public/sfx/camera-shutter.webm) yang langsung berbunyi di 0.000s.
+      4. Di [`types.ts`](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/types.ts), menambahkan prop `cameraShutterSfxSrc?: string`.
+      5. Di [`MemeDiscoveryComposition.tsx`](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), menyisipkan komponen `<Audio>` yang disinkronkan tepat di `flashStartFrame` (durasi 45 frame = 1.5 detik), berbunyi sinkron 100% bersamaan dengan efek kilatan putih *screenshot flash*.
+- **Perubahan Kode Penting**:
+  - `video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx`: Sekuens audio baru untuk efek camera shutter pada frame kilatan foto (`flashStartFrame`).
+  - `video-editor/src/styles/meme-discovery/types.ts`: Definisi prop `cameraShutterSfxSrc`.
+  - `video-editor/public/sfx/camera-shutter.webm`: Aset audio efek suara jepretan kamera ter-trim.
+
+## [0a97b69] - Remove Discord Chime SFX in Favor of Magical Reveal Harp Only
 - **Konteks Struktural**:
   - Penghapusan Efek Suara Discord / Achievement Chime & Pemfokusan Efek Suara Tunggal Magical Harp ([MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), [types.ts](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/types.ts), [public/sfx/achievement.webm](file:///d:/projects/clipping/video-editor/public/sfx/achievement.webm)):
     - **Penyebab & Kebutuhan**: Pengguna mengevaluasi bahwa efek suara *discord / achievement chime* tidak lagi diperlukan, dan cukup mempertahankan satu efek suara saja yaitu *magical reveal harp glissando* yang diputar sejak kartu muncul dari bawah.
