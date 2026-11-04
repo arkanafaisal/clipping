@@ -43,7 +43,7 @@ export const PokemonCard: React.FC<PokemonCardProps> = ({
 
   return (
     <div
-      className="relative w-[740px] rounded-[36px] p-5 bg-gradient-to-b from-amber-300 via-amber-500 to-amber-700 shadow-[0_0_100px_rgba(245,158,11,0.6),0_30px_70px_rgba(0,0,0,0.95)] border-2 border-yellow-200/90 select-none overflow-hidden"
+      className="relative w-[680px] h-[952px] rounded-[36px] p-5 bg-gradient-to-b from-amber-300 via-amber-500 to-amber-700 shadow-[0_0_100px_rgba(245,158,11,0.6),0_30px_70px_rgba(0,0,0,0.95)] border-2 border-yellow-200/90 select-none overflow-hidden"
       style={{
         transform: `translateY(${translateY}px)`,
         opacity: Math.min(1, slideProgress * 2.5),
@@ -58,11 +58,11 @@ export const PokemonCard: React.FC<PokemonCardProps> = ({
         }}
       />
 
-      {/* 2. Body Dalam Kartu (Minimalis Jimat Koleksi Meme) */}
-      <div className="relative rounded-[26px] bg-gradient-to-b from-neutral-900 via-neutral-950 to-black p-6 border border-amber-500/40 flex flex-col items-center gap-5">
-        {/* BAGIAN PALING ATAS: Murni Gambar 1:1, tidak full width (ada padding x kanan-kiri), ukuran compact ~360px */}
-        <div className="w-full flex justify-center px-12 pt-1">
-          <div className="relative w-[360px] aspect-square rounded-2xl overflow-hidden border-2 border-amber-400/90 bg-black shadow-2xl flex items-center justify-center shrink-0">
+      {/* 2. Body Dalam Kartu (Minimalis Jimat Koleksi Meme - Rasio Autentik 5:7 Pokemon TCG) */}
+      <div className="relative w-full h-full rounded-[26px] bg-gradient-to-b from-neutral-900 via-neutral-950 to-black p-6 border border-amber-500/40 flex flex-col justify-between items-center">
+        {/* BAGIAN PALING ATAS: Murni Gambar 1:1, tidak full width (ada padding x kanan-kiri), ukuran compact ~350px */}
+        <div className="w-full flex justify-center pt-1">
+          <div className="relative w-[350px] aspect-square rounded-2xl overflow-hidden border-2 border-amber-400/90 bg-black shadow-2xl flex items-center justify-center shrink-0">
             {imageSrc ? (
               <Img
                 src={imageSrc}

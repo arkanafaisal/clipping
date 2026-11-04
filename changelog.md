@@ -14,7 +14,15 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Enlarge Card Typography for High Legibility, Compact 1:1 Image, and Exact Lowercase Placeholders
+## [Unreleased] - Enforce Authentic 5:7 Pokemon TCG Card Proportions with Balanced Vertical Distribution
+- **Konteks Struktural**:
+  - Penegakan Rasio Asli 5:7 Trading Card Game ([PokemonCard.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/PokemonCard.tsx)):
+    - **Penyebab & Kebutuhan (prompts.md:L2)**: Kartu sebelumnya tidak memiliki dimensi tinggi pasti sehingga mengkerut menjadi rasio ~1:1.13 (terlalu kotak/chubby dan tidak mencerminkan siluet ramping kartu koleksi TCG seperti Pokemon/Animal Kaiser).
+    - **Solusi**: Menetapkan dimensi proporsi autentik kartu Pokemon TCG rasio 5:7 (`w-[680px] h-[952px]`) dengan `flex-col justify-between`. Gambar 1:1 (`350px`) berada di bagian atas dengan padding samping, judul dan rarity berada di tengah, deskripsi terbaca jelas, dan kotak pasif jimat berada di bawah dengan ruang vertikal yang sangat seimbang.
+- **Perubahan Kode Penting**:
+  - `video-editor/src/styles/meme-discovery/components/PokemonCard.tsx`: Dimensi `w-[680px] h-[952px]` (rasio 5:7) dan distribusi `justify-between`.
+
+## [31c0f8c] - Enlarge Card Typography for High Legibility, Compact 1:1 Image, and Exact Lowercase Placeholders
 - **Konteks Struktural**:
   - Penyesuaian Skala Tipografi Kartu & Kompaksi Gambar 1:1 ([PokemonCard.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/PokemonCard.tsx), [App.tsx](file:///d:/projects/clipping/video-editor/src/App.tsx)):
     - **Penyebab & Kebutuhan (prompts.md:L2)**: Pada kanvas 1080x1920 yang di-scale down ~0.32x di layar laptop, teks kartu sebelumnya terasa terlalu kecil dan sulit dibaca. Selain itu, gambar 1:1 dikompakkan agar tidak terlalu dominan dan memberikan ruang vertikal yang lapang untuk teks, serta placeholder diselaraskan dengan instruksi exact lowercase.
