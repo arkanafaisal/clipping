@@ -405,12 +405,121 @@ export async function syncMomentImage(momentPathOrName) {
 }
 
 /**
+ * Periksa keberadaan full.mp4 di folder lokal atau Google Drive suatu momen,
+ * unduh jika belum ada di lokal, dan perbarui src/data.json secara cepat.
+ */
+export async function syncMomentVideo(momentPathOrName) {
+  const metadata = loadMetadata();
+  if (!metadata || !metadata.moments) return null;
+
+  const moment = metadata.moments.find(
+    (m) => m.path === momentPathOrName || m.name === momentPathOrName || !momentPathOrName
+  );
+
+  if (!moment) return null;
+
+  const targetDir = path.join(TEMP_DIR, moment.path);
+  const targetPath = path.join(targetDir, 'full.mp4');
+  const quickPath = path.join(TEMP_DIR, 'full.mp4');
+
+  const fileExistsLocally = fs.existsSync(targetPath) && fs.statSync(targetPath).size > 0;
+  const hasMetadata = Boolean(moment.files && moment.files.full && moment.files.full.id);
+
+  // Jika file lokal sudah ada dan metadata sudah lengkap, tidak perlu unduh ulang
+  if (fileExistsLocally && hasMetadata) {
+    if (!fs.existsSync(quickPath)) {
+      try {
+        fs.copyFileSync(targetPath, quickPath);
+      } catch (e) {}
+    }
+    return { moment, metadata, downloaded: false, alreadyExists: true };
+  }
+
+  const drive = getDriveClient();
+
+  // Cari file full.mp4 langsung di folder Google Drive momen tersebut
+  let fullFile = null;
+  if (hasMetadata) {
+    fullFile = moment.files.full;
+  } else {
+    const res = await drive.files.list({
+      q: `'${moment.id}' in parents and trashed = false and name = 'full.mp4'`,
+      fields: 'files(id, name, mimeType, size, videoMediaMetadata)',
+      pageSize: 5,
+    });
+    const files = res.data.files || [];
+    fullFile = files.find((f) => f.name.toLowerCase() === 'full.mp4');
+  }
+
+  if (fullFile) {
+    moment.files = moment.files || {};
+    moment.files.full = {
+      id: fullFile.id,
+      name: fullFile.name,
+      mimeType: fullFile.mimeType || 'video/mp4',
+      size: Number(fullFile.size || 0),
+      sizeFormatted: formatBytes(Number(fullFile.size || 0)),
+      durationSeconds: fullFile.videoMediaMetadata?.durationMillis
+        ? parseFloat((Number(fullFile.videoMediaMetadata.durationMillis) / 1000).toFixed(2))
+        : moment.files?.full?.durationSeconds || 10.95,
+      durationFormatted: fullFile.videoMediaMetadata?.durationMillis
+        ? `${(Number(fullFile.videoMediaMetadata.durationMillis) / 1000).toFixed(2)}s`
+        : moment.files?.full?.durationFormatted || '10.95s',
+      width: fullFile.videoMediaMetadata?.width || 1080,
+      height: fullFile.videoMediaMetadata?.height || 1920,
+      tempRelPath: `temp/${moment.path}/${fullFile.name}`,
+    };
+
+    let downloaded = false;
+    if (!fileExistsLocally) {
+      console.log(`\n🎬 Video full.mp4 lokal tidak ditemukan untuk "${moment.name}".`);
+      console.log(`   ⬇️ Mengunduh otomatis dari Google Drive...`);
+      await downloadDriveFile(drive, fullFile.id, targetPath, `${moment.name}/${fullFile.name}`);
+      try {
+        fs.copyFileSync(targetPath, quickPath);
+      } catch (e) {}
+      downloaded = true;
+    }
+
+    // Simpan metadata terupdate ke data.json
+    metadata.lastUpdate = formatHumanDate(new Date());
+    fs.mkdirSync(path.dirname(DATA_PATH), { recursive: true });
+    fs.writeFileSync(DATA_PATH, JSON.stringify(metadata, null, 2), 'utf8');
+
+    return { moment, metadata, downloaded };
+  }
+
+  return { moment, metadata, downloaded: false, notFoundOnDrive: true };
+}
+
+/**
+ * Memastikan semua aset penting (full.mp4 dan image.jpg) tersedia di lokal.
+ * Jika belum ada, otomatis diunduh dari Google Drive.
+ */
+export async function ensureMomentAssets(momentPathOrName) {
+  console.log('🔍 Memeriksa ketersediaan aset momen (video & gambar)...');
+  const imgRes = await syncMomentImage(momentPathOrName).catch((err) => {
+    console.warn('   ⚠️ syncMomentImage warning:', err?.message || err);
+    return null;
+  });
+  const vidRes = await syncMomentVideo(momentPathOrName).catch((err) => {
+    console.warn('   ⚠️ syncMomentVideo warning:', err?.message || err);
+    return null;
+  });
+  return {
+    image: imgRes,
+    video: vidRes,
+    metadata: vidRes?.metadata || imgRes?.metadata || loadMetadata(),
+  };
+}
+
+/**
  * Periksa apakah berkas momen sudah ada di lokal
  */
 export function isMomentDownloaded(moment) {
   if (!moment || !moment.files || !moment.files.full) return false;
   const targetPath = path.join(TEMP_DIR, moment.path, moment.files.full.name);
-  return fs.existsSync(targetPath);
+  return fs.existsSync(targetPath) && fs.statSync(targetPath).size > 0;
 }
 
 /**
@@ -497,6 +606,25 @@ if (process.argv[1] && process.argv[1].endsWith('gdrive.js')) {
   } else if (process.argv.includes('--check-image') || process.argv.includes('--sync-image')) {
     syncMomentImage().then((res) => {
       console.log('Sync moment image result:', res?.downloaded ? 'Downloaded image.jpg' : 'No new image');
+      process.exit(0);
+    }).catch((err) => {
+      console.error(err);
+      process.exit(1);
+    });
+  } else if (process.argv.includes('--check-video') || process.argv.includes('--sync-video')) {
+    syncMomentVideo().then((res) => {
+      console.log('Sync moment video result:', res?.downloaded ? 'Downloaded full.mp4' : 'Video already up to date');
+      process.exit(0);
+    }).catch((err) => {
+      console.error(err);
+      process.exit(1);
+    });
+  } else if (process.argv.includes('--check-assets') || process.argv.includes('--ensure')) {
+    ensureMomentAssets().then((res) => {
+      console.log('Ensure moment assets complete:', {
+        imageDownloaded: res?.image?.downloaded ?? false,
+        videoDownloaded: res?.video?.downloaded ?? false,
+      });
       process.exit(0);
     }).catch((err) => {
       console.error(err);

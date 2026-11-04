@@ -7,8 +7,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "render": "remotion render src/remotion/index.ts MemeDiscovery out.mp4",
-    "render:quiz": "remotion render src/remotion/index.ts RouletteQuiz out-quiz.mp4",
+    "render": "node scripts/gdrive.js --ensure && remotion render src/remotion/index.ts MemeDiscovery out.mp4",
+    "render:quiz": "node scripts/gdrive.js --ensure && remotion render src/remotion/index.ts RouletteQuiz out-quiz.mp4",
     "sync": "node scripts/gdrive.js --sync",
     "download": "node scripts/gdrive.js",
     "gdrive": "node scripts/gdrive.js"

@@ -67,6 +67,77 @@ function saveDataPlugin(): Plugin {
           res.end('Method Not Allowed');
         }
       });
+
+      // Deteksi & download otomatis full.mp4 dari Google Drive saat reload
+      server.middlewares.use('/api/check-video', async (req, res) => {
+        if (req.method === 'GET' || req.method === 'POST') {
+          try {
+            const { syncMomentVideo } = await import('./scripts/gdrive.js');
+            const result = await syncMomentVideo();
+            const dataPath = path.resolve(__dirname, 'src/data.json');
+            const updatedData = JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
+            res.setHeader('Content-Type', 'application/json');
+            res.end(
+              JSON.stringify({
+                success: true,
+                downloaded: result?.downloaded ?? false,
+                metadata: updatedData,
+              })
+            );
+          } catch (err: any) {
+            console.warn('Sync video warning:', err?.message);
+            const dataPath = path.resolve(__dirname, 'src/data.json');
+            const currentData = JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
+            res.setHeader('Content-Type', 'application/json');
+            res.end(
+              JSON.stringify({
+                success: false,
+                error: err?.message,
+                metadata: currentData,
+              })
+            );
+          }
+        } else {
+          res.statusCode = 405;
+          res.end('Method Not Allowed');
+        }
+      });
+
+      // Deteksi & download otomatis semua aset (video full.mp4 + kartu image.jpg) saat reload
+      server.middlewares.use('/api/check-assets', async (req, res) => {
+        if (req.method === 'GET' || req.method === 'POST') {
+          try {
+            const { ensureMomentAssets } = await import('./scripts/gdrive.js');
+            const result = await ensureMomentAssets();
+            const dataPath = path.resolve(__dirname, 'src/data.json');
+            const updatedData = JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
+            res.setHeader('Content-Type', 'application/json');
+            res.end(
+              JSON.stringify({
+                success: true,
+                imageDownloaded: result?.image?.downloaded ?? false,
+                videoDownloaded: result?.video?.downloaded ?? false,
+                metadata: updatedData,
+              })
+            );
+          } catch (err: any) {
+            console.warn('Ensure assets warning:', err?.message);
+            const dataPath = path.resolve(__dirname, 'src/data.json');
+            const currentData = JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
+            res.setHeader('Content-Type', 'application/json');
+            res.end(
+              JSON.stringify({
+                success: false,
+                error: err?.message,
+                metadata: currentData,
+              })
+            );
+          }
+        } else {
+          res.statusCode = 405;
+          res.end('Method Not Allowed');
+        }
+      });
     },
   };
 }

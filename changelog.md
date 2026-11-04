@@ -14,7 +14,26 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Remotion Video Export Setup with CLI and Tailwind v4 Bundling
+<!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
+
+## [Unreleased] - Auto-Detect and Auto-Download Missing Video Assets (full.mp4) from Google Drive
+- **Konteks Struktural**:
+  - Deteksi & Unduh Otomatis File Video `full.mp4` dari Google Drive ([scripts/gdrive.js](file:///d:/projects/clipping/video-editor/scripts/gdrive.js), [vite.config.ts](file:///d:/projects/clipping/video-editor/vite.config.ts), [src/App.tsx](file:///d:/projects/clipping/video-editor/src/App.tsx), [package.json](file:///d:/projects/clipping/video-editor/package.json), [src/data.json](file:///d:/projects/clipping/video-editor/src/data.json)):
+    - **Penyebab & Kebutuhan**: Pengguna menanyakan mengapa mekanisme auto-download saat berkas tidak ditemukan di lokal hanya berhasil untuk gambar (`image.jpg`), sedangkan untuk video (`full.mp4`) tidak berhasil. Berdasarkan audit kode, sebelumnya hanya terdapat fungsi `syncMomentImage()` dan endpoint `/api/check-image` di Vite server serta mount hook `App.tsx`, tanpa adanya penanganan untuk video `full.mp4`. Akibatnya, jika file `full.mp4` belum pernah diunduh atau terhapus dari `public/temp/`, preview web studio gagal memuat video dan proses render Remotion terhenti karena aset video tidak ditemukan.
+    - **Solusi**:
+      1. Di [`scripts/gdrive.js`](file:///d:/projects/clipping/video-editor/scripts/gdrive.js), membuat fungsi baru `syncMomentVideo(momentPathOrName)` dan `ensureMomentAssets(momentPathOrName)`. Fungsi ini memeriksa keberadaan `public/temp/<moment.path>/full.mp4`. Jika berkas lokal belum ada atau berukuran 0 byte, sistem otomatis mengambil ID file `full.mp4` dari Google Drive folder momen, mengunduhnya via media streaming, menyalin ke `public/temp/full.mp4`, serta memperbarui `src/data.json` dengan metadata video yang valid (durasi detik, lebar, tinggi, ukuran).
+      2. Memperbarui `isMomentDownloaded()` untuk memvalidasi `stat.size > 0` dan menambahkan opsi CLI `--check-video`, `--check-assets`, dan `--ensure`.
+      3. Di [`vite.config.ts`](file:///d:/projects/clipping/video-editor/vite.config.ts), menambahkan middleware endpoint `/api/check-video` dan `/api/check-assets` yang otomatis mendeteksi dan mengunduh seluruh aset momen (video + kartu gambar) saat studio diakses atau direload.
+      4. Di [`src/App.tsx`](file:///d:/projects/clipping/video-editor/src/App.tsx), mengubah pemanggilan awal pada `useEffect` dari `/api/check-image` menjadi `/api/check-assets`, sehingga seluruh aset gambar dan video momen dicek dan diunduh secara serentak di latar belakang saat studio dibuka.
+      5. Di [`package.json`](file:///d:/projects/clipping/video-editor/package.json), menyisipkan `node scripts/gdrive.js --ensure &&` pada script `"render"` dan `"render:quiz"`, menjamin bahwa sebelum perintah Remotion render dieksekusi di terminal, seluruh aset video dan gambar dipastikan 100% sudah terunduh di lokal.
+- **Perubahan Kode Penting**:
+  - `video-editor/scripts/gdrive.js`: Fungsi `syncMomentVideo()`, `ensureMomentAssets()`, dan CLI flag `--ensure` & `--check-video`.
+  - `video-editor/vite.config.ts`: Endpoint `/api/check-video` dan `/api/check-assets`.
+  - `video-editor/src/App.tsx`: Auto-sync `/api/check-assets` pada saat reload/mount.
+  - `video-editor/package.json`: Pre-ensure hook sebelum proses remotion render (`npm run render`).
+  - `video-editor/src/data.json`: Sinkronisasi metadata lengkap `files.full` (durasi 9.85s, 1080x1920).
+
+## [0704754] - Remotion Video Export Setup with CLI and Tailwind v4 Bundling
 - **Konteks Struktural**:
   - Konfigurasi Pipeline Render Video Ekspor MP4 ([remotion.config.ts](file:///d:/projects/clipping/video-editor/remotion.config.ts), [src/remotion/index.ts](file:///d:/projects/clipping/video-editor/src/remotion/index.ts), [src/remotion/Root.tsx](file:///d:/projects/clipping/video-editor/src/remotion/Root.tsx), [package.json](file:///d:/projects/clipping/package.json)):
     - **Penyebab & Kebutuhan**: Pengguna menanyakan cara export video (apakah melalui `npm run build`). `npm run build` merupakan perintah kompilasi web statis Vite (`dist/`), bukan perender video Remotion. Dibutuhkan konfigurasi rendering engine resmi Remotion (`@remotion/cli` & `@remotion/tailwind-v4`) agar komposisi video dapat diekspor langsung menjadi file `.mp4`.

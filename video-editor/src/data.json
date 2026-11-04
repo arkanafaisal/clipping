@@ -1,5 +1,5 @@
 {
-  "lastUpdate": "2026-11-04 20:01:28",
+  "lastUpdate": "2026-11-04 20:22:10",
   "totalMoments": 1,
   "moments": [
     {
@@ -13,6 +13,18 @@
           "size": 160057,
           "sizeFormatted": "156.31 KB",
           "tempRelPath": "temp/grim reaper/image.jpg"
+        },
+        "full": {
+          "id": "19R32907wEJq0YS1Fm_8C0Nfp_jnYq2TG",
+          "name": "full.mp4",
+          "mimeType": "video/mp4",
+          "size": 33385044,
+          "sizeFormatted": "31.84 MB",
+          "durationSeconds": 9.85,
+          "durationFormatted": "9.85s",
+          "width": 1080,
+          "height": 1920,
+          "tempRelPath": "temp/grim reaper/full.mp4"
         }
       },
       "memeDiscovery": {

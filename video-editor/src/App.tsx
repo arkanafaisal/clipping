@@ -109,9 +109,9 @@ export default function App() {
     }
   }, [initialData]);
 
-  // Deteksi & download otomatis image.jpg dari Google Drive saat studio direload
+  // Deteksi & download otomatis semua berkas aset (full.mp4 & image.jpg) dari Google Drive saat studio direload
   useEffect(() => {
-    fetch('/api/check-image')
+    fetch('/api/check-assets')
       .then((res) => res.json())
       .then((res) => {
         if (res.metadata) {
@@ -132,7 +132,7 @@ export default function App() {
         }
       })
       .catch((err) => {
-        console.warn('Auto sync image failed on reload:', err);
+        console.warn('Auto sync assets failed on reload:', err);
       });
   }, []);
 
