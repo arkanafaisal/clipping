@@ -14,7 +14,20 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Elimination of Last-Frame Canvas Extraction in Favor of Seamless In-Place Video Freeze
+## [Unreleased] - Steam Achievement / Item Discovery Chime Sound Effect on 3D Card Flip
+- **Konteks Struktural**:
+  - Penambahan Efek Suara (SFX) Item Discovery / Achievement Saat Kartu Membalik ([MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), [types.ts](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/types.ts), [public/sfx/achievement.webm](file:///d:/projects/clipping/video-editor/public/sfx/achievement.webm)):
+    - **Penyebab & Kebutuhan**: Pengguna meminta agar animasi kartu yang membalik diiringi efek suara (SFX) *item discovery / harp / achievement unlocked* seperti pada referensi video Steam Achievement (`https://www.youtube.com/watch?v=TgJhRyk54CY`).
+    - **Solusi**:
+      1. Mengunduh aset audio berkualitas tinggi Steam Achievement Sound Effect ke dalam direktori publik [`video-editor/public/sfx/achievement.webm`](file:///d:/projects/clipping/video-editor/public/sfx/achievement.webm) yang disajikan langsung oleh web server.
+      2. Di [`types.ts`](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/types.ts), menambahkan opsi prop `sfxSrc?: string` dan `enableSfx?: boolean` pada `MemeDiscoveryProps`.
+      3. Di [`MemeDiscoveryComposition.tsx`](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), menyisipkan komponen `<Audio>` dari Remotion yang diselaraskan tepat pada frame kartu mencapai posisi zero-width dan mulai membalik membuka teks (`Sequence from={cardStartFrame + 27} durationInFrames={75}`).
+- **Perubahan Kode Penting**:
+  - `video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx`: Penambahan sekuens `<Audio>` sinkron pada frame membalik kartu.
+  - `video-editor/src/styles/meme-discovery/types.ts`: Definisi prop `sfxSrc` dan `enableSfx`.
+  - `video-editor/public/sfx/achievement.webm`: Aset audio efek suara achievement chime.
+
+## [3cf2cd0] - Elimination of Last-Frame Canvas Extraction in Favor of Seamless In-Place Video Freeze
 - **Konteks Struktural**:
   - Penghapusan Mekanisme Ekstraksi Frame Terakhir & Penerapan Freeze Alami In-Place ([MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), [App.tsx](file:///d:/projects/clipping/video-editor/src/App.tsx), [types.ts](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/types.ts)):
     - **Penyebab & Kebutuhan**: Mekanisme `lastFrameImage` sebelumnya mengekstrak frame menggunakan kanvas offscreen di `videoDurationSeconds - 0.45` yang menyebabkan efek melompat (frame jump) saat pergantian dari video bergerak ke gambar statis. Pengguna meminta mekanisme capture frame terakhir dihilangkan sepenuhnya: video dibiarkan diputar biasa, tidak langsung di-unmount/dihancurkan saat selesai, tidak melakukan replay/jump back, ditahan (freeze) selama jeda pause dan animasi skip mundur YouTube, dan baru ditutup/dilepas setelah tertutupi penuh secara sempurna oleh frame puncak target x (`targetFrameImage`).

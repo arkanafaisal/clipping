@@ -1,8 +1,10 @@
 import React from 'react';
 import {
   AbsoluteFill,
+  Audio,
   Freeze,
   Img,
+  Sequence,
   spring,
   useCurrentFrame,
   useVideoConfig,
@@ -34,6 +36,8 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
   passiveDescFontSize,
   cardImageSrc,
   targetFrameImage,
+  sfxSrc = '/sfx/achievement.webm',
+  enableSfx = true,
   showSafeZoneGuides = false,
 }) => {
   const frame = useCurrentFrame();
@@ -159,6 +163,13 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
         <div className="absolute inset-0 z-30 pointer-events-none">
           <ShutterFlash progress={flashProgress} />
         </div>
+      )}
+
+      {/* Sound Effect: Item Discovery / Achievement Chime saat kartu membalik & membuka teks */}
+      {enableSfx && sfxSrc && isCardRevealed && (
+        <Sequence from={cardStartFrame + 27} durationInFrames={75}>
+          <Audio src={sfxSrc} volume={0.85} />
+        </Sequence>
       )}
 
       {/* Kartu Koleksi Meme Minimalis: Muncul kecil dari bawah, lalu Flip 3D Reveal Teks di Tengah */}

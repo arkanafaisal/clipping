@@ -29,6 +29,9 @@ export interface MemeDiscoveryProps {
   passiveDescFontSize?: number;
   cardImageSrc?: string; // bisa dari file gambar 1:1 di Drive atau freeze video frame
   targetFrameImage?: string;
+  // Efek Suara Item Discovery / Achievement Unlocked Chime
+  sfxSrc?: string;
+  enableSfx?: boolean;
   // Panduan visual safe zone 80% (untuk inspeksi di browser editor)
   showSafeZoneGuides?: boolean;
   [key: string]: unknown;
