@@ -14,9 +14,27 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
+## [Unreleased] - Modularize Video Editing Styles, Integrate Video Duration Metadata, and Implement Meme Discovery with Millisecond Frame Inspector
+- **Konteks Struktural**:
+  - Restrukturisasi Modular Style Edit & Utilitas Waktu Bersama ([video-editor/src/styles/](file:///d:/projects/clipping/video-editor/src/styles/), [video-editor/src/utils/time.ts](file:///d:/projects/clipping/video-editor/src/utils/time.ts)):
+    - **Penyebab & Kebutuhan**: Proyek akan memiliki banyak ragam variasi gaya video editing (misalnya "Meme Discovery", "Roulette Quiz", dll.). Komposisi yang menumpuk di satu folder membuat arsitektur sulit dikembangkan dan tidak modular. Selain itu, pengguna membutuhkan style edit baru "Meme Discovery" (video berputar normal, di akhir terjadi animasi rewind/undo ke frame spesifik facecam lucu, shutter flash kamera putih halus, dan reveal kartu Pokemon holographic 1:1), serta mekanisme akurat untuk mendapatkan nilai detik & milidetik target tanpa menebak-nebak.
+    - **Solusi**:
+      1. Memisahkan struktur komponen per-style di bawah `src/styles/<nama-style>/` (`src/styles/meme-discovery/` dan `src/styles/roulette-quiz/`) dengan tipe props masing-masing, sembari menyediakan utilitas konversi waktu bersama di `src/utils/time.ts` (`parseTimestampToSeconds`, `secondsToTimestamp`, `framesToTimestamp`, `timestampToFrames`).
+      2. Memperbarui `video-editor/scripts/gdrive.js` untuk meminta field `videoMediaMetadata` ke Google Drive API, sehingga nilai durasi asli (`durationMillis`), lebar, dan tinggi video dapat langsung tercatat di `src/data.json` tanpa perlu mendownload file atau menjalankan ffprobe secara terpisah.
+      3. Mengimplementasikan komposisi `MemeDiscoveryComposition` lengkap dengan sub-komponen: `RewindEffect` (visual scanline, time counter mundur, dan scrubber video), `ShutterFlash` (flash putih halus efek shutter kamera), dan `PokemonCard` (kartu holographic 1:1 bergaya Pokemon Trading Card dengan efek kemilau dinamis, status HP, nama jurus, dan kartu gambar yang mendukung file 1:1 `image.jpg` dari Drive maupun fallback frame video beku pada detik target).
+      4. Mengembangkan komponen perkakas interaktif `FrameInspector` (`video-editor/src/components/FrameInspector.tsx`) dengan stepper per-frame (`-1F`, `+1F` ~33ms) dan per-detik (`-1s`, `+1s`) serta tombol 1-klik "Jadikan Target Undo" untuk menemukan posisi detik & milidetik presisi tinggi secara visual.
+      5. Menghubungkan kedua style ("Meme Discovery" dan "Roulette Quiz") ke dalam `video-editor/src/remotion/Root.tsx` dan `video-editor/src/App.tsx` dengan tab selector interaktif.
+- **Perubahan Kode Penting**:
+  - `video-editor/scripts/gdrive.js`: Menambahkan `videoMediaMetadata` pada query Drive API untuk mengekstrak `durationSeconds`, `durationFormatted`, `width`, dan `height`.
+  - `video-editor/src/data.json`: Menyimpan metadata durasi dan dimensi video momen.
+  - `video-editor/src/utils/time.ts`: Helper manipulasi waktu presisi tinggi (frame <-> detik <-> string "MM:SS.mmm").
+  - `video-editor/src/styles/meme-discovery/`: Tipe props, efek rewind, efek shutter flash, kartu 1:1 pokemon, dan komposisi utama `MemeDiscoveryComposition`.
+  - `video-editor/src/styles/roulette-quiz/`: Migrasi modular untuk style roulette quiz.
+  - `video-editor/src/components/FrameInspector.tsx`: Komponen UI penemu detik & milidetik presisi tinggi.
+  - `video-editor/src/remotion/Root.tsx`: Mendaftarkan composition `MemeDiscovery` dan `RouletteQuiz`.
+  - `video-editor/src/App.tsx`: Tab navigasi style switcher, integrasi frame inspector, dan kontrol kustomisasi kartu.
 
-
-## [Unreleased] - Consolidate Metadata into Single src/data.json, Remove Redundant IDs, and Humanize Timestamp
+## [c70d9b1] - Consolidate Metadata into Single src/data.json, Remove Redundant IDs, and Humanize Timestamp
 - **Konteks Struktural**:
   - Konsolidasi Berkas Metadata & Penyederhanaan Properti ([data.json](file:///d:/projects/clipping/video-editor/src/data.json), [gdrive.js](file:///d:/projects/clipping/video-editor/scripts/gdrive.js)):
     - **Penyebab & Kebutuhan**: Sebelumnya metadata disimpan di dua lokasi berbeda (`src/data/metadata.json` dan `public/metadata.json`) yang redundan. Selain itu, objek momen memuat properti `folderId` yang identik dengan `id`, root metadata memuat `rootFolderId` yang sebenarnya sudah tersimpan di `.env`, dan format tanggal menggunakan ISO string yang kurang ramah dibaca manusia.

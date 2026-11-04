@@ -1,5 +1,5 @@
 {
-  "lastUpdate": "2026-11-04 07:20:35",
+  "lastUpdate": "2026-11-04 07:36:03",
   "totalMoments": 1,
   "moments": [
     {
@@ -13,6 +13,10 @@
           "mimeType": "video/mp4",
           "size": 11883580,
           "sizeFormatted": "11.33 MB",
+          "durationSeconds": 10.95,
+          "durationFormatted": "10.95s",
+          "width": 1080,
+          "height": 1920,
           "tempRelPath": "temp/grim reaper/full.mp4"
         },
         "cut": null,

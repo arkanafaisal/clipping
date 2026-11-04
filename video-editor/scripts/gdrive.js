@@ -98,7 +98,7 @@ export function formatBytes(bytes) {
 export async function crawlGoogleDrive(drive, parentId = GDRIVE_ROOT_FOLDER_ID, currentPath = '') {
   const res = await drive.files.list({
     q: `'${parentId}' in parents and trashed = false`,
-    fields: 'files(id, name, mimeType, size)',
+    fields: 'files(id, name, mimeType, size, videoMediaMetadata)',
     pageSize: 100,
   });
 
@@ -136,6 +136,14 @@ export async function crawlGoogleDrive(drive, parentId = GDRIVE_ROOT_FOLDER_ID, 
               mimeType: fullFile.mimeType,
               size: Number(fullFile.size || 0),
               sizeFormatted: formatBytes(Number(fullFile.size || 0)),
+              durationSeconds: fullFile.videoMediaMetadata?.durationMillis
+                ? parseFloat((Number(fullFile.videoMediaMetadata.durationMillis) / 1000).toFixed(2))
+                : null,
+              durationFormatted: fullFile.videoMediaMetadata?.durationMillis
+                ? `${(Number(fullFile.videoMediaMetadata.durationMillis) / 1000).toFixed(2)}s`
+                : null,
+              width: fullFile.videoMediaMetadata?.width || 1080,
+              height: fullFile.videoMediaMetadata?.height || 1920,
               tempRelPath: `temp/${currentPath}/${fullFile.name}`,
             }
           : null,
