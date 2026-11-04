@@ -14,7 +14,15 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Minimalist Meme Amulet Card Redesign, Proportional Typography, and Studio Sidebar Live Editing
+## [Unreleased] - Add Rule 27: Prohibition of Browser Automation on Simple Tasks
+- **Konteks Struktural**:
+  - Penambahan Rule 27 pada Sistem Aturan ([GEMINI.md](file:///d:/projects/clipping/GEMINI.md)):
+    - **Penyebab & Kebutuhan**: Pengguna menginstruksikan bahwa otomasi browser seperti Chromium, Chrome DevTools MCP, atau Playwright tidak perlu dipanggil untuk tugas-tugas sepele (pengaturan visual langsung, pengeditan kode logika sederhana, atau pengecekan cepat) karena alat otomasi browser menyebabkan overhead latensi tinggi, risiko timeout koneksi, dan pemborosan waktu turn.
+    - **Solusi**: Menambahkan aturan `27. [TOOL]` ke dalam [`GEMINI.md`](file:///d:/projects/clipping/GEMINI.md) yang secara tegas melarang penggunaan tool otomasi browser untuk tugas-tugas sepele dan mewajibkan eksekusi langsung pada kode.
+- **Perubahan Kode Penting**:
+  - `GEMINI.md`: Penambahan aturan Rule 27 [TOOL].
+
+## [841a358] - Minimalist Meme Amulet Card Redesign, Proportional Typography, and Studio Sidebar Live Editing
 - **Konteks Struktural**:
   - Redesain Kartu Meme Koleksi Minimalis & Panel Editor Sidebar ([PokemonCard.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/PokemonCard.tsx), [MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), [types.ts](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/types.ts), [App.tsx](file:///d:/projects/clipping/video-editor/src/App.tsx), [data.json](file:///d:/projects/clipping/video-editor/src/data.json)):
     - **Penyebab & Kebutuhan (prompts.md:L2)**: Pengguna meminta agar kartu meme didesain ulang menjadi minimalis (bukan lagi format kartu battle Pokemon TCG yang padat):
@@ -4079,73 +4087,5 @@ Format Entri:
     - Dibuat baru untuk merender baris atas rentang waktu, download progress, fine-tuning, dan edit milidetik.
   - [mobile/src/components/FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
     - Mengimpor komponen-komponen baru dari `./feed/`.
-    - Menghapus komponen lokal, inline JSX lama, dan gaya-gaya spesifik yang telah dipindahkan ke masing-masing komponen.
-
-## [3a0bed5] - Compensate Timeline Drift with Universal 500ms Tail Offset in Clip Downloader Cut
-- **Konteks Struktural**:
-  1. Mengatasi masalah pemotongan klip yang selesai prematur / adegan penutup terpotong pada [clip_downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/clip_downloader.py):
-     - Ditemukan adanya *timeline drift* sistematis (~500ms) antara stream online preview progressive MP4 30fps dan segmen HLS 1080p 60fps dengan durasi paket pecahan acak dari YouTube.
-     - Menambahkan kompensasi offset universal sebesar +500ms (+0.5 detik) langsung pada rentang `end_num`.
-  2. Dampak Pemotongan FFmpeg:
-     - Segmen unduhan sementara di tahap 1 (HLS copy) dan durasi pemotongan offline presisi di tahap 2 (FFmpeg filter `trim`/`atrim`) secara otomatis mencakup durasi tambahan +500ms.
-     - Hal ini menjamin bahwa seluruh adegan, dialog, dan kalimat terakhir yang didengar pengguna saat mode klip di feed tidak terpotong prematur saat file fisik diputar.
-- **Perubahan Kode Penting**:
-  - [mobile/scripts/utils/clip_downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/clip_downloader.py):
-    - Menambahkan `end_num += 0.5` tepat setelah validasi rentang waktu `start` dan `end`.
-
-## [ce906c0] - Implement Millisecond Precision Time Range Editing in Clip Mode
-- **Konteks Struktural**:
-  1. Menghadirkan fitur penyuntingan presisi milidetik pada rentang klip di [FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx) untuk menyamakan mekanisme dengan antarmuka web:
-     - Angka waktu mulai (`start`) dan selesai (`end`) pada mode klip kini dapat ditekan (*pressable*) secara independen untuk mengaktifkan mode input numerik.
-     - Mode input hanya dapat aktif untuk salah satu sisi pada satu waktu (`start` atau `end`).
-     - Terdapat overlay latar belakang transparan (`dismissOverlay` pada zIndex 15) dan event `onBlur` pada TextInput sehingga saat user menekan sembarang area di luar baris rentang, mode input otomatis tertutup secara instan.
-  2. Logika Parsing dan Pembulatan Milidetik:
-     - Input dibatasi maksimal 2 digit numerik.
-     - Jika pengguna memasukkan 1 digit (misal `6`), nilai otomatis dievaluasi sebagai ratusan milidetik (`60` centiseconds = 600ms).
-     - Jika pengguna memasukkan 2 digit (misal `65` centiseconds = 650ms), digit ketiga otomatis bernilai 0.
-     - Format tampilan non-edit (`formatDisplayTime`) menampilkan milidetik dua digit (`mm:ss.cc`) hanya bila nilai klip memiliki pecahan desimal, dan tetap ringkas (`mm:ss`) bila detik bulat.
-  3. Integrasi Auto-Seek Terpusat:
-     - Mengikuti `centralizedSeek` yang sudah ter-debounce secara trailing (500ms untuk stream online, 0ms untuk file lokal) sehingga seeking pemutar video tetap sinkron tanpa membebani kuota atau terkena rate limit.
-- **Perubahan Kode Penting**:
-  - [mobile/src/components/FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
-    - Mengimpor `TextInput` dan `Keyboard` dari `react-native`.
-    - Menambahkan fungsi helper `formatDisplayTime(seconds: number): string`.
-    - Menambahkan state `activeTimeEdit` (`'start' | 'end' | null`) dan `tempTimeValue`.
-    - Mengimplementasikan handler `handleMsTimeChange(type, valStr)` dengan kalkulasi centiseconds dan integrasi `centralizedSeek`.
-    - Menambahkan `dismissOverlay` pada root JSX dan styling `timePressable`, `timeInput`, `timeInputStart`, `timeInputEnd`.
-    - Menambahkan reset `setActiveTimeEdit(null)` saat berpindah klip di carousel.
-
-## [dedcbc4] - Fix Premature Clip End and Enable Instant Zero-Latency Local File Seek
-- **Konteks Struktural**:
-  1. Mengoptimalkan responsivitas pemutar video pada [FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
-     - Menghilangkan *debounce* 500ms (menjadi 0ms instan) pada fungsi `centralizedSeek` ketika klip yang sedang diputar adalah file lokal fisik (`file://...`).
-     - Mempertahankan debounce 500ms hanya untuk mode online stream YouTube guna mencegah limit request (HTTP 429).
-- **Perubahan Kode Penting**:
-  - [mobile/src/components/FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
-    - Menyesuaikan `debounceMs = isLocalMode ? 0 : 500` pada `centralizedSeek` agar seeking pada file lokal berjalan secara instan 0ms tanpa jeda waktu.
-
-## [eeead41] - Implement Throttled Two-Stage Realtime Download Progress Tracking (Python Copy & FFmpeg Cut)
-- **Konteks Struktural**:
-  1. Mengimplementasikan mekanisme pelacakan progress unduhan klip secara bertahap dan realtime tanpa memerlukan rebuild binary APK native Android (zero Kotlin changes).
-  2. Alur terbagi menjadi dua tahap terisolasi:
-     - **Tahap 1 (Python Copy / HLS Segments)**: Python mengunduh segmen video dan audio asli secara asinkron, menghitung rasio segmen yang telah terunduh (`percent` 0–100%), dan menulis status secara atomik dengan throttling interval 250ms untuk menjaga performa flash storage.
-     - **Tahap 2 (Offline FFmpeg Precision Cut)**: FFmpeg dijalankan dengan parameter `-progress` ke file sementara, lalu thread Python mem-parsing `out_time_us` berbanding durasi klip target (`cut_dur`) untuk melaporkan persentase pemotongan presisi secara realtime.
-  3. Mengikuti Rule 12 dan Rule 16: Backend Python hanya mengembalikan status kode standar (`STAGE_INIT`, `STAGE_1_COPY`, `STAGE_2_CUT`, `STAGE_COMPLETE`) beserta angka persentase mentah (`percent`). Frontend React Native yang bertanggung jawab menerjemahkan kode ke label teks ramah pengguna yang rapi ("Menyiapkan...", "Unduh 45%", "Potong 80%").
-  4. Komponen tombol unduh pada [FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx) otomatis bertransformasi menjadi pill interaktif dengan spinner dan teks persentase dinamis saat proses berlangsung, serta dibersihkan secara aman (leak-proof) saat unduhan selesai.
-- **Perubahan Kode Penting**:
-  - [mobile/scripts/utils/clip_downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/clip_downloader.py):
-    - Menambahkan parameter `progress_path`, fungsi bantuan `write_progress` dengan throttling 250ms, kalkulasi persentase pada `download_file_segments`, serta pembacaan progress FFmpeg `out_time_us`.
-  - [mobile/src/services/api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts):
-    - Menambahkan parameter `progressPath` opsional pada `downloadClip` dan meneruskannya ke pemanggilan skrip `download_clip_direct`.
-  - [mobile/src/components/FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
-    - Mengintegrasikan state `downloadProgress`, timer polling file 300ms, fungsi formatting `getDownloadProgressLabel()`, unmount cleanup, serta styling pill aktif `downloadBtnActive` dan `downloadProgressText`.
-
-## [7353f13] - Implement SubtitleEditModal, Realtime CC Overlay, and Download-to-Subtitle Button Transition
-- **Konteks Struktural**:
-  1. Menghubungkan alur pasca-download pada [FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx):
-     - Ketika klip berstatus `done` dan belum diunduh: menampilkan tombol download (`Download` icon atau spinner loading).
-     - Ketika klip sudah selesai diunduh: tombol download disembunyikan sepenuhnya (bukan tombol centang mati) dan digantikan oleh tombol Subtitle (`Subtitles` icon) serta tombol toggle Closed Caption (`CC`).
-  2. Membuat komponen modal baru [SubtitleEditModal.tsx](file:///d:/projects/clipping/mobile/src/components/SubtitleEditModal.tsx) untuk me-review, menyunting, menambah/menghapus baris cue subtitle, mengatur waktu per-baris (-0.2s / +0.2s), me-reset ke teks asli YouTube, dan menyimpan ke file shared storage (`<start> - <end>.json`).
-  3. Mengaktifkan Subtitle Layer 1 (Realtime Non-Destructive Preview) di atas pemutar video: teks subtitle aktif disinkronkan secara instan (0ms latency) dengan posisi putar video (`timeUpdate`), dengan pill overlay hitam transparan yang elegan.
-  4. Memperbaiki pemfilteran track subtitle di [subtitle_fetcher.py](file:///d:/projects/clipping/mobile/scripts/utils/subtitle_fetcher.py) agar mengabaikan track `live_chat` (chat replay) dan memprioritaskan subtitle ucapan aktual (`id`, 
+    - Menghapus komponen lokal, inline JSX lama, dan gaya-gaya spesifik yang tela
 ... [truncated for diff preview]
