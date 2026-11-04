@@ -2,6 +2,7 @@ import React from 'react';
 import {
   AbsoluteFill,
   Freeze,
+  Img,
   spring,
   useCurrentFrame,
   useVideoConfig,
@@ -23,6 +24,8 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
   cardSubtitle = 'Meme Discovery Series #01',
   cardRarity = '⭐⭐⭐⭐⭐ SSR LEGENDARY',
   cardImageSrc,
+  lastFrameImage,
+  targetFrameImage,
   hp = 9999,
   attackName = 'Ekspresi Lucu Jumpscare',
   attackDesc = 'Menatap tajam ke kamera dengan ekspresi bingung yang memicu tawa penonton.',
@@ -102,42 +105,57 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
       {/* 1. VIDEO LAYER: Mengisi Penuh 100% Canvas 1080x1920        */}
       {/*    Video full.mp4 sudah memiliki format 9:16 dan safe zone */}
       {/* ======================================================== */}
-      {videoSrc ? (
-        <AbsoluteFill className="overflow-hidden flex items-center justify-center bg-black">
-          {isPlayingFull ? (
-            /* 1. Putar video penuh utuh tanpa gangguan */
+      {/* 1. LAYER VIDEO / GAMBAR FRAME BEKU (Video Player Sembunyi Begitu Video Selesai) */}
+      <AbsoluteFill className="overflow-hidden flex items-center justify-center bg-black">
+        {isPlayingFull ? (
+          /* A. Putar video penuh utuh terlebih dahulu menggunakan video player */
+          videoSrc ? (
             <Video
               src={videoSrc}
               className="w-full h-full object-cover"
             />
-          ) : frame < skipEndFrame ? (
-            /* 2. Jeda pause & animasi skip YouTube: Bekukan di frame terakhir video */
+          ) : (
+            <div className="text-center p-8 text-neutral-500 font-mono text-sm">
+              Video tidak ditemukan. Jalankan <code className="text-amber-400">npm run download</code>
+            </div>
+          )
+        ) : frame < skipEndFrame ? (
+          /* B. Video player disembunyikan! Tampilkan gambar freezed frame terakhir video (tanpa jeda/seek) */
+          lastFrameImage ? (
+            <Img
+              src={lastFrameImage}
+              className="w-full h-full object-cover"
+            />
+          ) : videoSrc ? (
             <Freeze frame={Math.max(0, playEndFrame - 1)}>
               <Video
                 src={videoSrc}
                 className="w-full h-full object-cover pointer-events-none"
               />
             </Freeze>
-          ) : (
-            /* 3. Setelah efek skip: Bekukan PERSIS di targetFrame (detik frame lucu x) */
+          ) : null
+        ) : (
+          /* C. Setelah efek skip YouTube selesai: Langsung ganti ke freezed frame target momen lucu */
+          targetFrameImage ? (
+            <Img
+              src={targetFrameImage}
+              className="w-full h-full object-cover"
+            />
+          ) : videoSrc ? (
             <Freeze frame={targetFrame}>
               <Video
                 src={videoSrc}
                 className="w-full h-full object-cover pointer-events-none"
               />
             </Freeze>
-          )}
+          ) : null
+        )}
 
-          {/* Video Dimming Overlay saat kartu muncul */}
-          {isCardRevealed && (
-            <div className="absolute inset-0 bg-black/80 backdrop-blur-sm transition-all duration-300 z-20" />
-          )}
-        </AbsoluteFill>
-      ) : (
-        <div className="text-center p-8 text-neutral-500 font-mono text-sm">
-          Video tidak ditemukan. Jalankan <code className="text-amber-400">npm run download</code>
-        </div>
-      )}
+        {/* Video Dimming Overlay saat kartu muncul */}
+        {isCardRevealed && (
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm transition-all duration-300 z-20" />
+        )}
+      </AbsoluteFill>
 
       {/* ======================================================== */}
       {/* 2. OVERLAYS & SEKUENS EFEK MEME DISCOVERY                */}
@@ -177,6 +195,7 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
             cardSubtitle={cardSubtitle}
             cardRarity={cardRarity}
             imageSrc={cardImageSrc}
+            targetFrameImage={targetFrameImage}
             videoSrc={videoSrc}
             targetUndoSeconds={targetUndoSeconds}
             hp={hp}

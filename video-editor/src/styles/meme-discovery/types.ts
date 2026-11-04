@@ -11,6 +11,9 @@ export interface MemeDiscoveryProps {
   cardSubtitle?: string;
   cardRarity?: string;
   cardImageSrc?: string; // bisa dari file gambar 1:1 di Drive atau freeze video frame
+  // Gambar frame beku statis (hasil tangkapan canvas, menghilangkan jeda/seek video)
+  lastFrameImage?: string;
+  targetFrameImage?: string;
   hp?: number;
   attackName?: string;
   attackDesc?: string;

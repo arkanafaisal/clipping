@@ -14,7 +14,31 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Fix Dynamic Frame Seeking and Freezing via Remotion Freeze Component
+## [Unreleased] - Replace Video Player Seek with Instant Static Frame Captures and Pure White SVG Rewind Icons
+- **Konteks Struktural**:
+  - Arsitektur Transisi Frame Statis Murni & Pembersihan Artefak Ikon ([App.tsx](file:///d:/projects/clipping/video-editor/src/App.tsx), [frameCapture.ts](file:///d:/projects/clipping/video-editor/src/utils/frameCapture.ts), [MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), [PokemonCard.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/PokemonCard.tsx), [RewindEffect.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/RewindEffect.tsx)):
+    - **Penyebab & Kebutuhan**: Pengguna memberikan arahan arsitektural yang lebih cerdas dan efisien: daripada memaksakan komponen `<Video>` untuk melakukan seek frame (yang menimbulkan jeda hitam / *black frame glitch* saat decoding di browser), lebih baik sembunyikan `<Video>` total begitu video selesai diputar. Sisa storyboard sebenarnya adalah frame statis, sehingga cukup menampilkan gambar frame beku secara instan. Selain itu, ikon panah rewind YouTube di Windows Chrome sebelumnya ter-render sebagai emoji berwarna kebiruan dari font sistem, yang diminta untuk diganti dengan panah SVG putih murni.
+    - **Solusi**:
+      1. Membuat modul utilitas browser murni [`frameCapture.ts`](file:///d:/projects/clipping/video-editor/src/utils/frameCapture.ts) yang mengekstrak frame video langsung menggunakan HTML5 offscreen video dan canvas 1080x1920 menjadi Data URL JPEG (`data:image/jpeg;base64,...`).
+      2. Di [`App.tsx`](file:///d:/projects/clipping/video-editor/src/App.tsx), menangkap dua frame gambar statis:
+         - `lastFrameImage`: frame paling akhir video untuk fase jeda pause & efek skip YouTube.
+         - `targetFrameImage`: frame target x momen lucu yang responsif diperbarui setiap kali `targetTimestamp` diubah.
+      3. Di [`MemeDiscoveryComposition.tsx`](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx):
+         - Saat video diputar (0 s/d `playEndFrame`): komponen `<Video>` diputar utuh.
+         - Begitu video selesai: elemen `<Video>` langsung disembunyikan total (`hide`), dan digantikan oleh komponen `<Img src={lastFrameImage} />` dengan overlay pause lembut di tengah (tanpa jeda hitam / 0ms seek delay).
+         - Saat efek skip YouTube berjalan: tetap menampilkan `lastFrameImage`.
+         - Begitu efek skip selesai: gambar latar langsung berganti seketika ke `<Img src={targetFrameImage} />`.
+         - Dilanjutkan efek screenshot flash camera dan kemunculan kartu Pokemon TCG.
+      4. Di [`PokemonCard.tsx`](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/PokemonCard.tsx): jendela ilustrasi 1:1 kartu memprioritaskan `imageSrc` (Drive), lalu fallback ke `targetFrameImage` (gambar statis hasil tangkapan canvas), menghasilkan tampilan gambar kartu yang instan dan sangat tajam.
+      5. Di [`RewindEffect.tsx`](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/RewindEffect.tsx): mengganti karakter panah teks unicode dengan tiga elemen SVG `<polygon points="18,4 18,20 6,12" />` berwarna putih murni dengan animasi riak opasitas, menghilangkan tampilan emoji biru Windows.
+- **Perubahan Kode Penting**:
+  - `video-editor/src/utils/frameCapture.ts`: Utilitas ekstraksi frame video offscreen via HTML5 canvas.
+  - `video-editor/src/App.tsx`: Hooks ekstraksi `lastFrameImage` dan `targetFrameImage`.
+  - `video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx`: Hide video player pasca-play dan render gambar statis instan via `<Img>`.
+  - `video-editor/src/styles/meme-discovery/components/PokemonCard.tsx`: Integrasi `targetFrameImage` pada ilustrasi kartu 1:1.
+  - `video-editor/src/styles/meme-discovery/components/RewindEffect.tsx`: SVG panah segitiga YouTube putih murni anti-emoji biru.
+
+## [01ae832] - Fix Dynamic Frame Seeking and Freezing via Remotion Freeze Component
 - **Konteks Struktural**:
   - Sinkronisasi Akurat Frame Target x & Fallback Kartu ([MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), [PokemonCard.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/PokemonCard.tsx), [time.ts](file:///d:/projects/clipping/video-editor/src/utils/time.ts)):
     - **Penyebab & Kebutuhan**: Pengguna mendapati bahwa mengubah timestamp posisi frame (misalnya menjadi `7.1` atau `2`) pada input web studio tidak mengubah frame yang ter-freeze di video maupun frame cuplikan fallback pada kartu Pokemon TCG (tampilan tetap statis pada akhir video).

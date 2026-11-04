@@ -43,11 +43,29 @@ export const RewindEffect: React.FC<RewindEffectProps> = ({
         }}
       >
         <div className="flex flex-col items-center gap-2 pr-10">
-          {/* Tiga panah segitiga YouTube beriak ke arah kiri */}
-          <div className="flex items-center gap-2 text-white text-5xl font-black drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)] select-none">
-            <span style={{ opacity: opacity3 }}>◀</span>
-            <span style={{ opacity: opacity2 }}>◀</span>
-            <span style={{ opacity: opacity1 }}>◀</span>
+          {/* Tiga panah segitiga YouTube beriak ke arah kiri (SVG Murni, anti emoji biru OS) */}
+          <div className="flex items-center gap-1.5 drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)] select-none">
+            <svg
+              className="w-10 h-10 fill-white transition-opacity"
+              viewBox="0 0 24 24"
+              style={{ opacity: opacity3 }}
+            >
+              <polygon points="18,4 18,20 6,12" />
+            </svg>
+            <svg
+              className="w-10 h-10 fill-white transition-opacity"
+              viewBox="0 0 24 24"
+              style={{ opacity: opacity2 }}
+            >
+              <polygon points="18,4 18,20 6,12" />
+            </svg>
+            <svg
+              className="w-10 h-10 fill-white transition-opacity"
+              viewBox="0 0 24 24"
+              style={{ opacity: opacity1 }}
+            >
+              <polygon points="18,4 18,20 6,12" />
+            </svg>
           </div>
 
           {/* Teks durasi lompatan detik ala YouTube */}

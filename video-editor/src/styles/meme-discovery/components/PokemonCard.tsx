@@ -1,11 +1,12 @@
 import React from 'react';
-import { Freeze, interpolate, Video } from 'remotion';
+import { Freeze, Img, interpolate, Video } from 'remotion';
 
 interface PokemonCardProps {
   cardTitle: string;
   cardSubtitle?: string;
   cardRarity?: string;
   imageSrc?: string;
+  targetFrameImage?: string;
   videoSrc?: string;
   targetUndoSeconds: number;
   hp?: number;
@@ -30,6 +31,7 @@ export const PokemonCard: React.FC<PokemonCardProps> = ({
   cardSubtitle = 'Meme Discovery Card',
   cardRarity = '⭐⭐⭐⭐⭐ SSR LEGENDARY',
   imageSrc,
+  targetFrameImage,
   videoSrc,
   targetUndoSeconds,
   hp = 9999,
@@ -105,8 +107,15 @@ export const PokemonCard: React.FC<PokemonCardProps> = ({
         <div className="relative w-full aspect-square max-h-[460px] rounded-2xl overflow-hidden border-4 border-amber-400/90 bg-black shadow-2xl flex items-center justify-center">
           {imageSrc ? (
             /* Gambar 1:1 Asli dari Google Drive (image.jpg) */
-            <img
+            <Img
               src={imageSrc}
+              alt={cardTitle}
+              className="w-full h-full object-cover"
+            />
+          ) : targetFrameImage ? (
+            /* Gambar frame beku hasil tangkapan canvas (instan tanpa delay video) */
+            <Img
+              src={targetFrameImage}
               alt={cardTitle}
               className="w-full h-full object-cover"
             />

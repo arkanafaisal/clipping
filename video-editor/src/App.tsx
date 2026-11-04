@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Player } from '@remotion/player';
 import { MemeDiscoveryComposition } from './styles/meme-discovery/MemeDiscoveryComposition';
 import { RouletteQuizComposition } from './styles/roulette-quiz/RouletteQuizComposition';
 import initialData from './data.json';
+import { captureVideoFrame } from './utils/frameCapture';
+import { parseTimestampToSeconds } from './utils/time';
 import { ArrowLeft, Check, Save, Sparkles, Layers } from 'lucide-react';
 
 type StyleMode = 'meme-discovery' | 'roulette-quiz';
@@ -30,6 +32,27 @@ export default function App() {
   const imageSrc = currentMoment?.files?.image
     ? `/temp/${currentMoment.path}/image.jpg`
     : undefined;
+
+  // Tangkapan frame beku statis (canvas) agar bebas jeda hitam & bebas seek delay
+  const [lastFrameImage, setLastFrameImage] = useState<string | undefined>();
+  const [targetFrameImage, setTargetFrameImage] = useState<string | undefined>();
+
+  // Tangkap frame terakhir saat videoSrc / videoDuration siap
+  useEffect(() => {
+    if (!videoSrc) return;
+    captureVideoFrame(videoSrc, Math.max(0, videoDurationSeconds - 0.05))
+      .then((dataUrl) => setLastFrameImage(dataUrl))
+      .catch((err) => console.warn('Gagal ekstrak frame terakhir:', err));
+  }, [videoSrc, videoDurationSeconds]);
+
+  // Tangkap frame target momen lucu setiap kali targetTimestamp berubah
+  useEffect(() => {
+    if (!videoSrc) return;
+    const targetSec = parseTimestampToSeconds(targetTimestamp);
+    captureVideoFrame(videoSrc, targetSec)
+      .then((dataUrl) => setTargetFrameImage(dataUrl))
+      .catch((err) => console.warn('Gagal ekstrak frame target:', err));
+  }, [videoSrc, targetTimestamp]);
 
   // Total durasi sekuens video berurutan:
   // 1. Video full play (Math.round(totalVideoDurationSeconds * 30))
@@ -99,6 +122,8 @@ export default function App() {
                 targetUndoTimestamp: targetTimestamp,
                 totalVideoDurationSeconds: videoDurationSeconds,
                 cardImageSrc: imageSrc,
+                lastFrameImage,
+                targetFrameImage,
                 title: currentMoment?.memeDiscovery?.title || 'Meme Discovery: Momen Langka!',
                 gameTitle: currentMoment?.name || 'Grim Reaper',
                 cardTitle: currentMoment?.memeDiscovery?.cardTitle || 'Grim Reaper Facecam',
