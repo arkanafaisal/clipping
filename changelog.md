@@ -14,7 +14,20 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Add Rule 27: Prohibition of Browser Automation on Simple Tasks
+## [Unreleased] - Enlarge Card Typography for High Legibility, Compact 1:1 Image, and Exact Lowercase Placeholders
+- **Konteks Struktural**:
+  - Penyesuaian Skala Tipografi Kartu & Kompaksi Gambar 1:1 ([PokemonCard.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/PokemonCard.tsx), [App.tsx](file:///d:/projects/clipping/video-editor/src/App.tsx)):
+    - **Penyebab & Kebutuhan (prompts.md:L2)**: Pada kanvas 1080x1920 yang di-scale down ~0.32x di layar laptop, teks kartu sebelumnya terasa terlalu kecil dan sulit dibaca. Selain itu, gambar 1:1 dikompakkan agar tidak terlalu dominan dan memberikan ruang vertikal yang lapang untuk teks, serta placeholder diselaraskan dengan instruksi exact lowercase.
+    - **Solusi**:
+      1. Di [`PokemonCard.tsx`](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/PokemonCard.tsx), memperbesar ukuran font secara proporsional: Judul Kartu menjadi `text-5xl font-black` (48px), Rarity menjadi `text-2xl font-black text-amber-400` (24px), Deskripsi Utama menjadi `text-3xl text-neutral-200` (30px), Nama Pasif menjadi `text-3xl font-black text-amber-300` (30px), dan Deskripsi Pasif menjadi `text-2xl text-neutral-300` (24px).
+      2. Mengatur ukuran gambar 1:1 menjadi `w-[360px]` di dalam kartu `w-[740px]` dengan padding horizontal `px-12`, sehingga ketinggian kartu sangat terkontrol dan proporsional.
+      3. Menyelaraskan teks placeholder persis sesuai kutipan: `"judul kartu"`, `"rarity"`, `"ini deskripsi panjang, maksimal 40 kata"`, `"pasif"`, dan `"ini deskripsi pasif"`.
+      4. Di [`App.tsx`](file:///d:/projects/clipping/video-editor/src/App.tsx), menyelaraskan placeholder pada form sidebar.
+- **Perubahan Kode Penting**:
+  - `video-editor/src/styles/meme-discovery/components/PokemonCard.tsx`: Skala teks besar proporsional, gambar 1:1 360px, exact placeholder.
+  - `video-editor/src/App.tsx`: Sinkronisasi placeholder form sidebar.
+
+## [93cd1e7] - Add Rule 27: Prohibition of Browser Automation on Simple Tasks
 - **Konteks Struktural**:
   - Penambahan Rule 27 pada Sistem Aturan ([GEMINI.md](file:///d:/projects/clipping/GEMINI.md)):
     - **Penyebab & Kebutuhan**: Pengguna menginstruksikan bahwa otomasi browser seperti Chromium, Chrome DevTools MCP, atau Playwright tidak perlu dipanggil untuk tugas-tugas sepele (pengaturan visual langsung, pengeditan kode logika sederhana, atau pengecekan cepat) karena alat otomasi browser menyebabkan overhead latensi tinggi, risiko timeout koneksi, dan pemborosan waktu turn.

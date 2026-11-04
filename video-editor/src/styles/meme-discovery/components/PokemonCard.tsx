@@ -34,16 +34,16 @@ export const PokemonCard: React.FC<PokemonCardProps> = ({
   // Animasi kartu meluncur naik DARI BAWAH layar ke tengah safe zone
   const translateY = interpolate(slideProgress, [0, 1], [1400, 0]);
 
-  // Fallbacks sesuai arahan prompts.md:L2
-  const displayTitle = cardTitle || 'Judul Kartu';
-  const displayRarity = cardRarity || 'Rarity';
-  const displayDesc = cardDesc || 'Ini deskripsi panjang, maksimal 40 kata';
-  const displayPassiveName = passiveName || 'Pasif';
-  const displayPassiveDesc = passiveDesc || 'Ini deskripsi pasif';
+  // Fallbacks placeholder persis sesuai arahan prompts.md:L2
+  const displayTitle = cardTitle || 'judul kartu';
+  const displayRarity = cardRarity || 'rarity';
+  const displayDesc = cardDesc || 'ini deskripsi panjang, maksimal 40 kata';
+  const displayPassiveName = passiveName || 'pasif';
+  const displayPassiveDesc = passiveDesc || 'ini deskripsi pasif';
 
   return (
     <div
-      className="relative w-[700px] rounded-[34px] p-4 bg-gradient-to-b from-amber-300 via-amber-500 to-amber-700 shadow-[0_0_90px_rgba(245,158,11,0.55),0_30px_60px_rgba(0,0,0,0.95)] border-2 border-yellow-200/90 select-none overflow-hidden"
+      className="relative w-[740px] rounded-[36px] p-5 bg-gradient-to-b from-amber-300 via-amber-500 to-amber-700 shadow-[0_0_100px_rgba(245,158,11,0.6),0_30px_70px_rgba(0,0,0,0.95)] border-2 border-yellow-200/90 select-none overflow-hidden"
       style={{
         transform: `translateY(${translateY}px)`,
         opacity: Math.min(1, slideProgress * 2.5),
@@ -59,10 +59,10 @@ export const PokemonCard: React.FC<PokemonCardProps> = ({
       />
 
       {/* 2. Body Dalam Kartu (Minimalis Jimat Koleksi Meme) */}
-      <div className="relative rounded-[24px] bg-gradient-to-b from-neutral-900 via-neutral-950 to-black p-5 border border-amber-500/40 flex flex-col items-center gap-4">
-        {/* BAGIAN PALING ATAS: Murni Gambar 1:1 dengan padding horizontal agar proporsional */}
-        <div className="w-full flex justify-center px-8 pt-1">
-          <div className="relative w-[430px] aspect-square rounded-2xl overflow-hidden border-2 border-amber-400/90 bg-black shadow-2xl flex items-center justify-center shrink-0">
+      <div className="relative rounded-[26px] bg-gradient-to-b from-neutral-900 via-neutral-950 to-black p-6 border border-amber-500/40 flex flex-col items-center gap-5">
+        {/* BAGIAN PALING ATAS: Murni Gambar 1:1, tidak full width (ada padding x kanan-kiri), ukuran compact ~360px */}
+        <div className="w-full flex justify-center px-12 pt-1">
+          <div className="relative w-[360px] aspect-square rounded-2xl overflow-hidden border-2 border-amber-400/90 bg-black shadow-2xl flex items-center justify-center shrink-0">
             {imageSrc ? (
               <Img
                 src={imageSrc}
@@ -89,29 +89,29 @@ export const PokemonCard: React.FC<PokemonCardProps> = ({
           </div>
         </div>
 
-        {/* DIBAWAH GAMBAR: Judul Kartu + Flex Col Rarity (Tanpa kata pembantu) */}
-        <div className="flex flex-col items-center text-center gap-1 px-4 w-full">
-          <h2 className="text-4xl font-black tracking-tight text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)] line-clamp-2">
+        {/* DIBAWAH GAMBAR: Judul Kartu + Flex Col Rarity (Ukuran besar & jelas terbaca) */}
+        <div className="flex flex-col items-center text-center gap-2 px-4 w-full">
+          <h2 className="text-5xl font-black tracking-tight text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.9)] line-clamp-2">
             {displayTitle}
           </h2>
-          <span className="text-xl font-extrabold text-amber-400 tracking-wider">
+          <span className="text-2xl font-black text-amber-400 tracking-wider">
             {displayRarity}
           </span>
         </div>
 
-        {/* DIBAWAHNYA LAGI: Deskripsi Biasa */}
-        <p className="text-2xl text-neutral-200 text-center leading-relaxed font-normal px-4 whitespace-pre-line">
+        {/* DIBAWAHNYA LAGI: Deskripsi Biasa (Ukuran text-3xl jelas terbaca) */}
+        <p className="text-3xl text-neutral-200 text-center leading-relaxed font-normal px-4 whitespace-pre-line drop-shadow">
           {displayDesc}
         </p>
 
         {/* DIBAWAHNYA LAGI: Pasif (Kekuatan / Jimat Lucu) */}
-        <div className="w-full rounded-2xl bg-neutral-900/90 border border-amber-500/40 p-4 flex flex-col items-center gap-1.5 text-center shadow-inner">
-          <span className="text-2xl font-black text-amber-300 uppercase tracking-wide flex items-center justify-center gap-2">
-            <span>🧿</span>
-            <span>{displayPassiveName}</span>
-            <span>🧿</span>
-          </span>
-          <p className="text-xl text-neutral-300 leading-relaxed font-normal px-2 whitespace-pre-line">
+        <div className="w-full rounded-2xl bg-neutral-900/90 border-2 border-amber-500/40 p-5 flex flex-col items-center gap-2.5 text-center shadow-inner">
+          <div className="px-5 py-1 rounded-full bg-amber-500/20 border border-amber-400/40">
+            <span className="text-3xl font-black text-amber-300 uppercase tracking-wider">
+              {displayPassiveName}
+            </span>
+          </div>
+          <p className="text-2xl text-neutral-300 leading-relaxed font-normal px-2 whitespace-pre-line">
             {displayPassiveDesc}
           </p>
         </div>

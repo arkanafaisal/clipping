@@ -305,7 +305,7 @@ export default function App() {
                   type="text"
                   value={cardTitle}
                   onChange={(e) => setCardTitle(e.target.value)}
-                  placeholder="Judul Kartu"
+                  placeholder="judul kartu"
                   className="w-full bg-black border border-neutral-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 transition-colors"
                 />
               </div>
@@ -319,7 +319,7 @@ export default function App() {
                   type="text"
                   value={cardRarity}
                   onChange={(e) => setCardRarity(e.target.value)}
-                  placeholder="Rarity"
+                  placeholder="rarity"
                   className="w-full bg-black border border-neutral-800 rounded-xl px-3 py-2 text-xs text-amber-400 font-bold focus:outline-none focus:border-amber-500 transition-colors"
                 />
               </div>
@@ -333,7 +333,7 @@ export default function App() {
                   rows={2}
                   value={cardDesc}
                   onChange={(e) => setCardDesc(e.target.value)}
-                  placeholder="Ini deskripsi panjang, maksimal 40 kata"
+                  placeholder="ini deskripsi panjang, maksimal 40 kata"
                   className="w-full bg-black border border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-200 focus:outline-none focus:border-amber-500 transition-colors resize-none"
                 />
               </div>
@@ -347,7 +347,7 @@ export default function App() {
                   type="text"
                   value={passiveName}
                   onChange={(e) => setPassiveName(e.target.value)}
-                  placeholder="Pasif"
+                  placeholder="pasif"
                   className="w-full bg-black border border-neutral-800 rounded-xl px-3 py-2 text-xs text-amber-300 font-semibold focus:outline-none focus:border-amber-500 transition-colors"
                 />
               </div>
@@ -361,7 +361,7 @@ export default function App() {
                   rows={2}
                   value={passiveDesc}
                   onChange={(e) => setPassiveDesc(e.target.value)}
-                  placeholder="Ini deskripsi pasif"
+                  placeholder="ini deskripsi pasif"
                   className="w-full bg-black border border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-300 focus:outline-none focus:border-amber-500 transition-colors resize-none"
                 />
               </div>
