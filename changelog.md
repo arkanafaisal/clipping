@@ -14,7 +14,20 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Fix Video Audio Dropout via Active-Gated Freeze and Trim SFX Leading Silence
+## [Unreleased] - Remove Discord Chime SFX in Favor of Magical Reveal Harp Only
+- **Konteks Struktural**:
+  - Penghapusan Efek Suara Discord / Achievement Chime & Pemfokusan Efek Suara Tunggal Magical Harp ([MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), [types.ts](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/types.ts), [public/sfx/achievement.webm](file:///d:/projects/clipping/video-editor/public/sfx/achievement.webm)):
+    - **Penyebab & Kebutuhan**: Pengguna mengevaluasi bahwa efek suara *discord / achievement chime* tidak lagi diperlukan, dan cukup mempertahankan satu efek suara saja yaitu *magical reveal harp glissando* yang diputar sejak kartu muncul dari bawah.
+    - **Solusi**:
+      1. Di [`MemeDiscoveryComposition.tsx`](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), menghapus sekuens pemutar efek suara kedua (*discord chime*), dan menyatukan pemutaran audio utama ke `sfxSrc` yang diarahkan *default* ke `/sfx/magical-reveal.webm` dengan durasi 120 frame sehingga resonansi harp mengalun utuh dan lembut saat kartu membalik dan membuka teks.
+      2. Di [`types.ts`](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/types.ts), memperbarui dokumentasi prop `sfxSrc` sebagai efek suara utama kemunculan kartu harp.
+      3. Menghapus file aset audio yang sudah tidak digunakan [`video-editor/public/sfx/achievement.webm`](file:///d:/projects/clipping/video-editor/public/sfx/achievement.webm) agar repositori tetap bersih dan ringkas.
+- **Perubahan Kode Penting**:
+  - `video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx`: Menghapus sekuens `<Audio src={sfxSrc} />` discord chime kedua, dan menetapkan `sfxSrc = '/sfx/magical-reveal.webm'`.
+  - `video-editor/src/styles/meme-discovery/types.ts`: Memperbarui prop deskripsi `sfxSrc`.
+  - `video-editor/public/sfx/achievement.webm`: File dihapus dari proyek.
+
+## [b2cfee7] - Fix Video Audio Dropout via Active-Gated Freeze and Trim SFX Leading Silence
 - **Konteks Struktural**:
   - Perbaikan Dropout Suara Video Utama & Pemotongan Jeda Hening SFX ([MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), [public/sfx/achievement.webm](file:///d:/projects/clipping/video-editor/public/sfx/achievement.webm), [public/sfx/magical-reveal.webm](file:///d:/projects/clipping/video-editor/public/sfx/magical-reveal.webm)):
     - **Penyebab & Kebutuhan**:
