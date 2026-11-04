@@ -37,6 +37,7 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
   cardImageSrc,
   targetFrameImage,
   sfxSrc = '/sfx/achievement.webm',
+  cardEmergeSfxSrc = '/sfx/magical-reveal.webm',
   enableSfx = true,
   showSafeZoneGuides = false,
 }) => {
@@ -165,7 +166,14 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
         </div>
       )}
 
-      {/* Sound Effect: Item Discovery / Achievement Chime saat kartu membalik & membuka teks */}
+      {/* 1. Sound Effect: Magical Reveal Harp Glissando saat kartu kecil muncul dari bawah */}
+      {enableSfx && cardEmergeSfxSrc && isCardRevealed && (
+        <Sequence from={cardStartFrame} durationInFrames={90}>
+          <Audio src={cardEmergeSfxSrc} volume={0.8} />
+        </Sequence>
+      )}
+
+      {/* 2. Sound Effect: Item Discovery / Achievement Chime saat kartu membalik & membuka teks */}
       {enableSfx && sfxSrc && isCardRevealed && (
         <Sequence from={cardStartFrame + 27} durationInFrames={75}>
           <Audio src={sfxSrc} volume={0.85} />

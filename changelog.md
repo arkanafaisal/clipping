@@ -14,7 +14,20 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Steam Achievement / Item Discovery Chime Sound Effect on 3D Card Flip
+## [Unreleased] - Layered Magical Reveal Sound Effect on Small Card Emergence
+- **Konteks Struktural**:
+  - Penambahan Efek Suara (SFX) Magical Reveal Harp Saat Kartu Kecil Muncul ([MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), [types.ts](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/types.ts), [public/sfx/magical-reveal.webm](file:///d:/projects/clipping/video-editor/public/sfx/magical-reveal.webm)):
+    - **Penyebab & Kebutuhan**: Pengguna meminta efek suara tambahan berupa *magical reveal harp glissando* (`https://www.youtube.com/watch?v=SBOlim0WxYU`) yang diputar tepat sejak kartu berukuran kecil pertama kali muncul dari bawah layar, dan bertumpukan (*overlapping*) secara harmonis dengan efek suara *achievement chime* yang berbunyi saat kartu membalik.
+    - **Solusi**:
+      1. Mengunduh aset audio Magical Reveal Sound Effect ke [`video-editor/public/sfx/magical-reveal.webm`](file:///d:/projects/clipping/video-editor/public/sfx/magical-reveal.webm).
+      2. Di [`types.ts`](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/types.ts), menambahkan prop `cardEmergeSfxSrc?: string`.
+      3. Di [`MemeDiscoveryComposition.tsx`](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), menambahkan sekuens `<Audio>` yang dipicu tepat di `cardStartFrame` (durasi 90 frame), bertumpuk secara alami dengan sekuens *achievement chime* pada `cardStartFrame + 27`.
+- **Perubahan Kode Penting**:
+  - `video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx`: Sekuens audio baru untuk kemunculan kartu kecil.
+  - `video-editor/src/styles/meme-discovery/types.ts`: Prop `cardEmergeSfxSrc`.
+  - `video-editor/public/sfx/magical-reveal.webm`: Aset audio efek suara magical reveal harp.
+
+## [d4823dc] - Steam Achievement / Item Discovery Chime Sound Effect on 3D Card Flip
 - **Konteks Struktural**:
   - Penambahan Efek Suara (SFX) Item Discovery / Achievement Saat Kartu Membalik ([MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), [types.ts](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/types.ts), [public/sfx/achievement.webm](file:///d:/projects/clipping/video-editor/public/sfx/achievement.webm)):
     - **Penyebab & Kebutuhan**: Pengguna meminta agar animasi kartu yang membalik diiringi efek suara (SFX) *item discovery / harp / achievement unlocked* seperti pada referensi video Steam Achievement (`https://www.youtube.com/watch?v=TgJhRyk54CY`).

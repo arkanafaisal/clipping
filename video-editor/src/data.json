@@ -1,5 +1,5 @@
 {
-  "lastUpdate": "2026-11-04 17:12:29",
+  "lastUpdate": "2026-11-04 18:56:37",
   "totalMoments": 1,
   "moments": [
     {
@@ -31,19 +31,19 @@
       "memeDiscovery": {
         "targetUndoTimestamp": "00:07.105",
         "title": "Meme Discovery: Momen Langka!",
-        "cardTitle": "jangan jemput aku..",
+        "cardTitle": "death evader",
         "cardRarity": "Mythic",
-        "cardDesc": "Pria tua yang masih mau hidup",
+        "cardDesc": "Pria tua yang masih mau hidup.",
         "skills": [
           {
-            "name": "its not your time!",
+            "name": "not now! maybe..",
             "desc": "70% chance untuk lolos dari kejaran grim reaper. hanya berlaku 1 kali.",
             "nameFontSize": 32,
             "descFontSize": 26
           },
           {
-            "name": "survival cry",
-            "desc": "+6 movement speed selama 10 detik saat bertemu grim reaper",
+            "name": "just a little longer!",
+            "desc": "+6 movement speed selama 10 detik saat bertemu grim reaper.",
             "nameFontSize": 32,
             "descFontSize": 26
           },
@@ -58,7 +58,7 @@
         "titleFontSize": 46,
         "rarityFontSize": 32,
         "descFontSize": 32,
-        "passiveName": "its not your time!",
+        "passiveName": "not now! maybe..",
         "passiveDesc": "70% chance untuk lolos dari kejaran grim reaper. hanya berlaku 1 kali.",
         "passiveNameFontSize": 32,
         "passiveDescFontSize": 26

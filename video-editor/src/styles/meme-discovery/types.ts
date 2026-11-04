@@ -31,6 +31,7 @@ export interface MemeDiscoveryProps {
   targetFrameImage?: string;
   // Efek Suara Item Discovery / Achievement Unlocked Chime
   sfxSrc?: string;
+  cardEmergeSfxSrc?: string; // SFX Magical Reveal saat kartu kecil muncul dari bawah
   enableSfx?: boolean;
   // Panduan visual safe zone 80% (untuk inspeksi di browser editor)
   showSafeZoneGuides?: boolean;
