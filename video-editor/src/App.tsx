@@ -4,7 +4,6 @@ import { MemeDiscoveryComposition } from './styles/meme-discovery/MemeDiscoveryC
 import { RouletteQuizComposition } from './styles/roulette-quiz/RouletteQuizComposition';
 import { CardSkill, RARITY_CONFIG, getRarityColor } from './styles/meme-discovery/types';
 import initialData from './data.json';
-import { captureVideoFrame } from './utils/frameCapture';
 import { parseTimestampToSeconds } from './utils/time';
 import { ArrowLeft, Check, Save, Sparkles, Layers, RefreshCw, Film, ExternalLink } from 'lucide-react';
 
@@ -310,31 +309,6 @@ export default function App() {
     ? (momentFolder ? `/temp/${momentFolder}/image.jpg` : '/temp/image.jpg')
     : undefined;
 
-  // Tangkapan frame beku statis target x momen puncak (canvas)
-  const [targetFrameImage, setTargetFrameImage] = useState<string | undefined>();
-
-  // 2. Ekstrak frame target x momen puncak (update dinamis saat user mengubah timestamp, debounced 200ms)
-  useEffect(() => {
-    if (!videoSrc) return;
-    let isCancelled = false;
-
-    const timer = setTimeout(() => {
-      const targetSec = parseTimestampToSeconds(targetTimestamp);
-      captureVideoFrame(videoSrc, targetSec)
-        .then((targetImg) => {
-          if (!isCancelled) setTargetFrameImage(targetImg);
-        })
-        .catch((err) => {
-          console.warn('Gagal ekstrak target frame:', err);
-        });
-    }, 200);
-
-    return () => {
-      isCancelled = true;
-      clearTimeout(timer);
-    };
-  }, [videoSrc, targetTimestamp]);
-
   // Total durasi sekuens video berurutan (Fast Paced & High Retention):
   // 1. Video play sampai timestamp puncak (stopFrame)
   // 2. Screenshot shutter flash (10f)
@@ -525,7 +499,6 @@ export default function App() {
                 targetUndoTimestamp: targetTimestamp,
                 totalVideoDurationSeconds: videoDurationSeconds,
                 cardImageSrc: imageSrc,
-                targetFrameImage,
                 title: currentMoment?.memeDiscovery?.title || 'Meme Discovery: Momen Langka!',
                 gameTitle: currentMoment?.name || 'Grim Reaper',
                 cardTitle: cardTitle || undefined,

@@ -16,7 +16,21 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Streamline Meme Discovery Climax: Direct Stop at Peak Timestamp, Flash, and Immediate Card Reveal
+## [Unreleased] - Fix JSX Syntax Error and Eliminate Target Frame Overlay
+- **Konteks Struktural**:
+  - Perbaikan Sintaks JSX & Pembersihan Total Lapisan Freeze Frame ([MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), [App.tsx](file:///d:/projects/clipping/video-editor/src/App.tsx)):
+    - **Penyebab & Kebutuhan**:
+      1. Terdapat blok kode duplikat di bagian penutup berkas [`MemeDiscoveryComposition.tsx`](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx) yang memicu error Babel `Unexpected token (234:5)`.
+      2. Pengguna mengklarifikasi bahwa tidak diperlukan lagi penimpaan gambar beku (*freeze frame overlay*) apa pun (baik frame akhir maupun puncak). Tepat saat video berhenti di detik puncak, efek flash screenshot langsung aktif seketika tanpa jeda dan tanpa perlu menimpa video dengan berkas gambar tambahan.
+    - **Solusi**:
+      1. Di [`MemeDiscoveryComposition.tsx`](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), menghapus blok penutup JSX duplikat sehingga berkas dapat dikompilasi dengan bersih.
+      2. Menghapus lapisan penimpa `<Img src={targetFrameImage}>`, memastikan pemutar video murni berhenti di `stopFrame` secara langsung.
+      3. Di [`App.tsx`](file:///d:/projects/clipping/video-editor/src/App.tsx), menghapus state `targetFrameImage` dan pemanggilan berkala `captureVideoFrame` yang sudah usang untuk menghemat memori.
+- **Perubahan Kode Penting**:
+  - `video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx`: Pembersihan sintaks duplikat dan penghapusan layer penimpa frame gambar.
+  - `video-editor/src/App.tsx`: Pembersihan import dan state `targetFrameImage`.
+
+## [27f15d6] - Streamline Meme Discovery Climax: Direct Stop at Peak Timestamp, Flash, and Immediate Card Reveal
 - **Konteks Struktural**:
   - Optimasi Kecepatan Alur & Retensi Penonton Meme Discovery ([MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), [App.tsx](file:///d:/projects/clipping/video-editor/src/App.tsx), [Root.tsx](file:///d:/projects/clipping/video-editor/src/remotion/Root.tsx)):
     - **Penyebab & Kebutuhan**: Retensi penonton (*audience retention*) dilaporkan menurun drastis di bagian akhir video karena durasi jeda freeze akhir dan animasi skip mundur YouTube (-10s) memakan waktu terlalu panjang, membuat penonton keluar sebelum melihat animasi kartu meme yang merupakan sajian utama. Pengguna meminta agar alur diubah tanpa jeda freeze akhir dan tanpa animasi skip mundur: input timestamp puncak `targetUndoTimestamp` kini menjadi batas durasi stop pemutaran video, sehingga video dipaksa berhenti seketika tepat di frame puncak tersebut, lalu langsung memicu efek flash screenshot dan kartu muncul seperti biasa (dengan jeda 0.5s dan durasi kartu 105f yang dipertahankan).

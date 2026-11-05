@@ -3,7 +3,6 @@ import {
   AbsoluteFill,
   Audio,
   Freeze,
-  Img,
   Sequence,
   spring,
   useCurrentFrame,
@@ -35,7 +34,6 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
   passiveNameFontSize,
   passiveDescFontSize,
   cardImageSrc,
-  targetFrameImage,
   sfxSrc = '/sfx/magical-reveal.webm',
   cardEmergeSfxSrc,
   cameraShutterSfxSrc = '/sfx/camera-shutter.webm',
@@ -53,13 +51,13 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
   // ========================================================
   // SEKUENSIAL TIMELINE (FAST PACED & HIGH RETENTION):
   // 1. Play video normal dari awal sampai momen puncak (0 -> stopFrame)
-  // 2. Tepat di stopFrame: video berhenti seketika di frame puncak
-  // 3. Langsung efek screenshot camera shutter flash putih (10 frame = ~0.33s)
+  // 2. Tepat di stopFrame: video langsung stop & LANGSUNG efek screenshot (tanpa jeda, tanpa freeze frame timpaan)
+  // 3. Efek screenshot camera shutter flash putih (10 frame = ~0.33s)
   const flashFrames = 10;
   const flashStartFrame = stopFrame;
   const flashEndFrame = flashStartFrame + flashFrames;
 
-  // 4. Jeda pasca-screenshot persis 0.5 detik (15 frame pada 30fps)
+  // 4. Jeda pasca-screenshot 0.5 detik (15 frame pada 30fps)
   const postScreenshotPauseFrames = 15;
   const cardStartFrame = flashEndFrame + postScreenshotPauseFrames;
 
@@ -84,11 +82,10 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
   return (
     <AbsoluteFill className="bg-black text-white font-sans overflow-hidden select-none">
       {/* ======================================================== */}
-      {/* 1. LAYER VIDEO: Play natural 0 -> stopFrame & Freeze     */}
-      {/* Tepat di stopFrame, video berhenti di frame puncak       */}
+      {/* 1. LAYER VIDEO: Play natural 0 -> stopFrame & Stop       */}
+      {/* Tanpa timpaan freeze frame, murni video berhenti         */}
       {/* ======================================================== */}
       <AbsoluteFill className="overflow-hidden flex items-center justify-center bg-black">
-        {/* A. Video diputar murni hingga stopFrame, lalu otomatis membeku di frame puncak */}
         {videoSrc && (
           <Freeze active={frame >= stopFrame} frame={Math.max(0, stopFrame - 1)}>
             <Video
@@ -97,14 +94,6 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
               volume={frame >= stopFrame ? 0 : 1}
             />
           </Freeze>
-        )}
-
-        {/* B. Overlay frame gambar statis canvas jika tersedia (tajam di web preview) */}
-        {frame >= stopFrame && targetFrameImage && (
-          <Img
-            src={targetFrameImage}
-            className="w-full h-full object-cover absolute inset-0 z-10"
-          />
         )}
 
         {/* Video Dimming Overlay saat kartu muncul (Solid dark overlay) */}
@@ -116,7 +105,7 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
       {/* ======================================================== */}
       {/* 2. OVERLAYS & SEKUENS EFEK MEME DISCOVERY                */}
       {/* ======================================================== */}
-      {/* Camera Shutter White Flash (Screenshot Efek) */}
+      {/* Camera Shutter White Flash (Screenshot Efek langsung di stopFrame) */}
       {isFlashing && (
         <div className="absolute inset-0 z-30 pointer-events-none">
           <ShutterFlash progress={flashProgress} />
@@ -171,7 +160,6 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
             passiveNameFontSize={passiveNameFontSize}
             passiveDescFontSize={passiveDescFontSize}
             imageSrc={cardImageSrc}
-            targetFrameImage={targetFrameImage}
             slideProgress={cardSpring}
             cardRelativeFrame={Math.max(0, frame - cardStartFrame)}
             frame={frame}
@@ -200,23 +188,6 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
           </h1>
         </div>
       )}
-
-      {/* ======================================================== */}
-      {/* 4. SAFE ZONE GUIDES (Hanya jika showSafeZoneGuides aktif)  */}
-      {/* ======================================================== */}
-      {showSafeZoneGuides && (
-        <>
-          <div className="absolute top-0 inset-x-0 h-[10%] border-b-2 border-dashed border-red-500/70 flex items-center justify-center bg-red-950/20 text-red-400 font-mono text-xs font-bold tracking-widest uppercase z-30 pointer-events-none">
-            ⚠️ Area Unsafe Atas (10% - Status Bar Medsos)
-          </div>
-          <div className="absolute bottom-0 inset-x-0 h-[10%] border-t-2 border-dashed border-red-500/70 flex items-center justify-center bg-red-950/20 text-red-400 font-mono text-xs font-bold tracking-widest uppercase z-30 pointer-events-none">
-            ⚠️ Area Unsafe Bawah (10% - Caption & Nav Medsos)
-          </div>
-        </>
-      )}
-    </AbsoluteFill>
-  );
-};
 
       {/* ======================================================== */}
       {/* 4. SAFE ZONE GUIDES (Hanya jika showSafeZoneGuides aktif)  */}
