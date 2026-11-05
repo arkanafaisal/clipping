@@ -335,16 +335,14 @@ export default function App() {
     };
   }, [videoSrc, targetTimestamp]);
 
-  // Total durasi sekuens video berurutan:
-  // 1. Video full play (Math.round(totalVideoDurationSeconds * 30))
-  // 2. Jeda freeze akhir + pause icon (12f)
-  // 3. YouTube skip backward effect (22f)
-  // 4. Jeda viewer mencerna frame lucu (18f)
-  // 5. Screenshot shutter flash (10f)
-  // 6. Jeda 0.5 detik pasca-screenshot (15f)
-  // 7. Kartu meme slide-up dari bawah (105f)
-  const videoFrames = Math.round(videoDurationSeconds * 30);
-  const totalFrames = videoFrames + 12 + 22 + 18 + 10 + 15 + 105;
+  // Total durasi sekuens video berurutan (Fast Paced & High Retention):
+  // 1. Video play sampai timestamp puncak (stopFrame)
+  // 2. Screenshot shutter flash (10f)
+  // 3. Jeda 0.5 detik pasca-screenshot (15f)
+  // 4. Kartu meme slide-up dari bawah & 3D reveal (105f)
+  const stopSeconds = parseTimestampToSeconds(targetTimestamp) || videoDurationSeconds;
+  const stopFrame = Math.max(1, Math.round(stopSeconds * 30));
+  const totalFrames = stopFrame + 10 + 15 + 105;
 
   // Simpan nilai baru ke data.json via server endpoint
   const handleSave = async (silent: boolean = false) => {
@@ -606,10 +604,10 @@ export default function App() {
         <div className="flex-1 overflow-y-auto py-3 space-y-3.5 pr-1 scrollbar-thin scrollbar-thumb-neutral-800">
           {activeStyle === 'meme-discovery' ? (
             <>
-              {/* 1. Posisi Frame Target Undo */}
+              {/* 1. Durasi Stop / Timestamp Puncak */}
               <div>
                 <label className="text-xs font-bold text-neutral-300 block mb-1">
-                  Posisi Frame Target Undo
+                  Durasi Stop / Timestamp Puncak
                 </label>
                 <input
                   type="text"
@@ -619,7 +617,7 @@ export default function App() {
                   className="w-full bg-black border border-neutral-800 rounded-xl px-3 py-2 text-xs font-mono text-amber-400 focus:outline-none focus:border-amber-500 transition-colors"
                 />
                 <p className="text-[10px] text-neutral-500 mt-1">
-                  Format <code className="text-neutral-400">MM:SS.mmm</code> relatif dari detik 0 video.
+                  Video otomatis stop di <code className="text-neutral-400">MM:SS.mmm</code>, langsung screenshot & reveal kartu.
                 </p>
               </div>
 

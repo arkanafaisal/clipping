@@ -15,7 +15,6 @@ import { MemeDiscoveryProps } from './types';
 import { parseTimestampToSeconds } from '../../utils/time';
 import { ShutterFlash } from './components/ShutterFlash';
 import { PokemonCard } from './components/PokemonCard';
-import { RewindEffect } from './components/RewindEffect';
 
 export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
   videoSrc,
@@ -46,44 +45,27 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  // 1. Posisi timestamp target x (relatif dari detik 0)
-  const targetUndoSeconds = parseTimestampToSeconds(targetUndoTimestamp);
-  const targetUndoFrame = Math.max(0, Math.round(targetUndoSeconds * fps));
-
-  // 2. Durasi video penuh (berhenti 0.08s sebelum EOF fisik agar browser tidak freeze di event 'ended')
-  const totalSeconds = totalVideoDurationSeconds || 10.95;
-  const playEndFrame = Math.max(1, Math.floor((totalSeconds - 0.08) * fps));
-
-  // Jumlah detik lompatan mundur: total - x detik
-  const skipAmountSeconds = Math.max(0, totalSeconds - targetUndoSeconds);
+  // 1. Durasi pemutaran video dibatasi tepat pada timestamp puncak (targetUndoTimestamp)
+  const stopSeconds =
+    parseTimestampToSeconds(targetUndoTimestamp) || totalVideoDurationSeconds || 10.95;
+  const stopFrame = Math.max(1, Math.round(stopSeconds * fps));
 
   // ========================================================
-  // SEKUENSIAL JEDA ANTAR KEJADIAN (STORYBOARD):
-  // 1. Play full video utuh tanpa gangguan: 0 -> playEndFrame
-  // 2. Jeda freeze akhir video + pause icon ringan (12 frame = 0.4s)
-  const endPauseFrames = 12;
-  const skipStartFrame = playEndFrame + endPauseFrames;
-
-  // 3. Efek skip kebelakang ala YouTube di sisi kiri (22 frame = ~0.73s)
-  const skipFrames = 22;
-  const skipEndFrame = skipStartFrame + skipFrames;
-
-  // 4. Jeda menampilkan freezed frame lucu agar viewer bisa menangkapnya (18 frame = 0.6s)
-  const funnyFramePauseFrames = 18;
-  const flashStartFrame = skipEndFrame + funnyFramePauseFrames;
-
-  // 5. Efek screenshot camera shutter flash putih (10 frame = ~0.33s)
+  // SEKUENSIAL TIMELINE (FAST PACED & HIGH RETENTION):
+  // 1. Play video normal dari awal sampai momen puncak (0 -> stopFrame)
+  // 2. Tepat di stopFrame: video berhenti seketika di frame puncak
+  // 3. Langsung efek screenshot camera shutter flash putih (10 frame = ~0.33s)
   const flashFrames = 10;
+  const flashStartFrame = stopFrame;
   const flashEndFrame = flashStartFrame + flashFrames;
 
-  // 6. Jeda pasca-screenshot persis 0.5 detik (15 frame pada 30fps)
+  // 4. Jeda pasca-screenshot persis 0.5 detik (15 frame pada 30fps)
   const postScreenshotPauseFrames = 15;
   const cardStartFrame = flashEndFrame + postScreenshotPauseFrames;
 
+  // 5. Kartu meme slide-up masuk dari bawah & 3D reveal (105 frame)
   // ========================================================
-  // STATE FASE AKTIF:
-  const isEndPaused = frame >= playEndFrame && frame < skipStartFrame;
-  const isSkipping = frame >= skipStartFrame && frame < skipEndFrame;
+
   const isFlashing = frame >= flashStartFrame && frame < flashEndFrame;
   const isCardRevealed = frame >= cardStartFrame;
 
@@ -102,40 +84,30 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
   return (
     <AbsoluteFill className="bg-black text-white font-sans overflow-hidden select-none">
       {/* ======================================================== */}
-      {/* 1. LAYER VIDEO SEAMLESS: Play natural & Freeze di akhir  */}
-      {/* Tanpa destroy/jump, video ditahan hingga frame puncak    */}
+      {/* 1. LAYER VIDEO: Play natural 0 -> stopFrame & Freeze     */}
+      {/* Tepat di stopFrame, video berhenti di frame puncak       */}
       {/* ======================================================== */}
       <AbsoluteFill className="overflow-hidden flex items-center justify-center bg-black">
-        {/* A. Video diputar murni & difreeze di frame terakhir saat selesai (tanpa unmount/jump/replay) */}
-        {frame < skipEndFrame && videoSrc && (
-          <Freeze active={frame >= playEndFrame} frame={playEndFrame - 1}>
+        {/* A. Video diputar murni hingga stopFrame, lalu otomatis membeku di frame puncak */}
+        {videoSrc && (
+          <Freeze active={frame >= stopFrame} frame={Math.max(0, stopFrame - 1)}>
             <Video
               src={videoSrc}
               className="w-full h-full object-cover"
-              volume={1}
+              volume={frame >= stopFrame ? 0 : 1}
             />
           </Freeze>
         )}
 
-        {/* B. Setelah animasi skip YouTube selesai: Frame puncak target x (menutupi penuh layar 100%) */}
-        {frame >= skipEndFrame && (
-          targetFrameImage ? (
-            <Img
-              src={targetFrameImage}
-              className="w-full h-full object-cover"
-            />
-          ) : videoSrc ? (
-            <Freeze frame={targetUndoFrame}>
-              <Video
-                src={videoSrc}
-                volume={0}
-                className="w-full h-full object-cover"
-              />
-            </Freeze>
-          ) : null
+        {/* B. Overlay frame gambar statis canvas jika tersedia (tajam di web preview) */}
+        {frame >= stopFrame && targetFrameImage && (
+          <Img
+            src={targetFrameImage}
+            className="w-full h-full object-cover absolute inset-0 z-10"
+          />
         )}
 
-        {/* Video Dimming Overlay saat kartu muncul (Solid dark overlay tanpa filter blur berat) */}
+        {/* Video Dimming Overlay saat kartu muncul (Solid dark overlay) */}
         {isCardRevealed && (
           <div className="absolute inset-0 bg-black/85 transition-opacity duration-300 z-20" />
         )}
@@ -144,26 +116,6 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
       {/* ======================================================== */}
       {/* 2. OVERLAYS & SEKUENS EFEK MEME DISCOVERY                */}
       {/* ======================================================== */}
-      {/* Ikon Pause Ringan Transparan saat video baru selesai */}
-      {isEndPaused && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
-          <div className="w-24 h-24 rounded-full bg-black/50 border border-white/20 flex items-center justify-center opacity-30 shadow-2xl">
-            <div className="flex gap-3">
-              <div className="w-3 h-10 bg-white rounded-sm" />
-              <div className="w-3 h-10 bg-white rounded-sm" />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Efek Skip Kebelakang persis seperti YouTube di bagian KIRI */}
-      {isSkipping && (
-        <RewindEffect
-          progress={(frame - skipStartFrame) / skipFrames}
-          skipAmountSeconds={skipAmountSeconds}
-        />
-      )}
-
       {/* Camera Shutter White Flash (Screenshot Efek) */}
       {isFlashing && (
         <div className="absolute inset-0 z-30 pointer-events-none">
@@ -239,7 +191,7 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
             </span>
             <span className="text-neutral-600">•</span>
             <span className="text-[11px] font-mono text-amber-400 font-semibold">
-              SEEK: {targetUndoTimestamp} (-{Math.round(skipAmountSeconds)}s)
+              STOP: {targetUndoTimestamp}
             </span>
           </div>
 
@@ -248,6 +200,23 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
           </h1>
         </div>
       )}
+
+      {/* ======================================================== */}
+      {/* 4. SAFE ZONE GUIDES (Hanya jika showSafeZoneGuides aktif)  */}
+      {/* ======================================================== */}
+      {showSafeZoneGuides && (
+        <>
+          <div className="absolute top-0 inset-x-0 h-[10%] border-b-2 border-dashed border-red-500/70 flex items-center justify-center bg-red-950/20 text-red-400 font-mono text-xs font-bold tracking-widest uppercase z-30 pointer-events-none">
+            ⚠️ Area Unsafe Atas (10% - Status Bar Medsos)
+          </div>
+          <div className="absolute bottom-0 inset-x-0 h-[10%] border-t-2 border-dashed border-red-500/70 flex items-center justify-center bg-red-950/20 text-red-400 font-mono text-xs font-bold tracking-widest uppercase z-30 pointer-events-none">
+            ⚠️ Area Unsafe Bawah (10% - Caption & Nav Medsos)
+          </div>
+        </>
+      )}
+    </AbsoluteFill>
+  );
+};
 
       {/* ======================================================== */}
       {/* 4. SAFE ZONE GUIDES (Hanya jika showSafeZoneGuides aktif)  */}

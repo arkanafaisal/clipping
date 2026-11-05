@@ -4,6 +4,7 @@ import '../index.css';
 import { MemeDiscoveryComposition } from '../styles/meme-discovery/MemeDiscoveryComposition';
 import { RouletteQuizComposition } from '../styles/roulette-quiz/RouletteQuizComposition';
 import { VerticalShortsComposition } from './compositions/VerticalShortsComposition';
+import { parseTimestampToSeconds } from '../utils/time';
 import initialData from '../data.json';
 
 export const RemotionRoot: React.FC = () => {
@@ -16,9 +17,12 @@ export const RemotionRoot: React.FC = () => {
         m.path === activeId
     ) || initialData.moments?.[0];
   const md = currentMoment?.memeDiscovery;
+  const targetTimestamp = md?.targetUndoTimestamp || '00:07.105';
   const videoDurationSeconds = currentMoment?.files?.full?.durationSeconds || 10.95;
-  const videoFrames = Math.round(videoDurationSeconds * 30);
-  const totalFrames = videoFrames + 12 + 22 + 18 + 10 + 15 + 105;
+  const stopSeconds = parseTimestampToSeconds(targetTimestamp) || videoDurationSeconds;
+  const stopFrame = Math.max(1, Math.round(stopSeconds * 30));
+  // Sekuensial: Play sampai momen puncak -> 10f Flash Shutter -> 15f Jeda -> 105f Kartu Reveal
+  const totalFrames = stopFrame + 10 + 15 + 105;
 
   // Gunakan staticFile Remotion agar aset di public/ terpetakan tepat di Remotion CLI & Player (tanpa spasi di URL)
   const momentFolder = currentMoment?.path?.replace(/\s+/g, '-');

@@ -16,7 +16,20 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Fix Windows Spawn EINVAL in Render API and Decouple Save Feedback
+## [Unreleased] - Streamline Meme Discovery Climax: Direct Stop at Peak Timestamp, Flash, and Immediate Card Reveal
+- **Konteks Struktural**:
+  - Optimasi Kecepatan Alur & Retensi Penonton Meme Discovery ([MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), [App.tsx](file:///d:/projects/clipping/video-editor/src/App.tsx), [Root.tsx](file:///d:/projects/clipping/video-editor/src/remotion/Root.tsx)):
+    - **Penyebab & Kebutuhan**: Retensi penonton (*audience retention*) dilaporkan menurun drastis di bagian akhir video karena durasi jeda freeze akhir dan animasi skip mundur YouTube (-10s) memakan waktu terlalu panjang, membuat penonton keluar sebelum melihat animasi kartu meme yang merupakan sajian utama. Pengguna meminta agar alur diubah tanpa jeda freeze akhir dan tanpa animasi skip mundur: input timestamp puncak `targetUndoTimestamp` kini menjadi batas durasi stop pemutaran video, sehingga video dipaksa berhenti seketika tepat di frame puncak tersebut, lalu langsung memicu efek flash screenshot dan kartu muncul seperti biasa (dengan jeda 0.5s dan durasi kartu 105f yang dipertahankan).
+    - **Solusi**:
+      1. Di [`MemeDiscoveryComposition.tsx`](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), menghapus ketergantungan pada `RewindEffect`, ikon jeda pause, dan perhitungan lompatan mundur. Video diputar murni hingga `stopFrame` (`targetUndoSeconds * fps`), lalu otomatis membeku tepat di frame puncak tersebut.
+      2. Tepat di frame `stopFrame`, efek camera shutter flash putih (10 frame) dan SFX shutter kamera langsung dipicu, diikuti jeda pasca-screenshot 0.5 detik (15 frame), dan kemunculan kartu meme slide-up & 3D flip reveal (105 frame).
+      3. Di [`App.tsx`](file:///d:/projects/clipping/video-editor/src/App.tsx) dan [`Root.tsx`](file:///d:/projects/clipping/video-editor/src/remotion/Root.tsx), memperbarui formula durasi total menjadi `stopFrame + 10 + 15 + 105` (totalFrame = stopFrame + 130 frame) serta menyesuaikan label input di panel sidebar menjadi "Durasi Stop / Timestamp Puncak".
+- **Perubahan Kode Penting**:
+  - `video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx`: Penghapusan `RewindEffect` dan ikon pause, penerapan pembekuan langsung di `stopFrame`, dan pemicuan langsung shutter flash.
+  - `video-editor/src/App.tsx`: Pembaruan perhitungan `totalFrames` dan label input timestamp.
+  - `video-editor/src/remotion/Root.tsx`: Penyelarasan durasi komposisi `totalFrames` dengan `stopFrame + 130`.
+
+## [d304265] - Fix Windows Spawn EINVAL in Render API and Decouple Save Feedback
 - **Konteks Struktural**:
   - Resolusi Eksekusi Render di Windows & Pemisahan Feedback Ekspor ([vite.config.ts](file:///d:/projects/clipping/video-editor/vite.config.ts), [App.tsx](file:///d:/projects/clipping/video-editor/src/App.tsx)):
     - **Penyebab & Kebutuhan**: Saat tombol ekspor diklik di web UI, proses seolah langsung selesai dalam 0.5 detik dan hanya menampilkan "tersimpan ke data.json". Hal ini terjadi karena:
