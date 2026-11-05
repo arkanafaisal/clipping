@@ -16,7 +16,15 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Minimalist Moments Dashboard and Back Navigation
+## [Unreleased] - Boost Card Reveal Sound Effect Volume
+- **Konteks Struktural**:
+  - Peningkatan Volume SFX Kemunculan Kartu ([MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx)):
+    - **Penyebab & Kebutuhan**: Efek suara kemunculan kartu (`magical-reveal.webm`) terdengar terlalu pelan dibandingkan SFX shutter screenshot (`camera-shutter.webm`) yang memiliki transient tajam. Pengguna meminta agar volume SFX kartu diperkeras sehingga seimbang dengan volume efek screenshot.
+    - **Solusi**: Meningkatkan prop `volume` pada elemen `<Audio />` untuk kartu reveal di [`MemeDiscoveryComposition.tsx`](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx) dari `0.85` menjadi `1.25` (gain boost) agar tingkat kenyaringan (perceived loudness) seimbang dengan efek shutter kamera.
+- **Perubahan Kode Penting**:
+  - `video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx`: Menaikkan `volume={1.25}` pada audio reveal kartu.
+
+## [2eed25a] - Minimalist Moments Dashboard and Back Navigation
 - **Konteks Struktural**:
   - Penambahan Halaman Dashboard Minimalis & Tombol Back ([App.tsx](file:///d:/projects/clipping/video-editor/src/App.tsx), [vite.config.ts](file:///d:/projects/clipping/video-editor/vite.config.ts), [scripts/gdrive.js](file:///d:/projects/clipping/video-editor/scripts/gdrive.js)):
     - **Penyebab & Kebutuhan**: Pengguna meminta halaman dashboard sederhana tanpa banyak teks/gambar untuk menampilkan card nama folder di Google Drive root (`GDRIVE_ROOT_FOLDER_ID`), tombol pemilihan mode (Meme Discovery) per card, tombol kembali (Back) ke dashboard dari editor, serta otomatisasi pembuatan struktur momen di `data.json` dan pengunduhan aset saat momen baru dimasuki.

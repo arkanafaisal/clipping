@@ -194,7 +194,7 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
                 ? (sfxSrc || cardEmergeSfxSrc)!
                 : staticFile((sfxSrc || cardEmergeSfxSrc)!.replace(/^\//, ''))
             }
-            volume={0.85}
+            volume={1.25}
           />
         </Sequence>
       )}
