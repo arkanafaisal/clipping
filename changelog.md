@@ -16,7 +16,19 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Standardize Card Rarity to Fixed Constants and Automated Color Mapping
+## [Unreleased] - Zero-Dependency URL Query Routing for Persistent Moment Selection
+- **Konteks Struktural**:
+  - Routing Mandiri Berbasis URL Search Params ([App.tsx](file:///d:/projects/clipping/video-editor/src/App.tsx)):
+    - **Penyebab & Kebutuhan**: Pengguna mengeluhkan bahwa setiap kali browser di-refresh (F5), aplikasi selalu ter-reset kembali ke tampilan Dashboard awal sehingga momen yang sedang diedit harus dipilih ulang. Pengguna meminta sistem routing sederhana tanpa menggunakan atau menambahkan pustaka `react-router` agar saat di-refresh posisi halaman tetap bertahan pada momen yang aktif.
+    - **Solusi**:
+      1. Mengimplementasikan sinkronisasi URL berbasis Web API bawaan (`window.location.search`, `URLSearchParams`, dan `window.history.pushState`/`replaceState`) dengan skema `?moment=<slug_or_id>&style=<mode>`.
+      2. Menginisialisasi state `selectedMomentId` dan `activeStyle` langsung dari query URL saat pertama kali halaman dibuka atau di-refresh.
+      3. Menambahkan event listener `popstate` agar tombol navigasi bawaan browser (Back dan Forward) dapat berpindah secara natural antara halaman Dashboard dan ruang editing.
+      4. Menambahkan auto-sync pendaftaran momen: jika pengguna membuka URL yang memuat momen baru di Google Drive, aplikasi otomatis mendaftarkannya via `/api/select-moment`.
+- **Perubahan Kode Penting**:
+  - `video-editor/src/App.tsx`: Penambahan fungsi `getUrlParams()` dan `syncUrlWithState()`, inisialisasi state dari parameter URL, penanganan tombol `handleBackToDashboard`, sinkronisasi navigasi `handleSelectMode`, dan listener `popstate`.
+
+## [8463dbb] - Standardize Card Rarity to Fixed Constants and Automated Color Mapping
 - **Konteks Struktural**:
   - Pembakuan Konstanta Rarity & Pemetaan Warna Tema Otomatis ([types.ts](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/types.ts), [PokemonCard.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/PokemonCard.tsx), [App.tsx](file:///d:/projects/clipping/video-editor/src/App.tsx), [Root.tsx](file:///d:/projects/clipping/video-editor/src/remotion/Root.tsx), [scripts/gdrive.js](file:///d:/projects/clipping/video-editor/scripts/gdrive.js), [data.json](file:///d:/projects/clipping/video-editor/src/data.json)):
     - **Penyebab & Kebutuhan**: Input rarity sebelumnya berupa teks bebas dan pemilih warna tema kartu berupa color picker hex manual yang terpisah. Hal ini rentan inkonsistensi warna dan penamaan kartu antar momen. Pengguna meminta agar rarity dibakukan ke 6 tingkatan konstan umum dengan warna otomatis: Common (Abu-abu: `#9ca3af`), Uncommon (Hijau: `#22c55e`), Rare (Oranye: `#f97316`), Epic (Ungu: `#a855f7`), Legendary (Kuning/Emas: `#eab308`), dan Mythic (Merah: `#ef4444`), serta mengganti input manual menjadi satu dropdown yang otomatis menentukan warna tema kartu.

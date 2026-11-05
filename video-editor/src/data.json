@@ -93,14 +93,14 @@
         "targetUndoTimestamp": "00:21.7",
         "title": "Meme Discovery: dont look behind",
         "cardTitle": "don't look behind!",
-        "cardRarity": "Rare",
+        "cardRarity": "Epic",
         "cardDesc": "prinsip yang selalu dipegang pak tua saat sedang dikejar",
         "skills": [
           {
-            "name": "",
+            "name": "I will not stop!",
             "desc": "",
-            "nameFontSize": 28,
-            "descFontSize": 22
+            "nameFontSize": 32,
+            "descFontSize": 26
           },
           {
             "name": "",
@@ -115,14 +115,14 @@
             "descFontSize": 22
           }
         ],
-        "cardColor": "#f97316",
-        "titleFontSize": 48,
-        "rarityFontSize": 24,
-        "descFontSize": 30,
-        "passiveName": "",
+        "cardColor": "#a855f7",
+        "titleFontSize": 46,
+        "rarityFontSize": 32,
+        "descFontSize": 32,
+        "passiveName": "I will not stop!",
         "passiveDesc": "",
-        "passiveNameFontSize": 28,
-        "passiveDescFontSize": 22
+        "passiveNameFontSize": 32,
+        "passiveDescFontSize": 26
       }
     }
   ]

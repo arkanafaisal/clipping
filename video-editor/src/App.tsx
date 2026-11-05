@@ -15,12 +15,72 @@ interface DriveFolder {
   name: string;
 }
 
+// Helper routing mandiri via URL search params (tanpa react-router)
+function getUrlParams(): { momentId: string | null; style: StyleMode } {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const moment = params.get('moment') || params.get('m');
+    const styleParam = (params.get('style') || params.get('mode')) as StyleMode;
+    const style: StyleMode =
+      styleParam === 'roulette-quiz' ? 'roulette-quiz' : 'meme-discovery';
+    return { momentId: moment || null, style };
+  } catch {
+    return { momentId: null, style: 'meme-discovery' };
+  }
+}
+
+function syncUrlWithState(
+  momentId: string | null,
+  style: StyleMode,
+  replace: boolean = true
+) {
+  try {
+    const currentParams = new URLSearchParams(window.location.search);
+    const currentMoment = currentParams.get('moment') || currentParams.get('m') || null;
+    const currentStyle =
+      currentParams.get('style') || currentParams.get('mode') || 'meme-discovery';
+
+    if (currentMoment === momentId && currentStyle === style) {
+      return;
+    }
+
+    const url = new URL(window.location.href);
+    if (momentId) {
+      url.searchParams.set('moment', momentId);
+      url.searchParams.set('style', style);
+      url.searchParams.delete('m');
+      url.searchParams.delete('mode');
+    } else {
+      url.searchParams.delete('moment');
+      url.searchParams.delete('m');
+      url.searchParams.delete('style');
+      url.searchParams.delete('mode');
+    }
+
+    const newUrl = url.search ? `${url.pathname}${url.search}` : url.pathname;
+    if (replace) {
+      window.history.replaceState({ momentId, style }, '', newUrl);
+    } else {
+      window.history.pushState({ momentId, style }, '', newUrl);
+    }
+  } catch (e) {
+    console.warn('Gagal sinkronisasi URL:', e);
+  }
+}
+
 export default function App() {
   const [data, setData] = useState<any>(initialData);
   const moments = data.moments || [];
 
-  // State pemilihan momen (null = halaman Dashboard)
-  const [selectedMomentId, setSelectedMomentId] = useState<string | null>(null);
+  // State pemilihan momen & mode (diinisialisasi dari URL agar tidak reset saat refresh)
+  const initialUrl = getUrlParams();
+  const [selectedMomentId, setSelectedMomentId] = useState<string | null>(
+    () => initialUrl.momentId
+  );
+  const [activeStyle, setActiveStyle] = useState<StyleMode>(
+    () => initialUrl.style
+  );
+
   const [folders, setFolders] = useState<DriveFolder[]>([]);
   const [isLoadingFolders, setIsLoadingFolders] = useState<boolean>(true);
   const [isOpeningMoment, setIsOpeningMoment] = useState<string | null>(null);
@@ -31,14 +91,54 @@ export default function App() {
         m.id === selectedMomentId ||
         m.name === selectedMomentId ||
         m.path === selectedMomentId
-    ) || moments[0];
+    ) || (selectedMomentId ? { id: selectedMomentId, name: selectedMomentId, path: selectedMomentId } : moments[0]);
 
-  const [activeStyle, setActiveStyle] = useState<StyleMode>('meme-discovery');
   const playerRef = useRef<PlayerRef>(null);
 
   useEffect(() => {
     (window as any).playerRef = playerRef;
   }, []);
+
+  // Sinkronisasi navigasi browser Back/Forward (popstate)
+  useEffect(() => {
+    const handlePopState = () => {
+      const { momentId, style } = getUrlParams();
+      setSelectedMomentId(momentId);
+      setActiveStyle(style);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // Update URL otomatis saat state momen/style berubah
+  useEffect(() => {
+    syncUrlWithState(selectedMomentId, activeStyle, true);
+  }, [selectedMomentId, activeStyle]);
+
+  // Jika URL mengakses momen yang belum terdaftar di data.json lokal, otomatis daftarkan via API
+  useEffect(() => {
+    if (!selectedMomentId) return;
+    const exists = moments.some(
+      (m: any) =>
+        m.id === selectedMomentId ||
+        m.name === selectedMomentId ||
+        m.path === selectedMomentId
+    );
+    if (!exists) {
+      fetch('/api/select-moment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folderId: selectedMomentId, folderName: selectedMomentId }),
+      })
+        .then((res) => res.json())
+        .then((res) => {
+          if (res.success && res.metadata) {
+            setData(res.metadata);
+          }
+        })
+        .catch((err) => console.warn('Gagal auto-sync momen dari URL:', err));
+    }
+  }, [selectedMomentId, moments]);
 
   // Memuat daftar folder root Google Drive untuk dashboard
   useEffect(() => {
@@ -77,20 +177,29 @@ export default function App() {
         body: JSON.stringify({ folderId: folder.id, folderName: folder.name }),
       });
       const result = await res.json();
+      const momentTarget = result?.moment?.path || result?.moment?.id || folder.id;
       if (result.success && result.moment) {
         if (result.metadata) {
           setData(result.metadata);
         }
-        setSelectedMomentId(result.moment.id || folder.id);
+        setSelectedMomentId(momentTarget);
       } else {
-        setSelectedMomentId(folder.id);
+        setSelectedMomentId(momentTarget);
       }
+      syncUrlWithState(momentTarget, mode, false);
     } catch (err: any) {
       console.warn('Gagal select-moment:', err);
       setSelectedMomentId(folder.id);
+      syncUrlWithState(folder.id, mode, false);
     } finally {
       setIsOpeningMoment(null);
     }
+  };
+
+  // Handler navigasi kembali ke dashboard
+  const handleBackToDashboard = () => {
+    setSelectedMomentId(null);
+    syncUrlWithState(null, activeStyle, false);
   };
 
   // Helper parsing skill kartu (maks 3 skill dengan fallback legacy passive)
@@ -422,7 +531,7 @@ export default function App() {
         {/* Header Bar: Back Button ke Dashboard & Detail Mode Aktif */}
         <div className="flex items-center justify-between pb-3.5 border-b border-neutral-900 shrink-0">
           <button
-            onClick={() => setSelectedMomentId(null)}
+            onClick={handleBackToDashboard}
             className="inline-flex items-center gap-1.5 text-xs text-neutral-300 hover:text-white transition-colors py-1 px-2.5 rounded-lg hover:bg-neutral-900 cursor-pointer border border-neutral-800"
             title="Kembali ke Dashboard"
           >
