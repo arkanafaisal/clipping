@@ -250,14 +250,21 @@ function saveDataPlugin(): Plugin {
               const outputFile = path.join(outputDir, `${cleanMomentSlug}.mp4`);
               const outputRelPath = `out/${cleanMomentSlug}.mp4`;
 
+              // Pastikan aset lokal momen tersebut lengkap sebelum render
+              try {
+                const { ensureMomentAssets } = await import('./scripts/gdrive.js');
+                await ensureMomentAssets(momentId);
+              } catch (e) {
+                console.warn('⚠️ [Render API] ensureMomentAssets warning:', e);
+              }
+
               console.log(
                 `\n🎬 [Render API] Memulai rendering video: ${compositionId} -> ${outputRelPath}...`
               );
 
               const { spawn } = await import('child_process');
-              const npxCmd = process.platform === 'win32' ? 'npx.cmd' : 'npx';
               const renderProcess = spawn(
-                npxCmd,
+                'npx',
                 [
                   'remotion',
                   'render',
@@ -265,7 +272,11 @@ function saveDataPlugin(): Plugin {
                   compositionId,
                   outputFile,
                 ],
-                { cwd: __dirname, stdio: ['ignore', 'pipe', 'pipe'] }
+                {
+                  cwd: __dirname,
+                  shell: true,
+                  stdio: ['ignore', 'pipe', 'pipe'],
+                }
               );
 
               let stdoutData = '';
@@ -277,33 +288,51 @@ function saveDataPlugin(): Plugin {
                 stderrData += chunk.toString();
               });
 
-              renderProcess.on('close', (code) => {
-                if (code === 0) {
-                  console.log(
-                    `✅ [Render API] Berhasil merender video: ${outputFile}`
-                  );
-                  res.setHeader('Content-Type', 'application/json');
-                  res.end(
-                    JSON.stringify({
-                      success: true,
-                      outputPath: outputRelPath,
-                      fullPath: outputFile,
-                    })
-                  );
-                } else {
-                  console.error(
-                    `❌ [Render API] Gagal render: exit code ${code}`
-                  );
-                  console.error(stderrData || stdoutData);
+              renderProcess.on('error', (err) => {
+                console.error(`❌ [Render API] Spawn process error:`, err);
+                if (!res.headersSent) {
                   res.statusCode = 500;
                   res.setHeader('Content-Type', 'application/json');
                   res.end(
                     JSON.stringify({
                       success: false,
-                      error: `Render gagal dengan kode keluar ${code}`,
-                      details: stderrData || stdoutData,
+                      error: err.message || 'Gagal memulai proses render',
                     })
                   );
+                }
+              });
+
+              renderProcess.on('close', (code) => {
+                if (code === 0) {
+                  console.log(
+                    `✅ [Render API] Berhasil merender video: ${outputFile}`
+                  );
+                  if (!res.headersSent) {
+                    res.setHeader('Content-Type', 'application/json');
+                    res.end(
+                      JSON.stringify({
+                        success: true,
+                        outputPath: outputRelPath,
+                        fullPath: outputFile,
+                      })
+                    );
+                  }
+                } else {
+                  console.error(
+                    `❌ [Render API] Gagal render: exit code ${code}`
+                  );
+                  console.error(stderrData || stdoutData);
+                  if (!res.headersSent) {
+                    res.statusCode = 500;
+                    res.setHeader('Content-Type', 'application/json');
+                    res.end(
+                      JSON.stringify({
+                        success: false,
+                        error: `Render gagal dengan kode keluar ${code}`,
+                        details: stderrData || stdoutData,
+                      })
+                    );
+                  }
                 }
               });
             } catch (err: any) {

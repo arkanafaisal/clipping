@@ -347,7 +347,7 @@ export default function App() {
   const totalFrames = videoFrames + 12 + 22 + 18 + 10 + 15 + 105;
 
   // Simpan nilai baru ke data.json via server endpoint
-  const handleSave = async () => {
+  const handleSave = async (silent: boolean = false) => {
     setIsSaving(true);
     try {
       const updatedMoments = moments.map((m: any) => {
@@ -391,15 +391,21 @@ export default function App() {
 
       if (res.ok) {
         setData(payload);
-        setSaveStatus('Tersimpan ke data.json');
-        setTimeout(() => setSaveStatus(null), 2500);
+        if (!silent) {
+          setSaveStatus('Tersimpan ke data.json');
+          setTimeout(() => setSaveStatus(null), 2500);
+        }
       } else {
-        setSaveStatus('Gagal menyimpan');
-        setTimeout(() => setSaveStatus(null), 3000);
+        if (!silent) {
+          setSaveStatus('Gagal menyimpan');
+          setTimeout(() => setSaveStatus(null), 3000);
+        }
       }
     } catch {
-      setSaveStatus('Gagal menyimpan (offline)');
-      setTimeout(() => setSaveStatus(null), 3000);
+      if (!silent) {
+        setSaveStatus('Gagal menyimpan (offline)');
+        setTimeout(() => setSaveStatus(null), 3000);
+      }
     } finally {
       setIsSaving(false);
     }
@@ -412,10 +418,10 @@ export default function App() {
 
   const handleRender = async () => {
     setIsRendering(true);
-    setRenderStatus('Menyimpan perubahan...');
+    setRenderStatus('Menyimpan perubahan konfigurasi...');
     try {
-      await handleSave();
-      setRenderStatus('Sedang merender video MP4...');
+      await handleSave(true);
+      setRenderStatus('Sedang merender video MP4 (memerlukan ~20-40 detik)...');
 
       const res = await fetch('/api/render', {
         method: 'POST',
@@ -430,15 +436,16 @@ export default function App() {
       if (result.success && result.outputPath) {
         setLastExportPath(result.outputPath);
         setRenderStatus(`Selesai: ${result.outputPath}`);
-        setTimeout(() => setRenderStatus(null), 10000);
+        setTimeout(() => setRenderStatus(null), 15000);
       } else {
-        setRenderStatus(`Gagal render: ${result.error || 'Terjadi kesalahan'}`);
-        setTimeout(() => setRenderStatus(null), 6000);
+        const errMsg = result.error || result.details || 'Terjadi kesalahan ekspor';
+        setRenderStatus(`❌ ${errMsg}`);
+        setTimeout(() => setRenderStatus(null), 10000);
       }
     } catch (err: any) {
       console.error('Gagal render:', err);
-      setRenderStatus('Gagal memicu render');
-      setTimeout(() => setRenderStatus(null), 5000);
+      setRenderStatus(`❌ Gagal koneksi render: ${err?.message || err}`);
+      setTimeout(() => setRenderStatus(null), 10000);
     } finally {
       setIsRendering(false);
     }

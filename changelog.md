@@ -16,7 +16,20 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - One-Click Video Export Button on Web and Workspace-Aware CLI Render
+## [Unreleased] - Fix Windows Spawn EINVAL in Render API and Decouple Save Feedback
+- **Konteks Struktural**:
+  - Resolusi Eksekusi Render di Windows & Pemisahan Feedback Ekspor ([vite.config.ts](file:///d:/projects/clipping/video-editor/vite.config.ts), [App.tsx](file:///d:/projects/clipping/video-editor/src/App.tsx)):
+    - **Penyebab & Kebutuhan**: Saat tombol ekspor diklik di web UI, proses seolah langsung selesai dalam 0.5 detik dan hanya menampilkan "tersimpan ke data.json". Hal ini terjadi karena:
+      1. Pada Node.js di Windows (terkait mitigasi keamanan CVE-2024-27980), pemanggilan batch/CLI seperti `npx` via `child_process.spawn` wajib menyertakan opsi `{ shell: true }`. Tanpa opsi tersebut, Node.js langsung melempar error `spawn EINVAL` seketika.
+      2. Pada [`App.tsx`](file:///d:/projects/clipping/video-editor/src/App.tsx), pemanggilan `handleSave()` sebelum render tidak menggunakan mode `silent`, sehingga teks tombol "Simpan" berubah menjadi "Tersimpan ke data.json" yang menutupi pesan error dari endpoint render.
+    - **Solusi**:
+      1. Di [`vite.config.ts`](file:///d:/projects/clipping/video-editor/vite.config.ts), menambahkan opsi `{ shell: true }` pada `spawn('npx', ...)`, menambahkan listener `process.on('error')`, serta memastikan ketersediaan aset lokal momen sebelum render dimulai via `ensureMomentAssets(momentId)`.
+      2. Di [`App.tsx`](file:///d:/projects/clipping/video-editor/src/App.tsx), menambahkan parameter `silent` pada `handleSave(true)` saat dipanggil dari alur ekspor agar status "Tersimpan ke data.json" tidak membingungkan pengguna, serta menampilkan status rendering dan pesan error secara eksplisit.
+- **Perubahan Kode Penting**:
+  - `video-editor/vite.config.ts`: Penambahan `{ shell: true }`, listener `'error'`, dan auto-ensure aset pada `/api/render`.
+  - `video-editor/src/App.tsx`: Pemisahan status `handleSave(true)` dan pembaruan notifikasi status rendering.
+
+## [0484085] - One-Click Video Export Button on Web and Workspace-Aware CLI Render
 - **Konteks Struktural**:
   - Tombol Ekspor Video di Web & Ekspor CLI Otomatis Sesuai Workspace Terakhir ([vite.config.ts](file:///d:/projects/clipping/video-editor/vite.config.ts), [App.tsx](file:///d:/projects/clipping/video-editor/src/App.tsx), [Root.tsx](file:///d:/projects/clipping/video-editor/src/remotion/Root.tsx), [scripts/gdrive.js](file:///d:/projects/clipping/video-editor/scripts/gdrive.js), [.gitignore](file:///d:/projects/clipping/.gitignore)):
     - **Penyebab & Kebutuhan**: Sebelumnya `npm run render` masih mengekspor momen pertama secara statis (`moments[0]`) tanpa peduli momen mana yang sedang dibuka di browser. Selain itu pengguna harus beralih ke terminal untuk melakukan render. Pengguna menginginkan ekspor video yang selalu sinkron dengan workspace aktif terakhir serta tombol ekspor langsung di antarmuka Web.
