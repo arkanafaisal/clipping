@@ -138,6 +138,57 @@ function saveDataPlugin(): Plugin {
           res.end('Method Not Allowed');
         }
       });
+
+      // Mengambil daftar folder dari root Google Drive untuk dashboard
+      server.middlewares.use('/api/folders', async (req, res) => {
+        if (req.method === 'GET') {
+          try {
+            const { listRootFolders } = await import('./scripts/gdrive.js');
+            const folders = await listRootFolders();
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: true, folders }));
+          } catch (err: any) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: false, error: err?.message, folders: [] }));
+          }
+        } else {
+          res.statusCode = 405;
+          res.end('Method Not Allowed');
+        }
+      });
+
+      // Memilih momen: inisialisasi di data.json jika belum ada & unduh asetnya
+      server.middlewares.use('/api/select-moment', (req, res) => {
+        if (req.method === 'POST') {
+          let body = '';
+          req.on('data', (chunk) => {
+            body += chunk;
+          });
+          req.on('end', async () => {
+            try {
+              const { folderId, folderName } = JSON.parse(body);
+              const { initOrEnsureMoment } = await import('./scripts/gdrive.js');
+              const result = await initOrEnsureMoment(folderId, folderName);
+              res.setHeader('Content-Type', 'application/json');
+              res.end(
+                JSON.stringify({
+                  success: true,
+                  moment: result.moment,
+                  metadata: result.metadata,
+                })
+              );
+            } catch (err: any) {
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: false, error: err?.message }));
+            }
+          });
+        } else {
+          res.statusCode = 405;
+          res.end('Method Not Allowed');
+        }
+      });
     },
   };
 }

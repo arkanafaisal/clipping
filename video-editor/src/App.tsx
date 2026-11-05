@@ -6,14 +6,32 @@ import { CardSkill } from './styles/meme-discovery/types';
 import initialData from './data.json';
 import { captureVideoFrame } from './utils/frameCapture';
 import { parseTimestampToSeconds } from './utils/time';
-import { ArrowLeft, Check, Save, Sparkles, Layers } from 'lucide-react';
+import { ArrowLeft, Check, Save, Sparkles, Layers, RefreshCw } from 'lucide-react';
 
 type StyleMode = 'meme-discovery' | 'roulette-quiz';
 
+interface DriveFolder {
+  id: string;
+  name: string;
+}
+
 export default function App() {
-  const [data, setData] = useState(initialData);
+  const [data, setData] = useState<any>(initialData);
   const moments = data.moments || [];
-  const currentMoment = moments[0]; // momen utama
+
+  // State pemilihan momen (null = halaman Dashboard)
+  const [selectedMomentId, setSelectedMomentId] = useState<string | null>(null);
+  const [folders, setFolders] = useState<DriveFolder[]>([]);
+  const [isLoadingFolders, setIsLoadingFolders] = useState<boolean>(true);
+  const [isOpeningMoment, setIsOpeningMoment] = useState<string | null>(null);
+
+  const currentMoment =
+    moments.find(
+      (m: any) =>
+        m.id === selectedMomentId ||
+        m.name === selectedMomentId ||
+        m.path === selectedMomentId
+    ) || moments[0];
 
   const [activeStyle, setActiveStyle] = useState<StyleMode>('meme-discovery');
   const playerRef = useRef<PlayerRef>(null);
@@ -21,6 +39,59 @@ export default function App() {
   useEffect(() => {
     (window as any).playerRef = playerRef;
   }, []);
+
+  // Memuat daftar folder root Google Drive untuk dashboard
+  useEffect(() => {
+    setIsLoadingFolders(true);
+    fetch('/api/folders')
+      .then((res) => res.json())
+      .then((res) => {
+        if (Array.isArray(res.folders) && res.folders.length > 0) {
+          setFolders(res.folders);
+        } else if (moments.length > 0) {
+          setFolders(moments.map((m: any) => ({ id: m.id, name: m.name })));
+        }
+      })
+      .catch((err) => {
+        console.warn('Gagal memuat folder Google Drive:', err);
+        if (moments.length > 0) {
+          setFolders(moments.map((m: any) => ({ id: m.id, name: m.name })));
+        }
+      })
+      .finally(() => {
+        setIsLoadingFolders(false);
+      });
+  }, []);
+
+  // Handler masuk ke ruang momen tertentu dari dashboard
+  const handleSelectMode = async (
+    folder: DriveFolder,
+    mode: StyleMode = 'meme-discovery'
+  ) => {
+    setActiveStyle(mode);
+    setIsOpeningMoment(folder.id);
+    try {
+      const res = await fetch('/api/select-moment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folderId: folder.id, folderName: folder.name }),
+      });
+      const result = await res.json();
+      if (result.success && result.moment) {
+        if (result.metadata) {
+          setData(result.metadata);
+        }
+        setSelectedMomentId(result.moment.id || folder.id);
+      } else {
+        setSelectedMomentId(folder.id);
+      }
+    } catch (err: any) {
+      console.warn('Gagal select-moment:', err);
+      setSelectedMomentId(folder.id);
+    } finally {
+      setIsOpeningMoment(null);
+    }
+  };
 
   // Helper parsing skill kartu (maks 3 skill dengan fallback legacy passive)
   const getInitialSkills = (md?: any): CardSkill[] => {
@@ -92,10 +163,10 @@ export default function App() {
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
 
-  // Sinkronisasi otomatis saat data.json diedit langsung di file (Vite HMR)
+  // Sinkronisasi otomatis saat currentMoment berubah (atau saat data.json berubah via Vite HMR)
   useEffect(() => {
-    setData(initialData);
-    const md = initialData.moments?.[0]?.memeDiscovery;
+    if (!currentMoment) return;
+    const md = currentMoment.memeDiscovery;
     if (md) {
       if (md.targetUndoTimestamp) setTargetTimestamp(md.targetUndoTimestamp);
       if (md.cardTitle !== undefined) setCardTitle(md.cardTitle);
@@ -107,34 +178,7 @@ export default function App() {
       if (md.descFontSize) setDescFontSize(md.descFontSize);
       setSkills(getInitialSkills(md));
     }
-  }, [initialData]);
-
-  // Deteksi & download otomatis semua berkas aset (full.mp4 & image.jpg) dari Google Drive saat studio direload
-  useEffect(() => {
-    fetch('/api/check-assets')
-      .then((res) => res.json())
-      .then((res) => {
-        if (res.metadata) {
-          setData(res.metadata);
-          const updatedMoment = res.metadata.moments?.[0];
-          const md = updatedMoment?.memeDiscovery;
-          if (md) {
-            if (md.targetUndoTimestamp) setTargetTimestamp(md.targetUndoTimestamp);
-            if (md.cardTitle !== undefined) setCardTitle(md.cardTitle);
-            if (md.cardRarity !== undefined) setCardRarity(md.cardRarity);
-            if (md.cardDesc !== undefined) setCardDesc(md.cardDesc);
-            if (md.cardColor !== undefined) setCardColor(md.cardColor);
-            if (md.titleFontSize) setTitleFontSize(md.titleFontSize);
-            if (md.rarityFontSize) setRarityFontSize(md.rarityFontSize);
-            if (md.descFontSize) setDescFontSize(md.descFontSize);
-            setSkills(getInitialSkills(md));
-          }
-        }
-      })
-      .catch((err) => {
-        console.warn('Auto sync assets failed on reload:', err);
-      });
-  }, []);
+  }, [currentMoment?.id, currentMoment?.name, initialData]);
 
   const videoDurationSeconds =
     currentMoment?.files?.full?.durationSeconds || 10.95;
@@ -186,7 +230,7 @@ export default function App() {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const updatedMoments = moments.map((m) => {
+      const updatedMoments = moments.map((m: any) => {
         if (m.name === currentMoment?.name || m.id === currentMoment?.id) {
           return {
             ...m,
@@ -238,6 +282,68 @@ export default function App() {
       setIsSaving(false);
     }
   };
+
+  // JIKA BELUM MEMILIH MOMEN: Tampilkan Dashboard minimalis untuk memilih momen
+  if (!selectedMomentId) {
+    return (
+      <div className="min-h-screen w-screen bg-black text-neutral-100 p-8 flex flex-col justify-start select-none">
+        <div className="mb-6 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <h1 className="text-base font-semibold text-neutral-300">Pilih Momen</h1>
+            <button
+              onClick={() => {
+                setIsLoadingFolders(true);
+                fetch('/api/folders')
+                  .then((res) => res.json())
+                  .then((res) => {
+                    if (Array.isArray(res.folders) && res.folders.length > 0) {
+                      setFolders(res.folders);
+                    }
+                  })
+                  .finally(() => setIsLoadingFolders(false));
+              }}
+              className="text-xs text-neutral-500 hover:text-neutral-300 transition-colors cursor-pointer"
+              title="Refresh daftar folder"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoadingFolders ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
+          {isLoadingFolders && (
+            <span className="text-xs text-neutral-500">Memuat folder Google Drive...</span>
+          )}
+        </div>
+
+        <div className="flex flex-wrap gap-3">
+          {folders.map((folder) => {
+            const isOpening = isOpeningMoment === folder.id;
+            return (
+              <div
+                key={folder.id}
+                className="w-fit border border-neutral-800 bg-neutral-950 rounded-lg p-3 hover:border-neutral-700 transition-colors"
+              >
+                <div className="text-sm font-medium text-white mb-2.5 capitalize">
+                  {folder.name}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    disabled={isOpening}
+                    onClick={() => handleSelectMode(folder, 'meme-discovery')}
+                    className="text-xs bg-amber-500/20 hover:bg-amber-500 hover:text-black text-amber-300 px-2.5 py-1 rounded transition-colors cursor-pointer font-medium disabled:opacity-50"
+                  >
+                    {isOpening ? 'Menyiapkan...' : 'Meme Discovery'}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+
+          {!isLoadingFolders && folders.length === 0 && (
+            <p className="text-xs text-neutral-500">Tidak ada folder ditemukan di Google Drive.</p>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-black text-neutral-100 select-none">
@@ -302,21 +408,15 @@ export default function App() {
 
       {/* SIDEBAR EDITING: Input Detail Kartu Meme, Posisi Timestamp, dan Simpan ke data.json */}
       <aside className="w-88 h-screen border-l border-neutral-900 bg-neutral-950/95 flex flex-col justify-between p-5 shrink-0 overflow-hidden">
-        {/* Header Bar: Back Button & Detail Mode Aktif */}
+        {/* Header Bar: Back Button ke Dashboard & Detail Mode Aktif */}
         <div className="flex items-center justify-between pb-3.5 border-b border-neutral-900 shrink-0">
           <button
-            onClick={() =>
-              setActiveStyle(
-                activeStyle === 'meme-discovery'
-                  ? 'roulette-quiz'
-                  : 'meme-discovery'
-              )
-            }
-            className="inline-flex items-center gap-1.5 text-xs text-neutral-400 hover:text-white transition-colors py-1 px-2 rounded-lg hover:bg-neutral-900 cursor-pointer"
-            title="Ganti Mode / Kembali"
+            onClick={() => setSelectedMomentId(null)}
+            className="inline-flex items-center gap-1.5 text-xs text-neutral-300 hover:text-white transition-colors py-1 px-2.5 rounded-lg hover:bg-neutral-900 cursor-pointer border border-neutral-800"
+            title="Kembali ke Dashboard"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>Ganti Mode</span>
+            <span>Dashboard</span>
           </button>
 
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-neutral-900 border border-neutral-800 text-xs font-semibold text-amber-300">

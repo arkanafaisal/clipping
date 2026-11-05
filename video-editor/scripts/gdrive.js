@@ -105,6 +105,29 @@ export function formatBytes(bytes) {
 }
 
 /**
+ * Mendapatkan daftar folder langsung di root folder Google Drive
+ */
+export async function listRootFolders() {
+  try {
+    const drive = getDriveClient();
+    const res = await drive.files.list({
+      q: `'${GDRIVE_ROOT_FOLDER_ID}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+      fields: 'files(id, name)',
+      pageSize: 50,
+      orderBy: 'name',
+    });
+    return res.data.files || [];
+  } catch (err) {
+    console.warn('Gagal memuat listRootFolders dari Google Drive:', err.message);
+    const meta = loadMetadata();
+    if (meta && meta.moments) {
+      return meta.moments.map((m) => ({ id: m.id, name: m.name }));
+    }
+    return [];
+  }
+}
+
+/**
  * Menelusuri seluruh folder di Google Drive secara rekursif
  */
 export async function crawlGoogleDrive(drive, parentId = GDRIVE_ROOT_FOLDER_ID, currentPath = '') {
@@ -605,6 +628,146 @@ export async function ensureMomentAssets(momentPathOrName) {
     video: vidRes,
     metadata: vidRes?.metadata || imgRes?.metadata || loadMetadata(),
   };
+}
+
+/**
+ * Inisialisasi struktur momen di data.json jika belum ada dan pastikan asetnya diunduh
+ */
+export async function initOrEnsureMoment(folderId, folderName) {
+  const metadata = loadMetadata() || {
+    lastUpdate: formatHumanDate(new Date()),
+    totalMoments: 0,
+    moments: [],
+  };
+  metadata.moments = metadata.moments || [];
+
+  const cleanPath = sanitizePath(folderName);
+  let moment = metadata.moments.find(
+    (m) =>
+      (folderId && m.id === folderId) ||
+      m.name.toLowerCase() === folderName.toLowerCase() ||
+      m.path.toLowerCase() === cleanPath.toLowerCase()
+  );
+
+  const drive = getDriveClient();
+
+  // Jika momen belum ada di data.json, telusuri folder Google Drive dan buatkan strukturnya otomatis
+  if (!moment) {
+    console.log(`\n📁 Momen baru terdeteksi: "${folderName}" (${folderId})`);
+    console.log(`   Menelusuri file di Google Drive...`);
+
+    let files = [];
+    try {
+      const res = await drive.files.list({
+        q: `'${folderId}' in parents and trashed = false`,
+        fields: 'files(id, name, mimeType, size, videoMediaMetadata)',
+        pageSize: 50,
+      });
+      files = res.data.files || [];
+    } catch (err) {
+      console.warn(`Gagal membaca folder ${folderName} di Drive:`, err.message);
+    }
+
+    // Rule 24: Strictly require exact "full.mp4"
+    const fullFile = files.find((f) => f.name.toLowerCase() === 'full.mp4');
+    const cutFile = files.find((f) => f.name.toLowerCase() === 'cut.mp4');
+    const imageFile = files.find(
+      (f) => f.name.toLowerCase() === 'image.jpg' || f.name.toLowerCase().endsWith('.png')
+    );
+
+    const durationSec = fullFile?.videoMediaMetadata?.durationMillis
+      ? parseFloat((Number(fullFile.videoMediaMetadata.durationMillis) / 1000).toFixed(2))
+      : 10.95;
+
+    moment = {
+      id: folderId,
+      name: folderName,
+      path: cleanPath,
+      files: {
+        image: imageFile
+          ? {
+              id: imageFile.id,
+              name: imageFile.name,
+              size: Number(imageFile.size || 0),
+              sizeFormatted: formatBytes(Number(imageFile.size || 0)),
+              tempRelPath: `temp/${cleanPath}/${imageFile.name}`,
+            }
+          : null,
+        full: fullFile
+          ? {
+              id: fullFile.id,
+              name: fullFile.name,
+              mimeType: fullFile.mimeType || 'video/mp4',
+              size: Number(fullFile.size || 0),
+              sizeFormatted: formatBytes(Number(fullFile.size || 0)),
+              durationSeconds: durationSec,
+              durationFormatted: `${durationSec}s`,
+              width: fullFile.videoMediaMetadata?.width || 1080,
+              height: fullFile.videoMediaMetadata?.height || 1920,
+              tempRelPath: `temp/${cleanPath}/${fullFile.name}`,
+            }
+          : null,
+        cut: cutFile
+          ? {
+              id: cutFile.id,
+              name: cutFile.name,
+              size: Number(cutFile.size || 0),
+              sizeFormatted: formatBytes(Number(cutFile.size || 0)),
+              tempRelPath: `temp/${cleanPath}/${cutFile.name}`,
+            }
+          : null,
+      },
+      memeDiscovery: {
+        targetUndoTimestamp: '00:05.000',
+        title: `Meme Discovery: ${folderName}`,
+        cardTitle: folderName,
+        cardRarity: 'Rare',
+        cardDesc: '',
+        skills: [
+          { name: '', desc: '', nameFontSize: 28, descFontSize: 22 },
+          { name: '', desc: '', nameFontSize: 28, descFontSize: 22 },
+          { name: '', desc: '', nameFontSize: 28, descFontSize: 22 },
+        ],
+        cardColor: '#f59e0b',
+        titleFontSize: 48,
+        rarityFontSize: 24,
+        descFontSize: 30,
+        passiveName: '',
+        passiveDesc: '',
+        passiveNameFontSize: 28,
+        passiveDescFontSize: 22,
+      },
+    };
+
+    metadata.moments.push(moment);
+    metadata.totalMoments = metadata.moments.length;
+    metadata.lastUpdate = formatHumanDate(new Date());
+
+    fs.mkdirSync(path.dirname(DATA_PATH), { recursive: true });
+    fs.writeFileSync(DATA_PATH, JSON.stringify(metadata, null, 2), 'utf8');
+  }
+
+  // Unduh aset ke folder temp/<cleanPath>/ jika belum ada di lokal
+  const targetDir = path.join(TEMP_DIR, cleanPath);
+  fs.mkdirSync(targetDir, { recursive: true });
+
+  if (moment.files?.full?.id) {
+    const fullPath = path.join(targetDir, 'full.mp4');
+    if (!fs.existsSync(fullPath) || fs.statSync(fullPath).size === 0) {
+      console.log(`\n⬇️ Mengunduh full.mp4 untuk "${moment.name}"...`);
+      await downloadDriveFile(drive, moment.files.full.id, fullPath, `${moment.name}/full.mp4`);
+    }
+  }
+
+  if (moment.files?.image?.id) {
+    const imagePath = path.join(targetDir, moment.files.image.name);
+    if (!fs.existsSync(imagePath) || fs.statSync(imagePath).size === 0) {
+      console.log(`\n🖼️ Mengunduh kartu gambar untuk "${moment.name}"...`);
+      await downloadDriveFile(drive, moment.files.image.id, imagePath, `${moment.name}/${moment.files.image.name}`);
+    }
+  }
+
+  return { moment, metadata };
 }
 
 /**

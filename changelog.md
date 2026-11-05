@@ -16,7 +16,21 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Freeze Video at Target Undo Frame Instead of Last Frame During Export
+## [Unreleased] - Minimalist Moments Dashboard and Back Navigation
+- **Konteks Struktural**:
+  - Penambahan Halaman Dashboard Minimalis & Tombol Back ([App.tsx](file:///d:/projects/clipping/video-editor/src/App.tsx), [vite.config.ts](file:///d:/projects/clipping/video-editor/vite.config.ts), [scripts/gdrive.js](file:///d:/projects/clipping/video-editor/scripts/gdrive.js)):
+    - **Penyebab & Kebutuhan**: Pengguna meminta halaman dashboard sederhana tanpa banyak teks/gambar untuk menampilkan card nama folder di Google Drive root (`GDRIVE_ROOT_FOLDER_ID`), tombol pemilihan mode (Meme Discovery) per card, tombol kembali (Back) ke dashboard dari editor, serta otomatisasi pembuatan struktur momen di `data.json` dan pengunduhan aset saat momen baru dimasuki.
+    - **Solusi**:
+      1. Menambahkan fungsi `listRootFolders` dan `initOrEnsureMoment` pada [`scripts/gdrive.js`](file:///d:/projects/clipping/video-editor/scripts/gdrive.js) untuk memindai folder root Google Drive dan menginisialisasi metadata serta aset momen ke `src/data.json` dan `public/temp/<cleanPath>/`.
+      2. Mendaftarkan API endpoint `/api/folders` dan `/api/select-moment` pada middleware Vite di [`vite.config.ts`](file:///d:/projects/clipping/video-editor/vite.config.ts).
+      3. Di [`App.tsx`](file:///d:/projects/clipping/video-editor/src/App.tsx), membuat tampilan Dashboard minimalis berbasis card berukuran fit yang hanya menampilkan teks nama folder dan tombol mode (`Meme Discovery`).
+      4. Menambahkan tombol "Dashboard" di header sidebar editor untuk memudahkan navigasi kembali dan berganti momen.
+- **Perubahan Kode Penting**:
+  - `video-editor/scripts/gdrive.js`: Penambahan fungsi `listRootFolders` dan `initOrEnsureMoment`.
+  - `video-editor/vite.config.ts`: Penambahan rute middleware `/api/folders` dan `/api/select-moment`.
+  - `video-editor/src/App.tsx`: Penambahan UI Dashboard, state `selectedMomentId`, handler `handleSelectMode`, dan tombol Back ke Dashboard.
+
+## [a881be4] - Freeze Video at Target Undo Frame Instead of Last Frame During Export
 - **Konteks Struktural**:
   - Resolusi Tampilan Freezed Frame Puncak saat Ekspor Remotion CLI ([MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx)):
     - **Penyebab & Kebutuhan**: Pada web preview (`App.tsx`), frame puncak berhasil terlihat karena browser mengekstrak snapshot canvas ke base64 (`targetFrameImage`) secara lokal. Namun saat diekspor melalui Remotion CLI (`npm run render`), `targetFrameImage` bernilai `undefined` sehingga kode masuk ke blok *fallback*. Di blok *fallback* tersebut, `<Freeze>` secara keliru menggunakan `frame={playEndFrame - 1}` (frame terakhir video) alih-alih `frame={targetUndoFrame}` (frame momen puncak). Akibatnya, pada hasil ekspor MP4, animasi rewind YouTube dan shutter flash berjalan di atas frame video yang salah (last frame).
@@ -3988,52 +4002,5 @@ Format Entri:
     - Menerapkan `top: 0, left: 0, right: 0, bottom: 0` dengan `alignItems: 'center'` dan `justifyContent: 'center'` pada `styles.subtitleOverlayContainer`.
     - Menerapkan translasi offset berbasis container `translateX = ((positionX - 50) / 100) * containerWidth` dan `translateY = ((positionY - 50) / 100) * containerHeight`.
 
-## [bf5c4dc] - Implement Subtitle Burner Module and Video Export Endpoint via FFmpeg (ASS Format)
-- **Konteks Struktural**:
-  1. Konversi Format Konfigurasi Subtitle JSON ke ASS (Advanced SubStation Alpha):
-     - Membangun modul mandiri [mobile/scripts/utils/subtitle_burner.py](file:///d:/projects/clipping/mobile/scripts/utils/subtitle_burner.py) yang mengubah array cues dan style JSON menjadi naskah ASS standar industri yang dikenali filter `subtitles` FFmpeg (`libass`).
-     - Mengimplementasikan PlayRes 16:9 (1920x1080), titik jangkar tengah (`\an5`), pemetaan koordinat posisi global X dan Y (`\pos(ass_x, ass_y)`), outline tebal dengan warna kontras, serta skala font per-cue proporsional terhadap base 14px di mobile UI.
-  2. Ekspor Video Baru Tanpa Merusak File Asli (Non-Destructive Export):
-     - Proses pembakaran subtitle membaca file klip asli yang sudah di-download (`<start> - <end>.mp4`) dan membuat file video baru terpisah (`<start> - <end> (Subtitled).mp4`) di folder shared storage `/storage/emulated/0/clipping/output/<videoId>/`.
-     - File klip video asli dipertahankan 100% utuh tanpa ditimpa atau dimodifikasi.
-  3. Pemisahan Endpoint Pass-Through Murni & Layanan Frontend:
-     - Menambahkan endpoint `POST /api/burn-subtitles` pada [mobile_api/main.py](file:///d:/projects/clipping/mobile_api/main.py) untuk pengujian lokal Termux / PC.
-     - Menyediakan service function `burnClipSubtitles`, helper penamaan berkas `getSubtitledClipFilename` dan `getSubtitledClipOutputFilePath`, serta pemetaan kode error terstandarisasi (`INPUT_VIDEO_NOT_FOUND`, `NO_SUBTITLES_TO_BURN`, `FFMPEG_BURN_ERROR`, `OUTPUT_FILE_EMPTY`, `ASS_GENERATION_FAILED`) pada [mobile/src/services/api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts).
-- **Perubahan Kode Penting**:
-  - [mobile/scripts/utils/subtitle_burner.py](file:///d:/projects/clipping/mobile/scripts/utils/subtitle_burner.py):
-    - Membuat fungsi `format_ass_time`, `escape_ffmpeg_filter_path`, `build_ass_content`, dan `burn_subtitles_to_video` dengan pemantauan progress throttled 250ms serta pembersihan berkas temporary.
-  - [mobile_api/main.py](file:///d:/projects/clipping/mobile_api/main.py):
-    - Mendaftarkan path `mobile/scripts` ke `sys.path` dan mengekspos endpoint `POST /api/burn-subtitles` serta mengaktifkan `POST /api/subtitles`.
-  - [mobile/src/services/api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts):
-    - Menambahkan kode error ekspor subtitle ke `API_ERROR_MAP`.
-    - Menambahkan helper fungsi alokasi path dan penamaan `getSubtitledClipFilename` dan `getSubtitledClipOutputFilePath`.
-    - Menambahkan antarmuka `BurnSubtitlesParams`, `BurnSubtitlesResult`, dan fungsi pemanggilan `burnClipSubtitles`.
-
-## [a9be56d] - Omit Redundant Base Properties from Subtitle Cue Array and Auto-Inject Defaults at Visual Layer
-- **Konteks Struktural**:
-  1. Penghapusan Properti Base yang Redundan dari Objek Subtitle Cue:
-     - Menyimpan nilai konfigurasi default (seperti `fontSize: 14`) ke setiap elemen objek subtitle dalam array membebani ukuran berkas JSON dan menimbulkan redundansi struktural.
-     - Memastikan properti `fontSize` tidak pernah ditulis ke objek `SubtitleCue` jika nilainya sama dengan nilai base default (14) atau tidak mengalami override.
-     - Nilai posisi (X, Y) tetap tersimpan murni sebagai konfigurasi global pada tingkat `style` (`style.positionX`, `style.positionY`) dan tidak pernah disisipkan ke properti cue per-subtitle.
-  2. Injeksi Dinamis Nilai Base pada Layer Visual & Modal Sementara:
-     - Layer visual pemutar video ([SubtitleOverlay.tsx](file:///d:/projects/clipping/mobile/src/components/feed/SubtitleOverlay.tsx) & [FeedScreen.tsx](file:///d:/projects/clipping/mobile/src/components/FeedScreen.tsx)) secara otomatis menginjeksikan fallback base `14` saat properti `fontSize` pada cue bernilai kosong (`undefined`).
-     - Saat modal pengeditan ukuran font dibuka ([FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx)), nilai `14` diinjeksikan sementara ke dalam state input agar pengguna dapat melihat dan mengubahnya dengan mudah tanpa memutasi array data secara prematur.
-     - Jika pengguna menyimpan kembali ukuran font ke nilai base (14), properti `fontSize` secara otomatis dihapus (`delete merged.fontSize`) dari cue bersangkutan.
-- **Perubahan Kode Penting**:
-  - [mobile/src/services/api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts):
-    - Memperbarui [normalizeSingleTrackCues](file:///d:/projects/clipping/mobile/src/services/api.ts#L1340-L1356) dan [sliceCuesForClip](file:///d:/projects/clipping/mobile/src/services/api.ts#L1418-L1435) agar mengabaikan penambahan properti `fontSize` jika nilainya sama dengan 14 atau tidak ada override.
-  - [mobile/src/hooks/useClipSubtitle.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipSubtitle.ts):
-    - Menghapus properti default `fontSize: 14` saat pembuatan cue baru di `handleAddCue`.
-    - Menghapus properti `fontSize` (`delete merged.fontSize`) pada `handleUpdateCue` saat nilai pembaruan adalah 14 atau `undefined`.
-  - [mobile/src/components/feed/FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx):
-    - Menghapus properti `fontSize` (`{ fontSize: undefined }`) saat modal font disimpan dengan nilai sama dengan base (14).
-
-## [b62787a] - Implement Global Subtitle Position (X, Y) Control with Center-Anchored Percentage Coordinates
-- **Konteks Struktural**:
-  1. Pengaturan Posisi Subtitle Global Tanpa Per-Cue Complexity:
-     - Memposisikan subtitle secara individual per-cue terlalu membebani pengguna dan mempersulit alur kerja editing. Seluruh subtitle kini diatur posisinya secara terpadu (global) terhadap frame 16:9 video player.
-     - Menambahkan tombol indikator posisi `Posisi (X, Y)` di sebelah tombol `+ Subtitle` pada toolbar editor [FeedTopControls.tsx](file:///d:/projects/clipping/mobile/src/components/feed/FeedTopControls.tsx).
-  2. Sistem Koordinat Relatif Berbasis Titik Pusat (Center Anchor) pada Skala 0 - 100:
-     - Nilai koordinat X dan Y menggunakan skala perbandingan dimensi frame video (0 sampai 100, bukan pixel), di mana X=50 adalah horizontal center, dan Y=85 adalah area lower-third standar.
-     - Titik pusat teks subtitle (`textContainer`) diukur secara p
+## [bf5c4dc] - Implement Subtitle Burner Module and 
 ... [truncated for diff preview]
