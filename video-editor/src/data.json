@@ -1,5 +1,5 @@
 {
-  "lastUpdate": "2026-11-05 15:56:48",
+  "lastUpdate": "2026-11-05 16:39:19",
   "totalMoments": 2,
   "moments": [
     {
@@ -92,21 +92,21 @@
       "memeDiscovery": {
         "targetUndoTimestamp": "00:21.7",
         "title": "Meme Discovery: dont look behind",
-        "cardTitle": "don't look behind!",
+        "cardTitle": "Don't look behind!",
         "cardRarity": "Epic",
-        "cardDesc": "prinsip yang selalu dipegang pak tua saat sedang dikejar",
+        "cardDesc": "prinsip yang selalu dipegang pak tua\nsetiap kali ia dikejar.",
         "skills": [
           {
-            "name": "I will not stop!",
-            "desc": "",
+            "name": "Leave the fears behind!",
+            "desc": "-10% fear selama monster tidak terlihat lebih dari\n3 detik.",
             "nameFontSize": 32,
-            "descFontSize": 26
+            "descFontSize": 28
           },
           {
-            "name": "",
-            "desc": "",
-            "nameFontSize": 28,
-            "descFontSize": 22
+            "name": "I will not stop!",
+            "desc": "+5% stamina selama berlari lebih dari 10 detik.",
+            "nameFontSize": 32,
+            "descFontSize": 28
           },
           {
             "name": "",
@@ -119,10 +119,10 @@
         "titleFontSize": 46,
         "rarityFontSize": 32,
         "descFontSize": 32,
-        "passiveName": "I will not stop!",
-        "passiveDesc": "",
+        "passiveName": "Leave the fears behind!",
+        "passiveDesc": "-10% fear selama monster tidak terlihat lebih dari\n3 detik.",
         "passiveNameFontSize": 32,
-        "passiveDescFontSize": 26
+        "passiveDescFontSize": 28
       }
     }
   ]

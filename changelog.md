@@ -16,7 +16,24 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Zero-Dependency URL Query Routing for Persistent Moment Selection
+## [Unreleased] - One-Click Video Export Button on Web and Workspace-Aware CLI Render
+- **Konteks Struktural**:
+  - Tombol Ekspor Video di Web & Ekspor CLI Otomatis Sesuai Workspace Terakhir ([vite.config.ts](file:///d:/projects/clipping/video-editor/vite.config.ts), [App.tsx](file:///d:/projects/clipping/video-editor/src/App.tsx), [Root.tsx](file:///d:/projects/clipping/video-editor/src/remotion/Root.tsx), [scripts/gdrive.js](file:///d:/projects/clipping/video-editor/scripts/gdrive.js), [.gitignore](file:///d:/projects/clipping/.gitignore)):
+    - **Penyebab & Kebutuhan**: Sebelumnya `npm run render` masih mengekspor momen pertama secara statis (`moments[0]`) tanpa peduli momen mana yang sedang dibuka di browser. Selain itu pengguna harus beralih ke terminal untuk melakukan render. Pengguna menginginkan ekspor video yang selalu sinkron dengan workspace aktif terakhir serta tombol ekspor langsung di antarmuka Web.
+    - **Solusi**:
+      1. Di [`App.tsx`](file:///d:/projects/clipping/video-editor/src/App.tsx), menambahkan field `activeMomentId` dan `activeStyle` ke dalam data saat menyimpan, serta menambahkan tombol "Ekspor MP4" langsung di panel sidebar web dengan feedback status rendering live dan tombol akses berkas (`Buka`).
+      2. Di [`vite.config.ts`](file:///d:/projects/clipping/video-editor/vite.config.ts), menambahkan endpoint `/api/render` untuk mengeksekusi CLI Remotion di latar belakang sesuai momen & style aktif, serta menyajikan berkas hasil render secara statis melalui rute `/out/*`.
+      3. Di [`Root.tsx`](file:///d:/projects/clipping/video-editor/src/remotion/Root.tsx), memperbarui pengambilan momen default agar mengacu pada `activeMomentId` dari `data.json`, sehingga perintah terminal `npm run render` otomatis merender momen terakhir yang sedang dikerjakan.
+      4. Di [`scripts/gdrive.js`](file:///d:/projects/clipping/video-editor/scripts/gdrive.js), memperbarui fungsi `ensureMomentAssets` agar memeriksa aset momen aktif `activeMomentId`.
+      5. Di `.gitignore` dan `video-editor/.gitignore`, mengabaikan direktori `out/` dan `out*.mp4` agar berkas video hasil ekspor tidak mengotori riwayat repositori Git.
+- **Perubahan Kode Penting**:
+  - `video-editor/vite.config.ts`: Penambahan rute `/api/render` dan `/out/*`.
+  - `video-editor/src/App.tsx`: Penambahan tombol "Ekspor MP4", handler `handleRender`, penyimpanan `activeMomentId`, dan feedback status rendering.
+  - `video-editor/src/remotion/Root.tsx`: Resolusi `currentMoment` berbasis `activeMomentId`.
+  - `video-editor/scripts/gdrive.js`: Resolusi aset momen aktif pada `syncMomentImage` dan `syncMomentVideo`.
+  - `.gitignore` & `video-editor/.gitignore`: Penambahan pola pengabaian berkas ekspor video.
+
+## [240839e] - Zero-Dependency URL Query Routing for Persistent Moment Selection
 - **Konteks Struktural**:
   - Routing Mandiri Berbasis URL Search Params ([App.tsx](file:///d:/projects/clipping/video-editor/src/App.tsx)):
     - **Penyebab & Kebutuhan**: Pengguna mengeluhkan bahwa setiap kali browser di-refresh (F5), aplikasi selalu ter-reset kembali ke tampilan Dashboard awal sehingga momen yang sedang diedit harus dipilih ulang. Pengguna meminta sistem routing sederhana tanpa menggunakan atau menambahkan pustaka `react-router` agar saat di-refresh posisi halaman tetap bertahan pada momen yang aktif.

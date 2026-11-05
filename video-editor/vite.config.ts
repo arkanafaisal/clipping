@@ -189,6 +189,134 @@ function saveDataPlugin(): Plugin {
           res.end('Method Not Allowed');
         }
       });
+
+      // Sajikan file hasil ekspor video dari folder out/
+      server.middlewares.use('/out', (req, res, next) => {
+        try {
+          const filePath = path.resolve(
+            __dirname,
+            'out',
+            decodeURIComponent((req.url || '').replace(/^\//, ''))
+          );
+          if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+            const stat = fs.statSync(filePath);
+            res.writeHead(200, {
+              'Content-Type': 'video/mp4',
+              'Content-Length': stat.size,
+            });
+            fs.createReadStream(filePath).pipe(res);
+            return;
+          }
+        } catch (e) {}
+        next();
+      });
+
+      // Memicu ekspor video Remotion langsung dari Web UI
+      server.middlewares.use('/api/render', (req, res) => {
+        if (req.method === 'POST') {
+          let body = '';
+          req.on('data', (chunk) => {
+            body += chunk;
+          });
+          req.on('end', async () => {
+            try {
+              const { momentId, style } = JSON.parse(body || '{}');
+              const dataPath = path.resolve(__dirname, 'src/data.json');
+              const metadata = JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
+
+              if (momentId) {
+                metadata.activeMomentId = momentId;
+              }
+              if (style) {
+                metadata.activeStyle = style;
+              }
+              fs.writeFileSync(dataPath, JSON.stringify(metadata, null, 2), 'utf-8');
+
+              const moment =
+                (metadata.moments || []).find(
+                  (m: any) =>
+                    m.id === momentId ||
+                    m.name === momentId ||
+                    m.path === momentId
+                ) || metadata.moments?.[0];
+
+              const compositionId =
+                style === 'roulette-quiz' ? 'RouletteQuiz' : 'MemeDiscovery';
+              const cleanMomentSlug =
+                moment?.path ||
+                (moment?.name ? moment.name.replace(/\s+/g, '-') : 'output');
+              const outputDir = path.resolve(__dirname, 'out');
+              fs.mkdirSync(outputDir, { recursive: true });
+              const outputFile = path.join(outputDir, `${cleanMomentSlug}.mp4`);
+              const outputRelPath = `out/${cleanMomentSlug}.mp4`;
+
+              console.log(
+                `\n🎬 [Render API] Memulai rendering video: ${compositionId} -> ${outputRelPath}...`
+              );
+
+              const { spawn } = await import('child_process');
+              const npxCmd = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+              const renderProcess = spawn(
+                npxCmd,
+                [
+                  'remotion',
+                  'render',
+                  'src/remotion/index.ts',
+                  compositionId,
+                  outputFile,
+                ],
+                { cwd: __dirname, stdio: ['ignore', 'pipe', 'pipe'] }
+              );
+
+              let stdoutData = '';
+              let stderrData = '';
+              renderProcess.stdout.on('data', (chunk) => {
+                stdoutData += chunk.toString();
+              });
+              renderProcess.stderr.on('data', (chunk) => {
+                stderrData += chunk.toString();
+              });
+
+              renderProcess.on('close', (code) => {
+                if (code === 0) {
+                  console.log(
+                    `✅ [Render API] Berhasil merender video: ${outputFile}`
+                  );
+                  res.setHeader('Content-Type', 'application/json');
+                  res.end(
+                    JSON.stringify({
+                      success: true,
+                      outputPath: outputRelPath,
+                      fullPath: outputFile,
+                    })
+                  );
+                } else {
+                  console.error(
+                    `❌ [Render API] Gagal render: exit code ${code}`
+                  );
+                  console.error(stderrData || stdoutData);
+                  res.statusCode = 500;
+                  res.setHeader('Content-Type', 'application/json');
+                  res.end(
+                    JSON.stringify({
+                      success: false,
+                      error: `Render gagal dengan kode keluar ${code}`,
+                      details: stderrData || stdoutData,
+                    })
+                  );
+                }
+              });
+            } catch (err: any) {
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: false, error: err?.message }));
+            }
+          });
+        } else {
+          res.statusCode = 405;
+          res.end('Method Not Allowed');
+        }
+      });
     },
   };
 }

@@ -7,7 +7,14 @@ import { VerticalShortsComposition } from './compositions/VerticalShortsComposit
 import initialData from '../data.json';
 
 export const RemotionRoot: React.FC = () => {
-  const currentMoment = initialData.moments?.[0];
+  const activeId = (initialData as any).activeMomentId;
+  const currentMoment =
+    (initialData.moments as any[])?.find(
+      (m: any) =>
+        m.id === activeId ||
+        m.name === activeId ||
+        m.path === activeId
+    ) || initialData.moments?.[0];
   const md = currentMoment?.memeDiscovery;
   const videoDurationSeconds = currentMoment?.files?.full?.durationSeconds || 10.95;
   const videoFrames = Math.round(videoDurationSeconds * 30);
@@ -60,11 +67,11 @@ export const RemotionRoot: React.FC = () => {
         width={1080}
         height={1920}
         defaultProps={{
-          title: 'Grim Reaper Momen Seru',
-          gameTitle: 'Grim Reaper',
+          title: `${currentMoment?.name || 'Grim Reaper'} Momen Seru`,
+          gameTitle: currentMoment?.name || 'Grim Reaper',
           timestampText: '00:00:10',
-          captionText: 'Momen video Grim Reaper yang diunduh dari Google Drive!',
-          videoSrc: '/temp/grim reaper/full.mp4',
+          captionText: `Momen video ${currentMoment?.name || 'Grim Reaper'} yang diunduh dari Google Drive!`,
+          videoSrc,
           showRoulettePreview: false,
           activeLaneIndex: 1,
           dimOpacity: 0.65,

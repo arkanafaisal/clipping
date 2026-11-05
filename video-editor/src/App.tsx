@@ -6,7 +6,7 @@ import { CardSkill, RARITY_CONFIG, getRarityColor } from './styles/meme-discover
 import initialData from './data.json';
 import { captureVideoFrame } from './utils/frameCapture';
 import { parseTimestampToSeconds } from './utils/time';
-import { ArrowLeft, Check, Save, Sparkles, Layers, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Check, Save, Sparkles, Layers, RefreshCw, Film, ExternalLink } from 'lucide-react';
 
 type StyleMode = 'meme-discovery' | 'roulette-quiz';
 
@@ -378,6 +378,8 @@ export default function App() {
 
       const payload = {
         ...data,
+        activeMomentId: currentMoment?.path || currentMoment?.id,
+        activeStyle,
         moments: updatedMoments,
       };
 
@@ -400,6 +402,45 @@ export default function App() {
       setTimeout(() => setSaveStatus(null), 3000);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // State dan handler ekspor video langsung dari Web UI
+  const [isRendering, setIsRendering] = useState<boolean>(false);
+  const [renderStatus, setRenderStatus] = useState<string | null>(null);
+  const [lastExportPath, setLastExportPath] = useState<string | null>(null);
+
+  const handleRender = async () => {
+    setIsRendering(true);
+    setRenderStatus('Menyimpan perubahan...');
+    try {
+      await handleSave();
+      setRenderStatus('Sedang merender video MP4...');
+
+      const res = await fetch('/api/render', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          momentId: currentMoment?.path || currentMoment?.id,
+          style: activeStyle,
+        }),
+      });
+
+      const result = await res.json();
+      if (result.success && result.outputPath) {
+        setLastExportPath(result.outputPath);
+        setRenderStatus(`Selesai: ${result.outputPath}`);
+        setTimeout(() => setRenderStatus(null), 10000);
+      } else {
+        setRenderStatus(`Gagal render: ${result.error || 'Terjadi kesalahan'}`);
+        setTimeout(() => setRenderStatus(null), 6000);
+      }
+    } catch (err: any) {
+      console.error('Gagal render:', err);
+      setRenderStatus('Gagal memicu render');
+      setTimeout(() => setRenderStatus(null), 5000);
+    } finally {
+      setIsRendering(false);
     }
   };
 
@@ -766,28 +807,105 @@ export default function App() {
                 ))}
               </div>
 
-              {/* Tombol Simpan ke data.json */}
+              {/* Tombol Aksi: Simpan & Ekspor Video Langsung */}
+              <div className="flex flex-col gap-2 pt-2">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleSave}
+                    disabled={isSaving || isRendering}
+                    className="flex-1 py-2 px-3 rounded-xl bg-neutral-900 hover:bg-neutral-800 active:bg-neutral-950 disabled:opacity-50 text-neutral-200 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer border border-neutral-800"
+                    title="Simpan konfigurasi ke data.json"
+                  >
+                    {saveStatus ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                        <span className="truncate">{saveStatus}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-3.5 h-3.5 text-neutral-400" />
+                        <span>{isSaving ? 'Menyimpan...' : 'Simpan'}</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    onClick={handleRender}
+                    disabled={isRendering || isSaving}
+                    className="flex-1 py-2 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600 disabled:opacity-50 text-black font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-md shadow-amber-500/10 cursor-pointer"
+                    title="Render video MP4 secara langsung dari browser"
+                  >
+                    {isRendering ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin text-black" />
+                        <span>Rendering...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Film className="w-3.5 h-3.5 text-black" />
+                        <span>Ekspor MP4</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {renderStatus && (
+                  <div className="p-2 rounded-xl bg-neutral-900 border border-neutral-800 text-[11px] text-amber-300 flex items-center justify-between gap-2">
+                    <span className="truncate">{renderStatus}</span>
+                    {lastExportPath && (
+                      <a
+                        href={`/${lastExportPath}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 font-bold text-white hover:text-amber-400 shrink-0 text-xs underline"
+                        title="Buka file video yang telah diekspor"
+                      >
+                        <span>Buka</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="space-y-4 py-4">
+              <div className="text-xs text-neutral-400 leading-relaxed">
+                Mode Roulette Quiz aktif untuk momen <strong className="text-white">{currentMoment?.name}</strong>.
+              </div>
               <button
-                onClick={handleSave}
-                disabled={isSaving}
-                className="w-full py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600 disabled:opacity-50 text-black font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-lg shadow-amber-500/10 cursor-pointer mt-2"
+                onClick={handleRender}
+                disabled={isRendering || isSaving}
+                className="w-full py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-bold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-amber-500/10"
               >
-                {saveStatus ? (
+                {isRendering ? (
                   <>
-                    <Check className="w-4 h-4 text-emerald-950" />
-                    <span>{saveStatus}</span>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Rendering Quiz...</span>
                   </>
                 ) : (
                   <>
-                    <Save className="w-4 h-4" />
-                    <span>{isSaving ? 'Menyimpan...' : 'Simpan ke data.json'}</span>
+                    <Film className="w-3.5 h-3.5" />
+                    <span>Ekspor Video Quiz (MP4)</span>
                   </>
                 )}
               </button>
-            </>
-          ) : (
-            <div className="text-xs text-neutral-500 leading-relaxed py-4">
-              Mode Roulette Quiz aktif. Klik tombol "Ganti Mode" untuk kembali ke Meme Discovery.
+              {renderStatus && (
+                <div className="p-2 rounded-xl bg-neutral-900 border border-neutral-800 text-[11px] text-amber-300 flex items-center justify-between gap-2">
+                  <span className="truncate">{renderStatus}</span>
+                  {lastExportPath && (
+                    <a
+                      href={`/${lastExportPath}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 font-bold text-white hover:text-amber-400 shrink-0 text-xs underline"
+                    >
+                      <span>Buka</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>

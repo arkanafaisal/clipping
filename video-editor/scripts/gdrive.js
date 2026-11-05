@@ -405,12 +405,15 @@ export async function syncMomentImage(momentPathOrName) {
   const metadata = loadMetadata();
   if (!metadata || !metadata.moments) return null;
 
+  const targetId = momentPathOrName || metadata.activeMomentId;
   const moment = metadata.moments.find(
     (m) =>
-      m.path === momentPathOrName ||
-      m.name === momentPathOrName ||
-      sanitizePath(m.path) === sanitizePath(momentPathOrName) ||
-      !momentPathOrName
+      (targetId &&
+        (m.path === targetId ||
+          m.name === targetId ||
+          m.id === targetId ||
+          sanitizePath(m.path) === sanitizePath(targetId))) ||
+      !targetId
   );
 
   if (!moment) return null;
@@ -498,12 +501,15 @@ export async function syncMomentVideo(momentPathOrName) {
   const metadata = loadMetadata();
   if (!metadata || !metadata.moments) return null;
 
+  const targetId = momentPathOrName || metadata.activeMomentId;
   const moment = metadata.moments.find(
     (m) =>
-      m.path === momentPathOrName ||
-      m.name === momentPathOrName ||
-      sanitizePath(m.path) === sanitizePath(momentPathOrName) ||
-      !momentPathOrName
+      (targetId &&
+        (m.path === targetId ||
+          m.name === targetId ||
+          m.id === targetId ||
+          sanitizePath(m.path) === sanitizePath(targetId))) ||
+      !targetId
   );
 
   if (!moment) return null;

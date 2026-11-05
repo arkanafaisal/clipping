@@ -1,6 +1,10 @@
 __pycache__/
 node_modules
 output/
+out/
+out*.mp4
+video-editor/out/
+video-editor/out*.mp4
 
 log.txt
 
