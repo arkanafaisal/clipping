@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Player, PlayerRef } from '@remotion/player';
 import { MemeDiscoveryComposition } from './styles/meme-discovery/MemeDiscoveryComposition';
 import { RouletteQuizComposition } from './styles/roulette-quiz/RouletteQuizComposition';
-import { CardSkill } from './styles/meme-discovery/types';
+import { CardSkill, RARITY_CONFIG, getRarityColor } from './styles/meme-discovery/types';
 import initialData from './data.json';
 import { captureVideoFrame } from './utils/frameCapture';
 import { parseTimestampToSeconds } from './utils/time';
@@ -123,13 +123,13 @@ export default function App() {
     initialMeme.cardTitle || ''
   );
   const [cardRarity, setCardRarity] = useState<string>(
-    initialMeme.cardRarity || ''
+    initialMeme.cardRarity || 'Common'
   );
   const [cardDesc, setCardDesc] = useState<string>(
     initialMeme.cardDesc || ''
   );
-  const [cardColor, setCardColor] = useState<string>(
-    initialMeme.cardColor || '#f59e0b'
+  const [cardColor, setCardColor] = useState<string>(() =>
+    getRarityColor(initialMeme.cardRarity || 'Common')
   );
 
   // Ukuran font teks kartu (dalam pixel, dapat disetel langsung oleh pengguna)
@@ -160,6 +160,16 @@ export default function App() {
     });
   };
 
+  const handleRarityChange = (newRarity: string) => {
+    setCardRarity(newRarity);
+    setCardColor(getRarityColor(newRarity));
+  };
+
+  const activeRarityKey =
+    Object.keys(RARITY_CONFIG).find(
+      (key) => key.toLowerCase() === (cardRarity || '').toLowerCase()
+    ) || 'Common';
+
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
 
@@ -170,9 +180,10 @@ export default function App() {
     if (md) {
       if (md.targetUndoTimestamp) setTargetTimestamp(md.targetUndoTimestamp);
       if (md.cardTitle !== undefined) setCardTitle(md.cardTitle);
-      if (md.cardRarity !== undefined) setCardRarity(md.cardRarity);
+      const r = md.cardRarity || 'Common';
+      setCardRarity(r);
+      setCardColor(getRarityColor(r));
       if (md.cardDesc !== undefined) setCardDesc(md.cardDesc);
-      if (md.cardColor !== undefined) setCardColor(md.cardColor);
       setTitleFontSize(md.titleFontSize || 46);
       setRarityFontSize(md.rarityFontSize || 32);
       setDescFontSize(md.descFontSize || 32);
@@ -485,7 +496,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* 3. Rarity */}
+              {/* 3. Rarity Kartu (Dropdown Konstan & Otomatis Warna Tema) */}
               <div>
                 <div className="flex justify-between items-center mb-1">
                   <label className="text-xs font-bold text-neutral-300">
@@ -494,13 +505,28 @@ export default function App() {
                   <span className="text-[10px] text-neutral-500 font-mono">Font Size</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={cardRarity}
-                    onChange={(e) => setCardRarity(e.target.value)}
-                    placeholder="rarity"
-                    className="flex-1 bg-black border border-neutral-800 rounded-xl px-3 py-2 text-xs text-amber-400 font-bold focus:outline-none focus:border-amber-500 transition-colors"
-                  />
+                  <div className="relative flex-1 flex items-center">
+                    <span
+                      className="absolute left-3 w-3 h-3 rounded-full pointer-events-none transition-all duration-300 shadow-sm"
+                      style={{ backgroundColor: cardColor, boxShadow: `0 0 8px ${cardColor}88` }}
+                    />
+                    <select
+                      value={activeRarityKey}
+                      onChange={(e) => handleRarityChange(e.target.value)}
+                      className="w-full bg-black border border-neutral-800 rounded-xl pl-8 pr-3 py-2 text-xs font-bold focus:outline-none focus:border-amber-500 transition-colors cursor-pointer"
+                      style={{ color: cardColor }}
+                    >
+                      {Object.entries(RARITY_CONFIG).map(([key, cfg]) => (
+                        <option
+                          key={key}
+                          value={key}
+                          className="bg-neutral-950 text-white font-medium"
+                        >
+                          {cfg.label} ({cfg.desc})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                   <div className="flex items-center gap-1 shrink-0 bg-neutral-900 border border-neutral-800 rounded-xl px-2 py-1.5" title="Ukuran Font Rarity (px)">
                     <input
                       type="number"
@@ -515,30 +541,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* 4. Warna Tema Kartu */}
-              <div>
-                <label className="text-xs font-bold text-neutral-300 block mb-1">
-                  Warna Tema Kartu
-                </label>
-                <div className="flex items-center gap-2.5">
-                  <input
-                    type="color"
-                    value={cardColor}
-                    onChange={(e) => setCardColor(e.target.value)}
-                    className="w-9 h-9 rounded-lg cursor-pointer bg-black border border-neutral-800 p-0.5 shrink-0"
-                    title="Pilih Warna Tema Kartu"
-                  />
-                  <input
-                    type="text"
-                    value={cardColor}
-                    onChange={(e) => setCardColor(e.target.value)}
-                    placeholder="#f59e0b"
-                    className="flex-1 bg-black border border-neutral-800 rounded-xl px-3 py-2 text-xs font-mono text-amber-400 focus:outline-none focus:border-amber-500 transition-colors uppercase"
-                  />
-                </div>
-              </div>
-
-              {/* 5. Deskripsi Kartu (Biasa) */}
+              {/* 4. Deskripsi Kartu (Biasa) */}
               <div>
                 <div className="flex justify-between items-center mb-1">
                   <label className="text-xs font-bold text-neutral-300">
@@ -568,7 +571,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* 6. Daftar Skill Kartu (Maksimal 3 Skill, Skill 2 & 3 Opsional) */}
+              {/* 5. Daftar Skill Kartu (Maksimal 3 Skill, Skill 2 & 3 Opsional) */}
               <div className="pt-2 border-t border-neutral-900 space-y-3.5">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-bold text-neutral-300">

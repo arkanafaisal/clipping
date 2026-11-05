@@ -42,7 +42,7 @@ export const RemotionRoot: React.FC = () => {
           cardTitle: md?.cardTitle || 'death evader',
           cardRarity: md?.cardRarity || 'Mythic',
           cardDesc: md?.cardDesc || 'Pria tua yang masih mau hidup.',
-          cardColor: md?.cardColor || '#f59e0b',
+          cardColor: md?.cardColor || '#ef4444',
           titleFontSize: md?.titleFontSize || 46,
           rarityFontSize: md?.rarityFontSize || 32,
           descFontSize: md?.descFontSize || 32,

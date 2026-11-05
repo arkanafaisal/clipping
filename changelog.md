@@ -16,7 +16,24 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Standardize Meme Discovery Card Text Sizes to Death Evader Defaults
+## [Unreleased] - Standardize Card Rarity to Fixed Constants and Automated Color Mapping
+- **Konteks Struktural**:
+  - Pembakuan Konstanta Rarity & Pemetaan Warna Tema Otomatis ([types.ts](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/types.ts), [PokemonCard.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/PokemonCard.tsx), [App.tsx](file:///d:/projects/clipping/video-editor/src/App.tsx), [Root.tsx](file:///d:/projects/clipping/video-editor/src/remotion/Root.tsx), [scripts/gdrive.js](file:///d:/projects/clipping/video-editor/scripts/gdrive.js), [data.json](file:///d:/projects/clipping/video-editor/src/data.json)):
+    - **Penyebab & Kebutuhan**: Input rarity sebelumnya berupa teks bebas dan pemilih warna tema kartu berupa color picker hex manual yang terpisah. Hal ini rentan inkonsistensi warna dan penamaan kartu antar momen. Pengguna meminta agar rarity dibakukan ke 6 tingkatan konstan umum dengan warna otomatis: Common (Abu-abu: `#9ca3af`), Uncommon (Hijau: `#22c55e`), Rare (Oranye: `#f97316`), Epic (Ungu: `#a855f7`), Legendary (Kuning/Emas: `#eab308`), dan Mythic (Merah: `#ef4444`), serta mengganti input manual menjadi satu dropdown yang otomatis menentukan warna tema kartu.
+    - **Solusi**:
+      1. Di [`types.ts`](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/types.ts), mendefinisikan kamus `RARITY_CONFIG` dan fungsi utilitas `getRarityColor()`.
+      2. Di [`App.tsx`](file:///d:/projects/clipping/video-editor/src/App.tsx), menghapus form input teks bebas & color picker heksadesimal, menggantikannya dengan satu elemen dropdown `<select>` beraksen warna live yang langsung memperbarui `cardRarity` sekaligus `cardColor`.
+      3. Di [`PokemonCard.tsx`](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/PokemonCard.tsx), menyempurnakan resolusi warna fallback menggunakan `getRarityColor(cardRarity)`.
+      4. Di [`Root.tsx`](file:///d:/projects/clipping/video-editor/src/remotion/Root.tsx), [`scripts/gdrive.js`](file:///d:/projects/clipping/video-editor/scripts/gdrive.js), dan [`data.json`](file:///d:/projects/clipping/video-editor/src/data.json), menyelaraskan nilai warna tema bawaan momen dengan palet hex konstan yang baru.
+- **Perubahan Kode Penting**:
+  - `video-editor/src/styles/meme-discovery/types.ts`: Penambahan konstanta `RARITY_CONFIG`, tipe `CardRarityType`, dan helper `getRarityColor`.
+  - `video-editor/src/App.tsx`: Penggantian form rarity & color picker menjadi dropdown terintegrasi dengan indikator warna dinamis.
+  - `video-editor/src/styles/meme-discovery/components/PokemonCard.tsx`: Integrasi `getRarityColor` untuk resolusi fallback warna tema.
+  - `video-editor/src/remotion/Root.tsx`: Penyesuaian default `cardColor` Mythic ke `#ef4444`.
+  - `video-editor/scripts/gdrive.js`: Penyesuaian default `cardColor` Rare ke `#f97316`.
+  - `video-editor/src/data.json`: Standardisasi nilai hex momen yang ada ke palet konstan.
+
+## [e638fb2] - Standardize Meme Discovery Card Text Sizes to Death Evader Defaults
 - **Konteks Struktural**:
   - Standarisasi Ukuran Font Teks Kartu Meme Discovery ([PokemonCard.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/PokemonCard.tsx), [Root.tsx](file:///d:/projects/clipping/video-editor/src/remotion/Root.tsx), [App.tsx](file:///d:/projects/clipping/video-editor/src/App.tsx), [scripts/gdrive.js](file:///d:/projects/clipping/video-editor/scripts/gdrive.js)):
     - **Penyebab & Kebutuhan**: Pengguna meminta agar proporsi dan konfigurasi ukuran teks kartu pada momen Grim Reaper / Death Evader (yang sudah proporsional dan pas) ditetapkan sebagai ukuran *default* untuk seluruh momen Meme Discovery berikutnya, sembari tetap mempertahankan kemampuan pengubahan (*customizable*) via panel input editor.

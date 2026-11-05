@@ -1,3 +1,46 @@
+export const RARITY_CONFIG = {
+  Common: {
+    label: 'Common',
+    color: '#9ca3af',
+    desc: 'Abu-abu',
+  },
+  Uncommon: {
+    label: 'Uncommon',
+    color: '#22c55e',
+    desc: 'Hijau',
+  },
+  Rare: {
+    label: 'Rare',
+    color: '#f97316',
+    desc: 'Oranye',
+  },
+  Epic: {
+    label: 'Epic',
+    color: '#a855f7',
+    desc: 'Ungu',
+  },
+  Legendary: {
+    label: 'Legendary',
+    color: '#eab308',
+    desc: 'Kuning / Emas',
+  },
+  Mythic: {
+    label: 'Mythic',
+    color: '#ef4444',
+    desc: 'Merah',
+  },
+} as const;
+
+export type CardRarityType = keyof typeof RARITY_CONFIG;
+
+export function getRarityColor(rarity?: string): string {
+  if (!rarity) return RARITY_CONFIG.Common.color;
+  const match = Object.entries(RARITY_CONFIG).find(
+    ([key]) => key.toLowerCase() === rarity.toLowerCase()
+  );
+  return match ? match[1].color : RARITY_CONFIG.Common.color;
+}
+
 export interface CardSkill {
   name: string;
   desc: string;

@@ -50,5 +50,7 @@ This file contains a growing ruleset that improves over time. At session start, 
 26. [PROCESS] Never execute full video project builds (such as npm run build or full export rendering) during response turns; always verify changes directly via the live studio preview because full builds are time-consuming and redundant when fast live preview is available.
 27. [TOOL] Never use headless browser automation tools (such as Chrome DevTools MCP, Chromium, or Playwright) for simple coding tasks, visual adjustments, or direct logic edits because browser automation introduces heavy latency, connection timeouts, and unnecessary overhead.
 28. [ARCH] Never use spaces in local asset folder paths or temporary media storage (such as public/temp/); always sanitize folder paths by replacing spaces with hyphens ("-") because space-free URLs prevent HTTP 404 errors, percent-encoding (%20) discrepancies, and media element playback crashes during Remotion rendering.
+29. [PROCESS] Never execute full TypeScript check commands (such as npx tsc or tsc --noEmit) during response turns unless explicitly requested by the user, because tsc is slow, introduces heavy response latency, and cannot detect runtime, dynamic, or Remotion rendering issues.
+
 
 

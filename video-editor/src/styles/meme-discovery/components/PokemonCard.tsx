@@ -1,6 +1,6 @@
 import React from 'react';
 import { Easing, Img, interpolate } from 'remotion';
-import { CardSkill } from '../types';
+import { CardSkill, getRarityColor } from '../types';
 
 interface PokemonCardProps {
   cardTitle?: string;
@@ -30,7 +30,7 @@ export const PokemonCard: React.FC<PokemonCardProps> = ({
   skills,
   passiveName,
   passiveDesc,
-  cardColor = '#f59e0b',
+  cardColor: customCardColor,
   titleFontSize = 46,
   rarityFontSize = 32,
   descFontSize = 32,
@@ -42,6 +42,7 @@ export const PokemonCard: React.FC<PokemonCardProps> = ({
   cardRelativeFrame,
   frame,
 }) => {
+  const cardColor = customCardColor || getRarityColor(cardRarity);
   // Resolusi frame animasi kartu
   const relFrame =
     cardRelativeFrame !== undefined

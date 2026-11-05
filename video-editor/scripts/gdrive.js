@@ -728,7 +728,7 @@ export async function initOrEnsureMoment(folderId, folderName) {
           { name: '', desc: '', nameFontSize: 32, descFontSize: 26 },
           { name: '', desc: '', nameFontSize: 32, descFontSize: 26 },
         ],
-        cardColor: '#f59e0b',
+        cardColor: '#f97316',
         titleFontSize: 46,
         rarityFontSize: 32,
         descFontSize: 32,
