@@ -87,7 +87,7 @@ export function getDriveClient() {
 
   oauth2Client.setCredentials({
     refresh_token: tokenData.refresh_token,
-    access_token: tokenData.access_token,
+    access_token: tokenData.access_token || tokenData.token,
   });
 
   return google.drive({ version: 'v3', auth: oauth2Client });

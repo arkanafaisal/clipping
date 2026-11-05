@@ -16,7 +16,20 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Boost Card Reveal Sound Effect Volume
+## [Unreleased] - Support Python Token Field in GDrive Client and Expand Auth Scope to Full Drive
+- **Konteks Struktural**:
+  - Sinkronisasi Kompatibilitas Token & Scope Google Drive ([scripts/gdrive.js](file:///d:/projects/clipping/video-editor/scripts/gdrive.js), [auth_gdrive.py](file:///d:/projects/clipping/auth_gdrive.py)):
+    - **Penyebab & Kebutuhan**: Setelah pengguna menjalankan otorisasi ulang melalui Python `auth_gdrive.py`, terminal Vite masih memunculkan `invalid_grant` atau tidak mendeteksi folder. Penyebabnya ada dua:
+      1. Library Python `google-auth` mengekspor properti access token sebagai `"token"` (bukan `"access_token"`), sehingga `getDriveClient` membaca nilai `undefined` dan memicu percobaan refresh token yang gagal.
+      2. Scope pada `auth_gdrive.py` sebelumnya terbatas pada `drive.file` yang hanya dapat melihat berkas buatan aplikasi itu sendiri, sehingga folder yang dibuat manual di Drive (`death escaper`, `dont look behind`) tidak terdeteksi.
+    - **Solusi**:
+      1. Di [`scripts/gdrive.js`](file:///d:/projects/clipping/video-editor/scripts/gdrive.js), menggunakan `tokenData.access_token || tokenData.token` untuk kompatibilitas penuh dengan token keluaran Node.js maupun Python.
+      2. Di [`auth_gdrive.py`](file:///d:/projects/clipping/auth_gdrive.py), memperbarui scope menjadi `https://www.googleapis.com/auth/drive` dan menyalin token otomatis ke `video-editor/token.json` saat login.
+- **Perubahan Kode Penting**:
+  - `video-editor/scripts/gdrive.js`: Penambahan fallback `tokenData.token` pada `setCredentials`.
+  - `auth_gdrive.py`: Pembaruan `SCOPES` ke `https://www.googleapis.com/auth/drive` dan auto-sinkronisasi ke `video-editor/token.json`.
+
+## [a01495b] - Boost Card Reveal Sound Effect Volume
 - **Konteks Struktural**:
   - Peningkatan Volume SFX Kemunculan Kartu ([MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx)):
     - **Penyebab & Kebutuhan**: Efek suara kemunculan kartu (`magical-reveal.webm`) terdengar terlalu pelan dibandingkan SFX shutter screenshot (`camera-shutter.webm`) yang memiliki transient tajam. Pengguna meminta agar volume SFX kartu diperkeras sehingga seimbang dengan volume efek screenshot.

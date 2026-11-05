@@ -3,8 +3,8 @@ from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 
-# Jika mengubah scope, hapus token.json.
-SCOPES = ['https://www.googleapis.com/auth/drive.file']
+# Scope akses Google Drive (butuh akses penuh agar bisa membaca folder dan berkas yang dibuat manual)
+SCOPES = ['https://www.googleapis.com/auth/drive']
 
 def main():
     """Menampilkan URL untuk login Google dan menyimpan token.json."""
@@ -36,8 +36,12 @@ def main():
             creds = flow.run_local_server(port=8080, open_browser=False)
                 
         # Simpan credentials untuk eksekusi selanjutnya
+        token_json_str = creds.to_json()
         with open('token.json', 'w') as token:
-            token.write(creds.to_json())
+            token.write(token_json_str)
+        if os.path.exists('video-editor'):
+            with open(os.path.join('video-editor', 'token.json'), 'w') as token:
+                token.write(token_json_str)
             
     print("✅ Berhasil! token.json telah dibuat/diperbarui.")
     print("Sekarang bot dapat mengunggah file langsung ke Google Drive utama Anda.")
