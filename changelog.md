@@ -16,7 +16,23 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Support Python Token Field in GDrive Client and Expand Auth Scope to Full Drive
+## [Unreleased] - Standardize Meme Discovery Card Text Sizes to Death Evader Defaults
+- **Konteks Struktural**:
+  - Standarisasi Ukuran Font Teks Kartu Meme Discovery ([PokemonCard.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/PokemonCard.tsx), [Root.tsx](file:///d:/projects/clipping/video-editor/src/remotion/Root.tsx), [App.tsx](file:///d:/projects/clipping/video-editor/src/App.tsx), [scripts/gdrive.js](file:///d:/projects/clipping/video-editor/scripts/gdrive.js)):
+    - **Penyebab & Kebutuhan**: Pengguna meminta agar proporsi dan konfigurasi ukuran teks kartu pada momen Grim Reaper / Death Evader (yang sudah proporsional dan pas) ditetapkan sebagai ukuran *default* untuk seluruh momen Meme Discovery berikutnya, sembari tetap mempertahankan kemampuan pengubahan (*customizable*) via panel input editor.
+    - **Solusi**: Mengubah konfigurasi default ukuran teks pada seluruh modul pendukung:
+      - `titleFontSize`: default `46px` (sebelumnya `48px`).
+      - `rarityFontSize`: default `32px` (sebelumnya `24px`).
+      - `descFontSize`: default `32px` (sebelumnya `30px`).
+      - Skill `nameFontSize`: default `32px` (sebelumnya `28px`).
+      - Skill `descFontSize`: default `26px` (sebelumnya `22px`).
+- **Perubahan Kode Penting**:
+  - `video-editor/src/styles/meme-discovery/components/PokemonCard.tsx`: Pembaruan nilai fallback font size kartu dan skill.
+  - `video-editor/src/remotion/Root.tsx`: Pembaruan nilai default `titleFontSize`, `rarityFontSize`, dan `descFontSize`.
+  - `video-editor/src/App.tsx`: Pembaruan initial state dan auto-sync font size default.
+  - `video-editor/scripts/gdrive.js`: Penerapan font size default Death Evader pada template inisialisasi momen baru.
+
+## [3dfb0f8] - Support Python Token Field in GDrive Client and Expand Auth Scope to Full Drive
 - **Konteks Struktural**:
   - Sinkronisasi Kompatibilitas Token & Scope Google Drive ([scripts/gdrive.js](file:///d:/projects/clipping/video-editor/scripts/gdrive.js), [auth_gdrive.py](file:///d:/projects/clipping/auth_gdrive.py)):
     - **Penyebab & Kebutuhan**: Setelah pengguna menjalankan otorisasi ulang melalui Python `auth_gdrive.py`, terminal Vite masih memunculkan `invalid_grant` atau tidak mendeteksi folder. Penyebabnya ada dua:

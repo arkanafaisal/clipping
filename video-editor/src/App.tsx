@@ -97,20 +97,20 @@ export default function App() {
   const getInitialSkills = (md?: any): CardSkill[] => {
     if (Array.isArray(md?.skills) && md.skills.length > 0) {
       return [
-        md.skills[0] || { name: '', desc: '', nameFontSize: 28, descFontSize: 22 },
-        md.skills[1] || { name: '', desc: '', nameFontSize: 28, descFontSize: 22 },
-        md.skills[2] || { name: '', desc: '', nameFontSize: 28, descFontSize: 22 },
+        md.skills[0] || { name: '', desc: '', nameFontSize: 32, descFontSize: 26 },
+        md.skills[1] || { name: '', desc: '', nameFontSize: 32, descFontSize: 26 },
+        md.skills[2] || { name: '', desc: '', nameFontSize: 32, descFontSize: 26 },
       ];
     }
     return [
       {
         name: md?.passiveName || 'kesempatan kedua',
         desc: md?.passiveDesc || 'memberikan 70% chance untuk lolos dari grim reaper. hanya berlaku 1 kali.',
-        nameFontSize: md?.passiveNameFontSize || 28,
-        descFontSize: md?.passiveDescFontSize || 22,
+        nameFontSize: md?.passiveNameFontSize || 32,
+        descFontSize: md?.passiveDescFontSize || 26,
       },
-      { name: '', desc: '', nameFontSize: 28, descFontSize: 22 },
-      { name: '', desc: '', nameFontSize: 28, descFontSize: 22 },
+      { name: '', desc: '', nameFontSize: 32, descFontSize: 26 },
+      { name: '', desc: '', nameFontSize: 32, descFontSize: 26 },
     ];
   };
 
@@ -134,13 +134,13 @@ export default function App() {
 
   // Ukuran font teks kartu (dalam pixel, dapat disetel langsung oleh pengguna)
   const [titleFontSize, setTitleFontSize] = useState<number>(
-    initialMeme.titleFontSize || 48
+    initialMeme.titleFontSize || 46
   );
   const [rarityFontSize, setRarityFontSize] = useState<number>(
-    initialMeme.rarityFontSize || 24
+    initialMeme.rarityFontSize || 32
   );
   const [descFontSize, setDescFontSize] = useState<number>(
-    initialMeme.descFontSize || 30
+    initialMeme.descFontSize || 32
   );
 
   // State daftar skill (maksimal 3 skill)
@@ -173,9 +173,9 @@ export default function App() {
       if (md.cardRarity !== undefined) setCardRarity(md.cardRarity);
       if (md.cardDesc !== undefined) setCardDesc(md.cardDesc);
       if (md.cardColor !== undefined) setCardColor(md.cardColor);
-      if (md.titleFontSize) setTitleFontSize(md.titleFontSize);
-      if (md.rarityFontSize) setRarityFontSize(md.rarityFontSize);
-      if (md.descFontSize) setDescFontSize(md.descFontSize);
+      setTitleFontSize(md.titleFontSize || 46);
+      setRarityFontSize(md.rarityFontSize || 32);
+      setDescFontSize(md.descFontSize || 32);
       setSkills(getInitialSkills(md));
     }
   }, [currentMoment?.id, currentMoment?.name, initialData]);

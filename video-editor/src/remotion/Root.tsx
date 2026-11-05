@@ -43,9 +43,9 @@ export const RemotionRoot: React.FC = () => {
           cardRarity: md?.cardRarity || 'Mythic',
           cardDesc: md?.cardDesc || 'Pria tua yang masih mau hidup.',
           cardColor: md?.cardColor || '#f59e0b',
-          titleFontSize: md?.titleFontSize || 48,
-          rarityFontSize: md?.rarityFontSize || 24,
-          descFontSize: md?.descFontSize || 30,
+          titleFontSize: md?.titleFontSize || 46,
+          rarityFontSize: md?.rarityFontSize || 32,
+          descFontSize: md?.descFontSize || 32,
           skills: md?.skills || [],
           showSafeZoneGuides: false,
         }}

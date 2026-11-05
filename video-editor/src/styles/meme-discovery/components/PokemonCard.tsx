@@ -31,11 +31,11 @@ export const PokemonCard: React.FC<PokemonCardProps> = ({
   passiveName,
   passiveDesc,
   cardColor = '#f59e0b',
-  titleFontSize = 48,
-  rarityFontSize = 24,
-  descFontSize = 30,
-  passiveNameFontSize = 30,
-  passiveDescFontSize = 24,
+  titleFontSize = 46,
+  rarityFontSize = 32,
+  descFontSize = 32,
+  passiveNameFontSize = 32,
+  passiveDescFontSize = 26,
   imageSrc,
   targetFrameImage,
   slideProgress,
@@ -277,7 +277,7 @@ export const PokemonCard: React.FC<PokemonCardProps> = ({
                     className="font-black uppercase tracking-wider leading-snug"
                     style={{
                       color: cardColor,
-                      fontSize: `${skill.nameFontSize || 28}px`,
+                      fontSize: `${skill.nameFontSize || 32}px`,
                     }}
                   >
                     {skill.name}
@@ -287,7 +287,7 @@ export const PokemonCard: React.FC<PokemonCardProps> = ({
                   <p
                     className="text-neutral-300 text-left leading-relaxed font-normal whitespace-pre-line w-full"
                     style={{
-                      fontSize: `${skill.descFontSize || 22}px`,
+                      fontSize: `${skill.descFontSize || 26}px`,
                     }}
                   >
                     {skill.desc}
