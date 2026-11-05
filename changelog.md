@@ -16,7 +16,16 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Fix JSX Syntax Error and Eliminate Target Frame Overlay
+## [Unreleased] - Synchronize Dynamic Default Props for Remotion Export Root
+- **Konteks Struktural**:
+  - Penyelarasan Props Dinamis pada Remotion Export ([Root.tsx](file:///d:/projects/clipping/video-editor/src/remotion/Root.tsx)):
+    - **Penyebab & Kebutuhan**: Memastikan bahwa seluruh konfigurasi ekspor video (baik melalui CLI `npm run render` maupun tombol ekspor web) 100% identik dan menggunakan props dinamis sesuai momen yang sedang aktif, tanpa fallback hardcoded ke nama momen lama seperti `'death evader'`.
+    - **Solusi**:
+      1. Di [`Root.tsx`](file:///d:/projects/clipping/video-editor/src/remotion/Root.tsx), memperbarui fallback `cardTitle` ke `currentMoment?.name` dan `cardDesc` ke string kosong jika belum diisi, memastikan hasil render ekspor MP4 selalu mencerminkan data momen yang dipilih.
+- **Perubahan Kode Penting**:
+  - `video-editor/src/remotion/Root.tsx`: Pembaruan fallback dinamis `cardTitle` dan `cardDesc`.
+
+## [eeeaddb] - Fix JSX Syntax Error and Eliminate Target Frame Overlay
 - **Konteks Struktural**:
   - Perbaikan Sintaks JSX & Pembersihan Total Lapisan Freeze Frame ([MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), [App.tsx](file:///d:/projects/clipping/video-editor/src/App.tsx)):
     - **Penyebab & Kebutuhan**:
