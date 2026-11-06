@@ -1,6 +1,6 @@
 {
-  "lastUpdate": "2026-11-06 20:37:37",
-  "totalMoments": 5,
+  "lastUpdate": "2026-11-07 10:45:24",
+  "totalMoments": 7,
   "moments": [
     {
       "id": "1x69IP3bZJcow4bH_IQ7yEk51zGtZrSq7",
@@ -314,8 +314,128 @@
         "passiveNameFontSize": 32,
         "passiveDescFontSize": 26
       }
+    },
+    {
+      "id": "1LqETPKJlIeRvT22jP0JsaRSu7zm-rUhc",
+      "name": "I am the cutest",
+      "path": "I-am-the-cutest",
+      "files": {
+        "image": null,
+        "full": {
+          "id": "109Yz1vowi8K1HfRUS1c6hSsSOuM_rBJS",
+          "name": "full.mp4",
+          "mimeType": "video/mp4",
+          "size": 10595499,
+          "sizeFormatted": "10.1 MB",
+          "durationSeconds": 10.95,
+          "durationFormatted": "10.95s",
+          "width": 1080,
+          "height": 1920,
+          "tempRelPath": "temp/I-am-the-cutest/full.mp4"
+        },
+        "cut": null
+      },
+      "memeDiscovery": {
+        "enableScreenshot": true,
+        "targetUndoTimestamp": "00:06.7",
+        "title": "Meme Discovery: I am the cutest",
+        "cardTitle": "I am the cutest",
+        "cardRarity": "Rare",
+        "cardDesc": "",
+        "skills": [
+          {
+            "name": "",
+            "desc": "",
+            "nameFontSize": 32,
+            "descFontSize": 26
+          },
+          {
+            "name": "",
+            "desc": "",
+            "nameFontSize": 32,
+            "descFontSize": 26
+          },
+          {
+            "name": "",
+            "desc": "",
+            "nameFontSize": 32,
+            "descFontSize": 26
+          }
+        ],
+        "cardColor": "#f97316",
+        "titleFontSize": 46,
+        "rarityFontSize": 32,
+        "descFontSize": 32,
+        "passiveName": "",
+        "passiveDesc": "",
+        "passiveNameFontSize": 32,
+        "passiveDescFontSize": 26
+      }
+    },
+    {
+      "id": "19tT_NUIURlIhLryV8freZ1Ft08SPvbWA",
+      "name": "Its just you and me",
+      "path": "Its-just-you-and-me",
+      "files": {
+        "image": {
+          "id": "1q0R2KCjTIc3wlOZEDT10_nX4MmKHxw6c",
+          "name": "image.jpg",
+          "size": 315524,
+          "sizeFormatted": "308.13 KB",
+          "tempRelPath": "temp/Its-just-you-and-me/image.jpg"
+        },
+        "full": {
+          "id": "1b2KYEBNDjepiIGAzH9Rp6-LxgKQlx0vM",
+          "name": "full.mp4",
+          "mimeType": "video/mp4",
+          "size": 40787398,
+          "sizeFormatted": "38.9 MB",
+          "durationSeconds": 13.53,
+          "durationFormatted": "13.53s",
+          "width": 1080,
+          "height": 1920,
+          "tempRelPath": "temp/Its-just-you-and-me/full.mp4"
+        },
+        "cut": null
+      },
+      "memeDiscovery": {
+        "enableScreenshot": false,
+        "targetUndoTimestamp": "00:12",
+        "title": "Meme Discovery: Its just you and me",
+        "cardTitle": "Its just you and me",
+        "cardRarity": "Legendary",
+        "cardDesc": "2 pria tua yang saling jatuh cinta",
+        "skills": [
+          {
+            "name": "As long as it's you.",
+            "desc": "meningkatkan rasa optimis saat berdekatan dengan pasangan.",
+            "nameFontSize": 32,
+            "descFontSize": 26
+          },
+          {
+            "name": "Follow my lead, darling.",
+            "desc": "ada suatu resonansi tersembunyi yang terjadi.",
+            "nameFontSize": 32,
+            "descFontSize": 26
+          },
+          {
+            "name": "Forever by my side!",
+            "desc": "perasaan cinta yang terkunci sampai mati.",
+            "nameFontSize": 32,
+            "descFontSize": 26
+          }
+        ],
+        "cardColor": "#eab308",
+        "titleFontSize": 46,
+        "rarityFontSize": 32,
+        "descFontSize": 32,
+        "passiveName": "As long as it's you.",
+        "passiveDesc": "meningkatkan rasa optimis saat berdekatan dengan pasangan.",
+        "passiveNameFontSize": 32,
+        "passiveDescFontSize": 26
+      }
     }
   ],
-  "activeMomentId": "hmph-its-not-like-that",
+  "activeMomentId": "Its-just-you-and-me",
   "activeStyle": "meme-discovery"
 }

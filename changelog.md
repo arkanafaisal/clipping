@@ -14,7 +14,21 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Configurable Screenshot Mode Switch and Direct Card Reveal
+## [03a14b6] - Continuous Background Video Playback with Auto-Hold in Direct Mode
+- **Konteks Struktural**:
+  - Pemutaran Video Latar Belakang & Proteksi Freeze Akhir ([MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx)):
+    - **Penyebab & Kebutuhan**: Pada mode langsung (`enableScreenshot = false`), pengguna menginginkan video latar belakang tetap terus berputar (*play*) meskipun tertutup kartu dan lapisan gelap (`bg-black/85`), bukan langsung membeku di detik timestamp. Selain itu:
+      1. Jika durasi video fisik habis sebelum durasi kartu selesai (105 frame), video tidak boleh melakukan replay/loop ke awal melainkan menahan (*freeze/hold*) frame terakhir fisiknya.
+      2. Jika durasi video fisik lebih panjang dari show kartu, video dipaksa berhenti saat show kartu selesai (durasi kartu tetap normal 105 frame).
+      3. Volume video otomatis dihilangkan (0) begitu kartu mulai masuk agar tidak mengganggu efek suara kemunculan kartu maupun pembacaan detail kartu.
+    - **Solusi**:
+      1. Di [`MemeDiscoveryComposition.tsx`](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), menghitung `videoEndFrame = Math.max(1, Math.floor((videoTotalSeconds - 0.05) * fps))`.
+      2. Mengondisikan `shouldFreezeVideo`: pada mode screenshot aktif di `frame >= stopFrame`, sedangkan pada mode langsung hanya aktif jika video fisik sudah mencapai akhir (`frame >= videoEndFrame`), dengan frame target `videoEndFrame - 1`.
+      3. Menyetel `videoVolume`: volume normal (1.0) selama video awal, dan otomatis dibisukan (0) saat kartu mulai muncul (`frame >= cardStartFrame`).
+- **Perubahan Kode Penting**:
+  - `video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx`: Pemisahan logika `shouldFreezeVideo`, `frozenFrameNumber`, dan `videoVolume` untuk mendukung continuous background playback dan graceful EOF hold.
+
+## [63d7917] - Configurable Screenshot Mode Switch and Direct Card Reveal
 - **Konteks Struktural**:
   - Opsi Mode Transisi Kartu: Screenshot Flash vs Langsung Masuk ([App.tsx](file:///d:/projects/clipping/video-editor/src/App.tsx), [MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), [Root.tsx](file:///d:/projects/clipping/video-editor/src/remotion/Root.tsx), [types.ts](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/types.ts), [gdrive.js](file:///d:/projects/clipping/video-editor/scripts/gdrive.js)):
     - **Penyebab & Kebutuhan**: Pengguna meminta opsi switch boolean (Yes/No, default Yes) untuk memilih apakah ingin menggunakan mode screenshot (flash & pause) atau langsung memunculkan kartu. Opsi ini krusial untuk klip yang momen lucunya (facecam) berada di awal video—jika dipaksa menggunakan mode stop-at-peak screenshot, video hanya terputar beberapa detik saja. Dengan mode langsung (`enableScreenshot: false`), input timestamp digunakan kembali sebagai titik masuk animasi kartu (`cardStartFrame = stopFrame`) secara instan tanpa shutter flash dan tanpa jeda, serta durasi total otomatis diselaraskan menjadi `stopFrame + 105`.

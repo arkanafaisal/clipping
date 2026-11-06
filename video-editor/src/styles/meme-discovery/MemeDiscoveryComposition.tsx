@@ -58,6 +58,10 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
     parseTimestampToSeconds(targetUndoTimestamp) || totalVideoDurationSeconds || 10.95;
   const stopFrame = Math.max(1, Math.round(stopSeconds * fps));
 
+  // Durasi fisik video penuh dalam frame (untuk proteksi EOF saat mode langsung)
+  const videoTotalSeconds = totalVideoDurationSeconds || 10.95;
+  const videoEndFrame = Math.max(1, Math.floor((videoTotalSeconds - 0.05) * fps));
+
   // ========================================================
   // SEKUENSIAL TIMELINE:
   // MODE A (isScreenshotMode = true):
@@ -68,7 +72,9 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
   //
   // MODE B (isScreenshotMode = false / Direct Reveal):
   // 1. Play video normal dari awal sampai timestamp (0 -> stopFrame)
-  // 2. Tepat di stopFrame: TANPA screenshot, TANPA jeda, kartu LANGSUNG masuk (105 frame)
+  // 2. Di stopFrame: kartu LANGSUNG masuk & video latar BELAKANG TETAP PLAY
+  // 3. Jika video habis sebelum kartu selesai: video hold frame akhir (tanpa replay)
+  // 4. Jika video lebih panjang: komposisi otomatis selesai di cardStartFrame + 105 (show kartu tetap normal)
   // ========================================================
   const flashFrames = isScreenshotMode ? 10 : 0;
   const flashStartFrame = stopFrame;
@@ -81,6 +87,23 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
 
   const isFlashing = isScreenshotMode && frame >= flashStartFrame && frame < flashEndFrame;
   const isCardRevealed = frame >= cardStartFrame;
+
+  // Logika pembekuan video (Freeze):
+  // - Mode Screenshot: Video freeze di stopFrame (frame puncak)
+  // - Mode Langsung: Video terus berputar di latar belakang; HANYA difreeze di frame akhir jika video fisik habis lebih dulu
+  const shouldFreezeVideo = isScreenshotMode
+    ? frame >= stopFrame
+    : frame >= videoEndFrame;
+
+  const frozenFrameNumber = isScreenshotMode
+    ? Math.max(0, stopFrame - 1)
+    : Math.max(0, videoEndFrame - 1);
+
+  // Volume video:
+  // - Sebelum kartu muncul / stop: volume normal 1.0
+  // - Saat kartu muncul (atau saat screenshot stop): dihilangkan (0) sepenuhnya agar tidak mengganggu SFX & pembacaan kartu
+  const videoVolume =
+    (isScreenshotMode ? frame >= stopFrame : frame >= cardStartFrame) ? 0 : 1;
 
   // Progress flash shutter
   const flashProgress = isFlashing
@@ -97,16 +120,15 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
   return (
     <AbsoluteFill className="bg-black text-white font-sans overflow-hidden select-none">
       {/* ======================================================== */}
-      {/* 1. LAYER VIDEO: Play natural 0 -> stopFrame & Stop       */}
-      {/* Tanpa timpaan freeze frame, murni video berhenti         */}
+      {/* 1. LAYER VIDEO: Play natural / Background Play           */}
       {/* ======================================================== */}
       <AbsoluteFill className="overflow-hidden flex items-center justify-center bg-black">
         {videoSrc && (
-          <Freeze active={frame >= stopFrame} frame={Math.max(0, stopFrame - 1)}>
+          <Freeze active={shouldFreezeVideo} frame={frozenFrameNumber}>
             <Video
               src={videoSrc}
               className="w-full h-full object-cover"
-              volume={frame >= stopFrame ? 0 : 1}
+              volume={videoVolume}
             />
           </Freeze>
         )}
