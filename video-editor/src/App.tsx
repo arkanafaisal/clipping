@@ -224,6 +224,9 @@ export default function App() {
 
   // Input dan teks kartu Meme Discovery
   const initialMeme = currentMoment?.memeDiscovery || {};
+  const [enableScreenshot, setEnableScreenshot] = useState<boolean>(
+    initialMeme.enableScreenshot !== undefined ? initialMeme.enableScreenshot : true
+  );
   const [targetTimestamp, setTargetTimestamp] = useState<string>(
     initialMeme.targetUndoTimestamp || '00:07.105'
   );
@@ -286,6 +289,7 @@ export default function App() {
     if (!currentMoment) return;
     const md = currentMoment.memeDiscovery;
     if (md) {
+      if (md.enableScreenshot !== undefined) setEnableScreenshot(md.enableScreenshot);
       if (md.targetUndoTimestamp) setTargetTimestamp(md.targetUndoTimestamp);
       if (md.cardTitle !== undefined) setCardTitle(md.cardTitle);
       const r = md.cardRarity || 'Common';
@@ -309,14 +313,14 @@ export default function App() {
     ? (momentFolder ? `/temp/${momentFolder}/image.jpg` : '/temp/image.jpg')
     : undefined;
 
-  // Total durasi sekuens video berurutan (Fast Paced & High Retention):
-  // 1. Video play sampai timestamp puncak (stopFrame)
-  // 2. Screenshot shutter flash (10f)
-  // 3. Jeda 0.5 detik pasca-screenshot (15f)
-  // 4. Kartu meme slide-up dari bawah & 3D reveal (105f)
+  // Total durasi sekuens video berurutan:
+  // - Mode Screenshot (default): stopFrame + 10 (shutter) + 15 (pause) + 105 (card)
+  // - Mode Langsung: stopFrame + 105 (card langsung masuk di timestamp tanpa jeda/flash)
   const stopSeconds = parseTimestampToSeconds(targetTimestamp) || videoDurationSeconds;
   const stopFrame = Math.max(1, Math.round(stopSeconds * 30));
-  const totalFrames = stopFrame + 10 + 15 + 105;
+  const totalFrames = enableScreenshot
+    ? stopFrame + 10 + 15 + 105
+    : stopFrame + 105;
 
   // Simpan nilai baru ke data.json via server endpoint
   const handleSave = async (silent: boolean = false) => {
@@ -328,6 +332,7 @@ export default function App() {
             ...m,
             memeDiscovery: {
               ...(m.memeDiscovery || {}),
+              enableScreenshot,
               targetUndoTimestamp: targetTimestamp,
               cardTitle,
               cardRarity,
@@ -496,6 +501,7 @@ export default function App() {
               component={MemeDiscoveryComposition}
               inputProps={{
                 videoSrc,
+                enableScreenshot,
                 targetUndoTimestamp: targetTimestamp,
                 totalVideoDurationSeconds: videoDurationSeconds,
                 cardImageSrc: imageSrc,
@@ -577,10 +583,48 @@ export default function App() {
         <div className="flex-1 overflow-y-auto py-3 space-y-3.5 pr-1 scrollbar-thin scrollbar-thumb-neutral-800">
           {activeStyle === 'meme-discovery' ? (
             <>
-              {/* 1. Durasi Stop / Timestamp Puncak */}
+              {/* 1. Opsi Mode: Screenshot Flash vs Langsung Kartu */}
+              <div className="bg-neutral-900/60 border border-neutral-800 rounded-xl p-2.5">
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-bold text-neutral-300">
+                    Mode Screenshot
+                  </label>
+                  <div className="inline-flex rounded-lg bg-black p-0.5 border border-neutral-800">
+                    <button
+                      type="button"
+                      onClick={() => setEnableScreenshot(true)}
+                      className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+                        enableScreenshot
+                          ? 'bg-amber-500 text-black shadow'
+                          : 'text-neutral-400 hover:text-white'
+                      }`}
+                    >
+                      Yes
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEnableScreenshot(false)}
+                      className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+                        !enableScreenshot
+                          ? 'bg-amber-500 text-black shadow'
+                          : 'text-neutral-400 hover:text-white'
+                      }`}
+                    >
+                      No
+                    </button>
+                  </div>
+                </div>
+                <p className="text-[10px] text-neutral-400 leading-tight">
+                  {enableScreenshot
+                    ? 'Video stop di timestamp, efek screenshot shutter flash, lalu kartu muncul.'
+                    : 'Tanpa screenshot: video stop & kartu langsung mulai animasi masuk di timestamp.'}
+                </p>
+              </div>
+
+              {/* 2. Reused Timestamp Input (Stop / Screenshot atau Mulai Kartu Langsung) */}
               <div>
                 <label className="text-xs font-bold text-neutral-300 block mb-1">
-                  Durasi Stop / Timestamp Puncak
+                  {enableScreenshot ? 'Durasi Stop / Timestamp Puncak' : 'Timestamp Kemunculan Kartu'}
                 </label>
                 <input
                   type="text"
@@ -590,11 +634,15 @@ export default function App() {
                   className="w-full bg-black border border-neutral-800 rounded-xl px-3 py-2 text-xs font-mono text-amber-400 focus:outline-none focus:border-amber-500 transition-colors"
                 />
                 <p className="text-[10px] text-neutral-500 mt-1">
-                  Video otomatis stop di <code className="text-neutral-400">MM:SS.mmm</code>, langsung screenshot & reveal kartu.
+                  {enableScreenshot ? (
+                    <>Video otomatis stop di <code className="text-neutral-400">MM:SS.mmm</code>, langsung screenshot & reveal kartu.</>
+                  ) : (
+                    <>Kartu langsung mulai animasi reveal di detik <code className="text-neutral-400">MM:SS.mmm</code> tanpa jeda screenshot.</>
+                  )}
                 </p>
               </div>
 
-              {/* 2. Judul Kartu */}
+              {/* 3. Judul Kartu */}
               <div>
                 <div className="flex justify-between items-center mb-1">
                   <label className="text-xs font-bold text-neutral-300">

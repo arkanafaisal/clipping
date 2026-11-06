@@ -14,7 +14,23 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Mirror Card Image During Initial 3D Flip Reveal Phase
+## [Unreleased] - Configurable Screenshot Mode Switch and Direct Card Reveal
+- **Konteks Struktural**:
+  - Opsi Mode Transisi Kartu: Screenshot Flash vs Langsung Masuk ([App.tsx](file:///d:/projects/clipping/video-editor/src/App.tsx), [MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), [Root.tsx](file:///d:/projects/clipping/video-editor/src/remotion/Root.tsx), [types.ts](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/types.ts), [gdrive.js](file:///d:/projects/clipping/video-editor/scripts/gdrive.js)):
+    - **Penyebab & Kebutuhan**: Pengguna meminta opsi switch boolean (Yes/No, default Yes) untuk memilih apakah ingin menggunakan mode screenshot (flash & pause) atau langsung memunculkan kartu. Opsi ini krusial untuk klip yang momen lucunya (facecam) berada di awal video—jika dipaksa menggunakan mode stop-at-peak screenshot, video hanya terputar beberapa detik saja. Dengan mode langsung (`enableScreenshot: false`), input timestamp digunakan kembali sebagai titik masuk animasi kartu (`cardStartFrame = stopFrame`) secara instan tanpa shutter flash dan tanpa jeda, serta durasi total otomatis diselaraskan menjadi `stopFrame + 105`.
+    - **Solusi**:
+      1. Di [`types.ts`](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/types.ts), menambahkan properti `enableScreenshot?: boolean` pada `MemeDiscoveryProps`.
+      2. Di [`MemeDiscoveryComposition.tsx`](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), mengondisikan `flashFrames` (10 jika true, 0 jika false), `postScreenshotPauseFrames` (15 jika true, 0 jika false), dan `cardStartFrame` tepat di `stopFrame` jika direct mode, serta menonaktifkan efek suara shutter camera saat mode direct.
+      3. Di [`Root.tsx`](file:///d:/projects/clipping/video-editor/src/remotion/Root.tsx) dan [`App.tsx`](file:///d:/projects/clipping/video-editor/src/App.tsx), menyesuaikan perhitungan `totalFrames` secara dinamis (`stopFrame + 130` jika screenshot aktif, `stopFrame + 105` jika direct mode) dan meneruskan `enableScreenshot` ke komposisi.
+      4. Di [`App.tsx`](file:///d:/projects/clipping/video-editor/src/App.tsx), menambahkan komponen switch Yes/No di panel sidebar, menyesuaikan label/deskripsi timestamp secara dinamis, dan menyimpan preferensi ke `data.json`.
+- **Perubahan Kode Penting**:
+  - `video-editor/src/styles/meme-discovery/types.ts`: Penambahan tipe `enableScreenshot`.
+  - `video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx`: Logika timeline dinamis berbasis mode screenshot/direct.
+  - `video-editor/src/App.tsx`: State, UI toggle switch Yes/No, dan sinkronisasi simpan.
+  - `video-editor/src/remotion/Root.tsx`: Penyelarasan durasi dan defaultProps.
+  - `video-editor/scripts/gdrive.js`: Default `enableScreenshot: true`.
+
+## [e9bf560] - Mirror Card Image During Initial 3D Flip Reveal Phase
 - **Konteks Struktural**:
   - Ilusi Optik Rotasi 3D Realistis pada Kartu ([PokemonCard.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/PokemonCard.tsx)):
     - **Penyebab & Kebutuhan**: Pengguna menginginkan gambar kartu di-mirror secara horizontal (`scaleX(-1)`) saat fase awal kartu muncul dan berputar (sebelum berbalik / `relFrame < 28`), lalu kembali ke orientasi normal tanpa mirror (`transform: 'none'`) ketika kartu telah berputar penuh menghadap penonton (`relFrame >= 28`). Hal ini menciptakan ilusi optik 3D yang sangat nyata seolah-olah penonton melihat sisi belakang/pantulan kartu sebelum dibalik ke hadapan layar.

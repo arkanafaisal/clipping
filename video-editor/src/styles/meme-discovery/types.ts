@@ -72,6 +72,8 @@ export interface MemeDiscoveryProps {
   passiveDescFontSize?: number;
   cardImageSrc?: string; // bisa dari file gambar 1:1 di Drive atau freeze video frame
   targetFrameImage?: string;
+  // Opsi Mode Eksekusi: Screenshot flash (default true) vs langsung reveal kartu tanpa jeda
+  enableScreenshot?: boolean;
   // Efek Suara (SFX)
   sfxSrc?: string; // SFX Magical Reveal saat kartu kecil muncul dari bawah
   cardEmergeSfxSrc?: string; // fallback alias kompatibilitas

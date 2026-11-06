@@ -724,6 +724,7 @@ export async function initOrEnsureMoment(folderId, folderName) {
           : null,
       },
       memeDiscovery: {
+        enableScreenshot: true,
         targetUndoTimestamp: '00:05.000',
         title: `Meme Discovery: ${folderName}`,
         cardTitle: folderName,

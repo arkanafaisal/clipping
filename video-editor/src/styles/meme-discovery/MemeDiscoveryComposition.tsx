@@ -34,6 +34,7 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
   passiveNameFontSize,
   passiveDescFontSize,
   cardImageSrc,
+  enableScreenshot = true,
   sfxSrc = '/sfx/magical-reveal.webm',
   cardEmergeSfxSrc,
   cameraShutterSfxSrc = '/sfx/camera-shutter.webm',
@@ -43,34 +44,42 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
+  // Mode screenshot: jika false, kartu langsung mulai animasi masuk di timestamp tanpa jeda & tanpa flash
+  const isScreenshotMode = enableScreenshot !== false;
+
   // Resolusi warna kartu dan label rarity untuk header
   const activeCardColor = cardColor || getRarityColor(cardRarity);
   const displayRarity = cardRarity
     ? cardRarity.charAt(0).toUpperCase() + cardRarity.slice(1)
     : 'Rare';
 
-  // 1. Durasi pemutaran video dibatasi tepat pada timestamp puncak (targetUndoTimestamp)
+  // 1. Durasi pemutaran video dibatasi tepat pada timestamp puncak / kemunculan kartu
   const stopSeconds =
     parseTimestampToSeconds(targetUndoTimestamp) || totalVideoDurationSeconds || 10.95;
   const stopFrame = Math.max(1, Math.round(stopSeconds * fps));
 
   // ========================================================
-  // SEKUENSIAL TIMELINE (FAST PACED & HIGH RETENTION):
+  // SEKUENSIAL TIMELINE:
+  // MODE A (isScreenshotMode = true):
   // 1. Play video normal dari awal sampai momen puncak (0 -> stopFrame)
-  // 2. Tepat di stopFrame: video langsung stop & LANGSUNG efek screenshot (tanpa jeda, tanpa freeze frame timpaan)
-  // 3. Efek screenshot camera shutter flash putih (10 frame = ~0.33s)
-  const flashFrames = 10;
+  // 2. Tepat di stopFrame: video freeze & LANGSUNG efek screenshot flash (10 frame)
+  // 3. Jeda pasca-screenshot 0.5 detik (15 frame)
+  // 4. Kartu meme slide-up masuk dari bawah & 3D reveal (105 frame)
+  //
+  // MODE B (isScreenshotMode = false / Direct Reveal):
+  // 1. Play video normal dari awal sampai timestamp (0 -> stopFrame)
+  // 2. Tepat di stopFrame: TANPA screenshot, TANPA jeda, kartu LANGSUNG masuk (105 frame)
+  // ========================================================
+  const flashFrames = isScreenshotMode ? 10 : 0;
   const flashStartFrame = stopFrame;
   const flashEndFrame = flashStartFrame + flashFrames;
 
-  // 4. Jeda pasca-screenshot 0.5 detik (15 frame pada 30fps)
-  const postScreenshotPauseFrames = 15;
-  const cardStartFrame = flashEndFrame + postScreenshotPauseFrames;
+  const postScreenshotPauseFrames = isScreenshotMode ? 15 : 0;
+  const cardStartFrame = isScreenshotMode
+    ? flashEndFrame + postScreenshotPauseFrames
+    : stopFrame;
 
-  // 5. Kartu meme slide-up masuk dari bawah & 3D reveal (105 frame)
-  // ========================================================
-
-  const isFlashing = frame >= flashStartFrame && frame < flashEndFrame;
+  const isFlashing = isScreenshotMode && frame >= flashStartFrame && frame < flashEndFrame;
   const isCardRevealed = frame >= cardStartFrame;
 
   // Progress flash shutter
@@ -118,8 +127,8 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
         </div>
       )}
 
-      {/* 1. Sound Effect: Camera Shutter Click saat efek screenshot flash putih */}
-      {enableSfx && cameraShutterSfxSrc && frame >= flashStartFrame && (
+      {/* 1. Sound Effect: Camera Shutter Click saat efek screenshot flash putih (hanya jika mode screenshot aktif) */}
+      {enableSfx && isScreenshotMode && cameraShutterSfxSrc && frame >= flashStartFrame && (
         <Sequence from={flashStartFrame} durationInFrames={45}>
           <Audio
             src={

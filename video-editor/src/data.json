@@ -1,6 +1,6 @@
 {
-  "lastUpdate": "2026-11-06 12:11:59",
-  "totalMoments": 4,
+  "lastUpdate": "2026-11-06 20:37:37",
+  "totalMoments": 5,
   "moments": [
     {
       "id": "1x69IP3bZJcow4bH_IQ7yEk51zGtZrSq7",
@@ -28,6 +28,7 @@
         }
       },
       "memeDiscovery": {
+        "enableScreenshot": true,
         "targetUndoTimestamp": "00:07.105",
         "title": "Meme Discovery: Momen Langka!",
         "cardTitle": "death evader",
@@ -90,6 +91,7 @@
         "cut": null
       },
       "memeDiscovery": {
+        "enableScreenshot": true,
         "targetUndoTimestamp": "00:21.7",
         "title": "Meme Discovery: dont look behind",
         "cardTitle": "Don't look behind!",
@@ -152,6 +154,7 @@
         "cut": null
       },
       "memeDiscovery": {
+        "enableScreenshot": true,
         "targetUndoTimestamp": "00:05.7",
         "title": "Meme Discovery: the crying duo",
         "cardTitle": "the crying duo",
@@ -214,9 +217,10 @@
         "cut": null
       },
       "memeDiscovery": {
-        "targetUndoTimestamp": "12.1",
+        "enableScreenshot": true,
+        "targetUndoTimestamp": "12.2",
         "title": "Meme Discovery: I surrender",
-        "cardTitle": "I surrender",
+        "cardTitle": "I surrender..",
         "cardRarity": "Rare",
         "cardDesc": "2 pria tua yang sudah siap menerima takdir",
         "skills": [
@@ -248,8 +252,70 @@
         "passiveNameFontSize": 32,
         "passiveDescFontSize": 26
       }
+    },
+    {
+      "id": "1FlHaw299QdT_IzWFuv9YRi74o40TE4M_",
+      "name": "hmph its not like that",
+      "path": "hmph-its-not-like-that",
+      "files": {
+        "image": {
+          "id": "15RH8e_2G-ujCYu0tjwsDFi3MCwn6domy",
+          "name": "image.jpg",
+          "size": 226242,
+          "sizeFormatted": "220.94 KB",
+          "tempRelPath": "temp/hmph-its-not-like-that/image.jpg"
+        },
+        "full": {
+          "id": "1suElLfD2sUVMWL7OPfNrBts9Isy0ULCb",
+          "name": "full.mp4",
+          "mimeType": "video/mp4",
+          "size": 9620658,
+          "sizeFormatted": "9.17 MB",
+          "durationSeconds": 12.33,
+          "durationFormatted": "12.33s",
+          "width": 1080,
+          "height": 1920,
+          "tempRelPath": "temp/hmph-its-not-like-that/full.mp4"
+        },
+        "cut": null
+      },
+      "memeDiscovery": {
+        "targetUndoTimestamp": "00:11.6",
+        "title": "Meme Discovery: hmph its not like that",
+        "cardTitle": "hmph! you mean!",
+        "cardRarity": "Uncommon",
+        "cardDesc": "pria tua tantrum?",
+        "skills": [
+          {
+            "name": "But I want it like THIS!",
+            "desc": "??% chance NPC memutus hubungan denganmu.",
+            "nameFontSize": 32,
+            "descFontSize": 26
+          },
+          {
+            "name": "",
+            "desc": "",
+            "nameFontSize": 32,
+            "descFontSize": 26
+          },
+          {
+            "name": "",
+            "desc": "",
+            "nameFontSize": 32,
+            "descFontSize": 26
+          }
+        ],
+        "cardColor": "#22c55e",
+        "titleFontSize": 46,
+        "rarityFontSize": 32,
+        "descFontSize": 32,
+        "passiveName": "But I want it like THIS!",
+        "passiveDesc": "??% chance NPC memutus hubungan denganmu.",
+        "passiveNameFontSize": 32,
+        "passiveDescFontSize": 26
+      }
     }
   ],
-  "activeMomentId": "I-surrender",
+  "activeMomentId": "hmph-its-not-like-that",
   "activeStyle": "meme-discovery"
 }

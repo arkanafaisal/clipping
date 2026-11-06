@@ -17,12 +17,17 @@ export const RemotionRoot: React.FC = () => {
         m.path === activeId
     ) || initialData.moments?.[0];
   const md = currentMoment?.memeDiscovery;
+  const isScreenshotMode = md?.enableScreenshot !== false;
   const targetTimestamp = md?.targetUndoTimestamp || '00:07.105';
   const videoDurationSeconds = currentMoment?.files?.full?.durationSeconds || 10.95;
   const stopSeconds = parseTimestampToSeconds(targetTimestamp) || videoDurationSeconds;
   const stopFrame = Math.max(1, Math.round(stopSeconds * 30));
-  // Sekuensial: Play sampai momen puncak -> 10f Flash Shutter -> 15f Jeda -> 105f Kartu Reveal
-  const totalFrames = stopFrame + 10 + 15 + 105;
+  // Sekuensial:
+  // - Mode Screenshot (default): Play -> 10f Flash -> 15f Jeda -> 105f Kartu (stopFrame + 130)
+  // - Mode Langsung: Play -> Tepat di timestamp langsung masuk kartu tanpa jeda/flash (stopFrame + 105)
+  const totalFrames = isScreenshotMode
+    ? stopFrame + 10 + 15 + 105
+    : stopFrame + 105;
 
   // Gunakan staticFile Remotion agar aset di public/ terpetakan tepat di Remotion CLI & Player (tanpa spasi di URL)
   const momentFolder = currentMoment?.path?.replace(/\s+/g, '-');
@@ -48,6 +53,7 @@ export const RemotionRoot: React.FC = () => {
           gameTitle: currentMoment?.name || 'Grim Reaper',
           targetUndoTimestamp: md?.targetUndoTimestamp || '00:07.105',
           totalVideoDurationSeconds: videoDurationSeconds,
+          enableScreenshot: isScreenshotMode,
           videoSrc,
           cardImageSrc: imageSrc,
           cardTitle: md?.cardTitle || currentMoment?.name || 'judul kartu',
