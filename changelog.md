@@ -16,7 +16,17 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Enlarge Top Header Text to Card Discovered Format and Remove Pill Badge
+## [Unreleased] - Dynamic Rarity Header Text and Themed Accent Color
+- **Konteks Struktural**:
+  - Penyesuaian Header Atas Berbasis Rarity & Warna Tema ([MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx)):
+    - **Penyebab & Kebutuhan**: Pengguna meminta agar teks header di area hitam atas diubah menjadi format `<rarity> card discovered!` (contoh: *Mythic card discovered!*, *Rare card discovered!*) dan warna teksnya diselaraskan dengan warna tema tingkat kelangkaan (*rarity*) kartu tersebut.
+    - **Solusi**:
+      1. Di [`MemeDiscoveryComposition.tsx`](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), mengimpor helper `getRarityColor` untuk mendapatkan warna tema rarity yang aktif (`activeCardColor`).
+      2. Memperbarui teks header menjadi `{displayRarity} card discovered!` dengan menerapkan warna heksadesimal rarity langsung pada elemen teks (`style={{ color: activeCardColor }}`).
+- **Perubahan Kode Penting**:
+  - `video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx`: Format header `<rarity> card discovered!` dan integrasi warna tema dinamis via `getRarityColor`.
+
+## [0977aa9] - Enlarge Top Header Text to Card Discovered Format and Remove Pill Badge
 - **Konteks Struktural**:
   - Penyesuaian Tipografi Header Atas Meme Discovery ([MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx)):
     - **Penyebab & Kebutuhan**: Pengguna meminta agar teks di area hitam bagian atas (di luar batas safe area) diperbesar ukurannya agar lebih jelas terbaca, ornamen pill/badge di atasnya dihapus, dan teks putih diganti menjadi `Card discovered: <judul kartunya>` menggunakan input judul kartu (`cardTitle`) alih-alih nama folder.

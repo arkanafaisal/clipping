@@ -10,7 +10,7 @@ import {
   Video,
   staticFile,
 } from 'remotion';
-import { MemeDiscoveryProps } from './types';
+import { MemeDiscoveryProps, getRarityColor } from './types';
 import { parseTimestampToSeconds } from '../../utils/time';
 import { ShutterFlash } from './components/ShutterFlash';
 import { PokemonCard } from './components/PokemonCard';
@@ -42,6 +42,12 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+
+  // Resolusi warna kartu dan label rarity untuk header
+  const activeCardColor = cardColor || getRarityColor(cardRarity);
+  const displayRarity = cardRarity
+    ? cardRarity.charAt(0).toUpperCase() + cardRarity.slice(1)
+    : 'Rare';
 
   // 1. Durasi pemutaran video dibatasi tepat pada timestamp puncak (targetUndoTimestamp)
   const stopSeconds =
@@ -171,8 +177,11 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
       {/* 3. HEADER: Di area hitam atas (di atas Safe Zone)        */}
       {/* ======================================================== */}
       <div className="absolute top-[3.5%] left-0 right-0 px-8 flex justify-center z-30 pointer-events-none">
-        <h1 className="text-[52px] font-black text-center tracking-tight text-white drop-shadow-[0_4px_16px_rgba(0,0,0,0.95)] leading-tight">
-          Card discovered: {cardTitle || 'judul kartu'}
+        <h1
+          className="text-[52px] font-black text-center tracking-tight drop-shadow-[0_4px_16px_rgba(0,0,0,0.95)] leading-tight"
+          style={{ color: activeCardColor }}
+        >
+          {displayRarity} card discovered!
         </h1>
       </div>
 
