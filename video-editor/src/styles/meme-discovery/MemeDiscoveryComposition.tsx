@@ -168,26 +168,13 @@ export const MemeDiscoveryComposition: React.FC<MemeDiscoveryProps> = ({
       )}
 
       {/* ======================================================== */}
-      {/* 3. OPTIONAL HEADER: Tepat di dalam margin atas Safe Zone   */}
+      {/* 3. HEADER: Di area hitam atas (di atas Safe Zone)        */}
       {/* ======================================================== */}
-      {title && (
-        <div className="absolute top-[3%] left-0 right-0 px-8 flex flex-col items-center gap-1.5 z-30 pointer-events-none">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-black/80 border border-neutral-700/80 shadow-2xl">
-            <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
-            <span className="text-xs font-bold tracking-wider uppercase text-neutral-300">
-              {gameTitle}
-            </span>
-            <span className="text-neutral-600">•</span>
-            <span className="text-[11px] font-mono text-amber-400 font-semibold">
-              STOP: {targetUndoTimestamp}
-            </span>
-          </div>
-
-          <h1 className="text-2xl font-black text-center tracking-tight text-white drop-shadow-[0_3px_8px_rgba(0,0,0,0.9)]">
-            {title}
-          </h1>
-        </div>
-      )}
+      <div className="absolute top-[3.5%] left-0 right-0 px-8 flex justify-center z-30 pointer-events-none">
+        <h1 className="text-[52px] font-black text-center tracking-tight text-white drop-shadow-[0_4px_16px_rgba(0,0,0,0.95)] leading-tight">
+          Card discovered: {cardTitle || 'judul kartu'}
+        </h1>
+      </div>
 
       {/* ======================================================== */}
       {/* 4. SAFE ZONE GUIDES (Hanya jika showSafeZoneGuides aktif)  */}

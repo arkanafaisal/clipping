@@ -16,7 +16,17 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Synchronize Dynamic Default Props for Remotion Export Root
+## [Unreleased] - Enlarge Top Header Text to Card Discovered Format and Remove Pill Badge
+- **Konteks Struktural**:
+  - Penyesuaian Tipografi Header Atas Meme Discovery ([MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx)):
+    - **Penyebab & Kebutuhan**: Pengguna meminta agar teks di area hitam bagian atas (di luar batas safe area) diperbesar ukurannya agar lebih jelas terbaca, ornamen pill/badge di atasnya dihapus, dan teks putih diganti menjadi `Card discovered: <judul kartunya>` menggunakan input judul kartu (`cardTitle`) alih-alih nama folder.
+    - **Solusi**:
+      1. Di [`MemeDiscoveryComposition.tsx`](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx), menghapus elemen pill/badge ornamen yang sebelumnya menampilkan nama folder dan info stop.
+      2. Memperbarui teks menjadi `Card discovered: {cardTitle || 'judul kartu'}` dengan ukuran tipografi besar (`text-[52px]` font-black) dan efek drop-shadow tebal agar kontras di area atas.
+- **Perubahan Kode Penting**:
+  - `video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx`: Penghapusan pill badge dan penerapan teks header 52px format `Card discovered: <cardTitle>`.
+
+## [4bd85eb] - Synchronize Dynamic Default Props for Remotion Export Root
 - **Konteks Struktural**:
   - Penyelarasan Props Dinamis pada Remotion Export ([Root.tsx](file:///d:/projects/clipping/video-editor/src/remotion/Root.tsx)):
     - **Penyebab & Kebutuhan**: Memastikan bahwa seluruh konfigurasi ekspor video (baik melalui CLI `npm run render` maupun tombol ekspor web) 100% identik dan menggunakan props dinamis sesuai momen yang sedang aktif, tanpa fallback hardcoded ke nama momen lama seperti `'death evader'`.
