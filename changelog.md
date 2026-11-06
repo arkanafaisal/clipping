@@ -14,9 +14,17 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-<!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
+## [Unreleased] - Mirror Card Image During Initial 3D Flip Reveal Phase
+- **Konteks Struktural**:
+  - Ilusi Optik Rotasi 3D Realistis pada Kartu ([PokemonCard.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/PokemonCard.tsx)):
+    - **Penyebab & Kebutuhan**: Pengguna menginginkan gambar kartu di-mirror secara horizontal (`scaleX(-1)`) saat fase awal kartu muncul dan berputar (sebelum berbalik / `relFrame < 28`), lalu kembali ke orientasi normal tanpa mirror (`transform: 'none'`) ketika kartu telah berputar penuh menghadap penonton (`relFrame >= 28`). Hal ini menciptakan ilusi optik 3D yang sangat nyata seolah-olah penonton melihat sisi belakang/pantulan kartu sebelum dibalik ke hadapan layar.
+    - **Solusi**:
+      1. Di [`PokemonCard.tsx`](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/components/PokemonCard.tsx), menambahkan kalkulasi status `isMirroredInitial = relFrame < 28`.
+      2. Menerapkan `style={{ transform: isMirroredInitial ? 'scaleX(-1)' : 'none' }}` pada elemen `<Img>` kartu meme.
+- **Perubahan Kode Penting**:
+  - `video-editor/src/styles/meme-discovery/components/PokemonCard.tsx`: Integrasi styling transformasi `scaleX(-1)` pada fase awal rotasi Y kartu (`relFrame < 28`).
 
-## [Unreleased] - Dynamic Rarity Header Text and Themed Accent Color
+## [f78a5ad] - Dynamic Rarity Header Text and Themed Accent Color
 - **Konteks Struktural**:
   - Penyesuaian Header Atas Berbasis Rarity & Warna Tema ([MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx)):
     - **Penyebab & Kebutuhan**: Pengguna meminta agar teks header di area hitam atas diubah menjadi format `<rarity> card discovered!` (contoh: *Mythic card discovered!*, *Rare card discovered!*) dan warna teksnya diselaraskan dengan warna tema tingkat kelangkaan (*rarity*) kartu tersebut.

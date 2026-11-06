@@ -128,6 +128,10 @@ export const PokemonCard: React.FC<PokemonCardProps> = ({
           })
         : interpolate((frame * 2.5) % 200, [0, 200], [-200, 300]);
 
+  // Efek visual flip 3D nyata: gambar di-mirror horizontal (scaleX(-1)) saat fase awal (relFrame < 28)
+  // lalu kembali ke orientasi normal (unmirrored) saat kartu berputar penuh menghadap kamera.
+  const isMirroredInitial = relFrame < 28;
+
   // Fallbacks placeholder persis sesuai arahan prompts.md:L2
   const displayTitle = cardTitle || 'judul kartu';
   const displayRarity = cardRarity || 'rarity';
@@ -188,12 +192,14 @@ export const PokemonCard: React.FC<PokemonCardProps> = ({
                 src={imageSrc}
                 alt={displayTitle}
                 className="w-full h-full object-cover"
+                style={{ transform: isMirroredInitial ? 'scaleX(-1)' : 'none' }}
               />
             ) : targetFrameImage ? (
               <Img
                 src={targetFrameImage}
                 alt={displayTitle}
                 className="w-full h-full object-cover"
+                style={{ transform: isMirroredInitial ? 'scaleX(-1)' : 'none' }}
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-6xl bg-neutral-900 text-neutral-600">
