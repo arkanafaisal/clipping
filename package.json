@@ -2,7 +2,6 @@
   "name": "clipping-root",
   "private": true,
   "scripts": {
-    "render": "npm run render --prefix video-editor",
     "eas-build-pre-install": "bash ./mobile/scripts/eas-build-pre-install.sh"
   },
   "dependencies": {

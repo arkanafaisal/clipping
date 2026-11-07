@@ -14,6 +14,26 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
+## [Unreleased] - Decouple Video Editor and Scheduler Uploader into Standalone Repositories
+- **Konteks Struktural**:
+  - Pemisahan Arsitektural Sub-Sistem Non-Core ([package.json](file:///d:/projects/clipping/package.json), [.gitignore](file:///d:/projects/clipping/.gitignore)):
+    - **Penyebab & Kebutuhan**: Sesuai arahan pengguna, repositori `clipping` disederhanakan dan dibersihkan dari sub-proyek programmatic video editing (`video-editor`) dan otomatisasi upload (`scheduler-uploader`) agar fokus murni pada fungsionalitas inti: clipping web, WhatsApp bot, dan aplikasi mobile.
+    - **Solusi**:
+      1. Memindahkan seluruh direktori `video-editor` keluar dari root repositori menuju `d:\projects\video-editor` (lengkap beserta dependensi, asset, dan konfigurasi mandiri).
+      2. Memindahkan seluruh direktori `scheduler-uploader` keluar dari root repositori menuju `d:\projects\scheduler-uploader`.
+      3. Membersihkan script `"render"` pada root [`package.json`](file:///d:/projects/clipping/package.json) dan mengeliminasi rule ignore `video-editor/` pada root [`.gitignore`](file:///d:/projects/clipping/.gitignore).
+- **Perubahan Kode Penting**:
+  - `package.json`: Penghapusan script delegasi `render`.
+  - `.gitignore`: Pembersihan rule pengecualian build `video-editor/out`.
+  - Direktori `video-editor/` & `scheduler-uploader/`: Dikeluarkan dari tracking repositori `clipping`.
+
+## [9c145aa] - Update Changelog Commit ID for Background Playback and Sync Latest Moment Data
+- **Konteks Struktural**:
+  - Sinkronisasi Entri Changelog & Pembaruan Data Momen ([changelog.md](file:///d:/projects/clipping/changelog.md)):
+    - Pembaruan commit ID `03a14b6` pada changelog dan sinkronisasi data momen terbaru dari sesi interaksi web.
+- **Perubahan Kode Penting**:
+  - `changelog.md`: Pembaruan penomoran commit ID rilis.
+
 ## [03a14b6] - Continuous Background Video Playback with Auto-Hold in Direct Mode
 - **Konteks Struktural**:
   - Pemutaran Video Latar Belakang & Proteksi Freeze Akhir ([MemeDiscoveryComposition.tsx](file:///d:/projects/clipping/video-editor/src/styles/meme-discovery/MemeDiscoveryComposition.tsx)):
