@@ -14,7 +14,15 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Prioritize External Shared Storage Modules to Prevent APK Shadowing and FUNCTION_NOT_FOUND
+## [Unreleased] - Revert Unnecessary runner.py Modification to Keep Native Bundle Clean
+- **Konteks Struktural**:
+  - Pengembalian Modul Native Runner ([mobile/modules/python-runner/android/src/main/python/runner.py](file:///d:/projects/clipping/mobile/modules/python-runner/android/src/main/python/runner.py)):
+    - **Penyebab & Kebutuhan**: Modifikasi pada `runner.py` sebelumnya tidak diperlukan dan keliru karena `runner.py` berada di dalam modul native APK yang sudah dibundel. Selain itu, `runner.py` asli bawaan APK sudah memiliki logika fallback: jika modul dipanggil tanpa prefix `utils.` (misal `stream_extractor`), runner sudah secara otomatis mendahulukan pencarian modul polos di shared storage sebelum fallback ke `utils.<modul>`.
+    - **Solusi**: Mengembalikan `mobile/modules/python-runner/android/src/main/python/runner.py` ke kondisi semula agar codebase native bundle tetap bersih tanpa perlu me-rebuild dev APK.
+- **Perubahan Kode Penting**:
+  - `mobile/modules/python-runner/android/src/main/python/runner.py`: Mengembalikan implementasi asli tanpa perubahan native.
+
+## [476fd7b] - Prioritize External Shared Storage Modules to Prevent APK Shadowing and FUNCTION_NOT_FOUND
 - **Konteks Struktural**:
   - Resolusi Modul Runner Dinamis ([mobile/modules/python-runner/index.ts](file:///d:/projects/clipping/mobile/modules/python-runner/index.ts), [mobile/modules/python-runner/android/src/main/python/runner.py](file:///d:/projects/clipping/mobile/modules/python-runner/android/src/main/python/runner.py), [mobile/src/services/api/errors.ts](file:///d:/projects/clipping/mobile/src/services/api/errors.ts)):
     - **Penyebab & Kebutuhan**: Panggilan fungsi Python yang menyertakan prefix package (misal `utils.stream_extractor`) langsung di-resolve oleh Chaquopy ke modul bawaan yang dibundel di dalam build APK internal (`mobile/modules/.../utils/stream_extractor.py`), bukan modul baru yang disalin pengguna ke shared storage (`clipping/scripts/stream_extractor.py`). Karena modul internal bundle lama tidak memiliki fungsi baru seperti `extract_video_versions`, Chaquopy langsung menghentikan pencarian modul dan melempar `FUNCTION_NOT_FOUND`.

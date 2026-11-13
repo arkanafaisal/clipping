@@ -60,27 +60,22 @@ def execute_function(module_name: str, func_name: str, args_json: str = "{}") ->
     try:
         kwargs = json.loads(args_json) if args_json else {}
 
-        # Kandidat nama modul: prioritaskan nama tanpa prefix 'utils.' agar modul eksternal
-        # di shared storage (clipping/scripts/) diutamakan di atas modul internal bundle APK.
-        bare_name = module_name[len("utils."):] if module_name.startswith("utils.") else module_name
-        utils_name = f"utils.{bare_name}"
-        candidates = [bare_name, utils_name]
+        # Kandidat nama modul: nama asli, dan alternatif dengan/tanpa prefix 'utils.'
+        candidates = [module_name]
+        if module_name.startswith("utils."):
+            candidates.append(module_name[len("utils."):])
+        else:
+            candidates.append(f"utils.{module_name}")
 
         mod = None
         last_import_err = None
         for cand in candidates:
             try:
                 if cand in sys.modules:
-                    m = importlib.reload(sys.modules[cand])
+                    mod = importlib.reload(sys.modules[cand])
                 else:
-                    m = importlib.import_module(cand)
-
-                # Jika kandidat modul memiliki fungsi yang diminta, langsung pilih
-                if hasattr(m, func_name):
-                    mod = m
-                    break
-                elif mod is None:
-                    mod = m
+                    mod = importlib.import_module(cand)
+                break
             except ModuleNotFoundError as mnfe:
                 last_import_err = mnfe
                 continue
