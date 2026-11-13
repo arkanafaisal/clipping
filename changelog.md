@@ -14,7 +14,30 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Revert Defensive Runner Path Fallback and Add Rule 31 Against Bloat Workarounds
+## [Unreleased] - Refactor Monolithic api.ts into Clean Modular Services with Facade Barrel Export
+- **Konteks Struktural**:
+  - Dekomposisi Layanan API Monolitik ([api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts), [mobile/src/services/api/](file:///d:/projects/clipping/mobile/src/services/api/)):
+    - **Penyebab & Kebutuhan**: File `mobile/src/services/api.ts` membengkak hingga lebih dari 2.720 baris dengan tanggung jawab majemuk (error handling, client ping, penamaan file, disk resolution, cookies, YouTube stream extraction, caching, downloader, subtitle parser & CRUD, template config, dan FFmpeg burner). Hal ini menyulitkan pemeliharaan dan debugging.
+    - **Solusi**:
+      1. Memecah `api.ts` ke dalam 12 modul terfokus di dalam folder `mobile/src/services/api/`:
+         - `types.ts`: Antarmuka data & konfigurasi bersama.
+         - `errors.ts`: Pemetaan error, error resolver, dan `ApiError`.
+         - `client.ts`: Konfigurasi host URL dan fungsi ping server internal/dev.
+         - `paths.ts`: Generator nama file rentang waktu dan alokasi path penyimpanan.
+         - `fileResolver.ts`: Verifikasi file fisik lokal, in-memory cache disk, dan playable URI.
+         - `cookies.ts`: Parser ID link Google Drive, sinkronisasi file cookies, dan penghapusan.
+         - `youtubeStream.ts`: Ekstraksi metadata video YouTube, kualitas multi-format, dan caching URL 2-tier.
+         - `downloadStreamCache.ts`: Manajemen caching URL stream khusus pengunduhan klip.
+         - `downloader.ts`: Pengunduh klip video dinamis dan full video.
+         - `subtitles.ts`: Parser VTT/JSON3 YouTube, normalisasi cues, slicing segmen klip, dan CRUD JSON subtitle.
+         - `templates.ts`: Pengaturan template layout visual klip dan konfigurasi global video.
+         - `subtitleBurner.ts`: Ekstraksi dan penempelan permanen subtitle via FFmpeg.
+      2. Mengonversi `mobile/src/services/api.ts` menjadi *Barrel Export / Facade* (`export * from './api'`) sehingga tidak ada breaking change pada komponen UI yang sudah ada.
+- **Perubahan Kode Penting**:
+  - `mobile/src/services/api/`: Membuat 12 modul layanan API modular dan `index.ts`.
+  - `mobile/src/services/api.ts`: Menggantikan file 2.723 baris menjadi barrel export ramping (~15 baris).
+
+## [2035440] - Revert Defensive Runner Path Fallback and Add Rule 31 Against Bloat Workarounds
 - **Konteks Struktural**:
   - Penegasan Anti-Bloat Codebase & Revert Path Fallback ([runner.py](file:///d:/projects/clipping/mobile/modules/python-runner/android/src/main/python/runner.py), [GEMINI.md](file:///d:/projects/clipping/GEMINI.md)):
     - **Penyebab & Kebutuhan**: Pengguna menegur penambahan pencarian path fallback defensif (`libs/scripts` di `runner.py`) yang dibuat untuk mengantisipasi kesalahan peletakan folder oleh user. Menambahkan kode workaround defensif hanya untuk mengkompensasi kesalahan user memperbesar codebase (bloat) secara tidak perlu; solusi yang benar adalah memberi tahu letak folder yang tepat langsung kepada user tanpa menambah kompleksitas kode.
