@@ -31,6 +31,7 @@ export const API_ERROR_MAP: Record<string, string> = {
   SERVER_OFFLINE: 'Server internal Python belum aktif pada port 8080.',
   DEV_SERVER_OFFLINE: 'Server Mobile Dev/Mock API belum aktif pada port 3006.',
   INTERNAL_ERROR: 'Terjadi kesalahan internal pada server Python.',
+  FUNCTION_NOT_FOUND: 'Fungsi Python tidak ditemukan pada modul skrip. Pastikan file skrip di shared storage (clipping/scripts) sudah diperbarui.',
   NETWORK_ERROR: 'Gagal terhubung ke jaringan internal server.',
 };
 

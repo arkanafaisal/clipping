@@ -14,7 +14,20 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Add Python Scripts Version Indicator and Sync Verification in Settings
+## [Unreleased] - Prioritize External Shared Storage Modules to Prevent APK Shadowing and FUNCTION_NOT_FOUND
+- **Konteks Struktural**:
+  - Resolusi Modul Runner Dinamis ([mobile/modules/python-runner/index.ts](file:///d:/projects/clipping/mobile/modules/python-runner/index.ts), [mobile/modules/python-runner/android/src/main/python/runner.py](file:///d:/projects/clipping/mobile/modules/python-runner/android/src/main/python/runner.py), [mobile/src/services/api/errors.ts](file:///d:/projects/clipping/mobile/src/services/api/errors.ts)):
+    - **Penyebab & Kebutuhan**: Panggilan fungsi Python yang menyertakan prefix package (misal `utils.stream_extractor`) langsung di-resolve oleh Chaquopy ke modul bawaan yang dibundel di dalam build APK internal (`mobile/modules/.../utils/stream_extractor.py`), bukan modul baru yang disalin pengguna ke shared storage (`clipping/scripts/stream_extractor.py`). Karena modul internal bundle lama tidak memiliki fungsi baru seperti `extract_video_versions`, Chaquopy langsung menghentikan pencarian modul dan melempar `FUNCTION_NOT_FOUND`.
+    - **Solusi**:
+      1. Pada `mobile/modules/python-runner/index.ts`, hapus prefix `utils.` saat memanggil `NativePythonRunner.executeScript` sehingga runner selalu mendahulukan nama modul langsung (`stream_extractor`) yang berada di shared storage HP (`clipping/scripts`).
+      2. Pada `runner.py`, balik urutan kandidat modul untuk mendahulukan `bare_name` sebelum `utils_name`, dan cek `hasattr(m, func_name)` sebelum memutuskan modul valid agar tidak terblokir oleh modul lama di APK.
+      3. Menambahkan pemetaan kode `FUNCTION_NOT_FOUND` pada `API_ERROR_MAP` di `mobile/src/services/api/errors.ts`.
+- **Perubahan Kode Penting**:
+  - `mobile/modules/python-runner/index.ts`: Menghilangkan prefix `utils.` agar runner memprioritaskan skrip di shared storage HP.
+  - `mobile/modules/python-runner/android/src/main/python/runner.py`: Memprioritaskan bare module name dan memeriksa ketersediaan fungsi target sebelum memilih modul.
+  - `mobile/src/services/api/errors.ts`: Menambahkan pesan terjemahan ramah pengguna untuk kode `FUNCTION_NOT_FOUND`.
+
+## [4995ca7] - Add Python Scripts Version Indicator and Sync Verification in Settings
 - **Konteks Struktural**:
   - Deteksi dan Verifikasi Sinkronisasi Versi Skrip Backend ([mobile/scripts/utils/version.py](file:///d:/projects/clipping/mobile/scripts/utils/version.py), [mobile/src/services/api/client.ts](file:///d:/projects/clipping/mobile/src/services/api/client.ts), [mobile/src/components/SettingsModal.tsx](file:///d:/projects/clipping/mobile/src/components/SettingsModal.tsx)):
     - **Penyebab & Kebutuhan**: Selama masa development, tidak setiap update memerlukan pembaruan bundle Python di storage HP (`clipping/scripts/`), sering kali hanya frontend yang berubah dan hanya perlu refresh terminal Expo. Namun, jika folder scripts diubah tanpa disalin ulang ke HP, aplikasi bisa mengalami error akibat ketidakcocokan fungsi/modul. Dibutuhkan mekanisme pelacak versi skrip yang hanya berubah saat file di folder scripts berubah, serta verifikasi otomatis di sisi frontend untuk memastikan skrip di HP tersinkronisasi.

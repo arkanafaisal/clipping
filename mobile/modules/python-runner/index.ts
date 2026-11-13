@@ -41,9 +41,14 @@ export async function executePythonScript(
     throw new Error('Native PythonRunner module is not available on this platform.');
   }
 
+  // Prioritaskan nama modul tanpa prefix 'utils.' agar runner di Chaquopy
+  // mengutamakan modul di shared storage (clipping/scripts/ atau clipping/scripts/utils/)
+  // sebelum jatuh ke modul internal bundle APK.
+  const targetModule = moduleName.startsWith('utils.') ? moduleName.substring(6) : moduleName;
+
   const argsJson = JSON.stringify(args);
   try {
-    const rawResult = await NativePythonRunner.executeScript(moduleName, funcName, argsJson);
+    const rawResult = await NativePythonRunner.executeScript(targetModule, funcName, argsJson);
     let parsed: any;
     try {
       parsed = JSON.parse(rawResult);
