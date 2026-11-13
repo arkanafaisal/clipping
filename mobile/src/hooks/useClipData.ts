@@ -536,6 +536,7 @@ export function useClipData({
       setActiveClipId(newClip.id);
       LocalStorage.setItem(DRAFT_KEY, JSON.stringify(updated));
       onUpdateWorkshopDone?.(videoId, 1);
+      onSeek(0, true);
       ToastManager.show({
         type: 'success',
         title: 'Klip Ditandai Selesai',
@@ -567,8 +568,9 @@ export function useClipData({
         setDownloadedClips((prev) => ({ ...prev, [targetClip!.id]: true }));
         downloadedClipsRef.current[targetClip.id] = true;
       }
+      onSeek(targetClip.start, true);
     }
-  }, [activeClipId, videoId, onUpdateWorkshopDone, setClips, setActiveClipId, downloadedClipsRef, setDownloadedClips, clipsRef, activeClipIdRef]);
+  }, [activeClipId, videoId, onUpdateWorkshopDone, setClips, setActiveClipId, downloadedClipsRef, setDownloadedClips, clipsRef, activeClipIdRef, onSeek]);
 
   // Toggle clip Trash/Skip status (merah)
   const handleToggleTrash = useCallback(() => {

@@ -111,20 +111,42 @@ export function useClipPlayer({
   });
 
   const isFacecamActiveRef = useRef<boolean>(false);
+  const currentFacecamSourceUriRef = useRef<string | null>(null);
+
   const setIsFacecamActive = useCallback((active: boolean) => {
     isFacecamActiveRef.current = active;
     if (active && facecamPlayer) {
       try {
         const curUri = currentSourceUriRef.current;
         if (curUri) {
-          facecamPlayer.replace(curUri);
-          facecamPlayer.muted = true;
-          if (player) {
-            facecamPlayer.currentTime = player.currentTime;
-            if (player.playing && isContinueStateRef.current) {
+          const curActive = getActiveClip();
+          const isIndividualCutClip =
+            curUri.startsWith('file://') &&
+            !curUri.endsWith('/full.mp4') &&
+            !curUri.endsWith('/full_video.mp4') &&
+            !curUri.endsWith('/full_proxy.mp4');
+
+          const targetTime =
+            pendingSeekTargetRef.current !== null
+              ? pendingSeekTargetRef.current
+              : typeof player?.currentTime === 'number' && !isNaN(player.currentTime) && player.currentTime > 0
+              ? player.currentTime
+              : isIndividualCutClip
+              ? 0
+              : Math.max(0, curActive.start);
+
+          if (currentFacecamSourceUriRef.current !== curUri) {
+            currentFacecamSourceUriRef.current = curUri;
+            facecamPlayer.replace(curUri);
+            facecamPlayer.muted = true;
+          }
+
+          try {
+            facecamPlayer.currentTime = targetTime;
+            if (player?.playing && isContinueStateRef.current) {
               facecamPlayer.play();
             }
-          }
+          } catch (e) {}
         }
       } catch (e) {
         console.warn('[useClipPlayer] Sync facecam active error:', e);
@@ -134,7 +156,7 @@ export function useClipPlayer({
         if (facecamPlayer.playing) facecamPlayer.pause();
       } catch (e) {}
     }
-  }, [facecamPlayer, player]);
+  }, [facecamPlayer, player, getActiveClip]);
 
   // Aspect ratio video (default 16/9, dinamis membaca track asli video)
   const [videoAspectRatio, setVideoAspectRatio] = useState<number>(16 / 9);
@@ -174,11 +196,13 @@ export function useClipPlayer({
     if (seekSafetyTimeoutRef.current) {
       clearTimeout(seekSafetyTimeoutRef.current);
     }
+    const isLocalMode = currentSourceUriRef.current.startsWith('file://');
+    const safetyTimeout = isLocalMode ? 1500 : 4000;
     seekSafetyTimeoutRef.current = setTimeout(() => {
       if (pendingSeekTargetRef.current === targetTime) {
         pendingSeekTargetRef.current = null;
       }
-    }, 1500);
+    }, safetyTimeout);
   }, []);
 
   const cancelPendingSeekDebounce = useCallback(() => {
@@ -280,6 +304,7 @@ export function useClipPlayer({
           try {
             player.replace(fullVideoUri);
             if (isFacecamActiveRef.current && facecamPlayer) {
+              currentFacecamSourceUriRef.current = fullVideoUri;
               facecamPlayer.replace(fullVideoUri);
               facecamPlayer.muted = true;
             }
@@ -315,6 +340,7 @@ export function useClipPlayer({
         try {
           player.replace(activeStream);
           if (isFacecamActiveRef.current && facecamPlayer) {
+            currentFacecamSourceUriRef.current = activeStream;
             facecamPlayer.replace(activeStream);
             facecamPlayer.muted = true;
           }
@@ -366,8 +392,7 @@ export function useClipPlayer({
       const currentActive = getActiveClip();
       const currentSource = currentSourceUriRef.current;
       const isIndividualCutClip =
-        currentActive.status === 'done' &&
-        Boolean(downloadedClipsRef.current[currentActive.id]) &&
+        currentSource.startsWith('file://') &&
         !currentSource.endsWith('/full.mp4') &&
         !currentSource.endsWith('/full_video.mp4') &&
         !currentSource.endsWith('/full_proxy.mp4');
@@ -463,15 +488,14 @@ export function useClipPlayer({
         const curActive = getActiveClip();
         const curSource = currentSourceUriRef.current;
         const isIndividualCutClip =
-          curActive.status === 'done' &&
-          Boolean(downloadedClipsRef.current[curActive.id]) &&
+          curSource.startsWith('file://') &&
           !curSource.endsWith('/full.mp4') &&
           !curSource.endsWith('/full_video.mp4') &&
           !curSource.endsWith('/full_proxy.mp4');
         const duration = curActive.end - curActive.start;
         const rawCurrent = player.currentTime;
         const currentPos =
-          typeof rawCurrent === 'number' && !isNaN(rawCurrent)
+          typeof rawCurrent === 'number' && !isNaN(rawCurrent) && (isIndividualCutClip || rawCurrent >= curActive.start - 0.5)
             ? rawCurrent
             : isIndividualCutClip
             ? 0
@@ -500,8 +524,7 @@ export function useClipPlayer({
       const currentActive = getActiveClip();
       const currentSource = currentSourceUriRef.current;
       const isClipDoneLocal =
-        currentActive.status === 'done' &&
-        Boolean(downloadedClipsRef.current[currentActive.id]) &&
+        currentSource.startsWith('file://') &&
         !currentSource.endsWith('/full.mp4') &&
         !currentSource.endsWith('/full_video.mp4') &&
         !currentSource.endsWith('/full_proxy.mp4');
@@ -538,6 +561,22 @@ export function useClipPlayer({
           return;
         }
       } else {
+        // Cek jika pemutar video meleset atau berputar di bawah clip.start (misal decoder stream mulai dari detik 0)
+        if (current < currentActive.start - 0.75) {
+          setPendingSeek(currentActive.start);
+          try {
+            player.currentTime = currentActive.start;
+            if (isFacecamActiveRef.current && facecamPlayer) {
+              facecamPlayer.currentTime = currentActive.start;
+              if (isContinueStateRef.current) facecamPlayer.play();
+            }
+            if (isContinueStateRef.current) {
+              player.play();
+            }
+          } catch (e) {}
+          return;
+        }
+
         if (current >= currentActive.end) {
           setPendingSeek(currentActive.start);
           player.currentTime = currentActive.start;
@@ -553,6 +592,16 @@ export function useClipPlayer({
             player.play();
           }
           return;
+        }
+      }
+
+      // Sinkronisasi drift antara facecamPlayer dan main player (~30 FPS)
+      if (isFacecamActiveRef.current && facecamPlayer && player.playing) {
+        const drift = Math.abs(facecamPlayer.currentTime - current);
+        if (drift > 0.4) {
+          try {
+            facecamPlayer.currentTime = current;
+          } catch (e) {}
         }
       }
 
@@ -579,8 +628,7 @@ export function useClipPlayer({
           isSourceSwitchingRef.current = false;
           const currentSource = currentSourceUriRef.current;
           const isIndividualCutClip =
-            currentActive.status === 'done' &&
-            Boolean(downloadedClipsRef.current[currentActive.id]) &&
+            currentSource.startsWith('file://') &&
             !currentSource.endsWith('/full.mp4') &&
             !currentSource.endsWith('/full_video.mp4') &&
             !currentSource.endsWith('/full_proxy.mp4');
@@ -597,9 +645,19 @@ export function useClipPlayer({
               player.currentTime = targetTime;
             } catch (e) {}
           }
+          if (isFacecamActiveRef.current && facecamPlayer) {
+            if (Math.abs(facecamPlayer.currentTime - targetTime) > 0.5) {
+              try {
+                facecamPlayer.currentTime = targetTime;
+              } catch (e) {}
+            }
+          }
           if (isContinueStateRef.current) {
             if (!player.playing) {
               try { player.play(); } catch (e) {}
+            }
+            if (isFacecamActiveRef.current && facecamPlayer && !facecamPlayer.playing) {
+              try { facecamPlayer.play(); } catch (e) {}
             }
           }
         }
@@ -650,10 +708,43 @@ export function useClipPlayer({
       }
     });
 
+    const facecamStatusSub = facecamPlayer.addListener('statusChange', () => {
+      if (facecamPlayer.status === 'readyToPlay' && isFacecamActiveRef.current) {
+        const curActive = getActiveClip();
+        const curSource = currentSourceUriRef.current;
+        const isIndividualCutClip =
+          curSource.startsWith('file://') &&
+          !curSource.endsWith('/full.mp4') &&
+          !curSource.endsWith('/full_video.mp4') &&
+          !curSource.endsWith('/full_proxy.mp4');
+
+        const targetTime =
+          pendingSeekTargetRef.current !== null
+            ? pendingSeekTargetRef.current
+            : typeof player?.currentTime === 'number' && !isNaN(player.currentTime) && player.currentTime > 0
+            ? player.currentTime
+            : isIndividualCutClip
+            ? 0
+            : Math.max(0, curActive.start);
+
+        if (Math.abs(facecamPlayer.currentTime - targetTime) > 0.5) {
+          try {
+            facecamPlayer.currentTime = targetTime;
+          } catch (e) {}
+        }
+        if (isContinueStateRef.current && !facecamPlayer.playing) {
+          try {
+            facecamPlayer.play();
+          } catch (e) {}
+        }
+      }
+    });
+
     return () => {
       sub.remove();
       playingSub.remove();
       statusSub.remove();
+      facecamStatusSub.remove();
     };
   }, [
     player,
@@ -696,15 +787,14 @@ export function useClipPlayer({
       const currentActive = getActiveClip();
       const currentSource = currentSourceUriRef.current;
       const isClipDoneLocal =
-        currentActive.status === 'done' &&
-        Boolean(downloadedClipsRef.current[currentActive.id]) &&
+        currentSource.startsWith('file://') &&
         !currentSource.endsWith('/full.mp4') &&
         !currentSource.endsWith('/full_video.mp4') &&
         !currentSource.endsWith('/full_proxy.mp4');
       const duration = currentActive.end - currentActive.start;
 
       const currentPos =
-        typeof player?.currentTime === 'number' && !isNaN(player.currentTime)
+        typeof player?.currentTime === 'number' && !isNaN(player.currentTime) && (isClipDoneLocal || player.currentTime >= currentActive.start - 0.5)
           ? player.currentTime
           : isClipDoneLocal
           ? 0
@@ -777,6 +867,7 @@ export function useClipPlayer({
             if (isFacecamActiveRef.current && facecamPlayer) {
               try {
                 facecamPlayer.replace(fullVideoUri);
+                currentFacecamSourceUriRef.current = fullVideoUri;
                 facecamPlayer.muted = true;
                 facecamPlayer.currentTime = firstClipStart;
                 facecamPlayer.play();
@@ -811,6 +902,7 @@ export function useClipPlayer({
           if (isFacecamActiveRef.current && facecamPlayer) {
             try {
               facecamPlayer.replace(directUrl);
+              currentFacecamSourceUriRef.current = directUrl;
               facecamPlayer.muted = true;
               facecamPlayer.currentTime = firstClipStart;
               facecamPlayer.play();

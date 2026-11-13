@@ -14,7 +14,26 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Decouple Video Editor and Scheduler Uploader into Standalone Repositories
+## [Unreleased] - Fix Stream Playback Alignment at Clip Range and Decouple Downloaded Stream Status
+- **Konteks Struktural**:
+  - Sinkronisasi Pemutaran Stream Online & Perbaikan Deteksi Klip Lokal ([useClipPlayer.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipPlayer.ts), [useClipData.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipData.ts)):
+    - **Penyebab & Kebutuhan**:
+      1. Saat memutar video secara streaming online (bukan file full video offline), ketika klip ditandai `done` untuk preview editor (sebelum klip diunduh maupun sesudah diunduh), video terputar dari detik 0.0 video penuh, bukan detik `0` dari rentang klip (`clip.start`).
+      2. Pengecekan `isClipDoneLocal` dan `isIndividualCutClip` di lima tempat pada `useClipPlayer.ts` hanya mengecek `!currentSource.endsWith('/full.mp4')` tanpa memastikan bahwa sumber video adalah file lokal (`currentSource.startsWith('file://')`). Akibatnya, ketika klip selesai diunduh saat mode streaming (`downloadedClipsRef[id] === true`), URL stream `https://...` disalahartikan sebagai file potongan lokal berdurasi 0–15s. Hal ini memicu loop tak hingga dari detik 0 ke 15 pada video YouTube utuh serta seek `0` pada `statusChange` dan `skipSeconds`.
+      3. Komponen pemutar sekunder `facecamPlayer` dimuat ulang secara asinkron (`replace`) tanpa listener status ready (`statusChange`), menyebabkan `currentTime` tertahan di `0.0` pada stream online sehingga saat preview template portrait aktif (facecam), video yang diputar adalah detik ke-0.
+      4. Pada listener `timeUpdate`, tidak ada proteksi jika pemutar native Exoplayer stream mulai dari `0.0` atau meleset di bawah `clip.start`, sehingga video terus berputar dari awal video YouTube hingga batas `end` sementara progress bar UI tertahan di `00:00`.
+      5. Pada `handleToggleDone` di `useClipData.ts`, pergantian status menjadi `done` tidak menyinkronkan posisi pemutar ke `clip.start`.
+    - **Solusi**:
+      1. Menambahkan syarat `currentSource.startsWith('file://')` secara ketat pada seluruh definisi `isIndividualCutClip` dan `isClipDoneLocal` di `useClipPlayer.ts` (`centralizedSeek`, `playingSub`, `timeUpdate`, `statusSub`, `skipSeconds`) agar URL stream (`https://...`) tidak pernah diperlakukan sebagai klip terpotong lokal berindeks 0.
+      2. Menambahkan listener `statusChange` pada `facecamPlayer` dan pelindung `currentFacecamSourceUriRef` agar sinkronisasi posisi ke `targetTime` (`clip.start`) selalu dieksekusi begitu buffer facecam siap.
+      3. Menambahkan koreksi drift dan batas bawah (`current < currentActive.start - 0.75`) pada `timeUpdate` untuk langsung menyentak video ke `clip.start` jika decoder stream online berputar di luar rentang awal klip.
+      4. Memperpanjang batas waktu timeout keamanan `pendingSeekTargetRef` menjadi 4000ms khusus stream online untuk mencegah pelepasan kunci seek prematur saat buffering manifest YouTube.
+      5. Memanggil `onSeek(targetClip.start, true)` pada `handleToggleDone` saat klip ditandai `done` agar playhead langsung terparkir tepat di awal rentang klip saat membuka mode editor.
+- **Perubahan Kode Penting**:
+  - `mobile/src/hooks/useClipPlayer.ts`: Menambahkan `facecamStatusSub`, penjaga batas bawah `timeUpdate`, sinkronisasi drift, penyesuaian timeout `setPendingSeek`, perbaikan kriteria `isIndividualCutClip` / `isClipDoneLocal`, serta pelacakan `currentFacecamSourceUriRef`.
+  - `mobile/src/hooks/useClipData.ts`: Menambahkan pemanggilan `onSeek(targetClip.start, true)` pada `handleToggleDone` saat status beralih ke `done`.
+
+## [d15fc6b] - Decouple Video Editor and Scheduler Uploader into Standalone Repositories
 - **Konteks Struktural**:
   - Pemisahan Arsitektural Sub-Sistem Non-Core ([package.json](file:///d:/projects/clipping/package.json), [.gitignore](file:///d:/projects/clipping/.gitignore)):
     - **Penyebab & Kebutuhan**: Sesuai arahan pengguna, repositori `clipping` disederhanakan dan dibersihkan dari sub-proyek programmatic video editing (`video-editor`) dan otomatisasi upload (`scheduler-uploader`) agar fokus murni pada fungsionalitas inti: clipping web, WhatsApp bot, dan aplikasi mobile.
