@@ -14,7 +14,22 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Fix Metro Require Cycle by Removing Duplicate api.ts Barrel File
+## [Unreleased] - Add Python Scripts Version Indicator and Sync Verification in Settings
+- **Konteks Struktural**:
+  - Deteksi dan Verifikasi Sinkronisasi Versi Skrip Backend ([mobile/scripts/utils/version.py](file:///d:/projects/clipping/mobile/scripts/utils/version.py), [mobile/src/services/api/client.ts](file:///d:/projects/clipping/mobile/src/services/api/client.ts), [mobile/src/components/SettingsModal.tsx](file:///d:/projects/clipping/mobile/src/components/SettingsModal.tsx)):
+    - **Penyebab & Kebutuhan**: Selama masa development, tidak setiap update memerlukan pembaruan bundle Python di storage HP (`clipping/scripts/`), sering kali hanya frontend yang berubah dan hanya perlu refresh terminal Expo. Namun, jika folder scripts diubah tanpa disalin ulang ke HP, aplikasi bisa mengalami error akibat ketidakcocokan fungsi/modul. Dibutuhkan mekanisme pelacak versi skrip yang hanya berubah saat file di folder scripts berubah, serta verifikasi otomatis di sisi frontend untuk memastikan skrip di HP tersinkronisasi.
+    - **Solusi**:
+      1. Membuat modul `mobile/scripts/utils/version.py` yang mendefinisikan `SCRIPTS_VERSION = "1.0.0"` dan fungsi `get_scripts_version()` yang menghitung combined MD5 hash file-file di dalam `utils/`.
+      2. Menambahkan tipe `ScriptsVersionStatus` dan konstanta `EXPECTED_SCRIPTS_VERSION` di `mobile/src/services/api/types.ts`.
+      3. Mengimplementasikan fungsi `checkScriptsVersion()` di `mobile/src/services/api/client.ts` yang mengeksekusi `utils.version` via native runner atau mock dev server dan membandingkan versinya dengan target frontend.
+      4. Menambahkan Section 3 "Versi Skrip Backend (Python)" pada `SettingsModal.tsx` dengan indikator status visual (Hijau jika sinkron, Kuning jika versi berbeda, Merah jika modul belum disalin) beserta tombol refresh manual.
+- **Perubahan Kode Penting**:
+  - `mobile/scripts/utils/version.py`: Dibuat modul baru pelacak versi (`1.0.0`) dan dynamic file hash generator untuk folder skrip.
+  - `mobile/src/services/api/types.ts`: Menambahkan antarmuka `ScriptsVersionStatus` dan konstanta `EXPECTED_SCRIPTS_VERSION`.
+  - `mobile/src/services/api/client.ts`: Menambahkan fungsi `checkScriptsVersion()` untuk memanggil modul Python dan memvalidasi kecocokan versi.
+  - `mobile/src/components/SettingsModal.tsx`: Menambahkan section Pengaturan baru untuk memantau status sinkronisasi skrip Python di perangkat HP.
+
+## [9f54e47] - Fix Metro Require Cycle by Removing Duplicate api.ts Barrel File
 - **Konteks Struktural**:
   - Eliminasi Siklus Require Bundler Metro ([mobile/src/services/api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts)):
     - **Penyebab & Kebutuhan**: Keberadaan file `mobile/src/services/api.ts` yang berisi `export * from './api'` bersamaan dengan direktori `mobile/src/services/api/index.ts` menyebabkan Metro Bundler mengalami siklus require (`api.ts` me-resolve `./api` ke dirinya sendiri). Akibatnya, seluruh modul yang diimpor dari `services/api` bernilai `undefined`, memicu error `[TypeError: undefined is not a function]` saat memanggil fungsi seperti `checkFullVideoExists`.

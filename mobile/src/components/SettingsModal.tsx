@@ -25,6 +25,7 @@ import {
   X,
   CloudDownload,
   Trash2,
+  Terminal,
 } from 'lucide-react-native';
 import {
   getStorageRootPath,
@@ -39,6 +40,9 @@ import {
   isGoogleDriveFolderLink,
   getValidCookiesPath,
   deleteCookies,
+  checkScriptsVersion,
+  EXPECTED_SCRIPTS_VERSION,
+  ScriptsVersionStatus,
 } from '../services/api';
 import { ToastManager } from './Toast';
 
@@ -65,12 +69,34 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [existingCookiesPath, setExistingCookiesPath] = useState<string | null>(null);
   const [cookiesError, setCookiesError] = useState<string | null>(null);
 
+  // --- Section 3: Scripts Version State ---
+  const [scriptsStatus, setScriptsStatus] = useState<ScriptsVersionStatus | null>(null);
+  const [isCheckingScripts, setIsCheckingScripts] = useState<boolean>(false);
+
   const refreshCookiesStatus = async () => {
     try {
       const valid = await getValidCookiesPath();
       setExistingCookiesPath(valid || null);
     } catch {
       setExistingCookiesPath(null);
+    }
+  };
+
+  const refreshScriptsVersion = async () => {
+    setIsCheckingScripts(true);
+    try {
+      const status = await checkScriptsVersion();
+      setScriptsStatus(status);
+    } catch (err: any) {
+      setScriptsStatus({
+        currentVersion: null,
+        expectedVersion: EXPECTED_SCRIPTS_VERSION,
+        isMatch: false,
+        isAvailable: false,
+        error: err?.message || 'Gagal memeriksa versi skrip',
+      });
+    } finally {
+      setIsCheckingScripts(false);
     }
   };
 
@@ -82,6 +108,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         setEditPathValue(current);
         handleVerifyStorage(current, true);
         refreshCookiesStatus();
+        refreshScriptsVersion();
       };
       initStorage();
       setCookiesError(null);
@@ -406,6 +433,73 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     )}
                   </TouchableOpacity>
                 </View>
+
+                <View style={styles.divider} />
+
+                {/* 3. SECTION: BACKEND SCRIPTS VERSION */}
+                <View style={styles.sectionBlock}>
+                  <View style={styles.sectionHeader}>
+                    <View style={styles.sectionTitleRow}>
+                      <Terminal size={16} color="#a855f7" />
+                      <Text style={styles.sectionTitle}>Versi Skrip Backend (Python)</Text>
+                    </View>
+
+                    <TouchableOpacity
+                      style={styles.iconActionBtn}
+                      onPress={refreshScriptsVersion}
+                      disabled={isCheckingScripts}
+                      activeOpacity={0.7}
+                    >
+                      {isCheckingScripts ? (
+                        <ActivityIndicator size="small" color="#a855f7" />
+                      ) : (
+                        <RefreshCw size={14} color="#9ca3af" />
+                      )}
+                    </TouchableOpacity>
+                  </View>
+
+                  <Text style={styles.sectionDescription}>
+                    Status sinkronisasi modul Python di perangkat (clipping/scripts/utils) dengan target frontend (v{EXPECTED_SCRIPTS_VERSION}).
+                  </Text>
+
+                  {scriptsStatus?.isMatch ? (
+                    <View style={styles.versionStatusCardSuccess}>
+                      <CheckCircle size={15} color="#34d399" />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.versionStatusTitleSuccess}>
+                          Skrip Tersinkronisasi (v{scriptsStatus.currentVersion})
+                        </Text>
+                        <Text style={styles.versionStatusSub}>
+                          Versi backend di HP sesuai dengan frontend{scriptsStatus.hash ? ` • hash: ${scriptsStatus.hash}` : ''}.
+                        </Text>
+                      </View>
+                    </View>
+                  ) : scriptsStatus?.isAvailable ? (
+                    <View style={styles.versionStatusCardWarning}>
+                      <AlertCircle size={15} color="#fbbf24" />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.versionStatusTitleWarning}>
+                          Perbedaan Versi Terdeteksi!
+                        </Text>
+                        <Text style={styles.versionStatusSub}>
+                          HP: v{scriptsStatus.currentVersion} vs Target: v{scriptsStatus.expectedVersion}. Salin ulang file dari mobile/scripts/ ke clipping/scripts/ jika mengalami kendala.
+                        </Text>
+                      </View>
+                    </View>
+                  ) : (
+                    <View style={styles.versionStatusCardError}>
+                      <AlertCircle size={15} color="#f87171" />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.versionStatusTitleError}>
+                          Skrip Belum Terdeteksi / Versi Lama
+                        </Text>
+                        <Text style={styles.versionStatusSub}>
+                          {scriptsStatus?.error || `Modul utils.version belum ditemukan di folder clipping/scripts/utils di HP. Pastikan skrip sudah disalin.`}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+                </View>
               </ScrollView>
             </View>
           </KeyboardAvoidingView>
@@ -656,5 +750,59 @@ const styles = StyleSheet.create({
     color: '#ef4444',
     fontSize: 11,
     fontWeight: '700',
+  },
+  versionStatusCardSuccess: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(52, 211, 153, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(52, 211, 153, 0.25)',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  versionStatusTitleSuccess: {
+    color: '#34d399',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  versionStatusCardWarning: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(245, 158, 11, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.25)',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  versionStatusTitleWarning: {
+    color: '#fbbf24',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  versionStatusCardError: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(239, 68, 68, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.25)',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  versionStatusTitleError: {
+    color: '#f87171',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  versionStatusSub: {
+    color: 'rgba(255, 255, 255, 0.5)',
+    fontSize: 10,
+    marginTop: 1,
+    lineHeight: 14,
   },
 });

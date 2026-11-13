@@ -199,3 +199,14 @@ export interface BurnSubtitlesResult {
   status: 'success' | 'error';
   outputPath: string;
 }
+
+export const EXPECTED_SCRIPTS_VERSION = '1.0.0';
+
+export interface ScriptsVersionStatus {
+  currentVersion: string | null;
+  expectedVersion: string;
+  isMatch: boolean;
+  isAvailable: boolean;
+  hash?: string;
+  error?: string;
+}
