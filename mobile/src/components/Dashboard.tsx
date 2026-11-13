@@ -375,9 +375,70 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
         }
       } catch (err: any) {
         console.warn('[Dashboard] Gagal memuat versi video:', err?.message);
+        ToastManager.show({
+          type: 'error',
+          title: 'Gagal Mengambil Kualitas Video',
+          message: err?.message || 'Pastikan file skrip Python tersedia di shared storage.',
+          duration: 4000,
+        });
       } finally {
         setIsQualityLoading(false);
       }
+    }
+  };
+
+  const handleRetryFetchVersions = async (videoId: string) => {
+    setIsQualityLoading(true);
+    try {
+      const verData = await fetchVideoVersions(videoId);
+      if (verData?.available_versions && verData.available_versions.length > 0) {
+        const updated = workshops.map((w) => {
+          if (w.videoId === videoId) {
+            return {
+              ...w,
+              availableVersions: verData.available_versions,
+              title: verData.title || w.title,
+              duration: verData.duration || w.duration,
+              thumbnail: verData.thumbnail || w.thumbnail,
+              selectedStreamQuality:
+                w.selectedStreamQuality ||
+                verData.available_versions.find((v) => v.id === '720p60')?.id ||
+                verData.available_versions[0]?.id ||
+                '720p60',
+              selectedDownloadQuality:
+                w.selectedDownloadQuality ||
+                verData.available_versions.find((v) => v.id === '720p60')?.id ||
+                verData.available_versions[0]?.id ||
+                '720p60',
+            };
+          }
+          return w;
+        });
+        await saveWorkshops(updated);
+        ToastManager.show({
+          type: 'success',
+          title: 'Berhasil',
+          message: 'Daftar kualitas video berhasil dimuat.',
+          duration: 3000,
+        });
+      } else {
+        ToastManager.show({
+          type: 'error',
+          title: 'Kualitas Tidak Ditemukan',
+          message: 'YouTube tidak mengembalikan daftar format untuk video ini.',
+          duration: 4000,
+        });
+      }
+    } catch (err: any) {
+      console.warn('[Dashboard] Gagal memuat versi video:', err?.message);
+      ToastManager.show({
+        type: 'error',
+        title: 'Gagal Mengambil Kualitas Video',
+        message: err?.message || 'Pastikan file skrip Python tersedia di shared storage.',
+        duration: 4000,
+      });
+    } finally {
+      setIsQualityLoading(false);
     }
   };
 
@@ -924,6 +985,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
               setQualityModalTarget(null);
             }}
             isLoading={isQualityLoading}
+            onRetry={() => {
+              if (qualityModalTarget?.videoId) {
+                handleRetryFetchVersions(qualityModalTarget.videoId);
+              }
+            }}
           />
         );
       })()}

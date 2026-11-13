@@ -14,7 +14,22 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Fix Syntax Error Caused by Duplicate Bracket in api.ts
+## [Unreleased] - Add Quality Version Retry and Error Handling with Shared Storage Path Support
+- **Konteks Struktural**:
+  - Penanganan Error & Mekanisme Retry Kualitas Video ([QualityPickerModal.tsx](file:///d:/projects/clipping/mobile/src/components/QualityPickerModal.tsx), [Dashboard.tsx](file:///d:/projects/clipping/mobile/src/components/Dashboard.tsx), [runner.py](file:///d:/projects/clipping/mobile/modules/python-runner/android/src/main/python/runner.py)):
+    - **Penyebab & Kebutuhan**:
+      1. Pada workshop hasil impor JSON versi lama yang belum memiliki metadata `availableVersions`, pemanggilan `fetchVideoVersions` di latar belakang mengalami kegagalan saat eksekusi Python engine (misal script berada di direktori yang salah atau yt-dlp error), namun error ditangkap secara diam-diam sehingga modal terbuka dengan daftar kosong tanpa pesan error atau cara mengulang.
+      2. Pengguna menaruh file skrip backend di folder `clipping/libs/scripts` pada shared storage HP, padahal sistem Chaquopy mencari skrip di `clipping/scripts/utils/`.
+    - **Solusi**:
+      1. Menambahkan tombol retry "Ambil Kualitas dari YouTube" langsung di dalam `QualityPickerModal` ketika daftar versi kosong, lengkap dengan ikon refresh dan status loading.
+      2. Menampilkan `ToastManager.show` berisi pesan error yang jelas ketika `fetchVideoVersions` gagal di `Dashboard.tsx`, sehingga error tidak lagi tertelan diam-diam.
+      3. Menambahkan jalur pencarian defensif di `runner.py` untuk subfolder `libs/scripts` dan `libs/scripts/utils` di shared storage Android.
+- **Perubahan Kode Penting**:
+  - `mobile/src/components/QualityPickerModal.tsx`: Menambahkan prop `onRetry`, tombol "Ambil Kualitas dari YouTube" pada state kosong (`versions.length === 0`), serta styling tombol retry.
+  - `mobile/src/components/Dashboard.tsx`: Menambahkan notifikasi error toast saat pemuatan versi gagal, mengimplementasikan handler `handleRetryFetchVersions`, dan meneruskannya ke `QualityPickerModal`.
+  - `mobile/modules/python-runner/android/src/main/python/runner.py`: Mendaftarkan `libs/scripts` dan `libs/scripts/utils` ke dalam `sys.path` dinamis Chaquopy.
+
+## [c2c23a3] - Fix Syntax Error Caused by Duplicate Bracket in api.ts
 - **Konteks Struktural**:
   - Perbaikan Sintaksis Handler Stream Cache ([api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts)):
     - **Penyebab & Kebutuhan**: Duplikasi blok penutup `catch` dan kurung kurawal pada fungsi `fetchStreamUrl` baris 577-579 memicu `SyntaxError: Unexpected token (579:2)` saat bundling React Native / Expo.

@@ -8,7 +8,7 @@ import {
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
-import { Check, Film, Sparkles, Zap, X } from 'lucide-react-native';
+import { Check, Film, Sparkles, Zap, X, RefreshCw } from 'lucide-react-native';
 import { VideoVersionItem } from './WorkshopCard';
 
 interface QualityPickerModalProps {
@@ -20,6 +20,7 @@ interface QualityPickerModalProps {
   onSelectQuality: (qualityId: string) => void;
   onClose: () => void;
   isLoading?: boolean;
+  onRetry?: () => void;
 }
 
 export const QualityPickerModal: React.FC<QualityPickerModalProps> = ({
@@ -31,6 +32,7 @@ export const QualityPickerModal: React.FC<QualityPickerModalProps> = ({
   onSelectQuality,
   onClose,
   isLoading = false,
+  onRetry,
 }) => {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -60,7 +62,18 @@ export const QualityPickerModal: React.FC<QualityPickerModalProps> = ({
             </View>
           ) : versions.length === 0 ? (
             <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>Tidak ada pilihan kualitas yang tersedia.</Text>
+              <Text style={styles.emptyText}>Daftar kualitas belum tersedia atau gagal diambil dari YouTube.</Text>
+              {onRetry ? (
+                <TouchableOpacity
+                  style={styles.retryBtn}
+                  onPress={onRetry}
+                  activeOpacity={0.7}
+                  disabled={isLoading}
+                >
+                  <RefreshCw size={13} color="#38bdf8" />
+                  <Text style={styles.retryBtnText}>Ambil Kualitas dari YouTube</Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
           ) : (
             <ScrollView style={styles.scrollList} showsVerticalScrollIndicator={false}>
@@ -273,10 +286,30 @@ const styles = StyleSheet.create({
   emptyContainer: {
     paddingVertical: 28,
     alignItems: 'center',
+    paddingHorizontal: 16,
   },
   emptyText: {
     fontSize: 12,
     color: 'rgba(255, 255, 255, 0.45)',
+    textAlign: 'center',
+    marginBottom: 14,
+    lineHeight: 18,
+  },
+  retryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+    borderWidth: 1,
+    borderColor: '#38bdf8',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+  },
+  retryBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#38bdf8',
   },
   footerRow: {
     flexDirection: 'row',
