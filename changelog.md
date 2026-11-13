@@ -14,7 +14,27 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Fix Video Version Extraction by Removing Mobile Client Restriction and Bump Scripts to v1.0.1
+## [Unreleased] - Eradicate Hidden Fallback 480p Fetches and Background Import Calls
+- **Konteks Struktural**:
+  - Pemberantasan Silent Network Fetch & Fallback Resolusi Fixed ([mobile/src/constants/ytdlp.ts](file:///d:/projects/clipping/mobile/src/constants/ytdlp.ts), [mobile/src/services/api/youtubeStream.ts](file:///d:/projects/clipping/mobile/src/services/api/youtubeStream.ts), [mobile/src/services/api/downloadStreamCache.ts](file:///d:/projects/clipping/mobile/src/services/api/downloadStreamCache.ts), [mobile/src/components/Dashboard.tsx](file:///d:/projects/clipping/mobile/src/components/Dashboard.tsx), [mobile/src/hooks/useClipPlayer.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipPlayer.ts)):
+    - **Penyebab & Kebutuhan**: Ditemukan 3 titik network fetch tersembunyi / fallback otomatis tanpa konfirmasi pengguna:
+      1. `fetchStreamUrl` dan `fetchAndCacheDownloadStreamUrl` memiliki fallback Tier 3 yang memanggil `extract_stream_url` dengan `STREAM_YTDL_OPTS` (resolusi 480p) ketika `qualityId` tidak dikirimkan, menghabiskan limit dan kuota di latar belakang.
+      2. `handleImportJSON` pada `Dashboard.tsx` memicu background promise `fetchVideoVersions` secara otomatis setiap kali workshop yang diimpor belum memiliki `availableVersions`.
+      3. `saveCachedDownloadStreamUrl` menimpa file `quality_url_${videoId}_${qualityId}.json` dengan string URL mentah, merusak struktur objek DASH yang menyimpan `audioUrl`.
+    - **Solusi**:
+      1. Menambahkan `QUALITY_STREAM_YTDL_OPTS` di `mobile/src/constants/ytdlp.ts` murni tanpa batasan format/height, dan memperbarui `fetchQualityUrl` agar menggunakannya.
+      2. Menghapus seluruh blok Tier 3 fallback pemanggilan `extract_stream_url` 480p dari `fetchStreamUrl` dan `fetchAndCacheDownloadStreamUrl`; mewajibkan parameter `qualityId` dan melempar error `QUALITY_REQUIRED` jika tidak disertakan.
+      3. Menghapus auto-fetch versi background pada `handleImportJSON` di `Dashboard.tsx`; daftar resolusi kini dimuat on-demand saat pengguna membuka modal kualitas.
+      4. Memperbaiki `saveCachedDownloadStreamUrl` agar tidak menimpa objek cache kualitas jika `qualityData` objek tidak disertakan.
+      5. Memperbarui `useClipPlayer.ts` agar selalu menyertakan `targetQuality` eksplisit (default `720p60` dari workshop) saat memanggil `fetchStreamUrl`.
+- **Perubahan Kode Penting**:
+  - `mobile/src/constants/ytdlp.ts`: Menambahkan `QUALITY_STREAM_YTDL_OPTS` tanpa batasan format height.
+  - `mobile/src/services/api/youtubeStream.ts`: Menghapus silent Tier 3 fallback 480p, mewajibkan `qualityId`.
+  - `mobile/src/services/api/downloadStreamCache.ts`: Menghapus fallback `extract_stream_url` 480p dan mencegah penimpaan cache DASH dengan string.
+  - `mobile/src/components/Dashboard.tsx`: Menghapus background version fetch saat import JSON.
+  - `mobile/src/hooks/useClipPlayer.ts`: Memastikan `targetQuality` selalu dikirim ke `fetchStreamUrl`.
+
+## [234ad20] - Fix Video Version Extraction by Removing Mobile Client Restriction and Bump Scripts to v1.0.1
 - **Konteks Struktural**:
   - Penyesuaian Ekstraksi Versi Kualitas Video ([mobile/src/constants/ytdlp.ts](file:///d:/projects/clipping/mobile/src/constants/ytdlp.ts), [mobile/src/services/api/youtubeStream.ts](file:///d:/projects/clipping/mobile/src/services/api/youtubeStream.ts), [mobile/scripts/utils/stream_extractor.py](file:///d:/projects/clipping/mobile/scripts/utils/stream_extractor.py), [mobile/scripts/utils/version.py](file:///d:/projects/clipping/mobile/scripts/utils/version.py)):
     - **Penyebab & Kebutuhan**: Saat memuat daftar resolusi YouTube, pemanggilan fungsi `fetchVideoVersions` menggunakan opsi `STREAM_YTDL_OPTS` yang mengunci `player_client: ['ios', 'android']` dan `format <= 480`. Akibatnya, YouTube hanya mengembalikan format mobile (360p ke bawah), sehingga resolusi 1080p, 720p, dan framerate 60fps tidak terdeteksi.

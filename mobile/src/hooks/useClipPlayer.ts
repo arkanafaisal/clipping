@@ -691,7 +691,7 @@ export function useClipPlayer({
           message: 'URL stream video kedaluwarsa atau terputus. Hit get URL sekarang? (~100 KB kuota data)',
           successMessage: 'URL stream berhasil diperbarui! Silakan tekan tombol play kembali.',
           onConfirm: async () => {
-            let targetQuality: string | undefined = undefined;
+            let targetQuality: string = '720p60';
             try {
               const wsStr = await LocalStorage.getItem('workshops_list');
               if (wsStr) {
@@ -903,7 +903,7 @@ export function useClipPlayer({
 
       // 3. Fallback: Ambil stream URL YouTube online jika belum ada file lokal
       try {
-        let targetQuality: string | undefined = undefined;
+        let targetQuality: string = '720p60';
         try {
           const wsStr = await LocalStorage.getItem('workshops_list');
           if (wsStr) {
@@ -952,7 +952,7 @@ export function useClipPlayer({
           message: 'URL stream belum tersedia atau gagal dimuat. Hit get URL sekarang? (~100 KB kuota data)',
           successMessage: 'URL stream berhasil didapatkan! Silakan putar video kembali.',
           onConfirm: async () => {
-            let targetQuality: string | undefined = undefined;
+            let targetQuality: string = '720p60';
             try {
               const wsStr = await LocalStorage.getItem('workshops_list');
               if (wsStr) {

@@ -1,6 +1,11 @@
 import { Platform } from 'react-native';
 import { LocalStorage } from '../storage';
-import { STREAM_YTDL_OPTS, HEATMAP_YTDL_OPTS, VIDEO_VERSIONS_YTDL_OPTS } from '../../constants/ytdlp';
+import {
+  STREAM_YTDL_OPTS,
+  HEATMAP_YTDL_OPTS,
+  VIDEO_VERSIONS_YTDL_OPTS,
+  QUALITY_STREAM_YTDL_OPTS,
+} from '../../constants/ytdlp';
 import { isPythonInitialized, executePythonScript } from '../../../modules/python-runner';
 import { ApiError } from './errors';
 import { DEV_API_BASE_URL } from './client';
@@ -203,7 +208,7 @@ export async function fetchQualityUrl(
     data = await executePythonScript('utils.stream_extractor', 'extract_quality_url', {
       video_id: videoId,
       quality_id: qualityId,
-      ydl_opts: STREAM_YTDL_OPTS,
+      ydl_opts: QUALITY_STREAM_YTDL_OPTS,
       cookie_path: cookiePath,
     });
   } else {
@@ -216,7 +221,7 @@ export async function fetchQualityUrl(
         body: JSON.stringify({
           video_id: videoId,
           quality_id: qualityId,
-          ydl_opts: STREAM_YTDL_OPTS,
+          ydl_opts: QUALITY_STREAM_YTDL_OPTS,
           cookie_path: cookiePath,
         }),
         signal: controller.signal,
@@ -307,111 +312,30 @@ export async function clearCachedStreamUrl(videoId: string, qualityId?: string):
 }
 
 /**
- * Fetches the direct stream URL for a given YouTube video ID.
- * Menggunakan arsitektur 2-Tier Caching berbasis kualitas video.
- * Jika qualityId disertakan (atau tersimpan di cache kualitas), mengambil URL sesuai kualitas tersebut.
+ * Mengambil direct stream URL untuk video YouTube berdasarkan resolusi spesifik (qualityId).
+ * Sesuai arsitektur True Pass-Through: Zero hidden fallback fetch ke YouTube.
+ * Parameter qualityId wajib ditentukan oleh pemanggil, tidak ada silent fetch 480p.
  */
 export async function fetchStreamUrl(
   videoId: string,
   forceRefresh: boolean = false,
   qualityId?: string
 ): Promise<string> {
-  if (qualityId) {
-    const qRes = await fetchQualityUrl(videoId, qualityId, forceRefresh);
-    const playable = getPlayableUrlFromQuality(qRes);
-    if (playable) return playable;
+  if (!qualityId) {
+    throw new ApiError(
+      'QUALITY_REQUIRED',
+      'Parameter qualityId wajib ditentukan. Fallback stream otomatis ke resolusi default dinonaktifkan.'
+    );
   }
 
-  // 1. Cek Tier 1: In-Memory Map (Paling Cepat, Zero Disk I/O)
-  if (!forceRefresh && STREAM_MEMORY_MAP.has(videoId)) {
-    const memUrl = STREAM_MEMORY_MAP.get(videoId);
-    if (memUrl) {
-      console.log(`[StreamCache] In-Memory Map hit untuk ${videoId}`);
-      return memUrl;
-    }
+  const qRes = await fetchQualityUrl(videoId, qualityId, forceRefresh);
+  const playable = getPlayableUrlFromQuality(qRes);
+  if (playable) {
+    STREAM_MEMORY_MAP.set(videoId, playable);
+    return playable;
   }
 
-  // 2. Cek Tier 2: File Fisik di LocalStorage (Jika In-Memory belum ada)
-  if (!forceRefresh) {
-    try {
-      const fileUrl = await LocalStorage.getItem(`stream_url_${videoId}`);
-      if (fileUrl) {
-        STREAM_MEMORY_MAP.set(videoId, fileUrl);
-        console.log(`[StreamCache] File Fisik hit untuk ${videoId}, disimpan ke In-Memory Map`);
-        return fileUrl;
-      }
-    } catch (e) {
-      // Abaikan file read error
-    }
-  }
-
-  // 3. Tier 3: Eksekusi Skrip Python Langsung (Jika memori dan file fisik kosong, atau saat force refresh)
-  try {
-    const cookiePath = await getValidCookiesPath();
-    let data: any = null;
-    const isNative = Platform.OS === 'android' && isPythonInitialized();
-
-    if (isNative) {
-      data = await executePythonScript('utils.stream_extractor', 'extract_stream_url', {
-        video_id: videoId,
-        ydl_opts: STREAM_YTDL_OPTS,
-        cookie_path: cookiePath,
-      });
-    } else {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 20000);
-      try {
-        const response = await fetch(`${DEV_API_BASE_URL}/api/stream`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            video_id: videoId,
-            ydl_opts: STREAM_YTDL_OPTS,
-            cookie_path: cookiePath,
-          }),
-          signal: controller.signal,
-        });
-        clearTimeout(timeoutId);
-        data = await response.json().catch(() => ({}));
-      } catch (fetchErr) {
-        clearTimeout(timeoutId);
-        throw fetchErr;
-      }
-    }
-
-    const payload = (data?.data && typeof data.data === 'object') ? data.data : data;
-
-    if (!payload) {
-      throw new ApiError('EMPTY_RESPONSE', 'Python engine tidak mengembalikan respons stream.');
-    }
-
-    if (payload.status === 'error') {
-      const code = payload.code || 'PYTHON_EXECUTION_ERROR';
-      const rawError = payload.traceback || payload.error || JSON.stringify(payload, null, 2);
-      throw new ApiError(code, rawError);
-    }
-
-    if (!payload.stream_url) {
-      const code = payload.code || 'STREAM_NOT_FOUND';
-      const rawError = payload.error || (payload.message ? String(payload.message) : JSON.stringify(payload, null, 2));
-      throw new ApiError(code, rawError);
-    }
-
-    const streamUrl = payload.stream_url;
-    
-    // Simpan ke In-Memory Map
-    STREAM_MEMORY_MAP.set(videoId, streamUrl);
-
-    // Simpan ke File Fisik di HP (asynchronous)
-    LocalStorage.setItem(`stream_url_${videoId}`, streamUrl).catch((err) => {
-      console.warn('[StreamCache] Gagal menyimpan stream ke file fisik:', err);
-    });
-
-    return streamUrl;
-  } catch (error: any) {
-    if (error instanceof ApiError) throw error;
-    throw new ApiError(error.name === 'AbortError' ? 'NETWORK_ERROR' : 'EXTRACTOR_ERROR', error.message);
-  }
+  throw new ApiError('STREAM_NOT_FOUND', `Direct stream URL untuk kualitas ${qualityId} tidak ditemukan.`);
 }
 
 /**

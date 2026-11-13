@@ -748,41 +748,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
       const updatedList = [cleanWs, ...filtered];
       await saveWorkshops(updatedList);
 
-      // Jika workshop hasil impor belum memiliki availableVersions (versi lama),
-      // auto-fetch versions secara background agar daftar kualitas langsung tersedia
-      if (!cleanWs.availableVersions || cleanWs.availableVersions.length === 0) {
-        fetchVideoVersions(videoId).then(async (verData) => {
-          if (verData?.available_versions && verData.available_versions.length > 0) {
-            const savedWs = await LocalStorage.getItem(WORKSHOPS_STORAGE_KEY);
-            if (savedWs) {
-              try {
-                const list: WorkshopItem[] = JSON.parse(savedWs);
-                const idx = list.findIndex((w) => w.videoId === videoId);
-                if (idx >= 0) {
-                  list[idx].availableVersions = verData.available_versions;
-                  if (!list[idx].selectedStreamQuality) {
-                    list[idx].selectedStreamQuality =
-                      verData.available_versions.find((v) => v.id === '720p60')?.id ||
-                      verData.available_versions[0]?.id ||
-                      '720p60';
-                  }
-                  if (!list[idx].selectedDownloadQuality) {
-                    list[idx].selectedDownloadQuality =
-                      verData.available_versions.find((v) => v.id === '720p60')?.id ||
-                      verData.available_versions[0]?.id ||
-                      '720p60';
-                  }
-                  await LocalStorage.setItem(WORKSHOPS_STORAGE_KEY, JSON.stringify(list));
-                  setWorkshops(list);
-                }
-              } catch {}
-            }
-          }
-        }).catch((err) => {
-          console.log('[Dashboard] Background version fetch error on import:', err?.message);
-        });
-      }
-
       // 1. Simpan seluruh klip heatmap + custom ke draf penyimpanan lokal
       if (Array.isArray(parsedClips) && parsedClips.length > 0) {
         await LocalStorage.setItem(`clips_draft_${videoId}`, JSON.stringify(parsedClips));

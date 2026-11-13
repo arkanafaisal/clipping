@@ -22,10 +22,9 @@ export interface YtdlOpts {
 }
 
 /**
- * Konfigurasi Stream Langsung (Mobile Native Playback):
- * - Resolusi: Maksimal 480p MP4 (ringan dan hemat kuota)
- * - Audio: Memprioritaskan track audio original / bahasa asli kreator
- * - Client: iOS & Android (Bypass BotGuard dan aman dari challenge SABR)
+ * Konfigurasi Stream Langsung Terbatas (Legacy 480p):
+ * PERHATIAN: Tidak boleh digunakan sebagai fallback otomatis tersembunyi.
+ * Resolusi wajib ditentukan secara eksplisit via QUALITY_STREAM_YTDL_OPTS & qualityId.
  */
 export const STREAM_YTDL_OPTS: YtdlOpts = {
   format: 'best[height<=480][ext=mp4]/best[ext=mp4]',
@@ -39,6 +38,17 @@ export const STREAM_YTDL_OPTS: YtdlOpts = {
       player_client: ['ios', 'android'],
     },
   },
+};
+
+/**
+ * Konfigurasi Ekstraksi Stream Berdasarkan Kualitas Tertentu (720p60, 1080p60, 720p, 480p, dll.):
+ * - Tanpa pembatasan format height atau player_client agar resolusi yang diminta diekstrak murni apa adanya.
+ */
+export const QUALITY_STREAM_YTDL_OPTS: YtdlOpts = {
+  skip_download: true,
+  quiet: true,
+  no_warnings: true,
+  extract_flat: false,
 };
 
 /**

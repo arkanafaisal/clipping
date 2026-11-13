@@ -1,11 +1,6 @@
 import * as FileSystem from 'expo-file-system/legacy';
-import { Platform } from 'react-native';
 import { LocalStorage } from '../storage';
-import { STREAM_YTDL_OPTS } from '../../constants/ytdlp';
-import { isPythonInitialized, executePythonScript } from '../../../modules/python-runner';
 import { ApiError } from './errors';
-import { DEV_API_BASE_URL } from './client';
-import { getValidCookiesPath } from './cookies';
 import {
   SHARED_CLIPPING_OUTPUT_DIR,
   getDownloadStreamCacheFilePath,
@@ -18,6 +13,7 @@ import {
   clearCachedQualityUrl,
   fetchQualityUrl,
 } from './youtubeStream';
+import { CachedQualityUrl } from './types';
 
 // 2-Tier Caching untuk URL Stream Pengunduhan Klip (Key = videoId, Value = Direct Stream URL)
 // Tier 1: In-Memory Map (0ms latency, zero disk I/O)
@@ -75,12 +71,17 @@ export async function getCachedDownloadStreamUrl(videoId: string, qualityId?: st
 /**
  * Menyimpan URL download stream ke Tier 1 dan Tier 2 (file stream_url.txt & LocalStorage).
  */
-export async function saveCachedDownloadStreamUrl(videoId: string, streamUrl: string, qualityId?: string): Promise<void> {
+export async function saveCachedDownloadStreamUrl(
+  videoId: string,
+  streamUrl: string,
+  qualityId?: string,
+  qualityData?: CachedQualityUrl
+): Promise<void> {
   if (!streamUrl) return;
   DOWNLOAD_STREAM_MEMORY_MAP.set(videoId, streamUrl);
 
-  if (qualityId) {
-    await saveCachedQualityUrl(videoId, qualityId, streamUrl);
+  if (qualityId && qualityData) {
+    await saveCachedQualityUrl(videoId, qualityId, qualityData);
   }
 
   try {
@@ -135,68 +136,23 @@ export async function hasCachedDownloadStreamUrl(videoId: string, qualityId?: st
 /**
  * Mengambil (GET) direct download stream URL baru dari YouTube metadata (hanya ~100 KB payload teks)
  * dan menyimpannya ke cache Tier 1 & Tier 2. Tidak melakukan pengunduhan file video.
+ * Sesuai arsitektur True Pass-Through: Tidak ada fallback otomatis tersembunyi ke 480p.
+ * Parameter qualityId wajib ditentukan oleh pemanggil.
  */
 export async function fetchAndCacheDownloadStreamUrl(videoId: string, qualityId?: string): Promise<string> {
-  if (qualityId) {
-    const qData = await fetchQualityUrl(videoId, qualityId, true);
-    const playable = getPlayableUrlFromQuality(qData);
-    if (playable) {
-      await saveCachedDownloadStreamUrl(videoId, playable, qualityId);
-      return playable;
-    }
+  if (!qualityId) {
+    throw new ApiError(
+      'QUALITY_REQUIRED',
+      'Parameter qualityId wajib ditentukan untuk unduh video. Fallback otomatis dinonaktifkan.'
+    );
   }
 
-  const cookiePath = await getValidCookiesPath();
-  let data: any = null;
-  const isNative = Platform.OS === 'android' && isPythonInitialized();
-
-  if (isNative) {
-    data = await executePythonScript('utils.stream_extractor', 'extract_stream_url', {
-      video_id: videoId,
-      ydl_opts: STREAM_YTDL_OPTS,
-      cookie_path: cookiePath,
-    });
-  } else {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 20000);
-    try {
-      const response = await fetch(`${DEV_API_BASE_URL}/api/stream`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          video_id: videoId,
-          ydl_opts: STREAM_YTDL_OPTS,
-          cookie_path: cookiePath,
-        }),
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
-      data = await response.json().catch(() => ({}));
-    } catch (fetchErr) {
-      clearTimeout(timeoutId);
-      throw fetchErr;
-    }
+  const qData = await fetchQualityUrl(videoId, qualityId, true);
+  const playable = getPlayableUrlFromQuality(qData);
+  if (playable) {
+    await saveCachedDownloadStreamUrl(videoId, playable, qualityId, qData);
+    return playable;
   }
 
-  const payload = (data?.data && typeof data.data === 'object') ? data.data : data;
-
-  if (!payload) {
-    throw new ApiError('EMPTY_RESPONSE', 'Python engine tidak mengembalikan respons metadata.');
-  }
-
-  if (payload.status === 'error') {
-    const code = payload.code || 'PYTHON_EXECUTION_ERROR';
-    const rawError = payload.traceback || payload.error || JSON.stringify(payload, null, 2);
-    throw new ApiError(code, rawError);
-  }
-
-  if (!payload.stream_url) {
-    const code = payload.code || 'STREAM_NOT_FOUND';
-    const rawError = payload.error || (payload.message ? String(payload.message) : JSON.stringify(payload, null, 2));
-    throw new ApiError(code, rawError);
-  }
-
-  const streamUrl = payload.stream_url;
-  await saveCachedDownloadStreamUrl(videoId, streamUrl, qualityId);
-  return streamUrl;
+  throw new ApiError('STREAM_NOT_FOUND', `Direct stream URL untuk kualitas download ${qualityId} tidak ditemukan.`);
 }
