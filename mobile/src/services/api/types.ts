@@ -200,7 +200,7 @@ export interface BurnSubtitlesResult {
   outputPath: string;
 }
 
-export const EXPECTED_SCRIPTS_VERSION = '1.0.0';
+export const EXPECTED_SCRIPTS_VERSION = '1.0.1';
 
 export interface ScriptsVersionStatus {
   currentVersion: string | null;

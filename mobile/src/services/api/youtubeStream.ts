@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 import { LocalStorage } from '../storage';
-import { STREAM_YTDL_OPTS, HEATMAP_YTDL_OPTS } from '../../constants/ytdlp';
+import { STREAM_YTDL_OPTS, HEATMAP_YTDL_OPTS, VIDEO_VERSIONS_YTDL_OPTS } from '../../constants/ytdlp';
 import { isPythonInitialized, executePythonScript } from '../../../modules/python-runner';
 import { ApiError } from './errors';
 import { DEV_API_BASE_URL } from './client';
@@ -132,7 +132,7 @@ export async function fetchVideoVersions(
   if (isNative) {
     data = await executePythonScript('utils.stream_extractor', 'extract_video_versions', {
       video_id: videoId,
-      ydl_opts: STREAM_YTDL_OPTS,
+      ydl_opts: VIDEO_VERSIONS_YTDL_OPTS,
       cookie_path: cookiePath,
     });
   } else {
@@ -144,7 +144,7 @@ export async function fetchVideoVersions(
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           video_id: videoId,
-          ydl_opts: STREAM_YTDL_OPTS,
+          ydl_opts: VIDEO_VERSIONS_YTDL_OPTS,
           cookie_path: cookiePath,
         }),
         signal: controller.signal,

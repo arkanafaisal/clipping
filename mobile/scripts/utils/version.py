@@ -6,7 +6,7 @@ import os
 import json
 import hashlib
 
-SCRIPTS_VERSION = "1.0.0"
+SCRIPTS_VERSION = "1.0.1"
 
 
 def get_scripts_version(**kwargs) -> str:

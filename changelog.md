@@ -14,7 +14,22 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Revert Unnecessary runner.py Modification to Keep Native Bundle Clean
+## [Unreleased] - Fix Video Version Extraction by Removing Mobile Client Restriction and Bump Scripts to v1.0.1
+- **Konteks Struktural**:
+  - Penyesuaian Ekstraksi Versi Kualitas Video ([mobile/src/constants/ytdlp.ts](file:///d:/projects/clipping/mobile/src/constants/ytdlp.ts), [mobile/src/services/api/youtubeStream.ts](file:///d:/projects/clipping/mobile/src/services/api/youtubeStream.ts), [mobile/scripts/utils/stream_extractor.py](file:///d:/projects/clipping/mobile/scripts/utils/stream_extractor.py), [mobile/scripts/utils/version.py](file:///d:/projects/clipping/mobile/scripts/utils/version.py)):
+    - **Penyebab & Kebutuhan**: Saat memuat daftar resolusi YouTube, pemanggilan fungsi `fetchVideoVersions` menggunakan opsi `STREAM_YTDL_OPTS` yang mengunci `player_client: ['ios', 'android']` dan `format <= 480`. Akibatnya, YouTube hanya mengembalikan format mobile (360p ke bawah), sehingga resolusi 1080p, 720p, dan framerate 60fps tidak terdeteksi.
+    - **Solusi**:
+      1. Menambahkan konstanta `VIDEO_VERSIONS_YTDL_OPTS` di `mobile/src/constants/ytdlp.ts` tanpa restriksi `player_client` atau batas resolusi agar seluruh format YouTube (Full HD 60fps, 720p 60fps, dll.) dapat diekstrak secara lengkap.
+      2. Memperbarui `fetchVideoVersions` di `mobile/src/services/api/youtubeStream.ts` agar menggunakan `VIDEO_VERSIONS_YTDL_OPTS`.
+      3. Menambahkan pembersihan otomatis batas `format` dan `player_client` pada `get_available_video_versions` dan `get_quality_stream_url` di `stream_extractor.py`.
+      4. Menaikkan versi skrip ke `1.0.1` pada `mobile/scripts/utils/version.py` dan `EXPECTED_SCRIPTS_VERSION` di `mobile/src/services/api/types.ts`.
+- **Perubahan Kode Penting**:
+  - `mobile/src/constants/ytdlp.ts`: Menambahkan konfigurasi `VIDEO_VERSIONS_YTDL_OPTS`.
+  - `mobile/src/services/api/youtubeStream.ts`: Menggunakan `VIDEO_VERSIONS_YTDL_OPTS` saat ekstraksi format.
+  - `mobile/scripts/utils/stream_extractor.py`: Menghapus filter restriksi mobile saat mengekstrak daftar versi video.
+  - `mobile/scripts/utils/version.py` & `mobile/src/services/api/types.ts`: Menaikkan versi skrip ke `1.0.1`.
+
+## [bc8d843] - Revert Unnecessary runner.py Modification to Keep Native Bundle Clean
 - **Konteks Struktural**:
   - Pengembalian Modul Native Runner ([mobile/modules/python-runner/android/src/main/python/runner.py](file:///d:/projects/clipping/mobile/modules/python-runner/android/src/main/python/runner.py)):
     - **Penyebab & Kebutuhan**: Modifikasi pada `runner.py` sebelumnya tidak diperlukan dan keliru karena `runner.py` berada di dalam modul native APK yang sudah dibundel. Selain itu, `runner.py` asli bawaan APK sudah memiliki logika fallback: jika modul dipanggil tanpa prefix `utils.` (misal `stream_extractor`), runner sudah secara otomatis mendahulukan pencarian modul polos di shared storage sebelum fallback ke `utils.<modul>`.

@@ -80,6 +80,8 @@ def get_available_video_versions(video_id: str, ydl_opts: dict = None, cookie_pa
     opts["extract_flat"] = False
     opts["quiet"] = True
     opts["no_warnings"] = True
+    opts.pop("format", None)
+    opts.pop("format_sort", None)
 
     if cookie_path and os.path.exists(cookie_path):
         opts["cookiefile"] = cookie_path
@@ -92,6 +94,14 @@ def get_available_video_versions(video_id: str, ydl_opts: dict = None, cookie_pa
             opts["extractor_args"] = new_ext_args
     else:
         opts.pop("cookiefile", None)
+        # Jika mode anonim tanpa cookies, jangan batasi player_client ke mobile-only agar semua resolusi terbaca
+        if "extractor_args" in opts and isinstance(opts["extractor_args"], dict):
+            if "youtube" in opts["extractor_args"] and isinstance(opts["extractor_args"]["youtube"], dict):
+                new_ext_args = {k: (v.copy() if isinstance(v, dict) else v) for k, v in opts["extractor_args"].items()}
+                new_yt = new_ext_args["youtube"].copy()
+                new_yt.pop("player_client", None)
+                new_ext_args["youtube"] = new_yt
+                opts["extractor_args"] = new_ext_args
 
     try:
         with yt_dlp.YoutubeDL(opts) as ydl:
@@ -227,6 +237,8 @@ def get_quality_stream_url(video_id: str, quality_id: str, ydl_opts: dict = None
     opts["extract_flat"] = False
     opts["quiet"] = True
     opts["no_warnings"] = True
+    opts.pop("format", None)
+    opts.pop("format_sort", None)
 
     if cookie_path and os.path.exists(cookie_path):
         opts["cookiefile"] = cookie_path
@@ -239,6 +251,14 @@ def get_quality_stream_url(video_id: str, quality_id: str, ydl_opts: dict = None
             opts["extractor_args"] = new_ext_args
     else:
         opts.pop("cookiefile", None)
+        # Jika mode anonim tanpa cookies, jangan batasi player_client ke mobile-only agar semua resolusi terbaca
+        if "extractor_args" in opts and isinstance(opts["extractor_args"], dict):
+            if "youtube" in opts["extractor_args"] and isinstance(opts["extractor_args"]["youtube"], dict):
+                new_ext_args = {k: (v.copy() if isinstance(v, dict) else v) for k, v in opts["extractor_args"].items()}
+                new_yt = new_ext_args["youtube"].copy()
+                new_yt.pop("player_client", None)
+                new_ext_args["youtube"] = new_yt
+                opts["extractor_args"] = new_ext_args
 
     try:
         # Parsing target height & fps dari quality_id, misal "720p60" -> 720, 60

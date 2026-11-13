@@ -42,6 +42,18 @@ export const STREAM_YTDL_OPTS: YtdlOpts = {
 };
 
 /**
+ * Konfigurasi Ekstraksi Versi / Kualitas Video (Metadata Saja):
+ * - Mengambil daftar seluruh resolusi dan format yang tersedia di YouTube (1080p60, 720p60, 480p, dll.)
+ * - Tidak membatasi format height atau player_client agar seluruh varian video terdeteksi.
+ */
+export const VIDEO_VERSIONS_YTDL_OPTS: YtdlOpts = {
+  skip_download: true,
+  quiet: true,
+  no_warnings: true,
+  extract_flat: false,
+};
+
+/**
  * Konfigurasi Ekstraksi Heatmap ('Most Replayed'):
  * - Mengambil metadata teks saja tanpa download media
  * - Client: iOS & Android
