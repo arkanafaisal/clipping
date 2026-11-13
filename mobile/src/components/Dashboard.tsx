@@ -78,6 +78,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
   const [qualityModalTarget, setQualityModalTarget] = useState<{
     videoId: string;
     mode: 'stream' | 'download';
+    autoOpenAfterSelect?: boolean;
+    count?: number;
+    playMode?: 'local' | 'stream';
   } | null>(null);
   const [isQualityLoading, setIsQualityLoading] = useState(false);
 
@@ -237,15 +240,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
       const hasStream = await hasCachedQualityUrl(videoId, streamQuality!);
       if (!hasStream) {
         setIsExtracting(false);
-        UrlConfirmManager.show({
-          targetName: `Stream (${streamQuality})`,
-          title: 'URL Belum Tersedia',
-          message: `Daftar kualitas berhasil dimuat (${availableVersions.length} pilihan). URL stream kualitas ${streamQuality} belum diambil. Hit get URL sekarang? (~100 KB kuota data)`,
-          successMessage: 'URL stream berhasil didapatkan! Silakan masuk ke workshop.',
-          onConfirm: async () => {
-            await fetchQualityUrl(videoId, streamQuality!, true);
-            onOpenWorkshop?.(videoId, count);
-          },
+        // Langsung buka modal pemilihan kualitas stream
+        handleOpenQualityPicker(videoId, 'stream', {
+          autoOpenAfterSelect: true,
+          count,
+          playMode: 'stream',
         });
         return;
       }
@@ -285,43 +284,27 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
       if (activePlayMode === 'local') {
         const localUri = await resolvePlayableFullVideoUri(videoId);
         if (!localUri) {
-          // File lokal hilang atau korup: cek ketersediaan cache stream sebelum beralih
-          const hasStream = await hasCachedQualityUrl(videoId, streamQuality);
-          if (!hasStream) {
-            setPlayModeTarget(null);
-            UrlConfirmManager.show({
-              targetName: `Stream (${streamQuality})`,
-              title: 'URL Belum Tersedia',
-              message: `Video lokal tidak ditemukan dan URL stream (${streamQuality}) belum tersedia. Hit get URL sekarang? (~100 KB kuota data)`,
-              successMessage: 'URL stream berhasil didapatkan! Silakan buka kembali workshop.',
-              onConfirm: async () => {
-                await fetchQualityUrl(videoId, streamQuality, true);
-              },
-            });
-            return;
-          }
-          await fetchStreamUrl(videoId, false, streamQuality);
+          // File lokal hilang atau korup: beralih ke stream
           activePlayMode = 'stream';
           ToastManager.show({
             type: 'info',
             title: 'Video Lokal Korup / Hilang',
             rawError: 'Beralih otomatis ke mode stream online.',
-            duration: 3500,
+            duration: 3000,
           });
         }
-      } else {
-        // Mode stream online
+      }
+
+      if (activePlayMode === 'stream') {
+        // Mode stream online: Cek apakah URL stream untuk kualitas ini sudah dicache
         const hasStream = await hasCachedQualityUrl(videoId, streamQuality);
         if (!hasStream) {
           setPlayModeTarget(null);
-          UrlConfirmManager.show({
-            targetName: `Stream (${streamQuality})`,
-            title: 'URL Belum Tersedia',
-            message: `URL stream (${streamQuality}) belum tersedia atau kedaluwarsa. Hit get URL sekarang? (~100 KB kuota data)`,
-            successMessage: 'URL stream berhasil didapatkan! Silakan buka kembali workshop.',
-            onConfirm: async () => {
-              await fetchQualityUrl(videoId, streamQuality, true);
-            },
+          // Langsung buka modal pemilihan kualitas stream!
+          handleOpenQualityPicker(videoId, 'stream', {
+            autoOpenAfterSelect: true,
+            count,
+            playMode: 'stream',
           });
           return;
         }
@@ -351,14 +334,56 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
     }
   };
 
-  const handleOpenQualityPicker = (videoId: string, mode: 'stream' | 'download') => {
-    setQualityModalTarget({ videoId, mode });
+  const handleOpenQualityPicker = async (
+    videoId: string,
+    mode: 'stream' | 'download',
+    extra?: { autoOpenAfterSelect?: boolean; count?: number; playMode?: 'local' | 'stream' }
+  ) => {
+    setQualityModalTarget({ videoId, mode, ...extra });
     setQualityModalVisible(true);
+
+    // Cek apakah workshop ini sudah memiliki availableVersions (misal workshop lama hasil impor)
+    const ws = workshops.find((w) => w.videoId === videoId);
+    if (!ws?.availableVersions || ws.availableVersions.length === 0) {
+      setIsQualityLoading(true);
+      try {
+        const verData = await fetchVideoVersions(videoId);
+        if (verData?.available_versions && verData.available_versions.length > 0) {
+          const updated = workshops.map((w) => {
+            if (w.videoId === videoId) {
+              return {
+                ...w,
+                availableVersions: verData.available_versions,
+                title: verData.title || w.title,
+                duration: verData.duration || w.duration,
+                thumbnail: verData.thumbnail || w.thumbnail,
+                selectedStreamQuality:
+                  w.selectedStreamQuality ||
+                  verData.available_versions.find((v) => v.id === '720p60')?.id ||
+                  verData.available_versions[0]?.id ||
+                  '720p60',
+                selectedDownloadQuality:
+                  w.selectedDownloadQuality ||
+                  verData.available_versions.find((v) => v.id === '720p60')?.id ||
+                  verData.available_versions[0]?.id ||
+                  '720p60',
+              };
+            }
+            return w;
+          });
+          await saveWorkshops(updated);
+        }
+      } catch (err: any) {
+        console.warn('[Dashboard] Gagal memuat versi video:', err?.message);
+      } finally {
+        setIsQualityLoading(false);
+      }
+    }
   };
 
   const handleSelectQuality = async (qualityId: string) => {
     if (!qualityModalTarget) return;
-    const { videoId, mode } = qualityModalTarget;
+    const { videoId, mode, autoOpenAfterSelect, count, playMode } = qualityModalTarget;
     setIsQualityLoading(true);
 
     try {
@@ -385,9 +410,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
       ToastManager.show({
         type: 'success',
         title: mode === 'stream' ? 'Kualitas Stream Disimpan' : 'Kualitas Unduh Disimpan',
-        rawError: `Kualitas diatur ke ${qualityId}. URL direct siap digunakan.`,
-        duration: 3000,
+        rawError: `Kualitas ${qualityId} siap digunakan.`,
+        duration: 2500,
       });
+
+      // 3. Jika autoOpenAfterSelect aktif (dipicu saat klik card buka workshop), langsung masuk workshop!
+      if (autoOpenAfterSelect) {
+        onOpenWorkshop?.(videoId, count || 50, playMode || 'stream');
+      }
     } catch (err: any) {
       setIsQualityLoading(false);
       ToastManager.show({
@@ -656,6 +686,41 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
       const filtered = workshops.filter((w) => w.videoId !== wsData.videoId);
       const updatedList = [cleanWs, ...filtered];
       await saveWorkshops(updatedList);
+
+      // Jika workshop hasil impor belum memiliki availableVersions (versi lama),
+      // auto-fetch versions secara background agar daftar kualitas langsung tersedia
+      if (!cleanWs.availableVersions || cleanWs.availableVersions.length === 0) {
+        fetchVideoVersions(videoId).then(async (verData) => {
+          if (verData?.available_versions && verData.available_versions.length > 0) {
+            const savedWs = await LocalStorage.getItem(WORKSHOPS_STORAGE_KEY);
+            if (savedWs) {
+              try {
+                const list: WorkshopItem[] = JSON.parse(savedWs);
+                const idx = list.findIndex((w) => w.videoId === videoId);
+                if (idx >= 0) {
+                  list[idx].availableVersions = verData.available_versions;
+                  if (!list[idx].selectedStreamQuality) {
+                    list[idx].selectedStreamQuality =
+                      verData.available_versions.find((v) => v.id === '720p60')?.id ||
+                      verData.available_versions[0]?.id ||
+                      '720p60';
+                  }
+                  if (!list[idx].selectedDownloadQuality) {
+                    list[idx].selectedDownloadQuality =
+                      verData.available_versions.find((v) => v.id === '720p60')?.id ||
+                      verData.available_versions[0]?.id ||
+                      '720p60';
+                  }
+                  await LocalStorage.setItem(WORKSHOPS_STORAGE_KEY, JSON.stringify(list));
+                  setWorkshops(list);
+                }
+              } catch {}
+            }
+          }
+        }).catch((err) => {
+          console.log('[Dashboard] Background version fetch error on import:', err?.message);
+        });
+      }
 
       // 1. Simpan seluruh klip heatmap + custom ke draf penyimpanan lokal
       if (Array.isArray(parsedClips) && parsedClips.length > 0) {

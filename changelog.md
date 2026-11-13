@@ -14,7 +14,21 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Flexible Video Quality Selection and Quality-Based URL Caching
+## [Unreleased] - Direct QualityPickerModal Trigger on Stream/Download Request and Auto-Fetch for Legacy Workshops
+- **Konteks Struktural**:
+  - Penyelarasan Trigger Modal Kualitas & Kompatibilitas Mundur Import ([Dashboard.tsx](file:///d:/projects/clipping/mobile/src/components/Dashboard.tsx), [WorkshopCard.tsx](file:///d:/projects/clipping/mobile/src/components/WorkshopCard.tsx)):
+    - **Penyebab & Kebutuhan**:
+      1. Saat pengguna membuka workshop lama (hasil impor JSON versi terdahulu yang belum memuat `availableVersions`), kartu tidak menampilkan pill kualitas dan alur langsung memicu dialog konfirmasi lama (`UrlConfirmModal`) dengan teks statis 720p dan tombol Get / Batal.
+      2. Pengguna menginginkan `QualityPickerModal` langsung muncul ketika hendak hit "get URL" (baik untuk STREAM maupun DOWNLOAD), menampilkan daftar lengkap versi resolusi dan framerate yang tersedia.
+    - **Solusi**:
+      1. Mengganti seluruh trigger lama `UrlConfirmManager.show` saat URL belum ada di cache menjadi pembukaan langsung `QualityPickerModal` (mode `'stream'` atau `'download'`).
+      2. Menambahkan `autoOpenAfterSelect` pada `QualityPickerModal` agar setelah pengguna memilih kualitas yang diinginkan, URL kualitas tersebut langsung di-fetch dan disimpan ke cache, lalu otomatis membuka workshop tanpa perlu klik ganda.
+      3. Menambahkan auto-fetch `fetchVideoVersions` di latar belakang pada `handleImportJSON` dan `handleOpenQualityPicker` jika workshop belum memiliki `availableVersions` (seperti JSON versi lama), sehingga kartu lama langsung diperkaya dengan daftar kualitas dan pill `Stream` / `Unduh` selalu tampil di kartu.
+- **Perubahan Kode Penting**:
+  - `mobile/src/components/Dashboard.tsx`: Mengganti delegasi `UrlConfirmModal` menjadi `handleOpenQualityPicker`, menambahkan auto-fetch versions untuk workshop lama saat diimpor maupun saat pill kualitas dibuka, dan mengaktifkan navigasi otomatis `autoOpenAfterSelect`.
+  - `mobile/src/components/WorkshopCard.tsx`: Menampilkan pill kualitas `Stream` dan `Unduh` secara persisten pada semua kartu (dengan fallback teks `"Pilih..."` jika belum dipilih).
+
+## [32834b3] - Flexible Video Quality Selection and Quality-Based URL Caching
 - **Konteks Struktural**:
   - Penambahan Ekstraksi & Pemilihan Kualitas Video YouTube ([stream_extractor.py](file:///d:/projects/clipping/mobile/scripts/utils/stream_extractor.py), [Dashboard.tsx](file:///d:/projects/clipping/mobile/src/components/Dashboard.tsx), [WorkshopCard.tsx](file:///d:/projects/clipping/mobile/src/components/WorkshopCard.tsx), [QualityPickerModal.tsx](file:///d:/projects/clipping/mobile/src/components/QualityPickerModal.tsx)):
     - **Penyebab & Kebutuhan**:
