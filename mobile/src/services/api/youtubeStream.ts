@@ -3,14 +3,13 @@ import { LocalStorage } from '../storage';
 import {
   STREAM_YTDL_OPTS,
   HEATMAP_YTDL_OPTS,
-  VIDEO_VERSIONS_YTDL_OPTS,
   QUALITY_STREAM_YTDL_OPTS,
 } from '../../constants/ytdlp';
 import { isPythonInitialized, executePythonScript } from '../../../modules/python-runner';
 import { ApiError } from './errors';
 import { DEV_API_BASE_URL } from './client';
 import { getValidCookiesPath } from './cookies';
-import { VideoVersionItem, CachedQualityUrl, HeatmapResponse, ClipItem, QualityStreamSources } from './types';
+import { VideoVersionItem, CachedQualityUrl, HeatmapResponse, ClipItem } from './types';
 
 // In-Memory Quality URL Cache Map: Key = `${videoId}:${qualityId}`, Value = direct string (progressive) or DASH object
 export const QUALITY_URL_MEMORY_MAP = new Map<string, CachedQualityUrl>();
@@ -144,63 +143,7 @@ export async function clearCachedQualityUrl(videoId: string, qualityId?: string)
   }
 }
 
-/**
- * Mengekstrak daftar versi video yang tersedia di YouTube (resolusi & fps) beserta metadata awal.
- * Dipanggil saat pembuatan workshop card diawal dan disimpan ke workshop JSON.
- */
-export async function fetchVideoVersions(
-  videoId: string
-): Promise<{ title: string; duration: number; thumbnail: string; available_versions: VideoVersionItem[] }> {
-  const cookiePath = await getValidCookiesPath();
-  let data: any = null;
-  const isNative = Platform.OS === 'android' && isPythonInitialized();
 
-  if (isNative) {
-    data = await executePythonScript('utils.stream_extractor', 'extract_video_versions', {
-      video_id: videoId,
-      ydl_opts: VIDEO_VERSIONS_YTDL_OPTS,
-      cookie_path: cookiePath,
-    });
-  } else {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 20000);
-    try {
-      const response = await fetch(`${DEV_API_BASE_URL}/api/versions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          video_id: videoId,
-          ydl_opts: VIDEO_VERSIONS_YTDL_OPTS,
-          cookie_path: cookiePath,
-        }),
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
-      data = await response.json().catch(() => ({}));
-    } catch (fetchErr) {
-      clearTimeout(timeoutId);
-      throw fetchErr;
-    }
-  }
-
-  const payload = (data?.data && typeof data.data === 'object') ? data.data : data;
-  if (!payload) {
-    throw new ApiError('EMPTY_RESPONSE', 'Python engine tidak mengembalikan respons metadata versi video.');
-  }
-
-  if (payload.status === 'error') {
-    const code = payload.code || 'PYTHON_EXECUTION_ERROR';
-    const rawError = payload.traceback || payload.error || JSON.stringify(payload, null, 2);
-    throw new ApiError(code, rawError);
-  }
-
-  return {
-    title: payload.title || `YouTube Video (${videoId})`,
-    duration: payload.duration || 0,
-    thumbnail: payload.thumbnail || '',
-    available_versions: Array.isArray(payload.available_versions) ? payload.available_versions : [],
-  };
-}
 
 /**
  * Mengekstrak direct URL untuk kualitas video tertentu (misal '720p60', '1080p60', '720p30', '480p30').
@@ -343,94 +286,31 @@ export async function clearCachedStreamUrl(videoId: string, qualityId?: string):
 }
 
 /**
- * Mengambil direct stream URL untuk video YouTube berdasarkan resolusi spesifik (qualityId).
- * Sesuai arsitektur True Pass-Through: Zero hidden fallback fetch ke YouTube.
- * Parameter qualityId wajib ditentukan oleh pemanggil, tidak ada silent fetch 480p.
+ * Mengambil direct stream URL 360p (Format 18 Progressive) untuk pemutar video.
+ * Video & audio menyatu 100% (0ms drift, single native ExoPlayer instance).
  */
 export async function fetchStreamUrl(
   videoId: string,
   forceRefresh: boolean = false,
-  qualityId?: string
+  qualityId: string = '360p30'
 ): Promise<string> {
-  if (!qualityId) {
-    throw new ApiError(
-      'QUALITY_REQUIRED',
-      'Parameter qualityId wajib ditentukan. Fallback stream otomatis ke resolusi default dinonaktifkan.'
-    );
+  const targetQuality = qualityId || '360p30';
+  if (!forceRefresh) {
+    const cached = await getCachedStreamUrl(videoId, targetQuality);
+    if (cached) return cached;
   }
 
-  const qRes = await fetchQualityUrl(videoId, qualityId, forceRefresh);
+  const qRes = await fetchQualityUrl(videoId, targetQuality, forceRefresh);
   const playable = getPlayableUrlFromQuality(qRes);
   if (playable) {
     STREAM_MEMORY_MAP.set(videoId, playable);
+    try {
+      await LocalStorage.setItem(`stream_url_${videoId}`, playable);
+    } catch {}
     return playable;
   }
 
-  throw new ApiError('STREAM_NOT_FOUND', `Direct stream URL untuk kualitas ${qualityId} tidak ditemukan.`);
-}
-
-/**
- * Mengambil sumber stream video dan audio (jika format DASH) langsung dari cache storage (LocalStorage).
- * Tidak melakukan network call ke YouTube.
- */
-export async function getCachedQualityStreamSources(
-  videoId: string,
-  qualityId: string
-): Promise<QualityStreamSources | null> {
-  const cached = await getCachedQualityUrl(videoId, qualityId);
-  if (!cached) return null;
-  if (typeof cached === 'string') {
-    return {
-      videoUrl: cached,
-      audioUrl: null,
-      isDASH: false,
-      qualityId,
-    };
-  }
-  if (typeof cached === 'object' && (cached.videoUrl || cached.url)) {
-    return {
-      videoUrl: cached.videoUrl || cached.url || '',
-      audioUrl: cached.audioUrl || null,
-      isDASH: Boolean(cached.isDASH),
-      qualityId: cached.qualityId || qualityId,
-    };
-  }
-  return null;
-}
-
-/**
- * Mengambil sumber stream video dan audio (jika format DASH) untuk kualitas tertentu:
- * 1. Cek cache storage terlebih dahulu jika forceRefresh = false
- * 2. Jika belum ada atau forceRefresh = true, fetch dari backend/Python dan simpan ke cache storage
- */
-export async function fetchQualityStreamSources(
-  videoId: string,
-  qualityId: string,
-  forceRefresh: boolean = false
-): Promise<QualityStreamSources> {
-  let data = await fetchQualityUrl(videoId, qualityId, forceRefresh);
-  // Guard: Jika data bertipe string tetapi format ini adalah 60fps / 1080p yang seharusnya DASH,
-  // lakukan forceRefresh 1x untuk mendapatkan payload lengkap videoUrl + audioUrl
-  if (typeof data === 'string' && (qualityId.includes('60') || qualityId.startsWith('1080')) && !forceRefresh) {
-    data = await fetchQualityUrl(videoId, qualityId, true);
-  }
-  if (typeof data === 'string') {
-    return {
-      videoUrl: data,
-      audioUrl: null,
-      isDASH: false,
-      qualityId,
-    };
-  }
-  if (typeof data === 'object' && (data.videoUrl || data.url)) {
-    return {
-      videoUrl: data.videoUrl || data.url || '',
-      audioUrl: data.audioUrl || null,
-      isDASH: Boolean(data.isDASH),
-      qualityId: data.qualityId || qualityId,
-    };
-  }
-  throw new ApiError('STREAM_NOT_FOUND', `Stream sources untuk kualitas ${qualityId} tidak valid.`);
+  throw new ApiError('STREAM_NOT_FOUND', `Direct stream URL untuk kualitas ${targetQuality} tidak ditemukan.`);
 }
 
 /**

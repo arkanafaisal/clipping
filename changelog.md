@@ -14,7 +14,28 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Implement Fixed Quality Presets and Strict Client Routing Without Auto-Fallback
+## [Unreleased] - Fix Stream to 360p Progressive, Remove DASH Video Player Dual-Sync, and Restrict Quality Selection to Downloads
+- **Konteks Struktural**:
+  - Penyeragaman Stream Pemutar Video ke 360p Progressive & Pembersihan Logika Dual-Player DASH ([mobile/src/hooks/useClipPlayer.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipPlayer.ts), [mobile/src/services/api/youtubeStream.ts](file:///d:/projects/clipping/mobile/src/services/api/youtubeStream.ts), [mobile/src/components/Dashboard.tsx](file:///d:/projects/clipping/mobile/src/components/Dashboard.tsx), [mobile/src/components/WorkshopCard.tsx](file:///d:/projects/clipping/mobile/src/components/WorkshopCard.tsx), [mobile/scripts/utils/stream_extractor.py](file:///d:/projects/clipping/mobile/scripts/utils/stream_extractor.py)):
+    - **Penyebab & Kebutuhan**:
+      1. Arsitektur pemutar video sebelumnya mencoba memutar format DASH multi-stream (720p60/1080p60) secara online dengan dua instance ExoPlayer terpisah (`player` untuk video dan `dashAudioPlayer` untuk audio). Meskipun telah ditambahkan seek locking dan drift rate-limiting, ketergantungan pada dua instance decoding paralel tetap menimbulkan latensi buffering, jeda sinkronisasi audio, dan kompleksitas kode yang tinggi.
+      2. Format stream online dapat dipastikan murni Progressive Format 18 (360p30) yang memiliki video dan audio tergabung dalam 1 file MP4 resmi dari YouTube (0ms drift, 100% native hardware sync). Sementara itu, video yang diunduh (termasuk 720p60 dan 1080p60) selalu di-mux menjadi file progressive lokal utuh melalui FFmpeg saat pengunduhan selesai.
+      3. Dengan demikian, pemutar video dalam aplikasi (baik saat streaming online maupun saat pemutaran offline) hanya memutar file video progressive. Logika sinkronisasi ganda DASH audio di pemutar video sama sekali tidak diperlukan lagi.
+      4. Fungsi pencarian daftar format versi video secara dinamis (`fetchVideoVersions` dan `extract_video_versions`) serta tombol pemilih kualitas stream di kartu workshop tidak lagi dibutuhkan dan perlu dibersihkan agar alur kerja menjadi instan, bersih, dan bebas kegagalan.
+      5. Pilihan kualitas (360p, 720p60, 1080p60) dan logika ekstraksi multi-stream (video_url & audio_url) kini hanya disisakan untuk proses **DOWNLOAD**.
+    - **Solusi**:
+      1. Menghapus seluruh instance `dashAudioPlayer`, state, refs, event listener, dan drift loop pada `useClipPlayer.ts`, mengembalikan arsitektur pemutar video ke model single-player yang sederhana, stabil, dan ringan.
+      2. Mengunci pemutaran stream online pada `fetchStreamUrl` ke kualitas 360p30 (Progressive Format 18 via client Android) dan menghapus fungsi `fetchQualityStreamSources` / `getCachedQualityStreamSources`.
+      3. Menghapus fungsi ekstraksi daftar versi video YouTube (`extract_video_versions` / `get_available_video_versions` di `stream_extractor.py` dan `fetchVideoVersions` di `youtubeStream.ts`).
+      4. Menghapus tombol input kualitas stream pada `WorkshopCard.tsx` dan `Dashboard.tsx`, menyisakan modal pemilih kualitas khusus untuk kebutuhan unduh klip dan unduh full video.
+- **Perubahan Kode Penting**:
+  - `mobile/src/hooks/useClipPlayer.ts`: Menghapus `dashAudioPlayer`, refs sinkronisasi audio, dan listener DASH; menggunakan `fetchStreamUrl` langsung untuk stream 360p progressive.
+  - `mobile/src/services/api/youtubeStream.ts`: Mengunci `fetchStreamUrl` ke kualitas 360p30, menghapus fungsi `fetchVideoVersions`, `fetchQualityStreamSources`, dan `getCachedQualityStreamSources`.
+  - `mobile/scripts/utils/stream_extractor.py`: Menghapus fungsi `extract_video_versions` dan `get_available_video_versions`.
+  - `mobile/src/components/WorkshopCard.tsx`: Menghapus tombol dan prop `onSelectStreamQuality`, menyisakan tombol pemilihan kualitas unduh.
+  - `mobile/src/components/Dashboard.tsx`: Menghapus alur modal kualitas stream saat card dibuat/dibuka, menyederhanakan `handleOpenDownloadQualityPicker`, dan membebaskan proses pembuatan workshop dari panggilan jaringan awal.
+
+## [cb41183] - Implement Fixed Quality Presets and Strict Client Routing Without Auto-Fallback
 - **Konteks Struktural**:
   - Preset Kualitas Tetap & Routing Klien YouTube Tanpa Fallback Otomatis ([mobile/scripts/utils/stream_extractor.py](file:///d:/projects/clipping/mobile/scripts/utils/stream_extractor.py), [mobile/src/services/api/types.ts](file:///d:/projects/clipping/mobile/src/services/api/types.ts), [mobile/src/services/api/youtubeStream.ts](file:///d:/projects/clipping/mobile/src/services/api/youtubeStream.ts), [mobile/src/components/QualityPickerModal.tsx](file:///d:/projects/clipping/mobile/src/components/QualityPickerModal.tsx), [mobile/src/components/Dashboard.tsx](file:///d:/projects/clipping/mobile/src/components/Dashboard.tsx)):
     - **Penyebab & Kebutuhan**:

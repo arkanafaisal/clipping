@@ -24,7 +24,6 @@ import {
   hasCachedStreamUrl,
   hasCachedDownloadStreamUrl,
   fetchAndCacheDownloadStreamUrl,
-  fetchVideoVersions,
   fetchQualityUrl,
   hasCachedQualityUrl,
   getCachedQualityUrl,
@@ -78,10 +77,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
   const [qualityModalVisible, setQualityModalVisible] = useState(false);
   const [qualityModalTarget, setQualityModalTarget] = useState<{
     videoId: string;
-    mode: 'stream' | 'download';
-    autoOpenAfterSelect?: boolean;
-    count?: number;
-    playMode?: 'local' | 'stream';
   } | null>(null);
   const [isQualityLoading, setIsQualityLoading] = useState(false);
 
@@ -162,30 +157,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
 
     try {
       // 1. Inisialisasi daftar versi tetap & judul video
-      let availableVersions: VideoVersionItem[] = FIXED_QUALITY_VERSIONS;
-      let videoTitle = `YouTube Video (${videoId})`;
-      try {
-        const verData = await fetchVideoVersions(videoId);
-        if (verData?.title) {
-          videoTitle = verData.title;
-        }
-      } catch (verErr: any) {
-        console.warn('[Dashboard] fetchVideoVersions warning:', verErr?.message);
-      }
+      const availableVersions: VideoVersionItem[] = FIXED_QUALITY_VERSIONS;
+      const videoTitle = `YouTube Video (${videoId})`;
 
       const existingIndex = workshops.findIndex((w) => w.videoId === videoId);
 
-      // 2. Tentukan default stream & download quality
-      const defaultStream = '720p60';
-      const defaultDownload = '720p60';
-
-      const streamQuality = existingIndex >= 0 && workshops[existingIndex].selectedStreamQuality
-        ? workshops[existingIndex].selectedStreamQuality
-        : defaultStream;
-
+      // 2. Default stream (360p30 fixed progressive) & download (720p60)
       const downloadQuality = existingIndex >= 0 && workshops[existingIndex].selectedDownloadQuality
         ? workshops[existingIndex].selectedDownloadQuality
-        : defaultDownload;
+        : '720p60';
 
       // 3. Simpan / perbarui workshop ke daftar
       let updatedList: WorkshopItem[];
@@ -194,7 +174,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
         updatedList[existingIndex].title = videoTitle;
         updatedList[existingIndex].count = count;
         updatedList[existingIndex].availableVersions = availableVersions;
-        updatedList[existingIndex].selectedStreamQuality = streamQuality;
+        updatedList[existingIndex].selectedStreamQuality = '360p30';
         updatedList[existingIndex].selectedDownloadQuality = downloadQuality;
         updatedList[existingIndex].lastUpdated = Date.now();
       } else {
@@ -204,7 +184,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
           count,
           doneCount: 0,
           availableVersions,
-          selectedStreamQuality: streamQuality,
+          selectedStreamQuality: '360p30',
           selectedDownloadQuality: downloadQuality,
           lastUpdated: Date.now(),
         };
@@ -268,19 +248,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
       }
 
       if (activePlayMode === 'stream') {
-        // Mode stream online: Cek apakah URL stream untuk kualitas ini sudah dicache
-        const hasStream = await hasCachedQualityUrl(videoId, streamQuality);
+        // Mode stream online: Pastikan URL stream 360p siap
+        const hasStream = await hasCachedStreamUrl(videoId);
         if (!hasStream) {
-          setPlayModeTarget(null);
-          // Langsung buka modal pemilihan kualitas stream!
-          handleOpenQualityPicker(videoId, 'stream', {
-            autoOpenAfterSelect: true,
-            count,
-            playMode: 'stream',
-          });
-          return;
+          try {
+            await fetchStreamUrl(videoId, false);
+          } catch (e) {}
         }
-        await fetchStreamUrl(videoId, false, streamQuality);
       }
 
       // 3. Update lastUpdated
@@ -306,22 +280,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
     }
   };
 
-  const handleOpenQualityPicker = (
-    videoId: string,
-    mode: 'stream' | 'download',
-    extra?: { autoOpenAfterSelect?: boolean; count?: number; playMode?: 'local' | 'stream' }
-  ) => {
-    setQualityModalTarget({ videoId, mode, ...extra });
+  const handleOpenDownloadQualityPicker = (videoId: string) => {
+    setQualityModalTarget({ videoId });
     setQualityModalVisible(true);
   };
 
   const handleSelectQuality = async (qualityId: string) => {
     if (!qualityModalTarget) return;
-    const { videoId, mode, autoOpenAfterSelect, count, playMode } = qualityModalTarget;
+    const { videoId } = qualityModalTarget;
     setIsQualityLoading(true);
 
     try {
-      // 1. Ambil direct URL untuk kualitas ini dan simpan ke cache terlebih dahulu
+      // 1. Ambil direct URL untuk kualitas download ini dan simpan ke cache
       await fetchQualityUrl(videoId, qualityId);
 
       // 2. Update workshop item di list hanya setelah URL berhasil didapatkan
@@ -329,7 +299,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
         if (w.videoId === videoId) {
           return {
             ...w,
-            [mode === 'stream' ? 'selectedStreamQuality' : 'selectedDownloadQuality']: qualityId,
+            selectedDownloadQuality: qualityId,
             lastUpdated: Date.now(),
           };
         }
@@ -344,15 +314,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
 
       ToastManager.show({
         type: 'success',
-        title: mode === 'stream' ? 'Kualitas Stream Disimpan' : 'Kualitas Unduh Disimpan',
-        rawError: `Kualitas ${qualityId} siap digunakan.`,
+        title: 'Kualitas Unduh Disimpan',
+        rawError: `Kualitas unduh ${qualityId} siap digunakan.`,
         duration: 2500,
       });
-
-      // 3. Jika autoOpenAfterSelect aktif (dipicu saat klik card buka workshop), langsung masuk workshop!
-      if (autoOpenAfterSelect) {
-        onOpenWorkshop?.(videoId, count || 50, playMode || 'stream');
-      }
     } catch (err: any) {
       setIsQualityLoading(false);
       // PENTING: Jangan tutup modal agar user dapat langsung memilih opsi lainnya!
@@ -754,8 +719,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
             onDelete={handleDeleteWorkshop}
             onBulkWA={handleBulkWA}
             onExport={handleExportWorkshop}
-            onSelectStreamQuality={(vid) => handleOpenQualityPicker(vid, 'stream')}
-            onSelectDownloadQuality={(vid) => handleOpenQualityPicker(vid, 'download')}
+            onSelectDownloadQuality={(vid) => handleOpenDownloadQualityPicker(vid)}
           />
         ))
       )}
@@ -800,27 +764,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
         }}
       />
 
-      {/* 8. Modal Pemilihan Kualitas Video (Stream / Unduh) */}
+      {/* 8. Modal Pemilihan Kualitas Video (Unduh) */}
       {(() => {
         const activeWorkshop = workshops.find((w) => w.videoId === qualityModalTarget?.videoId);
         const activeVersions =
           activeWorkshop?.availableVersions && activeWorkshop.availableVersions.length > 0
             ? activeWorkshop.availableVersions
             : FIXED_QUALITY_VERSIONS;
-        const currentSelectedQuality =
-          qualityModalTarget?.mode === 'stream'
-            ? activeWorkshop?.selectedStreamQuality || '720p60'
-            : activeWorkshop?.selectedDownloadQuality || '720p60';
+        const currentSelectedQuality = activeWorkshop?.selectedDownloadQuality || '720p60';
 
         return (
           <QualityPickerModal
             visible={qualityModalVisible}
-            title={qualityModalTarget?.mode === 'stream' ? 'Pilih Kualitas Stream' : 'Pilih Kualitas Unduh'}
-            subtitle={
-              qualityModalTarget?.mode === 'stream'
-                ? 'Kualitas ini akan digunakan saat memutar video di workshop/editor.'
-                : 'Kualitas ini akan digunakan saat memotong & mengunduh klip.'
-            }
+            title="Pilih Kualitas Unduh"
+            subtitle="Kualitas ini akan digunakan saat memotong & mengunduh klip."
             versions={activeVersions}
             selectedQualityId={currentSelectedQuality}
             onSelectQuality={handleSelectQuality}

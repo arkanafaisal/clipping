@@ -38,7 +38,6 @@ interface WorkshopCardProps {
   onBulkWA?: (videoId: string) => void;
   onExport?: (videoId: string) => void;
   onDownloadFullVideo?: (videoId: string) => void;
-  onSelectStreamQuality?: (videoId: string) => void;
   onSelectDownloadQuality?: (videoId: string) => void;
 }
 
@@ -52,7 +51,6 @@ export const WorkshopCard: React.FC<WorkshopCardProps> = ({
   onBulkWA,
   onExport,
   onDownloadFullVideo,
-  onSelectStreamQuality,
   onSelectDownloadQuality,
 }) => {
   const thumbnailUrl = `https://img.youtube.com/vi/${workshop.videoId}/mqdefault.jpg`;
@@ -88,18 +86,8 @@ export const WorkshopCard: React.FC<WorkshopCardProps> = ({
           {workshop.title || `Video ID: ${workshop.videoId}`}
         </Text>
 
-        {/* Quality Selection Badges (Stream & Download) */}
+        {/* Download Quality Selection Badge */}
         <View style={styles.qualityRow}>
-          <TouchableOpacity
-            style={styles.qualityPill}
-            onPress={() => onSelectStreamQuality?.(workshop.videoId)}
-            activeOpacity={0.7}
-          >
-            <Film size={11} color="#38bdf8" />
-            <Text style={styles.qualityLabelText}>Stream:</Text>
-            <Text style={styles.qualityValText}>{workshop.selectedStreamQuality || 'Pilih...'}</Text>
-          </TouchableOpacity>
-
           <TouchableOpacity
             style={[styles.qualityPill, styles.qualityPillDl]}
             onPress={() => onSelectDownloadQuality?.(workshop.videoId)}
@@ -107,7 +95,7 @@ export const WorkshopCard: React.FC<WorkshopCardProps> = ({
           >
             <Download size={11} color="#c084fc" />
             <Text style={styles.qualityLabelText}>Unduh:</Text>
-            <Text style={[styles.qualityValText, { color: '#c084fc' }]}>{workshop.selectedDownloadQuality || 'Pilih...'}</Text>
+            <Text style={[styles.qualityValText, { color: '#c084fc' }]}>{workshop.selectedDownloadQuality || '720p60'}</Text>
           </TouchableOpacity>
         </View>
 
