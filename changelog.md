@@ -14,7 +14,18 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Add Quality Version Retry and Error Handling with Shared Storage Path Support
+## [Unreleased] - Revert Defensive Runner Path Fallback and Add Rule 31 Against Bloat Workarounds
+- **Konteks Struktural**:
+  - Penegasan Anti-Bloat Codebase & Revert Path Fallback ([runner.py](file:///d:/projects/clipping/mobile/modules/python-runner/android/src/main/python/runner.py), [GEMINI.md](file:///d:/projects/clipping/GEMINI.md)):
+    - **Penyebab & Kebutuhan**: Pengguna menegur penambahan pencarian path fallback defensif (`libs/scripts` di `runner.py`) yang dibuat untuk mengantisipasi kesalahan peletakan folder oleh user. Menambahkan kode workaround defensif hanya untuk mengkompensasi kesalahan user memperbesar codebase (bloat) secara tidak perlu; solusi yang benar adalah memberi tahu letak folder yang tepat langsung kepada user tanpa menambah kompleksitas kode.
+    - **Solusi**:
+      1. Menghapus kode fallback pencarian `libs/scripts` dan `libs/scripts/utils` dari `runner.py` agar codebase tetap ramping dan konsisten dengan arsitektur resmi.
+      2. Menambahkan Learned Rule nomor 31 pada `GEMINI.md` yang melarang penambahan workaround defensif untuk kesalahan konfigurasi/penempatan file oleh user.
+- **Perubahan Kode Penting**:
+  - `mobile/modules/python-runner/android/src/main/python/runner.py`: Menghapus fallback pencarian folder `libs/scripts`.
+  - `GEMINI.md`: Menambahkan Rule 31 `[ARCH]` yang melarang penambahan defensive workaround untuk kesalahan user.
+
+## [73de3b5] - Add Quality Version Retry and Error Handling with Shared Storage Path Support
 - **Konteks Struktural**:
   - Penanganan Error & Mekanisme Retry Kualitas Video ([QualityPickerModal.tsx](file:///d:/projects/clipping/mobile/src/components/QualityPickerModal.tsx), [Dashboard.tsx](file:///d:/projects/clipping/mobile/src/components/Dashboard.tsx), [runner.py](file:///d:/projects/clipping/mobile/modules/python-runner/android/src/main/python/runner.py)):
     - **Penyebab & Kebutuhan**:

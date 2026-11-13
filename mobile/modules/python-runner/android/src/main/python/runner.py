@@ -35,18 +35,6 @@ def setup_paths(custom_root_path: str = None) -> dict:
             if libs_dir not in sys.path:
                 sys.path.insert(0, libs_dir)
                 added_paths.append(libs_dir)
-
-            # Dukung jika folder scripts ditaruh di dalam libs (misal libs/scripts atau libs/scripts/utils)
-            libs_scripts_dir = os.path.join(libs_dir, "scripts")
-            if os.path.exists(libs_scripts_dir):
-                if libs_scripts_dir not in sys.path:
-                    sys.path.insert(0, libs_scripts_dir)
-                    added_paths.append(libs_scripts_dir)
-                libs_utils_dir = os.path.join(libs_scripts_dir, "utils")
-                if os.path.exists(libs_utils_dir) and libs_utils_dir not in sys.path:
-                    sys.path.insert(0, libs_utils_dir)
-                    added_paths.append(libs_utils_dir)
-
             # Dukung file .whl atau .zip di dalam folder libs
             for fname in os.listdir(libs_dir):
                 if fname.endswith((".whl", ".zip")):
