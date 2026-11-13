@@ -10,7 +10,7 @@ import { isPythonInitialized, executePythonScript } from '../../../modules/pytho
 import { ApiError } from './errors';
 import { DEV_API_BASE_URL } from './client';
 import { getValidCookiesPath } from './cookies';
-import { VideoVersionItem, CachedQualityUrl, HeatmapResponse, ClipItem } from './types';
+import { VideoVersionItem, CachedQualityUrl, HeatmapResponse, ClipItem, QualityStreamSources } from './types';
 
 // In-Memory Quality URL Cache Map: Key = `${videoId}:${qualityId}`, Value = direct string (progressive) or DASH object
 export const QUALITY_URL_MEMORY_MAP = new Map<string, CachedQualityUrl>();
@@ -25,6 +25,18 @@ export function getPlayableUrlFromQuality(data: CachedQualityUrl | null | undefi
   if (!data) return null;
   if (typeof data === 'string') return data;
   return data.videoUrl || data.url || null;
+}
+
+/**
+ * Mengambil URL stream audio (untuk format DASH) dari data cache kualitas video jika ada.
+ * Mengembalikan null jika format merupakan progressive (audio sudah tergabung di dalam video).
+ */
+export function getAudioUrlFromQuality(data: CachedQualityUrl | null | undefined): string | null {
+  if (!data) return null;
+  if (typeof data === 'object' && data.audioUrl) {
+    return data.audioUrl;
+  }
+  return null;
 }
 
 /**
@@ -336,6 +348,65 @@ export async function fetchStreamUrl(
   }
 
   throw new ApiError('STREAM_NOT_FOUND', `Direct stream URL untuk kualitas ${qualityId} tidak ditemukan.`);
+}
+
+/**
+ * Mengambil sumber stream video dan audio (jika format DASH) langsung dari cache storage (LocalStorage).
+ * Tidak melakukan network call ke YouTube.
+ */
+export async function getCachedQualityStreamSources(
+  videoId: string,
+  qualityId: string
+): Promise<QualityStreamSources | null> {
+  const cached = await getCachedQualityUrl(videoId, qualityId);
+  if (!cached) return null;
+  if (typeof cached === 'string') {
+    return {
+      videoUrl: cached,
+      audioUrl: null,
+      isDASH: false,
+      qualityId,
+    };
+  }
+  if (typeof cached === 'object' && (cached.videoUrl || cached.url)) {
+    return {
+      videoUrl: cached.videoUrl || cached.url || '',
+      audioUrl: cached.audioUrl || null,
+      isDASH: Boolean(cached.isDASH),
+      qualityId: cached.qualityId || qualityId,
+    };
+  }
+  return null;
+}
+
+/**
+ * Mengambil sumber stream video dan audio (jika format DASH) untuk kualitas tertentu:
+ * 1. Cek cache storage terlebih dahulu jika forceRefresh = false
+ * 2. Jika belum ada atau forceRefresh = true, fetch dari backend/Python dan simpan ke cache storage
+ */
+export async function fetchQualityStreamSources(
+  videoId: string,
+  qualityId: string,
+  forceRefresh: boolean = false
+): Promise<QualityStreamSources> {
+  const data = await fetchQualityUrl(videoId, qualityId, forceRefresh);
+  if (typeof data === 'string') {
+    return {
+      videoUrl: data,
+      audioUrl: null,
+      isDASH: false,
+      qualityId,
+    };
+  }
+  if (typeof data === 'object' && (data.videoUrl || data.url)) {
+    return {
+      videoUrl: data.videoUrl || data.url || '',
+      audioUrl: data.audioUrl || null,
+      isDASH: Boolean(data.isDASH),
+      qualityId: data.qualityId || qualityId,
+    };
+  }
+  throw new ApiError('STREAM_NOT_FOUND', `Stream sources untuk kualitas ${qualityId} tidak valid.`);
 }
 
 /**

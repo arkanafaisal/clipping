@@ -14,7 +14,25 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Eradicate Hidden Fallback 480p Fetches and Background Import Calls
+## [Unreleased] - Implement Dual-Player Audio Sync for DASH Streams and Fix Dashboard Workshop State
+- **Konteks Struktural**:
+  - Sinkronisasi Audio DASH Pemutar Video & Pemulihan State Dashboard ([mobile/src/services/api/types.ts](file:///d:/projects/clipping/mobile/src/services/api/types.ts), [mobile/src/services/api/youtubeStream.ts](file:///d:/projects/clipping/mobile/src/services/api/youtubeStream.ts), [mobile/src/hooks/useClipPlayer.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipPlayer.ts), [mobile/src/components/Dashboard.tsx](file:///d:/projects/clipping/mobile/src/components/Dashboard.tsx)):
+    - **Penyebab & Kebutuhan**:
+      1. Pada format YouTube 50/60 FPS (`720p60` dan `1080p60`), video murni DASH tidak memiliki trek audio (`acodec: 'none'`). Pemutar video sebelumnya hanya memutar `videoUrl` sehingga video berputar bisu tanpa suara.
+      2. Pada `Dashboard.tsx`, pembuatan workshop baru dan pemilihan kualitas modal lupa memanggil `setWorkshops(updated)` ke state React setelah `saveWorkshops` ke disk, menyebabkan card workshop baru lenyap dari layar dan modal kualitas kosong/silent.
+      3. Alur `handleCreateWorkshop` sebelumnya terlalu agresif dengan memaksakan buka modal kualitas saat create yang memblokir penambahan card jika user membatalkan modal.
+    - **Solusi**:
+      1. Menambahkan antarmuka `QualityStreamSources` dan fungsi `getAudioUrlFromQuality`, `getCachedQualityStreamSources`, dan `fetchQualityStreamSources` pada `youtubeStream.ts`.
+      2. Mengimplementasikan **Dual-Player Audio Sync** pada `useClipPlayer.ts` menggunakan instance `dashAudioPlayer` yang memutar `audioUrl` di latar belakang secara sinkron presisi (play, pause, seek, loop boundary, dan drift compensation) bersama `player` video utama.
+      3. Menambahkan pemanggilan `setWorkshops(updated)` di `handleCreateWorkshop`, `handleOpenQualityPicker`, `handleRetryFetchVersions`, dan `handleSelectQuality` di `Dashboard.tsx`.
+      4. Menyederhanakan alur `handleCreateWorkshop` agar card baru selalu langsung terbuat, disimpan ke state, dan muncul di daftar Dashboard tanpa interupsi modal agresif.
+- **Perubahan Kode Penting**:
+  - `mobile/src/services/api/types.ts`: Menambahkan antarmuka `QualityStreamSources`.
+  - `mobile/src/services/api/youtubeStream.ts`: Menambahkan fungsi ekstraksi sumber stream audio & video DASH.
+  - `mobile/src/hooks/useClipPlayer.ts`: Mengintegrasikan `dashAudioPlayer` untuk sinkronisasi audio stream DASH.
+  - `mobile/src/components/Dashboard.tsx`: Memperbaiki update state `setWorkshops` dan menonaktifkan auto-modal pada saat pembuatan workshop.
+
+## [0990884] - Eradicate Hidden Fallback 480p Fetches and Background Import Calls
 - **Konteks Struktural**:
   - Pemberantasan Silent Network Fetch & Fallback Resolusi Fixed ([mobile/src/constants/ytdlp.ts](file:///d:/projects/clipping/mobile/src/constants/ytdlp.ts), [mobile/src/services/api/youtubeStream.ts](file:///d:/projects/clipping/mobile/src/services/api/youtubeStream.ts), [mobile/src/services/api/downloadStreamCache.ts](file:///d:/projects/clipping/mobile/src/services/api/downloadStreamCache.ts), [mobile/src/components/Dashboard.tsx](file:///d:/projects/clipping/mobile/src/components/Dashboard.tsx), [mobile/src/hooks/useClipPlayer.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipPlayer.ts)):
     - **Penyebab & Kebutuhan**: Ditemukan 3 titik network fetch tersembunyi / fallback otomatis tanpa konfirmasi pengguna:

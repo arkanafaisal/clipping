@@ -44,6 +44,13 @@ export interface QualityUrlData {
 
 export type CachedQualityUrl = string | QualityUrlData;
 
+export interface QualityStreamSources {
+  videoUrl: string;
+  audioUrl: string | null;
+  isDASH: boolean;
+  qualityId: string;
+}
+
 export interface SubtitleCue {
   id: string;
   start: number;    // Detik relatif terhadap awal klip (mulai dari 0.00s)

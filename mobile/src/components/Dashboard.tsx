@@ -229,6 +229,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
       }
 
       await saveWorkshops(updatedList);
+      setWorkshops(updatedList);
 
       // 4. Inisialisasi draft klip kosong jika belum ada draft tersimpan
       const existingDraft = await LocalStorage.getItem(`clips_draft_${videoId}`);
@@ -236,25 +237,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
         await LocalStorage.setItem(`clips_draft_${videoId}`, '[]');
       }
 
-      // 5. Cek apakah URL stream untuk kualitas stream terpilih sudah ada di cache
-      const hasStream = await hasCachedQualityUrl(videoId, streamQuality!);
-      if (!hasStream) {
-        setIsExtracting(false);
-        // Langsung buka modal pemilihan kualitas stream
-        handleOpenQualityPicker(videoId, 'stream', {
-          autoOpenAfterSelect: true,
-          count,
-          playMode: 'stream',
-        });
-        return;
-      }
-
-      // Pastikan URL stream ter-load di memori
-      await fetchStreamUrl(videoId, false, streamQuality);
       setIsExtracting(false);
-
-      // 6. Masuk ke FeedScreen setelah stream siap
-      onOpenWorkshop?.(videoId, count);
+      ToastManager.show({
+        type: 'success',
+        title: 'Workshop Berhasil Dibuat',
+        rawError: `Video "${videoTitle}" siap dikelola.`,
+        duration: 3000,
+      });
     } catch (err: any) {
       setIsExtracting(false);
       ToastManager.show({
@@ -372,6 +361,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
             return w;
           });
           await saveWorkshops(updated);
+          setWorkshops(updated);
         }
       } catch (err: any) {
         console.warn('[Dashboard] Gagal memuat versi video:', err?.message);
@@ -415,6 +405,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
           return w;
         });
         await saveWorkshops(updated);
+        setWorkshops(updated);
         ToastManager.show({
           type: 'success',
           title: 'Berhasil',
@@ -460,6 +451,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
         return w;
       });
       await saveWorkshops(updated);
+      setWorkshops(updated);
 
       // 2. Ambil direct URL untuk kualitas ini dan simpan ke cache jika belum ada
       await fetchQualityUrl(videoId, qualityId);
