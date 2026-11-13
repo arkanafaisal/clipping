@@ -14,7 +14,15 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Direct QualityPickerModal Trigger on Stream/Download Request and Auto-Fetch for Legacy Workshops
+## [Unreleased] - Add Strict No-Edit Processing Rule with Scope Isolation and Analytical Mode
+- **Konteks Struktural**:
+  - Penambahan Rule Pembatasan Mutasi Kode & Mode Analisis Murni ([GEMINI.md](file:///d:/projects/clipping/GEMINI.md)):
+    - **Penyebab & Kebutuhan**: Pengguna meminta agar instruksi yang mengandung frasa "no edit" (atau "jangan diedit", "tanpa edit") benar-benar ditaati dengan zero-mutation (tanpa menyentuh atau memodifikasi file kode). Jika frasa tersebut berada di tengah-tengah prompt yang berisi beberapa perintah, perintah sebelum frasa diperbolehkan melakukan perubahan, namun seluruh perintah setelahnya strictly dilarang memodifikasi kode dan wajib beralih ke analisis mendalam (analisis error, audit arsitektur, riset referensi web, atau perancangan implementasi).
+    - **Solusi**: Menambahkan Learned Rule nomor 30 pada `GEMINI.md` yang mempertegas dan memperluas aturan Rule 17.
+- **Perubahan Kode Penting**:
+  - `GEMINI.md`: Menambahkan Rule 30 `[PROCESS]` untuk kepatuhan ketat instruksi "no edit" dengan pembatasan cakupan (scope isolation) dan delegasi tugas ke mode analisis mendalam.
+
+## [79973f8] - Direct QualityPickerModal Trigger on Stream/Download Request and Auto-Fetch for Legacy Workshops
 - **Konteks Struktural**:
   - Penyelarasan Trigger Modal Kualitas & Kompatibilitas Mundur Import ([Dashboard.tsx](file:///d:/projects/clipping/mobile/src/components/Dashboard.tsx), [WorkshopCard.tsx](file:///d:/projects/clipping/mobile/src/components/WorkshopCard.tsx)):
     - **Penyebab & Kebutuhan**:

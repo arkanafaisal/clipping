@@ -51,6 +51,7 @@ This file contains a growing ruleset that improves over time. At session start, 
 27. [TOOL] Never use headless browser automation tools (such as Chrome DevTools MCP, Chromium, or Playwright) for simple coding tasks, visual adjustments, or direct logic edits because browser automation introduces heavy latency, connection timeouts, and unnecessary overhead.
 28. [ARCH] Never use spaces in local asset folder paths or temporary media storage (such as public/temp/); always sanitize folder paths by replacing spaces with hyphens ("-") because space-free URLs prevent HTTP 404 errors, percent-encoding (%20) discrepancies, and media element playback crashes during Remotion rendering.
 29. [PROCESS] Never execute full TypeScript check commands (such as npx tsc or tsc --noEmit) during response turns unless explicitly requested by the user, because tsc is slow, introduces heavy response latency, and cannot detect runtime, dynamic, or Remotion rendering issues.
+30. [PROCESS] Always strictly enforce zero file or code modifications when a prompt contains "no edit" (or phrases like "jangan diedit", "tanpa edit"), applying scope restriction so that instructions before a mid-prompt "no edit" may execute edits while instructions after it must strictly remain non-mutating analysis (diagnosing error root causes, auditing codebase architecture, searching web references, or drafting implementation plans) because exploratory and inquiry requests must remain purely analytical without unintended codebase mutations (expanding Rule 17).
 
 
 
