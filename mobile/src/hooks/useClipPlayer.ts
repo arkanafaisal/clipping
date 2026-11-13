@@ -127,6 +127,9 @@ export function useClipPlayer({
   const dashAudioUrlRef = useRef<string | null>(null);
   const currentDashAudioSourceUriRef = useRef<string | null>(null);
   const isDashAudioActiveRef = useRef<boolean>(false);
+  const isAudioSeekingRef = useRef<boolean>(false);
+  const lastAudioSyncTimeRef = useRef<number>(0);
+  const pendingAudioSeekTargetRef = useRef<number | null>(null);
 
   const isFacecamActiveRef = useRef<boolean>(false);
   const currentFacecamSourceUriRef = useRef<string | null>(null);
@@ -370,6 +373,8 @@ export function useClipPlayer({
           }
           if (isDashAudioActiveRef.current && dashAudioUrlRef.current && dashAudioPlayer) {
             currentDashAudioSourceUriRef.current = dashAudioUrlRef.current;
+            isAudioSeekingRef.current = true;
+            pendingAudioSeekTargetRef.current = targetTime;
             dashAudioPlayer.replace(dashAudioUrlRef.current);
           }
         } catch (err) {
@@ -383,8 +388,12 @@ export function useClipPlayer({
             if (autoPlay && isContinueStateRef.current) facecamPlayer.play();
           }
           if (isDashAudioActiveRef.current && dashAudioPlayer) {
+            isAudioSeekingRef.current = true;
+            pendingAudioSeekTargetRef.current = targetTime;
             dashAudioPlayer.currentTime = targetTime;
-            if (autoPlay && isContinueStateRef.current) dashAudioPlayer.play();
+            if (autoPlay && isContinueStateRef.current && !dashAudioPlayer.playing) {
+              dashAudioPlayer.play();
+            }
           }
           if (autoPlay && isContinueStateRef.current) {
             player.play();
@@ -468,6 +477,8 @@ export function useClipPlayer({
               }
             }
             if (isDashAudioActiveRef.current && dashAudioPlayer) {
+              isAudioSeekingRef.current = true;
+              pendingAudioSeekTargetRef.current = seekTime;
               dashAudioPlayer.currentTime = seekTime;
               if (playAfterSeek && isContinueStateRef.current && !dashAudioPlayer.playing) {
                 dashAudioPlayer.play();
@@ -515,9 +526,13 @@ export function useClipPlayer({
     const playingSub = player.addListener('playingChange', (payload: any) => {
       const isPlaying = payload?.isPlaying ?? player.playing;
       if (isPlaying) {
-        // Video mulai berputar di native: jangan hapus pendingSeekTargetRef di sini;
-        // biarkan timeUpdate yang melepaskan kunci setelah player benar-benar tiba di target seek
+        if (isDashAudioActiveRef.current && dashAudioPlayer && !dashAudioPlayer.playing && isContinueStateRef.current) {
+          try { dashAudioPlayer.play(); } catch (e) {}
+        }
       } else {
+        if (isDashAudioActiveRef.current && dashAudioPlayer && dashAudioPlayer.playing) {
+          try { dashAudioPlayer.pause(); } catch (e) {}
+        }
         // JANGAN menimpa UI jika sedang dalam proses debounce atau pending seek target!
         if (isDebouncingSeekRef.current || pendingSeekTargetRef.current !== null) {
           return;
@@ -610,8 +625,10 @@ export function useClipPlayer({
               if (isContinueStateRef.current) facecamPlayer.play();
             }
             if (isDashAudioActiveRef.current && dashAudioPlayer) {
+              isAudioSeekingRef.current = true;
+              pendingAudioSeekTargetRef.current = currentActive.start;
               dashAudioPlayer.currentTime = currentActive.start;
-              if (isContinueStateRef.current) dashAudioPlayer.play();
+              if (isContinueStateRef.current && !dashAudioPlayer.playing) dashAudioPlayer.play();
             }
             if (isContinueStateRef.current) {
               player.play();
@@ -633,8 +650,10 @@ export function useClipPlayer({
           }
           if (isDashAudioActiveRef.current && dashAudioPlayer) {
             try {
+              isAudioSeekingRef.current = true;
+              pendingAudioSeekTargetRef.current = currentActive.start;
               dashAudioPlayer.currentTime = currentActive.start;
-              if (isContinueStateRef.current) dashAudioPlayer.play();
+              if (isContinueStateRef.current && !dashAudioPlayer.playing) dashAudioPlayer.play();
             } catch (e) {}
           }
           if (isContinueStateRef.current) {
@@ -656,11 +675,30 @@ export function useClipPlayer({
 
       // Sinkronisasi drift antara dashAudioPlayer dan main player
       if (isDashAudioActiveRef.current && dashAudioPlayer && player.playing) {
-        const audioDrift = Math.abs(dashAudioPlayer.currentTime - current);
-        if (audioDrift > 0.3) {
-          try {
-            dashAudioPlayer.currentTime = current;
-          } catch (e) {}
+        if (
+          !isAudioSeekingRef.current &&
+          pendingSeekTargetRef.current === null &&
+          !isDebouncingSeekRef.current &&
+          dashAudioPlayer.status === 'readyToPlay'
+        ) {
+          const now = Date.now();
+          if (now - lastAudioSyncTimeRef.current >= 3500) {
+            const audioDrift = Math.abs(dashAudioPlayer.currentTime - current);
+            if (audioDrift > 1.5) {
+              lastAudioSyncTimeRef.current = now;
+              isAudioSeekingRef.current = true;
+              pendingAudioSeekTargetRef.current = current;
+              try {
+                dashAudioPlayer.currentTime = current;
+              } catch (e) {}
+            }
+          }
+        } else if (isAudioSeekingRef.current && dashAudioPlayer.status === 'readyToPlay') {
+          const target = pendingAudioSeekTargetRef.current;
+          if (target !== null && Math.abs(dashAudioPlayer.currentTime - target) < 0.6) {
+            isAudioSeekingRef.current = false;
+            pendingAudioSeekTargetRef.current = null;
+          }
         }
       }
 
@@ -786,6 +824,8 @@ export function useClipPlayer({
                 dashAudioUrlRef.current = streamSources.audioUrl;
                 currentDashAudioSourceUriRef.current = streamSources.audioUrl;
                 isDashAudioActiveRef.current = true;
+                isAudioSeekingRef.current = true;
+                pendingAudioSeekTargetRef.current = currentActive.start;
                 try {
                   dashAudioPlayer.replace(streamSources.audioUrl);
                   dashAudioPlayer.currentTime = currentActive.start;
@@ -796,6 +836,8 @@ export function useClipPlayer({
                 dashAudioUrlRef.current = null;
                 currentDashAudioSourceUriRef.current = null;
                 isDashAudioActiveRef.current = false;
+                isAudioSeekingRef.current = false;
+                pendingAudioSeekTargetRef.current = null;
               }
 
               if (isContinueStateRef.current) {
@@ -841,22 +883,46 @@ export function useClipPlayer({
 
     const dashAudioStatusSub = dashAudioPlayer.addListener('statusChange', () => {
       if (dashAudioPlayer.status === 'readyToPlay' && isDashAudioActiveRef.current) {
-        const curActive = getActiveClip();
-        const targetTime =
-          pendingSeekTargetRef.current !== null
-            ? pendingSeekTargetRef.current
-            : typeof player?.currentTime === 'number' && !isNaN(player.currentTime) && player.currentTime > 0
-            ? player.currentTime
-            : Math.max(0, curActive.start);
+        if (pendingAudioSeekTargetRef.current !== null) {
+          const target = pendingAudioSeekTargetRef.current;
+          if (Math.abs(dashAudioPlayer.currentTime - target) > 0.6) {
+            try {
+              dashAudioPlayer.currentTime = target;
+            } catch (e) {}
+          }
+          isAudioSeekingRef.current = false;
+          pendingAudioSeekTargetRef.current = null;
+        } else {
+          const curActive = getActiveClip();
+          const targetTime =
+            pendingSeekTargetRef.current !== null
+              ? pendingSeekTargetRef.current
+              : typeof player?.currentTime === 'number' && !isNaN(player.currentTime) && player.currentTime > 0
+              ? player.currentTime
+              : Math.max(0, curActive.start);
 
-        if (Math.abs(dashAudioPlayer.currentTime - targetTime) > 0.5) {
-          try {
-            dashAudioPlayer.currentTime = targetTime;
-          } catch (e) {}
+          if (Math.abs(dashAudioPlayer.currentTime - targetTime) > 1.2) {
+            try {
+              dashAudioPlayer.currentTime = targetTime;
+            } catch (e) {}
+          }
         }
-        if (isContinueStateRef.current && !dashAudioPlayer.playing) {
+
+        if (isContinueStateRef.current && player?.playing && !dashAudioPlayer.playing) {
           try {
             dashAudioPlayer.play();
+          } catch (e) {}
+        }
+      }
+
+      if (dashAudioPlayer.status === 'error' && isDashAudioActiveRef.current) {
+        console.warn('[Feed] dashAudioPlayer status error, attempting recovery...');
+        const curAudioUrl = dashAudioUrlRef.current;
+        if (curAudioUrl) {
+          try {
+            dashAudioPlayer.replace(curAudioUrl);
+            pendingAudioSeekTargetRef.current = player?.currentTime || 0;
+            isAudioSeekingRef.current = true;
           } catch (e) {}
         }
       }
@@ -1046,6 +1112,8 @@ export function useClipPlayer({
             dashAudioUrlRef.current = streamSources.audioUrl;
             currentDashAudioSourceUriRef.current = streamSources.audioUrl;
             isDashAudioActiveRef.current = true;
+            isAudioSeekingRef.current = true;
+            pendingAudioSeekTargetRef.current = firstClipStart;
             try {
               dashAudioPlayer.replace(streamSources.audioUrl);
               dashAudioPlayer.currentTime = firstClipStart;
@@ -1056,6 +1124,8 @@ export function useClipPlayer({
             dashAudioUrlRef.current = null;
             currentDashAudioSourceUriRef.current = null;
             isDashAudioActiveRef.current = false;
+            isAudioSeekingRef.current = false;
+            pendingAudioSeekTargetRef.current = null;
           }
 
           if (isFacecamActiveRef.current && facecamPlayer) {
@@ -1114,6 +1184,8 @@ export function useClipPlayer({
                 dashAudioUrlRef.current = streamSources.audioUrl;
                 currentDashAudioSourceUriRef.current = streamSources.audioUrl;
                 isDashAudioActiveRef.current = true;
+                isAudioSeekingRef.current = true;
+                pendingAudioSeekTargetRef.current = firstClipStart;
                 try {
                   dashAudioPlayer.replace(streamSources.audioUrl);
                   dashAudioPlayer.currentTime = firstClipStart;
@@ -1124,6 +1196,8 @@ export function useClipPlayer({
                 dashAudioUrlRef.current = null;
                 currentDashAudioSourceUriRef.current = null;
                 isDashAudioActiveRef.current = false;
+                isAudioSeekingRef.current = false;
+                pendingAudioSeekTargetRef.current = null;
               }
 
               if (isContinueStateRef.current) {

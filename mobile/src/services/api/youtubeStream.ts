@@ -88,12 +88,21 @@ export async function getCachedQualityUrl(
         try {
           const parsed = JSON.parse(trimmed);
           if (parsed && (parsed.isDASH || parsed.videoUrl || parsed.url)) {
+            // Guard: Format DASH wajib memiliki audioUrl agar pemutaran stream tidak bisu
+            if (parsed.isDASH && !parsed.audioUrl) {
+              return null;
+            }
             QUALITY_URL_MEMORY_MAP.set(memKey, parsed);
             return parsed;
           }
         } catch {}
       }
       if (trimmed.startsWith('http')) {
+        // Guard: Jika format merupakan kualitas yang umumnya DASH (60fps atau 1080p),
+        // cache string URL lawas tidak valid karena tidak menyertakan track audio terpisah
+        if (qualityId.includes('60') || qualityId.startsWith('1080')) {
+          return null;
+        }
         QUALITY_URL_MEMORY_MAP.set(memKey, trimmed);
         return trimmed;
       }
@@ -389,7 +398,12 @@ export async function fetchQualityStreamSources(
   qualityId: string,
   forceRefresh: boolean = false
 ): Promise<QualityStreamSources> {
-  const data = await fetchQualityUrl(videoId, qualityId, forceRefresh);
+  let data = await fetchQualityUrl(videoId, qualityId, forceRefresh);
+  // Guard: Jika data bertipe string tetapi format ini adalah 60fps / 1080p yang seharusnya DASH,
+  // lakukan forceRefresh 1x untuk mendapatkan payload lengkap videoUrl + audioUrl
+  if (typeof data === 'string' && (qualityId.includes('60') || qualityId.startsWith('1080')) && !forceRefresh) {
+    data = await fetchQualityUrl(videoId, qualityId, true);
+  }
   if (typeof data === 'string') {
     return {
       videoUrl: data,

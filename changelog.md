@@ -14,7 +14,24 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Implement Dual-Player Audio Sync for DASH Streams and Fix Dashboard Workshop State
+## [Unreleased] - Fix DASH Audio Player Seek Storm, Drift Sync Throttle, and Cache Invalidation
+- **Konteks Struktural**:
+  - Penyelamatan Audio DASH dari Infinite Seek Storm & Drift Throttling ([mobile/src/hooks/useClipPlayer.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipPlayer.ts), [mobile/src/services/api/youtubeStream.ts](file:///d:/projects/clipping/mobile/src/services/api/youtubeStream.ts)):
+    - **Penyebab & Kebutuhan**:
+      1. Terjadi fenomena di mana audio stream DASH (termasuk 360p30 yang ternyata di YouTube video ini juga murni format DASH 230 tanpa track audio) berputar selama ~30 detik lalu mendadak mati (mute permanen), atau seketika mati jika pengguna melakukan skip/seek.
+      2. Pada workshop hasil impor JSON, klip pertama umumnya dimulai pada detik tengah video (`start > 0`, misal 45s atau 120s), menyebabkan audio 100% bisu sejak awal pembukaan feed.
+      3. Akar penyebabnya: di dalam `timeUpdate` (~30 FPS), pemeriksaan drift `audioDrift > 0.3` tidak memedulikan status `dashAudioPlayer` yang sedang loading/buffering. Begitu terjadi jeda buffering jaringan saat seek atau pergantian chunk di detik ke-30, perbedaan waktu terbaca > 0.3s dan menembakkan `dashAudioPlayer.currentTime = current` sebanyak 30 kali per detik. Ini memicu *infinite seek loop* di native ExoPlayer dan membatalkan buffer audio sehingga audio mati permanen.
+      4. Cache lawas di LocalStorage yang menyimpan direct URL dalam format string mentah (tanpa objek DASH `{ isDASH: true, audioUrl }`) menyebabkan audio player tidak terinisialisasi pada video yang dibuka kembali.
+    - **Solusi**:
+      1. Menambahkan locking `isAudioSeekingRef`, `pendingAudioSeekTargetRef`, dan pembatasan frekuensi sinkronisasi drift (`lastAudioSyncTimeRef`, rate limit 1x per 3.5 detik dengan batas toleransi 1.5 detik) agar tidak memicu seek berulang di latar belakang saat stream buffering.
+      2. Mencegah drift correction menyentuh `dashAudioPlayer` jika status audio player belum `readyToPlay` atau pengguna sedang berinteraksi dengan scrubber.
+      3. Menambahkan listener pemulihan otomatis (`dashAudioStatusSub`) saat audio mengalami status error atau selesai buffering.
+      4. Memperbaiki `getCachedQualityUrl` dan `fetchQualityStreamSources` pada `youtubeStream.ts` agar menganggap cache string tanpa `audioUrl` sebagai cache tidak valid untuk format DASH/60fps/1080p, memicu auto-refresh untuk mendapatkan URL audio utuh.
+- **Perubahan Kode Penting**:
+  - `mobile/src/hooks/useClipPlayer.ts`: Mengimplementasikan seek lock, drift rate-limiting (3.5s cooldown / 1.5s tolerance), dan error recovery pada `dashAudioPlayer`.
+  - `mobile/src/services/api/youtubeStream.ts`: Menambahkan proteksi validasi objek DASH pada cache LocalStorage.
+
+## [6f48141] - Implement Dual-Player Audio Sync for DASH Streams and Fix Dashboard Workshop State
 - **Konteks Struktural**:
   - Sinkronisasi Audio DASH Pemutar Video & Pemulihan State Dashboard ([mobile/src/services/api/types.ts](file:///d:/projects/clipping/mobile/src/services/api/types.ts), [mobile/src/services/api/youtubeStream.ts](file:///d:/projects/clipping/mobile/src/services/api/youtubeStream.ts), [mobile/src/hooks/useClipPlayer.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipPlayer.ts), [mobile/src/components/Dashboard.tsx](file:///d:/projects/clipping/mobile/src/components/Dashboard.tsx)):
     - **Penyebab & Kebutuhan**:
