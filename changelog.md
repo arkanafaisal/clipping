@@ -14,7 +14,20 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Bump Python Scripts and Expected Frontend Version to v1.0.2
+## [Unreleased] - Restore Original Progressive Stream URL Extraction for Video Player
+- **Konteks Struktural**:
+  - Restorasi Ekstraksi URL Stream Progressive Pemutar Video ([mobile/src/services/api/youtubeStream.ts](file:///d:/projects/clipping/mobile/src/services/api/youtubeStream.ts)):
+    - **Penyebab & Kebutuhan**:
+      1. Pemutar video dalam aplikasi sempat mengalami pemutaran tanpa suara (*mute*) karena `fetchStreamUrl` sebelumnya didelegasikan ke `fetchQualityUrl('360p30')` yang mencocokkan format video-only DASH (tanpa trek audio) dan menyuntikkannya ke single-player native ExoPlayer.
+      2. Pengguna menghendaki fitur pemilih kualitas unduhan (`selectedDownloadQuality`), verifikasi versi skrip (`version.py` v1.0.2 / `SettingsModal`), dan arsitektur modular tetap dipertahankan, TETAPI proses pengambilan stream URL dan injeksinya ke pemutar video dikembalikan murni ke konfigurasi awal yang terbukti stabil.
+    - **Solusi**:
+      1. Mengembalikan `fetchStreamUrl` di `youtubeStream.ts` agar langsung mengeksekusi `extract_stream_url` menggunakan konstanta tetap `STREAM_YTDL_OPTS` (`player_client: ['ios', 'android']`, `format: 'best[height<=480][ext=mp4]/best[ext=mp4]'`).
+      2. Memisahkan 100% cache stream pemutar video (`stream_url_${videoId}`) dari cache kualitas download (`quality_url_${videoId}_${qualityId}`).
+      3. Dengan demikian, pemutar video selalu menerima Format 18 Progressive (audio & video menyatu secara native dari YouTube) tanpa latensi, tanpa desync, dan tanpa mute.
+- **Perubahan Kode Penting**:
+  - `mobile/src/services/api/youtubeStream.ts`: Mengembalikan implementasi `fetchStreamUrl`, `getCachedStreamUrl`, `hasCachedStreamUrl`, dan `clearCachedStreamUrl` ke eksekutor `extract_stream_url` dengan `STREAM_YTDL_OPTS`.
+
+## [d3bd055] - Bump Python Scripts and Expected Frontend Version to v1.0.2
 - **Konteks Struktural**:
   - Sinkronisasi Versi Skrip Python & Penegakan Rule 33 ([mobile/scripts/utils/version.py](file:///d:/projects/clipping/mobile/scripts/utils/version.py), [mobile/src/services/api/types.ts](file:///d:/projects/clipping/mobile/src/services/api/types.ts), [GEMINI.md](file:///d:/projects/clipping/GEMINI.md)):
     - **Penyebab & Kebutuhan**:

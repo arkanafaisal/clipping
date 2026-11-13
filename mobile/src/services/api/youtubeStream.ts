@@ -242,13 +242,7 @@ export async function fetchQualityUrl(
 /**
  * Mengambil URL stream yang tersimpan di cache (Tier 1 In-Memory atau Tier 2 LocalStorage) tanpa network call.
  */
-export async function getCachedStreamUrl(videoId: string, qualityId?: string): Promise<string | null> {
-  if (qualityId) {
-    const qData = await getCachedQualityUrl(videoId, qualityId);
-    const playable = getPlayableUrlFromQuality(qData);
-    if (playable) return playable;
-  }
-
+export async function getCachedStreamUrl(videoId: string): Promise<string | null> {
   if (STREAM_MEMORY_MAP.has(videoId)) {
     const memUrl = STREAM_MEMORY_MAP.get(videoId);
     if (memUrl) return memUrl;
@@ -267,50 +261,88 @@ export async function getCachedStreamUrl(videoId: string, qualityId?: string): P
 /**
  * Memeriksa apakah direct stream URL sudah tersedia di cache tanpa perlu hit ke YouTube.
  */
-export async function hasCachedStreamUrl(videoId: string, qualityId?: string): Promise<boolean> {
-  const url = await getCachedStreamUrl(videoId, qualityId);
+export async function hasCachedStreamUrl(videoId: string): Promise<boolean> {
+  const url = await getCachedStreamUrl(videoId);
   return Boolean(url && url.length > 0);
 }
 
 /**
  * Menghapus direct stream URL dari Tier 1 dan Tier 2 jika kedaluwarsa.
  */
-export async function clearCachedStreamUrl(videoId: string, qualityId?: string): Promise<void> {
+export async function clearCachedStreamUrl(videoId: string): Promise<void> {
   STREAM_MEMORY_MAP.delete(videoId);
   try {
     await LocalStorage.removeItem(`stream_url_${videoId}`);
   } catch {}
-  if (qualityId) {
-    await clearCachedQualityUrl(videoId, qualityId);
-  }
 }
 
 /**
- * Mengambil direct stream URL 360p (Format 18 Progressive) untuk pemutar video.
- * Video & audio menyatu 100% (0ms drift, single native ExoPlayer instance).
+ * Mengambil direct stream URL Format 18 Progressive (360p/480p) untuk pemutar video.
+ * Menggunakan STREAM_YTDL_OPTS murni (player_client: ['ios', 'android']) agar video & audio menyatu 100%
+ * (0ms drift, 0 mute, single native ExoPlayer instance).
  */
 export async function fetchStreamUrl(
   videoId: string,
-  forceRefresh: boolean = false,
-  qualityId: string = '360p30'
+  forceRefresh: boolean = false
 ): Promise<string> {
-  const targetQuality = qualityId || '360p30';
   if (!forceRefresh) {
-    const cached = await getCachedStreamUrl(videoId, targetQuality);
+    const cached = await getCachedStreamUrl(videoId);
     if (cached) return cached;
   }
 
-  const qRes = await fetchQualityUrl(videoId, targetQuality, forceRefresh);
-  const playable = getPlayableUrlFromQuality(qRes);
-  if (playable) {
-    STREAM_MEMORY_MAP.set(videoId, playable);
+  const cookiePath = await getValidCookiesPath();
+  let data: any = null;
+  const isNative = Platform.OS === 'android' && isPythonInitialized();
+
+  if (isNative) {
+    data = await executePythonScript('utils.stream_extractor', 'extract_stream_url', {
+      video_id: videoId,
+      ydl_opts: STREAM_YTDL_OPTS,
+      cookie_path: cookiePath,
+    });
+  } else {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 20000);
     try {
-      await LocalStorage.setItem(`stream_url_${videoId}`, playable);
-    } catch {}
-    return playable;
+      const response = await fetch(`${DEV_API_BASE_URL}/api/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          video_id: videoId,
+          ydl_opts: STREAM_YTDL_OPTS,
+          cookie_path: cookiePath,
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      data = await response.json().catch(() => ({}));
+    } catch (fetchErr) {
+      clearTimeout(timeoutId);
+      throw fetchErr;
+    }
   }
 
-  throw new ApiError('STREAM_NOT_FOUND', `Direct stream URL untuk kualitas ${targetQuality} tidak ditemukan.`);
+  const payload = (data?.data && typeof data.data === 'object') ? data.data : data;
+  if (!payload) {
+    throw new ApiError('EMPTY_RESPONSE', 'Python engine tidak mengembalikan respons stream URL.');
+  }
+
+  if (payload.status === 'error') {
+    const code = payload.code || 'PYTHON_EXECUTION_ERROR';
+    const rawError = payload.traceback || payload.error || JSON.stringify(payload, null, 2);
+    throw new ApiError(code, rawError);
+  }
+
+  const streamUrl = payload.stream_url || payload.url;
+  if (!streamUrl) {
+    throw new ApiError('STREAM_NOT_FOUND', 'Direct stream URL video tidak ditemukan.');
+  }
+
+  STREAM_MEMORY_MAP.set(videoId, streamUrl);
+  try {
+    await LocalStorage.setItem(`stream_url_${videoId}`, streamUrl);
+  } catch {}
+  return streamUrl;
 }
 
 /**
