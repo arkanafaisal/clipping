@@ -8,6 +8,7 @@ import {
   resolvePlayableFullVideoUri,
   SubtitleCue,
 } from '../services/api';
+import { LocalStorage } from '../services/storage';
 import { ToastManager } from '../components/Toast';
 import { UrlConfirmManager } from '../components/UrlConfirmModal';
 
@@ -690,7 +691,18 @@ export function useClipPlayer({
           message: 'URL stream video kedaluwarsa atau terputus. Hit get URL sekarang? (~100 KB kuota data)',
           successMessage: 'URL stream berhasil diperbarui! Silakan tekan tombol play kembali.',
           onConfirm: async () => {
-            const freshUrl = await fetchStreamUrl(videoId, true); // forceRefresh = true
+            let targetQuality: string | undefined = undefined;
+            try {
+              const wsStr = await LocalStorage.getItem('workshops_list');
+              if (wsStr) {
+                const wsList = JSON.parse(wsStr);
+                const found = Array.isArray(wsList) ? wsList.find((w: any) => w.videoId === videoId) : null;
+                if (found && found.selectedStreamQuality) {
+                  targetQuality = found.selectedStreamQuality;
+                }
+              }
+            } catch {}
+            const freshUrl = await fetchStreamUrl(videoId, true, targetQuality); // forceRefresh = true
             if (freshUrl) {
               setStreamUrl(freshUrl);
               streamUrlRef.current = freshUrl;
@@ -891,7 +903,19 @@ export function useClipPlayer({
 
       // 3. Fallback: Ambil stream URL YouTube online jika belum ada file lokal
       try {
-        const directUrl = await fetchStreamUrl(videoId);
+        let targetQuality: string | undefined = undefined;
+        try {
+          const wsStr = await LocalStorage.getItem('workshops_list');
+          if (wsStr) {
+            const wsList = JSON.parse(wsStr);
+            const found = Array.isArray(wsList) ? wsList.find((w: any) => w.videoId === videoId) : null;
+            if (found && found.selectedStreamQuality) {
+              targetQuality = found.selectedStreamQuality;
+            }
+          }
+        } catch {}
+
+        const directUrl = await fetchStreamUrl(videoId, false, targetQuality);
         if (directUrl) {
           setStreamUrl(directUrl);
           streamUrlRef.current = directUrl;
@@ -928,7 +952,18 @@ export function useClipPlayer({
           message: 'URL stream belum tersedia atau gagal dimuat. Hit get URL sekarang? (~100 KB kuota data)',
           successMessage: 'URL stream berhasil didapatkan! Silakan putar video kembali.',
           onConfirm: async () => {
-            const directUrl = await fetchStreamUrl(videoId, true);
+            let targetQuality: string | undefined = undefined;
+            try {
+              const wsStr = await LocalStorage.getItem('workshops_list');
+              if (wsStr) {
+                const wsList = JSON.parse(wsStr);
+                const found = Array.isArray(wsList) ? wsList.find((w: any) => w.videoId === videoId) : null;
+                if (found && found.selectedStreamQuality) {
+                  targetQuality = found.selectedStreamQuality;
+                }
+              }
+            } catch {}
+            const directUrl = await fetchStreamUrl(videoId, true, targetQuality);
             if (directUrl) {
               setStreamUrl(directUrl);
               streamUrlRef.current = directUrl;

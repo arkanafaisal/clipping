@@ -9,12 +9,13 @@ import {
   Linking,
 } from 'react-native';
 import { Settings, Download } from 'lucide-react-native';
-import { WorkshopCard, WorkshopItem } from './WorkshopCard';
+import { WorkshopCard, WorkshopItem, VideoVersionItem } from './WorkshopCard';
 import { WorkshopInputForm } from './WorkshopInputForm';
 import { ImportWorkshopModal } from './ImportWorkshopModal';
 import { ExportWorkshopModal } from './ExportWorkshopModal';
 import { SettingsModal } from './SettingsModal';
 import { PlayModeModal } from './PlayModeModal';
+import { QualityPickerModal } from './QualityPickerModal';
 import { LocalStorage } from '../services/storage';
 import { ToastManager } from './Toast';
 import { UrlConfirmManager } from './UrlConfirmModal';
@@ -23,6 +24,10 @@ import {
   hasCachedStreamUrl,
   hasCachedDownloadStreamUrl,
   fetchAndCacheDownloadStreamUrl,
+  fetchVideoVersions,
+  fetchQualityUrl,
+  hasCachedQualityUrl,
+  getCachedQualityUrl,
   checkFullVideoExists,
   downloadFullVideo,
   resolvePlayableFullVideoUri,
@@ -69,6 +74,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
   const [fullVideoStatus, setFullVideoStatus] = useState<
     Record<string, { exists: boolean; isDownloading: boolean; percent: number }>
   >({});
+  const [qualityModalVisible, setQualityModalVisible] = useState(false);
+  const [qualityModalTarget, setQualityModalTarget] = useState<{
+    videoId: string;
+    mode: 'stream' | 'download';
+  } | null>(null);
+  const [isQualityLoading, setIsQualityLoading] = useState(false);
 
   // Load workshops & attach current doneCount from drafts
   const loadSavedWorkshops = useCallback(async () => {
@@ -143,42 +154,62 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
       return;
     }
 
-    // Cek apakah stream URL sudah tersedia di cache sebelum masuk workshop
-    const hasStream = await hasCachedStreamUrl(videoId);
-    if (!hasStream) {
-      UrlConfirmManager.show({
-        targetName: 'Workshop Baru',
-        title: 'URL Belum Tersedia',
-        message: 'URL stream belum tersedia untuk video ini. Hit get URL sekarang? (~100 KB kuota data)',
-        successMessage: 'URL stream berhasil didapatkan! Silakan klik Submit Workshop kembali.',
-        onConfirm: async () => {
-          await fetchStreamUrl(videoId, true);
-        },
-      });
-      return;
-    }
-
     setIsExtracting(true);
 
     try {
-      // 1. Ambil direct stream URL terlebih dahulu agar video siap diputar saat masuk kamar
-      await fetchStreamUrl(videoId);
-
-      // 2. Inisialisasi draft klip kosong jika belum ada draft tersimpan
-      const existingDraft = await LocalStorage.getItem(`clips_draft_${videoId}`);
-      if (!existingDraft) {
-        await LocalStorage.setItem(`clips_draft_${videoId}`, '[]');
+      // 1. Ambil daftar available versions & metadata video diawal pembuatan card
+      let availableVersions: VideoVersionItem[] = [];
+      let videoTitle = `YouTube Video (${videoId})`;
+      try {
+        const verData = await fetchVideoVersions(videoId);
+        if (verData?.available_versions && verData.available_versions.length > 0) {
+          availableVersions = verData.available_versions;
+        }
+        if (verData?.title) {
+          videoTitle = verData.title;
+        }
+      } catch (verErr: any) {
+        console.warn('[Dashboard] fetchVideoVersions warning:', verErr?.message);
       }
 
-      // 3. Simpan / perbarui workshop ke daftar
       const existingIndex = workshops.findIndex((w) => w.videoId === videoId);
-      const videoTitle = existingIndex >= 0 ? workshops[existingIndex].title : `YouTube Video (${videoId})`;
-      let updatedList: WorkshopItem[];
+      if (existingIndex >= 0 && workshops[existingIndex].availableVersions?.length) {
+        if (availableVersions.length === 0) {
+          availableVersions = workshops[existingIndex].availableVersions!;
+        }
+      }
 
+      // 2. Tentukan default stream & download quality
+      const defaultStream =
+        availableVersions.find((v) => v.id === '720p60')?.id ||
+        availableVersions.find((v) => v.id === '720p30')?.id ||
+        availableVersions.find((v) => v.id === '480p30')?.id ||
+        availableVersions[0]?.id ||
+        '720p60';
+
+      const defaultDownload =
+        availableVersions.find((v) => v.id === '720p60')?.id ||
+        availableVersions.find((v) => v.id === '1080p60')?.id ||
+        availableVersions[0]?.id ||
+        '720p60';
+
+      const streamQuality = existingIndex >= 0 && workshops[existingIndex].selectedStreamQuality
+        ? workshops[existingIndex].selectedStreamQuality
+        : defaultStream;
+
+      const downloadQuality = existingIndex >= 0 && workshops[existingIndex].selectedDownloadQuality
+        ? workshops[existingIndex].selectedDownloadQuality
+        : defaultDownload;
+
+      // 3. Simpan / perbarui workshop ke daftar
+      let updatedList: WorkshopItem[];
       if (existingIndex >= 0) {
         updatedList = [...workshops];
         updatedList[existingIndex].title = videoTitle;
         updatedList[existingIndex].count = count;
+        updatedList[existingIndex].availableVersions = availableVersions;
+        updatedList[existingIndex].selectedStreamQuality = streamQuality;
+        updatedList[existingIndex].selectedDownloadQuality = downloadQuality;
         updatedList[existingIndex].lastUpdated = Date.now();
       } else {
         const newWorkshop: WorkshopItem = {
@@ -186,15 +217,44 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
           title: videoTitle,
           count,
           doneCount: 0,
+          availableVersions,
+          selectedStreamQuality: streamQuality,
+          selectedDownloadQuality: downloadQuality,
           lastUpdated: Date.now(),
         };
         updatedList = [newWorkshop, ...workshops];
       }
 
       await saveWorkshops(updatedList);
+
+      // 4. Inisialisasi draft klip kosong jika belum ada draft tersimpan
+      const existingDraft = await LocalStorage.getItem(`clips_draft_${videoId}`);
+      if (!existingDraft) {
+        await LocalStorage.setItem(`clips_draft_${videoId}`, '[]');
+      }
+
+      // 5. Cek apakah URL stream untuk kualitas stream terpilih sudah ada di cache
+      const hasStream = await hasCachedQualityUrl(videoId, streamQuality!);
+      if (!hasStream) {
+        setIsExtracting(false);
+        UrlConfirmManager.show({
+          targetName: `Stream (${streamQuality})`,
+          title: 'URL Belum Tersedia',
+          message: `Daftar kualitas berhasil dimuat (${availableVersions.length} pilihan). URL stream kualitas ${streamQuality} belum diambil. Hit get URL sekarang? (~100 KB kuota data)`,
+          successMessage: 'URL stream berhasil didapatkan! Silakan masuk ke workshop.',
+          onConfirm: async () => {
+            await fetchQualityUrl(videoId, streamQuality!, true);
+            onOpenWorkshop?.(videoId, count);
+          },
+        });
+        return;
+      }
+
+      // Pastikan URL stream ter-load di memori
+      await fetchStreamUrl(videoId, false, streamQuality);
       setIsExtracting(false);
 
-      // 4. Masuk ke FeedScreen setelah stream siap
+      // 6. Masuk ke FeedScreen setelah stream siap
       onOpenWorkshop?.(videoId, count);
     } catch (err: any) {
       setIsExtracting(false);
@@ -210,6 +270,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
 
   const handleOpenExisting = async (videoId: string, count: number, playMode: 'local' | 'stream' = 'local') => {
     try {
+      const ws = workshops.find((w) => w.videoId === videoId);
+      const streamQuality = ws?.selectedStreamQuality || '720p60';
+
       // 1. Cek apakah draft sudah ada, jika belum inisialisasi draft kosong
       const savedDraft = await LocalStorage.getItem(`clips_draft_${videoId}`);
       if (!savedDraft) {
@@ -223,21 +286,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
         const localUri = await resolvePlayableFullVideoUri(videoId);
         if (!localUri) {
           // File lokal hilang atau korup: cek ketersediaan cache stream sebelum beralih
-          const hasStream = await hasCachedStreamUrl(videoId);
+          const hasStream = await hasCachedQualityUrl(videoId, streamQuality);
           if (!hasStream) {
             setPlayModeTarget(null);
             UrlConfirmManager.show({
-              targetName: 'Stream Video',
+              targetName: `Stream (${streamQuality})`,
               title: 'URL Belum Tersedia',
-              message: 'Video lokal tidak ditemukan dan URL stream belum tersedia. Hit get URL sekarang? (~100 KB kuota data)',
+              message: `Video lokal tidak ditemukan dan URL stream (${streamQuality}) belum tersedia. Hit get URL sekarang? (~100 KB kuota data)`,
               successMessage: 'URL stream berhasil didapatkan! Silakan buka kembali workshop.',
               onConfirm: async () => {
-                await fetchStreamUrl(videoId, true);
+                await fetchQualityUrl(videoId, streamQuality, true);
               },
             });
             return;
           }
-          await fetchStreamUrl(videoId);
+          await fetchStreamUrl(videoId, false, streamQuality);
           activePlayMode = 'stream';
           ToastManager.show({
             type: 'info',
@@ -248,21 +311,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
         }
       } else {
         // Mode stream online
-        const hasStream = await hasCachedStreamUrl(videoId);
+        const hasStream = await hasCachedQualityUrl(videoId, streamQuality);
         if (!hasStream) {
           setPlayModeTarget(null);
           UrlConfirmManager.show({
-            targetName: 'Stream Video',
+            targetName: `Stream (${streamQuality})`,
             title: 'URL Belum Tersedia',
-            message: 'URL stream belum tersedia atau kedaluwarsa. Hit get URL sekarang? (~100 KB kuota data)',
+            message: `URL stream (${streamQuality}) belum tersedia atau kedaluwarsa. Hit get URL sekarang? (~100 KB kuota data)`,
             successMessage: 'URL stream berhasil didapatkan! Silakan buka kembali workshop.',
             onConfirm: async () => {
-              await fetchStreamUrl(videoId, true);
+              await fetchQualityUrl(videoId, streamQuality, true);
             },
           });
           return;
         }
-        await fetchStreamUrl(videoId);
+        await fetchStreamUrl(videoId, false, streamQuality);
       }
 
       // 3. Update lastUpdated
@@ -288,6 +351,54 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
     }
   };
 
+  const handleOpenQualityPicker = (videoId: string, mode: 'stream' | 'download') => {
+    setQualityModalTarget({ videoId, mode });
+    setQualityModalVisible(true);
+  };
+
+  const handleSelectQuality = async (qualityId: string) => {
+    if (!qualityModalTarget) return;
+    const { videoId, mode } = qualityModalTarget;
+    setIsQualityLoading(true);
+
+    try {
+      // 1. Update workshop item di list
+      const updated = workshops.map((w) => {
+        if (w.videoId === videoId) {
+          return {
+            ...w,
+            [mode === 'stream' ? 'selectedStreamQuality' : 'selectedDownloadQuality']: qualityId,
+            lastUpdated: Date.now(),
+          };
+        }
+        return w;
+      });
+      await saveWorkshops(updated);
+
+      // 2. Ambil direct URL untuk kualitas ini dan simpan ke cache jika belum ada
+      await fetchQualityUrl(videoId, qualityId);
+
+      setIsQualityLoading(false);
+      setQualityModalVisible(false);
+      setQualityModalTarget(null);
+
+      ToastManager.show({
+        type: 'success',
+        title: mode === 'stream' ? 'Kualitas Stream Disimpan' : 'Kualitas Unduh Disimpan',
+        rawError: `Kualitas diatur ke ${qualityId}. URL direct siap digunakan.`,
+        duration: 3000,
+      });
+    } catch (err: any) {
+      setIsQualityLoading(false);
+      ToastManager.show({
+        type: 'error',
+        title: 'Gagal Mengambil URL Kualitas',
+        rawError: err?.message || String(err),
+        duration: 4000,
+      });
+    }
+  };
+
   const handleCardPress = async (videoId: string, count: number) => {
     const hasFull = Boolean(fullVideoStatus[videoId]?.exists) || (await checkFullVideoExists(videoId));
     if (hasFull) {
@@ -301,16 +412,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
   const handleDownloadFullVideo = async (videoId: string) => {
     if (fullVideoStatus[videoId]?.isDownloading) return;
 
+    const ws = workshops.find((w) => w.videoId === videoId);
+    const dlQuality = ws?.selectedDownloadQuality || '720p60';
+
     // Cek ketersediaan URL cache sebelum memulai unduh video utuh
-    const hasCache = await hasCachedDownloadStreamUrl(videoId);
+    const hasCache = await hasCachedDownloadStreamUrl(videoId, dlQuality);
     if (!hasCache) {
       UrlConfirmManager.show({
-        targetName: 'Unduh Full Video',
+        targetName: `Unduh Full Video (${dlQuality})`,
         title: 'URL Belum Tersedia',
-        message: 'URL download full video belum tersedia. Hit get URL sekarang? (~100 KB kuota data)',
+        message: `URL download full video (${dlQuality}) belum tersedia. Hit get URL sekarang? (~100 KB kuota data)`,
         successMessage: 'URL berhasil didapatkan! Silakan klik tombol unduh full video kembali.',
         onConfirm: async () => {
-          await fetchAndCacheDownloadStreamUrl(videoId);
+          await fetchAndCacheDownloadStreamUrl(videoId, dlQuality);
         },
       });
       return;
@@ -534,6 +648,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
         count: wsData.count || 50,
         doneCount: realDoneCount,
         lastUpdated: Date.now(),
+        availableVersions: wsData.availableVersions || undefined,
+        selectedStreamQuality: wsData.selectedStreamQuality || undefined,
+        selectedDownloadQuality: wsData.selectedDownloadQuality || undefined,
       };
 
       const filtered = workshops.filter((w) => w.videoId !== wsData.videoId);
@@ -670,6 +787,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
             onDelete={handleDeleteWorkshop}
             onBulkWA={handleBulkWA}
             onExport={handleExportWorkshop}
+            onSelectStreamQuality={(vid) => handleOpenQualityPicker(vid, 'stream')}
+            onSelectDownloadQuality={(vid) => handleOpenQualityPicker(vid, 'download')}
           />
         ))
       )}
@@ -713,6 +832,36 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
           }
         }}
       />
+
+      {/* 8. Modal Pemilihan Kualitas Video (Stream / Unduh) */}
+      {(() => {
+        const activeWorkshop = workshops.find((w) => w.videoId === qualityModalTarget?.videoId);
+        const activeVersions = activeWorkshop?.availableVersions || [];
+        const currentSelectedQuality =
+          qualityModalTarget?.mode === 'stream'
+            ? activeWorkshop?.selectedStreamQuality || '720p60'
+            : activeWorkshop?.selectedDownloadQuality || '720p60';
+
+        return (
+          <QualityPickerModal
+            visible={qualityModalVisible}
+            title={qualityModalTarget?.mode === 'stream' ? 'Pilih Kualitas Stream' : 'Pilih Kualitas Unduh'}
+            subtitle={
+              qualityModalTarget?.mode === 'stream'
+                ? 'Kualitas ini akan digunakan saat memutar video di workshop/editor.'
+                : 'Kualitas ini akan digunakan saat memotong & mengunduh klip.'
+            }
+            versions={activeVersions}
+            selectedQualityId={currentSelectedQuality}
+            onSelectQuality={handleSelectQuality}
+            onClose={() => {
+              setQualityModalVisible(false);
+              setQualityModalTarget(null);
+            }}
+            isLoading={isQualityLoading}
+          />
+        );
+      })()}
     </ScrollView>
   );
 };

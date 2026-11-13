@@ -8,7 +8,7 @@ if os.path.exists(_mobile_scripts) and _mobile_scripts not in sys.path:
     sys.path.insert(0, _mobile_scripts)
 
 from flask import Flask, jsonify, request
-from utils.stream_extractor import get_direct_stream_url
+from utils.stream_extractor import get_direct_stream_url, get_available_video_versions, get_quality_stream_url
 from utils.heatmap import get_raw_heatmap
 from utils.clip_downloader import download_clip_direct, download_full_video_direct
 from utils.subtitle_burner import burn_subtitles_to_video
@@ -54,6 +54,48 @@ def get_stream(video_id=None):
         return jsonify({
             "stream_url": url
         }), 200
+    except Exception as e:
+        return jsonify({
+            "message": "INTERNAL_ERROR",
+            "error": str(e)
+        }), 500
+
+@app.route("/api/versions", methods=["POST", "GET"])
+@app.route("/api/versions/<video_id>", methods=["POST", "GET"])
+def get_versions(video_id=None):
+    try:
+        body = request.get_json(silent=True) or {}
+        vid = body.get("video_id") or video_id or request.args.get("video_id")
+        opts = body.get("ydl_opts")
+        cookie_path = body.get("cookie_path")
+        res, code, err = get_available_video_versions(vid, opts, cookie_path)
+        if code or err:
+            return jsonify({
+                "message": code or "EXTRACT_ERROR",
+                "error": err or str(code)
+            }), 400
+        return jsonify(res), 200
+    except Exception as e:
+        return jsonify({
+            "message": "INTERNAL_ERROR",
+            "error": str(e)
+        }), 500
+
+@app.route("/api/quality-url", methods=["POST", "GET"])
+def get_quality_url():
+    try:
+        body = request.get_json(silent=True) or {}
+        vid = body.get("video_id") or request.args.get("video_id")
+        quality_id = body.get("quality_id") or request.args.get("quality_id")
+        opts = body.get("ydl_opts")
+        cookie_path = body.get("cookie_path")
+        res, code, err = get_quality_stream_url(vid, quality_id, opts, cookie_path)
+        if code or err:
+            return jsonify({
+                "message": code or "QUALITY_URL_ERROR",
+                "error": err or str(code)
+            }), 400
+        return jsonify(res), 200
     except Exception as e:
         return jsonify({
             "message": "INTERNAL_ERROR",
@@ -109,6 +151,7 @@ def download_clip(video_id=None):
         cookie_path = body.get("cookie_path")
         progress_path = body.get("progress_path")
         source_video_path = body.get("source_video_path")
+        quality_id = body.get("quality_id")
 
         res = download_clip_direct(
             video_id=vid,
@@ -119,7 +162,8 @@ def download_clip(video_id=None):
             cookie_path=cookie_path,
             ydl_opts=opts,
             progress_path=progress_path,
-            source_video_path=source_video_path
+            source_video_path=source_video_path,
+            quality_id=quality_id
         )
         if res.get("status") == "error":
             err_code = res.get("code") or "DOWNLOAD_FAILED"

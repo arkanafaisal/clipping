@@ -211,13 +211,295 @@ export async function pingDevServer(): Promise<{ status: string; port: number; m
   throw new ApiError('DEV_SERVER_OFFLINE', `Server Mobile API belum aktif pada port 3006 (${DEV_API_BASE_URL}).`);
 }
 
-// In-Memory Stream Cache Map: Key = videoId, Value = direct stream URL
+export interface VideoVersionItem {
+  id: string; // e.g. "1080p60", "720p60", "720p30", "480p30", "360p30"
+  label: string; // "1080p 60fps"
+  height: number;
+  fps: number;
+  is_progressive: boolean;
+  format_id: string;
+  vcodec?: string;
+  ext?: string;
+  filesize_approx?: number;
+  note?: string;
+}
+
+export interface QualityUrlData {
+  isDASH: boolean;
+  url?: string;
+  videoUrl?: string;
+  audioUrl?: string;
+  qualityId: string;
+  formatId?: string;
+  cachedAt?: number;
+}
+
+export type CachedQualityUrl = string | QualityUrlData;
+
+// In-Memory Quality URL Cache Map: Key = `${videoId}:${qualityId}`, Value = direct string (progressive) or DASH object
+export const QUALITY_URL_MEMORY_MAP = new Map<string, CachedQualityUrl>();
+
+// Legacy In-Memory Stream Cache Map: Key = videoId, Value = direct stream URL
 const STREAM_MEMORY_MAP = new Map<string, string>();
+
+/**
+ * Mengambil URL stream yang dapat diputar langsung (string URL) dari data cache kualitas video.
+ */
+export function getPlayableUrlFromQuality(data: CachedQualityUrl | null | undefined): string | null {
+  if (!data) return null;
+  if (typeof data === 'string') return data;
+  return data.videoUrl || data.url || null;
+}
+
+/**
+ * Menyimpan URL kualitas video ke Tier 1 (In-Memory Map) dan Tier 2 (LocalStorage).
+ * Jika Progressive: disimpan langsung sebagai string URL.
+ * Jika DASH: disimpan sebagai object JSON { isDASH: true, videoUrl, audioUrl, qualityId }.
+ */
+export async function saveCachedQualityUrl(
+  videoId: string,
+  qualityId: string,
+  data: CachedQualityUrl
+): Promise<void> {
+  if (!data) return;
+  const memKey = `${videoId}:${qualityId}`;
+  QUALITY_URL_MEMORY_MAP.set(memKey, data);
+
+  // Sinkronkan juga ke STREAM_MEMORY_MAP untuk pemutaran video
+  const playable = getPlayableUrlFromQuality(data);
+  if (playable) {
+    STREAM_MEMORY_MAP.set(videoId, playable);
+  }
+
+  try {
+    const serialized = typeof data === 'string' ? data : JSON.stringify(data);
+    await LocalStorage.setItem(`quality_url_${videoId}_${qualityId}`, serialized);
+  } catch (err) {
+    console.warn(`[QualityUrlCache] Gagal menyimpan cache ${memKey}:`, err);
+  }
+}
+
+/**
+ * Mengambil URL kualitas video yang tersimpan di cache (Tier 1 In-Memory atau Tier 2 LocalStorage).
+ */
+export async function getCachedQualityUrl(
+  videoId: string,
+  qualityId: string
+): Promise<CachedQualityUrl | null> {
+  const memKey = `${videoId}:${qualityId}`;
+  if (QUALITY_URL_MEMORY_MAP.has(memKey)) {
+    const mem = QUALITY_URL_MEMORY_MAP.get(memKey);
+    if (mem) return mem;
+  }
+
+  try {
+    const raw = await LocalStorage.getItem(`quality_url_${videoId}_${qualityId}`);
+    if (raw) {
+      const trimmed = raw.trim();
+      if (trimmed.startsWith('{')) {
+        try {
+          const parsed = JSON.parse(trimmed);
+          if (parsed && (parsed.isDASH || parsed.videoUrl || parsed.url)) {
+            QUALITY_URL_MEMORY_MAP.set(memKey, parsed);
+            return parsed;
+          }
+        } catch {}
+      }
+      if (trimmed.startsWith('http')) {
+        QUALITY_URL_MEMORY_MAP.set(memKey, trimmed);
+        return trimmed;
+      }
+    }
+  } catch {}
+
+  return null;
+}
+
+/**
+ * Memeriksa apakah URL kualitas video sudah tersedia di cache tanpa perlu hit ke YouTube.
+ */
+export async function hasCachedQualityUrl(videoId: string, qualityId: string): Promise<boolean> {
+  const data = await getCachedQualityUrl(videoId, qualityId);
+  return Boolean(data);
+}
+
+/**
+ * Menghapus URL kualitas video dari cache (Tier 1 & Tier 2).
+ */
+export async function clearCachedQualityUrl(videoId: string, qualityId?: string): Promise<void> {
+  if (qualityId) {
+    const memKey = `${videoId}:${qualityId}`;
+    QUALITY_URL_MEMORY_MAP.delete(memKey);
+    try {
+      await LocalStorage.removeItem(`quality_url_${videoId}_${qualityId}`);
+    } catch {}
+  } else {
+    for (const key of Array.from(QUALITY_URL_MEMORY_MAP.keys())) {
+      if (key.startsWith(`${videoId}:`)) {
+        QUALITY_URL_MEMORY_MAP.delete(key);
+      }
+    }
+    STREAM_MEMORY_MAP.delete(videoId);
+    DOWNLOAD_STREAM_MEMORY_MAP.delete(videoId);
+    try {
+      await LocalStorage.removeItem(`stream_url_${videoId}`);
+      await LocalStorage.removeItem(`download_stream_${videoId}`);
+    } catch {}
+  }
+}
+
+/**
+ * Mengekstrak daftar versi video yang tersedia di YouTube (resolusi & fps) beserta metadata awal.
+ * Dipanggil saat pembuatan workshop card diawal dan disimpan ke workshop JSON.
+ */
+export async function fetchVideoVersions(
+  videoId: string
+): Promise<{ title: string; duration: number; thumbnail: string; available_versions: VideoVersionItem[] }> {
+  const cookiePath = await getValidCookiesPath();
+  let data: any = null;
+  const isNative = Platform.OS === 'android' && isPythonInitialized();
+
+  if (isNative) {
+    data = await executePythonScript('utils.stream_extractor', 'extract_video_versions', {
+      video_id: videoId,
+      ydl_opts: STREAM_YTDL_OPTS,
+      cookie_path: cookiePath,
+    });
+  } else {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 20000);
+    try {
+      const response = await fetch(`${DEV_API_BASE_URL}/api/versions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          video_id: videoId,
+          ydl_opts: STREAM_YTDL_OPTS,
+          cookie_path: cookiePath,
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      data = await response.json().catch(() => ({}));
+    } catch (fetchErr) {
+      clearTimeout(timeoutId);
+      throw fetchErr;
+    }
+  }
+
+  const payload = (data?.data && typeof data.data === 'object') ? data.data : data;
+  if (!payload) {
+    throw new ApiError('EMPTY_RESPONSE', 'Python engine tidak mengembalikan respons metadata versi video.');
+  }
+
+  if (payload.status === 'error') {
+    const code = payload.code || 'PYTHON_EXECUTION_ERROR';
+    const rawError = payload.traceback || payload.error || JSON.stringify(payload, null, 2);
+    throw new ApiError(code, rawError);
+  }
+
+  return {
+    title: payload.title || `YouTube Video (${videoId})`,
+    duration: payload.duration || 0,
+    thumbnail: payload.thumbnail || '',
+    available_versions: Array.isArray(payload.available_versions) ? payload.available_versions : [],
+  };
+}
+
+/**
+ * Mengekstrak direct URL untuk kualitas video tertentu (misal '720p60', '1080p60', '720p30', '480p30').
+ * Menyimpan hasilnya ke arsitektur 2-Tier Caching berbasis kualitas.
+ * Jika progressive -> direct string.
+ * Jika DASH -> object { isDASH: true, videoUrl, audioUrl, qualityId }.
+ */
+export async function fetchQualityUrl(
+  videoId: string,
+  qualityId: string,
+  forceRefresh: boolean = false
+): Promise<CachedQualityUrl> {
+  if (!forceRefresh) {
+    const cached = await getCachedQualityUrl(videoId, qualityId);
+    if (cached) {
+      console.log(`[QualityUrlCache] Hit cache untuk ${videoId} @ ${qualityId}`);
+      return cached;
+    }
+  }
+
+  const cookiePath = await getValidCookiesPath();
+  let data: any = null;
+  const isNative = Platform.OS === 'android' && isPythonInitialized();
+
+  if (isNative) {
+    data = await executePythonScript('utils.stream_extractor', 'extract_quality_url', {
+      video_id: videoId,
+      quality_id: qualityId,
+      ydl_opts: STREAM_YTDL_OPTS,
+      cookie_path: cookiePath,
+    });
+  } else {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 20000);
+    try {
+      const response = await fetch(`${DEV_API_BASE_URL}/api/quality-url`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          video_id: videoId,
+          quality_id: qualityId,
+          ydl_opts: STREAM_YTDL_OPTS,
+          cookie_path: cookiePath,
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      data = await response.json().catch(() => ({}));
+    } catch (fetchErr) {
+      clearTimeout(timeoutId);
+      throw fetchErr;
+    }
+  }
+
+  const payload = (data?.data && typeof data.data === 'object') ? data.data : data;
+  if (!payload) {
+    throw new ApiError('EMPTY_RESPONSE', 'Python engine tidak mengembalikan respons quality URL.');
+  }
+
+  if (payload.status === 'error') {
+    const code = payload.code || 'PYTHON_EXECUTION_ERROR';
+    const rawError = payload.traceback || payload.error || JSON.stringify(payload, null, 2);
+    throw new ApiError(code, rawError);
+  }
+
+  let result: CachedQualityUrl;
+  if (payload.is_dash) {
+    result = {
+      isDASH: true,
+      videoUrl: payload.video_url,
+      audioUrl: payload.audio_url,
+      qualityId: qualityId,
+      formatId: payload.video_format_id,
+      cachedAt: Date.now(),
+    };
+  } else if (payload.url) {
+    result = payload.url;
+  } else {
+    throw new ApiError('STREAM_NOT_FOUND', 'URL stream untuk kualitas ini tidak ditemukan.');
+  }
+
+  await saveCachedQualityUrl(videoId, qualityId, result);
+  return result;
+}
 
 /**
  * Mengambil URL stream yang tersimpan di cache (Tier 1 In-Memory atau Tier 2 LocalStorage) tanpa network call.
  */
-export async function getCachedStreamUrl(videoId: string): Promise<string | null> {
+export async function getCachedStreamUrl(videoId: string, qualityId?: string): Promise<string | null> {
+  if (qualityId) {
+    const qData = await getCachedQualityUrl(videoId, qualityId);
+    const playable = getPlayableUrlFromQuality(qData);
+    if (playable) return playable;
+  }
+
   if (STREAM_MEMORY_MAP.has(videoId)) {
     const memUrl = STREAM_MEMORY_MAP.get(videoId);
     if (memUrl) return memUrl;
@@ -236,29 +518,40 @@ export async function getCachedStreamUrl(videoId: string): Promise<string | null
 /**
  * Memeriksa apakah direct stream URL sudah tersedia di cache tanpa perlu hit ke YouTube.
  */
-export async function hasCachedStreamUrl(videoId: string): Promise<boolean> {
-  const url = await getCachedStreamUrl(videoId);
+export async function hasCachedStreamUrl(videoId: string, qualityId?: string): Promise<boolean> {
+  const url = await getCachedStreamUrl(videoId, qualityId);
   return Boolean(url && url.length > 0);
 }
 
 /**
  * Menghapus direct stream URL dari Tier 1 dan Tier 2 jika kedaluwarsa.
  */
-export async function clearCachedStreamUrl(videoId: string): Promise<void> {
+export async function clearCachedStreamUrl(videoId: string, qualityId?: string): Promise<void> {
   STREAM_MEMORY_MAP.delete(videoId);
   try {
     await LocalStorage.removeItem(`stream_url_${videoId}`);
   } catch {}
+  if (qualityId) {
+    await clearCachedQualityUrl(videoId, qualityId);
+  }
 }
 
 /**
  * Fetches the direct stream URL for a given YouTube video ID.
- * Menggunakan arsitektur 2-Tier Caching:
- * 1. Tier 1 (In-Memory Map): Akses instan 0ms tanpa membaca disk storage
- * 2. Tier 2 (Persistent File Storage): Disimpan ke file fisik di HP, dibaca jika memori kosong
- * 3. Fallback / Refresh: Jika forceRefresh = true atau URL gagal diputar, ambil URL baru dari server Python.
+ * Menggunakan arsitektur 2-Tier Caching berbasis kualitas video.
+ * Jika qualityId disertakan (atau tersimpan di cache kualitas), mengambil URL sesuai kualitas tersebut.
  */
-export async function fetchStreamUrl(videoId: string, forceRefresh: boolean = false): Promise<string> {
+export async function fetchStreamUrl(
+  videoId: string,
+  forceRefresh: boolean = false,
+  qualityId?: string
+): Promise<string> {
+  if (qualityId) {
+    const qRes = await fetchQualityUrl(videoId, qualityId, forceRefresh);
+    const playable = getPlayableUrlFromQuality(qRes);
+    if (playable) return playable;
+  }
+
   // 1. Cek Tier 1: In-Memory Map (Paling Cepat, Zero Disk I/O)
   if (!forceRefresh && STREAM_MEMORY_MAP.has(videoId)) {
     const memUrl = STREAM_MEMORY_MAP.get(videoId);
@@ -278,6 +571,9 @@ export async function fetchStreamUrl(videoId: string, forceRefresh: boolean = fa
         return fileUrl;
       }
     } catch (e) {
+      // Abaikan file read error
+    }
+  }
       // Abaikan file read error
     }
   }
@@ -990,18 +1286,26 @@ export function getDownloadStreamCacheFilePath(videoId: string): { fileUri: stri
 
 /**
  * Mengambil cached download stream URL dengan arsitektur 2-Tier:
- * 1. Cek Tier 1 (In-Memory Map)
- * 2. Cek Tier 2 (File stream_url.txt di folder video pada shared storage)
- * 3. Fallback Tier 2 (LocalStorage internal)
+ * 1. Cek cache kualitas jika qualityId diberikan (Tier 1 In-Memory & Tier 2 LocalStorage)
+ * 2. Cek Tier 1 (In-Memory Map)
+ * 3. Cek Tier 2 (File stream_url.txt di folder video pada shared storage)
+ * 4. Fallback Tier 2 (LocalStorage internal)
  */
-export async function getCachedDownloadStreamUrl(videoId: string): Promise<string | undefined> {
-  // 1. Cek Tier 1
+export async function getCachedDownloadStreamUrl(videoId: string, qualityId?: string): Promise<string | undefined> {
+  // 1. Cek cache kualitas jika qualityId diberikan
+  if (qualityId) {
+    const qData = await getCachedQualityUrl(videoId, qualityId);
+    const playable = getPlayableUrlFromQuality(qData);
+    if (playable) return playable;
+  }
+
+  // 2. Cek Tier 1
   if (DOWNLOAD_STREAM_MEMORY_MAP.has(videoId)) {
     const mem = DOWNLOAD_STREAM_MEMORY_MAP.get(videoId);
     if (mem) return mem;
   }
 
-  // 2. Cek Tier 2: File Fisik di shared directory
+  // 3. Cek Tier 2: File Fisik di shared directory
   try {
     const { fileUri } = getDownloadStreamCacheFilePath(videoId);
     const info = await FileSystem.getInfoAsync(fileUri);
@@ -1015,7 +1319,7 @@ export async function getCachedDownloadStreamUrl(videoId: string): Promise<strin
     }
   } catch {}
 
-  // 3. Fallback Tier 2: LocalStorage
+  // 4. Fallback Tier 2: LocalStorage
   try {
     const savedLocal = await LocalStorage.getItem(`download_stream_${videoId}`);
     if (savedLocal && savedLocal.trim().startsWith('http')) {
@@ -1031,9 +1335,13 @@ export async function getCachedDownloadStreamUrl(videoId: string): Promise<strin
 /**
  * Menyimpan URL download stream ke Tier 1 dan Tier 2 (file stream_url.txt & LocalStorage).
  */
-export async function saveCachedDownloadStreamUrl(videoId: string, streamUrl: string): Promise<void> {
+export async function saveCachedDownloadStreamUrl(videoId: string, streamUrl: string, qualityId?: string): Promise<void> {
   if (!streamUrl) return;
   DOWNLOAD_STREAM_MEMORY_MAP.set(videoId, streamUrl);
+
+  if (qualityId) {
+    await saveCachedQualityUrl(videoId, qualityId, streamUrl);
+  }
 
   try {
     const { fileUri } = getDownloadStreamCacheFilePath(videoId);
@@ -1053,7 +1361,7 @@ export async function saveCachedDownloadStreamUrl(videoId: string, streamUrl: st
 /**
  * Menghapus cache URL download stream dari Tier 1 dan Tier 2 jika kedaluwarsa.
  */
-export async function clearCachedDownloadStreamUrl(videoId: string): Promise<void> {
+export async function clearCachedDownloadStreamUrl(videoId: string, qualityId?: string): Promise<void> {
   DOWNLOAD_STREAM_MEMORY_MAP.delete(videoId);
   try {
     const { fileUri } = getDownloadStreamCacheFilePath(videoId);
@@ -1062,13 +1370,16 @@ export async function clearCachedDownloadStreamUrl(videoId: string): Promise<voi
   try {
     await LocalStorage.removeItem(`download_stream_${videoId}`);
   } catch {}
+  if (qualityId) {
+    await clearCachedQualityUrl(videoId, qualityId);
+  }
 }
 
 /**
  * Memeriksa apakah download stream URL sudah tersedia di cache (atau ada file video utuh lokal).
  * Jika ada file full video lokal, return true (karena pemotongan klip dilakukan offline tanpa perlu URL online).
  */
-export async function hasCachedDownloadStreamUrl(videoId: string): Promise<boolean> {
+export async function hasCachedDownloadStreamUrl(videoId: string, qualityId?: string): Promise<boolean> {
   const fullVideo = getFullVideoFilePath(videoId);
   try {
     const fullInfo = await FileSystem.getInfoAsync(fullVideo.fileUri);
@@ -1077,7 +1388,7 @@ export async function hasCachedDownloadStreamUrl(videoId: string): Promise<boole
     }
   } catch {}
 
-  const url = await getCachedDownloadStreamUrl(videoId);
+  const url = await getCachedDownloadStreamUrl(videoId, qualityId);
   return Boolean(url && url.length > 0);
 }
 
@@ -1085,7 +1396,16 @@ export async function hasCachedDownloadStreamUrl(videoId: string): Promise<boole
  * Mengambil (GET) direct download stream URL baru dari YouTube metadata (hanya ~100 KB payload teks)
  * dan menyimpannya ke cache Tier 1 & Tier 2. Tidak melakukan pengunduhan file video.
  */
-export async function fetchAndCacheDownloadStreamUrl(videoId: string): Promise<string> {
+export async function fetchAndCacheDownloadStreamUrl(videoId: string, qualityId?: string): Promise<string> {
+  if (qualityId) {
+    const qData = await fetchQualityUrl(videoId, qualityId, true);
+    const playable = getPlayableUrlFromQuality(qData);
+    if (playable) {
+      await saveCachedDownloadStreamUrl(videoId, playable, qualityId);
+      return playable;
+    }
+  }
+
   const cookiePath = await getValidCookiesPath();
   let data: any = null;
   const isNative = Platform.OS === 'android' && isPythonInitialized();
@@ -1137,7 +1457,7 @@ export async function fetchAndCacheDownloadStreamUrl(videoId: string): Promise<s
   }
 
   const streamUrl = payload.stream_url;
-  await saveCachedDownloadStreamUrl(videoId, streamUrl);
+  await saveCachedDownloadStreamUrl(videoId, streamUrl, qualityId);
   return streamUrl;
 }
 
@@ -1152,7 +1472,8 @@ export async function downloadClip(
   start: number,
   end: number,
   rank?: number | string,
-  progressPath?: string
+  progressPath?: string,
+  qualityId?: string
 ): Promise<{ status: string; output_path: string; fileUri: string; stream_url?: string }> {
   // Kandidat 1: Shared Storage (/storage/emulated/0/clipping/output/...)
   // Kandidat 2: Internal Sandbox Storage (/data/user/0/com.clipping.app/files/clipping/output/...)
@@ -1161,7 +1482,7 @@ export async function downloadClip(
     getClipInternalOutputFilePath(videoId, start, end, rank),
   ];
 
-  const cachedStreamUrl = await getCachedDownloadStreamUrl(videoId);
+  const cachedStreamUrl = await getCachedDownloadStreamUrl(videoId, qualityId);
   const cookiePath = await getValidCookiesPath();
   let lastError: any = null;
 
@@ -1230,6 +1551,7 @@ export async function downloadClip(
           cookie_path: cookiePath,
           progress_path: progressPath,
           source_video_path: sourceVideoPath,
+          quality_id: qualityId || undefined,
         });
       } else {
         // Fallback ke DEV_API_BASE_URL (port 3006 / Termux) jika mode dev
@@ -1248,6 +1570,7 @@ export async function downloadClip(
             ydl_opts: clipYdlOpts,
             progress_path: progressPath,
             source_video_path: sourceVideoPath,
+            quality_id: qualityId || undefined,
           }),
           signal: controller.signal,
         });
@@ -1259,7 +1582,7 @@ export async function downloadClip(
 
       // Tangkap download stream URL dari response skrip dan simpan jika baru / berbeda
       if (payload?.stream_url && payload.stream_url !== cachedStreamUrl) {
-        await saveCachedDownloadStreamUrl(videoId, payload.stream_url);
+        await saveCachedDownloadStreamUrl(videoId, payload.stream_url, qualityId);
       }
 
       if (!payload || payload.status !== 'success') {

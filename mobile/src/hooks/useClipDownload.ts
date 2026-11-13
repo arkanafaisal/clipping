@@ -22,6 +22,7 @@ export interface UseClipDownloadParams {
   syncPlayerSourceForClip?: (clip: ClipItem, autoPlay?: boolean) => Promise<void>;
   onUpdateWorkshopDone?: (videoId: string, doneCount: number) => void;
   downloadedClipsRef?: React.MutableRefObject<Record<string, boolean>>;
+  selectedDownloadQuality?: string;
 }
 
 export function useClipDownload({
@@ -34,6 +35,7 @@ export function useClipDownload({
   syncPlayerSourceForClip,
   onUpdateWorkshopDone,
   downloadedClipsRef: externalDownloadedClipsRef,
+  selectedDownloadQuality,
 }: UseClipDownloadParams) {
   const [downloadingClips, setDownloadingClips] = useState<Record<string, boolean>>({});
   const [downloadedClips, setDownloadedClips] = useState<Record<string, boolean>>({});
@@ -115,16 +117,31 @@ export function useClipDownload({
       return;
     }
 
+    // Tentukan kualitas download yang diinginkan (dari parameter atau LocalStorage)
+    let targetQuality = selectedDownloadQuality;
+    if (!targetQuality) {
+      try {
+        const wsStr = await LocalStorage.getItem('workshops_list');
+        if (wsStr) {
+          const wsList = JSON.parse(wsStr);
+          const found = Array.isArray(wsList) ? wsList.find((w: any) => w.videoId === videoId) : null;
+          if (found && found.selectedDownloadQuality) {
+            targetQuality = found.selectedDownloadQuality;
+          }
+        }
+      } catch {}
+    }
+
     // Cek apakah download stream URL sudah tersedia di cache sebelum melakukan download fisik
-    const hasCache = await hasCachedDownloadStreamUrl(videoId);
+    const hasCache = await hasCachedDownloadStreamUrl(videoId, targetQuality);
     if (!hasCache) {
       UrlConfirmManager.show({
-        targetName: `Klip #${activeClip.rank || ''}`,
+        targetName: `Klip #${activeClip.rank || ''}${targetQuality ? ` (${targetQuality})` : ''}`,
         title: 'URL Belum Tersedia',
-        message: 'URL download belum tersedia atau kedaluwarsa. Hit get URL sekarang? (~100 KB kuota data)',
+        message: `URL download ${targetQuality ? `kualitas ${targetQuality} ` : ''}belum tersedia atau kedaluwarsa. Hit get URL sekarang? (~100 KB kuota data)`,
         successMessage: 'URL berhasil didapatkan! Silakan klik tombol unduh klip kembali.',
         onConfirm: async () => {
-          await fetchAndCacheDownloadStreamUrl(videoId);
+          await fetchAndCacheDownloadStreamUrl(videoId, targetQuality);
         },
       });
       return;
@@ -174,7 +191,14 @@ export function useClipDownload({
     });
 
     try {
-      const res = await downloadClip(videoId, activeClip.start, activeClip.end, activeClip.rank, nativeProgressPath);
+      const res = await downloadClip(
+        videoId,
+        activeClip.start,
+        activeClip.end,
+        activeClip.rank,
+        nativeProgressPath,
+        targetQuality
+      );
       setDownloadingClips((prev) => ({ ...prev, [clipId]: false }));
       setDownloadedClips((prev) => ({ ...prev, [clipId]: true }));
       downloadedClipsRef.current[clipId] = true;

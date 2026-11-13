@@ -14,7 +14,30 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Fix Stream Playback Alignment at Clip Range and Decouple Downloaded Stream Status
+## [Unreleased] - Flexible Video Quality Selection and Quality-Based URL Caching
+- **Konteks Struktural**:
+  - Penambahan Ekstraksi & Pemilihan Kualitas Video YouTube ([stream_extractor.py](file:///d:/projects/clipping/mobile/scripts/utils/stream_extractor.py), [Dashboard.tsx](file:///d:/projects/clipping/mobile/src/components/Dashboard.tsx), [WorkshopCard.tsx](file:///d:/projects/clipping/mobile/src/components/WorkshopCard.tsx), [QualityPickerModal.tsx](file:///d:/projects/clipping/mobile/src/components/QualityPickerModal.tsx)):
+    - **Penyebab & Kebutuhan**:
+      1. Kualitas video default 1080p 60fps terlalu besar dan berat untuk player mobile maupun proses pemotongan dan editing di perangkat dengan spesifikasi menengah.
+      2. Pengguna membutuhkan fleksibilitas memilih resolusi dan framerate yang tersedia dari YouTube (1080p60, 720p60, 720p30, 480p30, 360p30) secara terpisah untuk mode **STREAM** (pemutaran preview di editor) dan mode **DOWNLOAD** (pemotongan & ekspor klip).
+      3. Daftar versi kualitas (`availableVersions`) perlu diekstrak diawal saat pembuatan card workshop dan disimpan ke dalam JSON workshop (`workshops_list`), sehingga saat fresh import di masa depan pilihan kualitas langsung tersedia tanpa perlu hit ulang ke YouTube.
+      4. Penyimpanan cache URL tidak lagi dilabeli secara kaku sebagai "stream" vs "download", melainkan dilabeli berbasis **kualitas** (`quality_id` seperti `720p60`). Jika kualitas stream dan download yang dipilih pengguna bernilai sama (misal keduanya `720p60`), sistem dapat memakai direct URL yang sama secara instan (0 extra network call).
+      5. Struktur cache URL membedakan tipe progressive (disimpan langsung nilai string URL `https://...`) dan DASH (disimpan sebagai object JSON `{ isDASH: true, videoUrl, audioUrl, qualityId }`).
+  - Penyesuaian Eksekusi & Bridge Downloader ([clip_downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/clip_downloader.py), [mobile_api/main.py](file:///d:/projects/clipping/mobile_api/main.py), [api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts), [useClipDownload.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipDownload.ts), [useClipPlayer.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipPlayer.ts)):
+    - Mendukung parameter `quality_id` pada endpoint `/api/download-clip`, fungsi `download_clip_direct`, dan `downloadClip`, yang secara dinamis menyaring segmen HLS video sesuai target resolusi (`target_h`) dan framerate (`target_fps`).
+    - Menyesuaikan FFmpeg cut agar secara alami mempertahankan resolusi dan framerate sumber tanpa re-scaling berlebih.
+- **Perubahan Kode Penting**:
+  - `mobile/scripts/utils/stream_extractor.py`: Menambahkan `get_available_video_versions` / `extract_video_versions` (deduplikasi format berdasarkan resolusi dan fps, prioritas H.264/MP4) dan `get_quality_stream_url` / `extract_quality_url` (membedakan output progressive string vs DASH object).
+  - `mobile/scripts/utils/clip_downloader.py`: Menambahkan parameter `quality_id` pada `download_clip_direct` dan `download_youtube_clip_range` untuk pencocokan HLS stream.
+  - `mobile_api/main.py`: Menambahkan endpoint pass-through `/api/versions` dan `/api/quality-url`, serta menyalurkan `quality_id` pada `/api/download-clip`.
+  - `mobile/src/services/api.ts`: Mengimplementasikan arsitektur 2-Tier Caching berbasis kualitas (`QUALITY_URL_MEMORY_MAP` dan `quality_url_${videoId}_${qualityId}` di `LocalStorage`), fungsi `saveCachedQualityUrl`, `getCachedQualityUrl`, `hasCachedQualityUrl`, `clearCachedQualityUrl`, `fetchVideoVersions`, `fetchQualityUrl`, serta memperbarui `fetchStreamUrl`, `getCachedDownloadStreamUrl`, dan `downloadClip` agar mendukung `qualityId`.
+  - `mobile/src/components/WorkshopCard.tsx`: Memperbarui interface `WorkshopItem` dengan `availableVersions`, `selectedStreamQuality`, dan `selectedDownloadQuality`, serta menambahkan pill badge interaktif untuk memilih kualitas Stream dan Unduh.
+  - `mobile/src/components/QualityPickerModal.tsx`: Membuat komponen modal baru untuk pemilihan kualitas video dengan badge `60 FPS`, single stream, ukuran estimasi, dan catatan rekomendasi.
+  - `mobile/src/components/Dashboard.tsx`: Mengambil `availableVersions` diawal saat card workshop dibuat, menyimpan pilihan kualitas ke `workshops_list`, menampilkan `QualityPickerModal`, serta memastikan preservasi data versi saat ekspor dan impor JSON workshop.
+  - `mobile/src/hooks/useClipDownload.ts`: Mengintegrasikan pembacaan kualitas download workshop dan penyaluran `targetQuality` ke `downloadClip`.
+  - `mobile/src/hooks/useClipPlayer.ts`: Mengintegrasikan pembacaan kualitas stream workshop saat resolve stream URL.
+
+## [0ef5e80] - Fix Stream Playback Alignment at Clip Range and Decouple Downloaded Stream Status
 - **Konteks Struktural**:
   - Sinkronisasi Pemutaran Stream Online & Perbaikan Deteksi Klip Lokal ([useClipPlayer.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipPlayer.ts), [useClipData.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipData.ts)):
     - **Penyebab & Kebutuhan**:

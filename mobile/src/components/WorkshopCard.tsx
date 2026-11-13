@@ -1,13 +1,31 @@
 import React from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
-import { Play, Trash2, MessageCircle, Share2, CloudOff } from 'lucide-react-native';
+import { Play, Trash2, MessageCircle, Share2, CloudOff, Film, Download } from 'lucide-react-native';
+
+export interface VideoVersionItem {
+  id: string; // e.g. "1080p60", "720p60", "720p30", "480p30", "360p30"
+  label: string; // "1080p 60fps"
+  height: number;
+  fps: number;
+  is_progressive: boolean;
+  format_id: string;
+  vcodec?: string;
+  ext?: string;
+  filesize_approx?: number;
+  note?: string;
+}
 
 export interface WorkshopItem {
   videoId: string;
   title?: string;
+  duration?: number;
+  thumbnail?: string;
   count?: number;
   lastUpdated?: number;
   doneCount?: number;
+  availableVersions?: VideoVersionItem[];
+  selectedStreamQuality?: string;
+  selectedDownloadQuality?: string;
 }
 
 interface WorkshopCardProps {
@@ -20,6 +38,8 @@ interface WorkshopCardProps {
   onBulkWA?: (videoId: string) => void;
   onExport?: (videoId: string) => void;
   onDownloadFullVideo?: (videoId: string) => void;
+  onSelectStreamQuality?: (videoId: string) => void;
+  onSelectDownloadQuality?: (videoId: string) => void;
 }
 
 export const WorkshopCard: React.FC<WorkshopCardProps> = ({
@@ -32,6 +52,8 @@ export const WorkshopCard: React.FC<WorkshopCardProps> = ({
   onBulkWA,
   onExport,
   onDownloadFullVideo,
+  onSelectStreamQuality,
+  onSelectDownloadQuality,
 }) => {
   const thumbnailUrl = `https://img.youtube.com/vi/${workshop.videoId}/mqdefault.jpg`;
 
@@ -65,6 +87,31 @@ export const WorkshopCard: React.FC<WorkshopCardProps> = ({
         <Text style={styles.videoTitle} numberOfLines={2}>
           {workshop.title || `Video ID: ${workshop.videoId}`}
         </Text>
+
+        {/* Quality Selection Badges (Stream & Download) */}
+        {workshop.availableVersions && workshop.availableVersions.length > 0 ? (
+          <View style={styles.qualityRow}>
+            <TouchableOpacity
+              style={styles.qualityPill}
+              onPress={() => onSelectStreamQuality?.(workshop.videoId)}
+              activeOpacity={0.7}
+            >
+              <Film size={11} color="#38bdf8" />
+              <Text style={styles.qualityLabelText}>Stream:</Text>
+              <Text style={styles.qualityValText}>{workshop.selectedStreamQuality || '720p60'}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.qualityPill, styles.qualityPillDl]}
+              onPress={() => onSelectDownloadQuality?.(workshop.videoId)}
+              activeOpacity={0.7}
+            >
+              <Download size={11} color="#c084fc" />
+              <Text style={styles.qualityLabelText}>Unduh:</Text>
+              <Text style={[styles.qualityValText, { color: '#c084fc' }]}>{workshop.selectedDownloadQuality || '720p60'}</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
 
         {/* Bottom Row: Actions Group (Offline Video, Export JSON, WhatsApp & Delete) */}
         <View style={styles.cardFooter}>
@@ -192,7 +239,38 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#ffffff',
     lineHeight: 20,
+    marginBottom: 8,
+  },
+  qualityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     marginBottom: 12,
+  },
+  qualityPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(56, 189, 248, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.25)',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  qualityPillDl: {
+    backgroundColor: 'rgba(192, 132, 252, 0.1)',
+    borderColor: 'rgba(192, 132, 252, 0.25)',
+  },
+  qualityLabelText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.5)',
+  },
+  qualityValText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#38bdf8',
   },
   cardFooter: {
     flexDirection: 'row',

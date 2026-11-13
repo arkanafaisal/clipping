@@ -40,7 +40,8 @@ def download_clip_direct(
     cookie_path: str = None,
     ydl_opts: dict = None,
     progress_path: str = None,
-    source_video_path: str = None
+    source_video_path: str = None,
+    quality_id: str = None
 ) -> dict:
     """
     Mendownload satu klip video YouTube secara mandiri menggunakan metode 2-tahap:
@@ -424,12 +425,34 @@ def download_clip_direct(
 
                 return score
 
-            # 1. Prioritas Utama: Format HLS 1080p / 720p 60fps (MPEG-TS Native Segments)
+            # 1. Prioritas Utama: Format HLS (MPEG-TS Native Segments) sesuai target quality_id
+            target_quality = quality_id or opts.get("quality_id")
+            target_h = 720
+            target_fps = 30
+            if target_quality and "p" in str(target_quality):
+                parts = str(target_quality).split("p")
+                try:
+                    target_h = int(parts[0])
+                except ValueError:
+                    target_h = 720
+                if len(parts) > 1 and parts[1]:
+                    try:
+                        target_fps = int(parts[1])
+                    except ValueError:
+                        target_fps = 30
+
+            def v_fmt_score(f):
+                h = f.get("height") or 0
+                fps = f.get("fps") or 30
+                diff_h = abs(h - target_h)
+                diff_fps = abs(fps - target_fps)
+                return -(diff_h * 10 + diff_fps * 5)
+
             hls_v_formats = [
                 f for f in formats
-                if f.get("protocol") in ("m3u8", "m3u8_native") and f.get("vcodec") != "none" and (f.get("height") or 0) <= 1080
+                if f.get("protocol") in ("m3u8", "m3u8_native") and f.get("vcodec") != "none" and (f.get("height") or 0) <= max(1080, target_h)
             ]
-            hls_v_formats.sort(key=lambda f: (f.get("height") or 0, f.get("fps") or 0), reverse=True)
+            hls_v_formats.sort(key=v_fmt_score, reverse=True)
             v_fmt = hls_v_formats[0] if hls_v_formats else None
 
             hls_a_formats = [
@@ -827,7 +850,8 @@ def download_youtube_clip_range(
     stream_url: str = None,
     cookie_path: str = None,
     progress_path: str = None,
-    source_video_path: str = None
+    source_video_path: str = None,
+    quality_id: str = None
 ):
     """
     Backward compatibility wrapper yang mendelegasikan pemanggilan ke download_clip_direct.
@@ -841,7 +865,8 @@ def download_youtube_clip_range(
         cookie_path=cookie_path,
         ydl_opts=ydl_opts,
         progress_path=progress_path,
-        source_video_path=source_video_path
+        source_video_path=source_video_path,
+        quality_id=quality_id
     )
     if res.get("status") == "success":
         return res.get("output_path"), res.get("stream_url"), None, None, res
