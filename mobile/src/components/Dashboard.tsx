@@ -41,6 +41,7 @@ import {
   ClipSubtitleData,
   ClipTemplateConfig,
   VideoGlobalConfig,
+  FIXED_QUALITY_VERSIONS,
 } from '../services/api';
 
 const WORKSHOPS_STORAGE_KEY = 'workshops_list';
@@ -160,14 +161,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
     setIsExtracting(true);
 
     try {
-      // 1. Ambil daftar available versions & metadata video diawal pembuatan card
-      let availableVersions: VideoVersionItem[] = [];
+      // 1. Inisialisasi daftar versi tetap & judul video
+      let availableVersions: VideoVersionItem[] = FIXED_QUALITY_VERSIONS;
       let videoTitle = `YouTube Video (${videoId})`;
       try {
         const verData = await fetchVideoVersions(videoId);
-        if (verData?.available_versions && verData.available_versions.length > 0) {
-          availableVersions = verData.available_versions;
-        }
         if (verData?.title) {
           videoTitle = verData.title;
         }
@@ -176,25 +174,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
       }
 
       const existingIndex = workshops.findIndex((w) => w.videoId === videoId);
-      if (existingIndex >= 0 && workshops[existingIndex].availableVersions?.length) {
-        if (availableVersions.length === 0) {
-          availableVersions = workshops[existingIndex].availableVersions!;
-        }
-      }
 
       // 2. Tentukan default stream & download quality
-      const defaultStream =
-        availableVersions.find((v) => v.id === '720p60')?.id ||
-        availableVersions.find((v) => v.id === '720p30')?.id ||
-        availableVersions.find((v) => v.id === '480p30')?.id ||
-        availableVersions[0]?.id ||
-        '720p60';
-
-      const defaultDownload =
-        availableVersions.find((v) => v.id === '720p60')?.id ||
-        availableVersions.find((v) => v.id === '1080p60')?.id ||
-        availableVersions[0]?.id ||
-        '720p60';
+      const defaultStream = '720p60';
+      const defaultDownload = '720p60';
 
       const streamQuality = existingIndex >= 0 && workshops[existingIndex].selectedStreamQuality
         ? workshops[existingIndex].selectedStreamQuality
@@ -323,114 +306,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
     }
   };
 
-  const handleOpenQualityPicker = async (
+  const handleOpenQualityPicker = (
     videoId: string,
     mode: 'stream' | 'download',
     extra?: { autoOpenAfterSelect?: boolean; count?: number; playMode?: 'local' | 'stream' }
   ) => {
     setQualityModalTarget({ videoId, mode, ...extra });
     setQualityModalVisible(true);
-
-    // Cek apakah workshop ini sudah memiliki availableVersions (misal workshop lama hasil impor)
-    const ws = workshops.find((w) => w.videoId === videoId);
-    if (!ws?.availableVersions || ws.availableVersions.length === 0) {
-      setIsQualityLoading(true);
-      try {
-        const verData = await fetchVideoVersions(videoId);
-        if (verData?.available_versions && verData.available_versions.length > 0) {
-          const updated = workshops.map((w) => {
-            if (w.videoId === videoId) {
-              return {
-                ...w,
-                availableVersions: verData.available_versions,
-                title: verData.title || w.title,
-                duration: verData.duration || w.duration,
-                thumbnail: verData.thumbnail || w.thumbnail,
-                selectedStreamQuality:
-                  w.selectedStreamQuality ||
-                  verData.available_versions.find((v) => v.id === '720p60')?.id ||
-                  verData.available_versions[0]?.id ||
-                  '720p60',
-                selectedDownloadQuality:
-                  w.selectedDownloadQuality ||
-                  verData.available_versions.find((v) => v.id === '720p60')?.id ||
-                  verData.available_versions[0]?.id ||
-                  '720p60',
-              };
-            }
-            return w;
-          });
-          await saveWorkshops(updated);
-          setWorkshops(updated);
-        }
-      } catch (err: any) {
-        console.warn('[Dashboard] Gagal memuat versi video:', err?.message);
-        ToastManager.show({
-          type: 'error',
-          title: 'Gagal Mengambil Kualitas Video',
-          message: err?.message || 'Pastikan file skrip Python tersedia di shared storage.',
-          duration: 4000,
-        });
-      } finally {
-        setIsQualityLoading(false);
-      }
-    }
-  };
-
-  const handleRetryFetchVersions = async (videoId: string) => {
-    setIsQualityLoading(true);
-    try {
-      const verData = await fetchVideoVersions(videoId);
-      if (verData?.available_versions && verData.available_versions.length > 0) {
-        const updated = workshops.map((w) => {
-          if (w.videoId === videoId) {
-            return {
-              ...w,
-              availableVersions: verData.available_versions,
-              title: verData.title || w.title,
-              duration: verData.duration || w.duration,
-              thumbnail: verData.thumbnail || w.thumbnail,
-              selectedStreamQuality:
-                w.selectedStreamQuality ||
-                verData.available_versions.find((v) => v.id === '720p60')?.id ||
-                verData.available_versions[0]?.id ||
-                '720p60',
-              selectedDownloadQuality:
-                w.selectedDownloadQuality ||
-                verData.available_versions.find((v) => v.id === '720p60')?.id ||
-                verData.available_versions[0]?.id ||
-                '720p60',
-            };
-          }
-          return w;
-        });
-        await saveWorkshops(updated);
-        setWorkshops(updated);
-        ToastManager.show({
-          type: 'success',
-          title: 'Berhasil',
-          message: 'Daftar kualitas video berhasil dimuat.',
-          duration: 3000,
-        });
-      } else {
-        ToastManager.show({
-          type: 'error',
-          title: 'Kualitas Tidak Ditemukan',
-          message: 'YouTube tidak mengembalikan daftar format untuk video ini.',
-          duration: 4000,
-        });
-      }
-    } catch (err: any) {
-      console.warn('[Dashboard] Gagal memuat versi video:', err?.message);
-      ToastManager.show({
-        type: 'error',
-        title: 'Gagal Mengambil Kualitas Video',
-        message: err?.message || 'Pastikan file skrip Python tersedia di shared storage.',
-        duration: 4000,
-      });
-    } finally {
-      setIsQualityLoading(false);
-    }
   };
 
   const handleSelectQuality = async (qualityId: string) => {
@@ -439,7 +321,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
     setIsQualityLoading(true);
 
     try {
-      // 1. Update workshop item di list
+      // 1. Ambil direct URL untuk kualitas ini dan simpan ke cache terlebih dahulu
+      await fetchQualityUrl(videoId, qualityId);
+
+      // 2. Update workshop item di list hanya setelah URL berhasil didapatkan
       const updated = workshops.map((w) => {
         if (w.videoId === videoId) {
           return {
@@ -452,9 +337,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
       });
       await saveWorkshops(updated);
       setWorkshops(updated);
-
-      // 2. Ambil direct URL untuk kualitas ini dan simpan ke cache jika belum ada
-      await fetchQualityUrl(videoId, qualityId);
 
       setIsQualityLoading(false);
       setQualityModalVisible(false);
@@ -473,11 +355,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
       }
     } catch (err: any) {
       setIsQualityLoading(false);
+      // PENTING: Jangan tutup modal agar user dapat langsung memilih opsi lainnya!
       ToastManager.show({
         type: 'error',
-        title: 'Gagal Mengambil URL Kualitas',
-        rawError: err?.message || String(err),
-        duration: 4000,
+        title: 'Kualitas Tidak Tersedia',
+        rawError: err?.rawError || err?.message || 'Format tidak ditemukan di YouTube. Silakan pilih opsi lain.',
+        errorCode: err?.code || 'FORMAT_NOT_MATCHED',
+        duration: 5000,
       });
     }
   };
@@ -919,7 +803,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
       {/* 8. Modal Pemilihan Kualitas Video (Stream / Unduh) */}
       {(() => {
         const activeWorkshop = workshops.find((w) => w.videoId === qualityModalTarget?.videoId);
-        const activeVersions = activeWorkshop?.availableVersions || [];
+        const activeVersions =
+          activeWorkshop?.availableVersions && activeWorkshop.availableVersions.length > 0
+            ? activeWorkshop.availableVersions
+            : FIXED_QUALITY_VERSIONS;
         const currentSelectedQuality =
           qualityModalTarget?.mode === 'stream'
             ? activeWorkshop?.selectedStreamQuality || '720p60'
@@ -942,11 +829,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
               setQualityModalTarget(null);
             }}
             isLoading={isQualityLoading}
-            onRetry={() => {
-              if (qualityModalTarget?.videoId) {
-                handleRetryFetchVersions(qualityModalTarget.videoId);
-              }
-            }}
           />
         );
       })()}

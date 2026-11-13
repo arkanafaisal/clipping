@@ -14,7 +14,28 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Fix DASH Audio Player Seek Storm, Drift Sync Throttle, and Cache Invalidation
+## [Unreleased] - Implement Fixed Quality Presets and Strict Client Routing Without Auto-Fallback
+- **Konteks Struktural**:
+  - Preset Kualitas Tetap & Routing Klien YouTube Tanpa Fallback Otomatis ([mobile/scripts/utils/stream_extractor.py](file:///d:/projects/clipping/mobile/scripts/utils/stream_extractor.py), [mobile/src/services/api/types.ts](file:///d:/projects/clipping/mobile/src/services/api/types.ts), [mobile/src/services/api/youtubeStream.ts](file:///d:/projects/clipping/mobile/src/services/api/youtubeStream.ts), [mobile/src/components/QualityPickerModal.tsx](file:///d:/projects/clipping/mobile/src/components/QualityPickerModal.tsx), [mobile/src/components/Dashboard.tsx](file:///d:/projects/clipping/mobile/src/components/Dashboard.tsx)):
+    - **Penyebab & Kebutuhan**:
+      1. Pemilihan format kualitas video sebelumnya mengandalkan panggilan jaringan (`fetchVideoVersions`) untuk mengisi daftar modal, yang rawan gagal/timeout jika guard YouTube aktif, memperlambat pembuatan card workshop, dan menyebabkan card tampak hilang bila pembuatan workshop menunggu respons versi.
+      2. Klien Android (`player_client: ['android']`) menyediakan Format 18 (360p Progressive, audio+video menyatu 100%, 0ms drift), namun membatasi direct URL untuk resolusi > 360p di bawah eksperimen SABR. Sebaliknya, klien Web (`player_client: ['web']`) menyediakan 720p60 dan 1080p60 (DASH HLS) namun tidak mengembalikan Progressive Format 18.
+      3. Ekstraktor Python sebelumnya melakukan downgrade otomatis ke format terdekat jika target tidak cocok, menyamarkan ketiadaan format asli.
+      4. Pengguna menginginkan daftar kualitas tetap (`360p30`, `720p60`, `1080p60`) yang tampil instan tanpa hit awal, dengan routing klien terarah (360p30 -> Android, 720p60/1080p60 -> Web), pencocokan ketat tanpa auto-downgrade, dan UI modal tetap terbuka jika format tidak ditemukan agar opsi lain bisa segera dipilih.
+    - **Solusi**:
+      1. Menambahkan `FIXED_QUALITY_VERSIONS` di `types.ts` berisi preset: 360p30 (Progressive), 720p60 (DASH), dan 1080p60 (DASH).
+      2. Meneruskan `player_client: ['android']` pada `fetchQualityUrl` di `youtubeStream.ts` saat meminta kualitas 360p30/360p, dan mempertahankan default Web untuk 720p60/1080p60.
+      3. Memperbarui `stream_extractor.py` agar mempertahankan argumen `player_client` yang dipassing oleh frontend dan menerapkan pencocokan ketat: jika resolusi/fps tidak ditemukan, kembalikan `FORMAT_NOT_MATCHED` tanpa substitusi resolusi sembarangan.
+      4. Menyesuaikan `Dashboard.tsx` agar menggunakan `FIXED_QUALITY_VERSIONS` sebagai default workshop tanpa blocking fetch, membuka modal kualitas secara instan, dan membiarkan modal tetap terbuka saat terjadi error ekstraksi URL.
+      5. Menghilangkan duplikasi JSX dan menyempurnakan `QualityPickerModal.tsx` agar daftar opsi tetap terlihat dan interaktif saat memuat URL.
+- **Perubahan Kode Penting**:
+  - `mobile/scripts/utils/stream_extractor.py`: Mempertahankan `passed_client` pada `opts['extractor_args']` dan menerapkan strict matching untuk height dan fps tanpa auto-downgrade.
+  - `mobile/src/services/api/types.ts`: Mengekspor `FIXED_QUALITY_VERSIONS` dengan 3 opsi preset terkalibrasi.
+  - `mobile/src/services/api/youtubeStream.ts`: Mengirimkan parameter `player_client: ['android']` khusus untuk permintaan kualitas 360p30.
+  - `mobile/src/components/Dashboard.tsx`: Membuka modal kualitas secara instan menggunakan versi tetap, menunda pembaruan workshop hingga URL terverifikasi, dan mempertahankan modal terbuka pada status error.
+  - `mobile/src/components/QualityPickerModal.tsx`: Membersihkan duplikasi JSX dan menampilkan banner status tanpa menutup atau menyembunyikan daftar opsi.
+
+## [9b0e09b] - Fix DASH Audio Player Seek Storm, Drift Sync Throttle, and Cache Invalidation
 - **Konteks Struktural**:
   - Penyelamatan Audio DASH dari Infinite Seek Storm & Drift Throttling ([mobile/src/hooks/useClipPlayer.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipPlayer.ts), [mobile/src/services/api/youtubeStream.ts](file:///d:/projects/clipping/mobile/src/services/api/youtubeStream.ts)):
     - **Penyebab & Kebutuhan**:

@@ -225,11 +225,21 @@ export async function fetchQualityUrl(
   let data: any = null;
   const isNative = Platform.OS === 'android' && isPythonInitialized();
 
+  // Mapping client sesuai resolusi target:
+  // 360p30 menggunakan client 'android' agar mendapatkan Format 18 Progressive (video+audio menyatu 100%).
+  // Resolusi 720p60 dan 1080p60 menggunakan client web untuk HLS / DASH resmi.
+  const targetOpts = {
+    ...QUALITY_STREAM_YTDL_OPTS,
+    ...(qualityId === '360p30' || qualityId === '360p'
+      ? { extractor_args: { youtube: { player_client: ['android'] } } }
+      : {}),
+  };
+
   if (isNative) {
     data = await executePythonScript('utils.stream_extractor', 'extract_quality_url', {
       video_id: videoId,
       quality_id: qualityId,
-      ydl_opts: QUALITY_STREAM_YTDL_OPTS,
+      ydl_opts: targetOpts,
       cookie_path: cookiePath,
     });
   } else {
@@ -242,7 +252,7 @@ export async function fetchQualityUrl(
         body: JSON.stringify({
           video_id: videoId,
           quality_id: qualityId,
-          ydl_opts: QUALITY_STREAM_YTDL_OPTS,
+          ydl_opts: targetOpts,
           cookie_path: cookiePath,
         }),
         signal: controller.signal,

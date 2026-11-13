@@ -32,6 +32,42 @@ export interface VideoVersionItem {
   note?: string;
 }
 
+/**
+ * Daftar Kualitas Tetap (Fixed Preset Options) untuk Stream & Download.
+ * Tanpa perlu melakukan hit fetch ke YouTube diawal.
+ * - 360p30: Ditarik via client 'android' -> Format 18 Progressive (Audio & Video 100% menyatu, 0ms delay).
+ * - 720p60 & 1080p60: Ditarik via client 'web' -> DASH HLS 60 FPS resmi.
+ */
+export const FIXED_QUALITY_VERSIONS: VideoVersionItem[] = [
+  {
+    id: '360p30',
+    label: '360p (30 FPS)',
+    height: 360,
+    fps: 30,
+    is_progressive: true,
+    format_id: '18',
+    note: 'Ringan & Cepat (Progressive, Audio Menyatu 100%)',
+  },
+  {
+    id: '720p60',
+    label: '720p (60 FPS)',
+    height: 720,
+    fps: 60,
+    is_progressive: false,
+    format_id: 'dash_720p60',
+    note: 'Standar HD (DASH 60 FPS, Client Web)',
+  },
+  {
+    id: '1080p60',
+    label: '1080p (60 FPS)',
+    height: 1080,
+    fps: 60,
+    is_progressive: false,
+    format_id: 'dash_1080p60',
+    note: 'Maksimal Full HD (DASH 60 FPS, Client Web)',
+  },
+];
+
 export interface QualityUrlData {
   isDASH: boolean;
   url?: string;

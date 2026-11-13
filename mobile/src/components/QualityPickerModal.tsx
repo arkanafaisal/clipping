@@ -8,14 +8,14 @@ import {
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
-import { Check, Film, Sparkles, Zap, X, RefreshCw } from 'lucide-react-native';
-import { VideoVersionItem } from './WorkshopCard';
+import { Check, Film, Sparkles, Zap, X } from 'lucide-react-native';
+import { VideoVersionItem, FIXED_QUALITY_VERSIONS } from '../services/api';
 
 interface QualityPickerModalProps {
   visible: boolean;
   title: string;
   subtitle?: string;
-  versions: VideoVersionItem[];
+  versions?: VideoVersionItem[];
   selectedQualityId?: string;
   onSelectQuality: (qualityId: string) => void;
   onClose: () => void;
@@ -32,8 +32,9 @@ export const QualityPickerModal: React.FC<QualityPickerModalProps> = ({
   onSelectQuality,
   onClose,
   isLoading = false,
-  onRetry,
 }) => {
+  const effectiveVersions = versions && versions.length > 0 ? versions : FIXED_QUALITY_VERSIONS;
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.modalBackdrop}>
@@ -46,7 +47,6 @@ export const QualityPickerModal: React.FC<QualityPickerModalProps> = ({
             </View>
             <TouchableOpacity
               onPress={onClose}
-              disabled={isLoading}
               style={styles.closeBtn}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
@@ -54,79 +54,65 @@ export const QualityPickerModal: React.FC<QualityPickerModalProps> = ({
             </TouchableOpacity>
           </View>
 
-          {/* List of Versions */}
-          {isLoading ? (
-            <View style={styles.loadingContainer}>
+          {/* Loading Indicator Banner */}
+          {isLoading && (
+            <View style={styles.loadingBanner}>
               <ActivityIndicator size="small" color="#38bdf8" />
-              <Text style={styles.loadingText}>Menyiapkan URL kualitas video...</Text>
+              <Text style={styles.loadingText}>Memeriksa & menyiapkan URL stream...</Text>
             </View>
-          ) : versions.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>Daftar kualitas belum tersedia atau gagal diambil dari YouTube.</Text>
-              {onRetry ? (
-                <TouchableOpacity
-                  style={styles.retryBtn}
-                  onPress={onRetry}
-                  activeOpacity={0.7}
-                  disabled={isLoading}
-                >
-                  <RefreshCw size={13} color="#38bdf8" />
-                  <Text style={styles.retryBtnText}>Ambil Kualitas dari YouTube</Text>
-                </TouchableOpacity>
-              ) : null}
-            </View>
-          ) : (
-            <ScrollView style={styles.scrollList} showsVerticalScrollIndicator={false}>
-              {versions.map((ver) => {
-                const isSelected = selectedQualityId === ver.id;
-                const is60Fps = ver.fps >= 55;
-                const isFullHd = ver.height >= 1080;
-
-                return (
-                  <TouchableOpacity
-                    key={ver.id}
-                    style={[styles.itemCard, isSelected && styles.itemCardSelected]}
-                    onPress={() => onSelectQuality(ver.id)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.itemLeft}>
-                      <View style={[styles.iconBox, isSelected && styles.iconBoxSelected]}>
-                        {is60Fps ? (
-                          <Zap size={16} color={isSelected ? '#38bdf8' : '#e2e8f0'} />
-                        ) : isFullHd ? (
-                          <Sparkles size={16} color={isSelected ? '#38bdf8' : '#e2e8f0'} />
-                        ) : (
-                          <Film size={16} color={isSelected ? '#38bdf8' : '#94a3b8'} />
-                        )}
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <View style={styles.labelRow}>
-                          <Text style={[styles.itemLabel, isSelected && styles.itemLabelSelected]}>
-                            {ver.label}
-                          </Text>
-                          {is60Fps ? (
-                            <View style={styles.badgeFps}>
-                              <Text style={styles.badgeFpsText}>60 FPS</Text>
-                            </View>
-                          ) : null}
-                          {ver.is_progressive ? (
-                            <View style={styles.badgeProg}>
-                              <Text style={styles.badgeProgText}>Single</Text>
-                            </View>
-                          ) : null}
-                        </View>
-                        {ver.note ? <Text style={styles.itemNote}>{ver.note}</Text> : null}
-                      </View>
-                    </View>
-
-                    <View style={[styles.radioCircle, isSelected && styles.radioCircleSelected]}>
-                      {isSelected ? <Check size={14} color="#0f172a" strokeWidth={3} /> : null}
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
           )}
+
+          {/* List of Versions */}
+          <ScrollView style={styles.scrollList} showsVerticalScrollIndicator={false}>
+            {effectiveVersions.map((ver) => {
+              const isSelected = selectedQualityId === ver.id;
+              const is60Fps = ver.fps >= 55;
+              const isFullHd = ver.height >= 1080;
+
+              return (
+                <TouchableOpacity
+                  key={ver.id}
+                  style={[styles.itemCard, isSelected && styles.itemCardSelected]}
+                  onPress={() => onSelectQuality(ver.id)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.itemLeft}>
+                    <View style={[styles.iconBox, isSelected && styles.iconBoxSelected]}>
+                      {is60Fps ? (
+                        <Zap size={16} color={isSelected ? '#38bdf8' : '#e2e8f0'} />
+                      ) : isFullHd ? (
+                        <Sparkles size={16} color={isSelected ? '#38bdf8' : '#e2e8f0'} />
+                      ) : (
+                        <Film size={16} color={isSelected ? '#38bdf8' : '#94a3b8'} />
+                      )}
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <View style={styles.labelRow}>
+                        <Text style={[styles.itemLabel, isSelected && styles.itemLabelSelected]}>
+                          {ver.label}
+                        </Text>
+                        {is60Fps ? (
+                          <View style={styles.badgeFps}>
+                            <Text style={styles.badgeFpsText}>60 FPS</Text>
+                          </View>
+                        ) : null}
+                        {ver.is_progressive ? (
+                          <View style={styles.badgeProg}>
+                            <Text style={styles.badgeProgText}>Single</Text>
+                          </View>
+                        ) : null}
+                      </View>
+                      {ver.note ? <Text style={styles.itemNote}>{ver.note}</Text> : null}
+                    </View>
+                  </View>
+
+                  <View style={[styles.radioCircle, isSelected && styles.radioCircleSelected]}>
+                    {isSelected ? <Check size={14} color="#0f172a" strokeWidth={3} /> : null}
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
 
           {/* Footer */}
           <View style={styles.footerRow}>
@@ -272,6 +258,18 @@ const styles = StyleSheet.create({
   radioCircleSelected: {
     backgroundColor: '#38bdf8',
     borderColor: '#38bdf8',
+  },
+  loadingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(56, 189, 248, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.25)',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginBottom: 10,
   },
   loadingContainer: {
     paddingVertical: 36,

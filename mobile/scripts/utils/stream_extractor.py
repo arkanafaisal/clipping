@@ -83,7 +83,22 @@ def get_available_video_versions(video_id: str, ydl_opts: dict = None, cookie_pa
     opts.pop("format", None)
     opts.pop("format_sort", None)
 
-    if cookie_path and os.path.exists(cookie_path):
+    # Hormati player_client yang dikirim secara eksplisit oleh Frontend
+    passed_client = None
+    if ydl_opts and isinstance(ydl_opts, dict) and "extractor_args" in ydl_opts:
+        yt_in = ydl_opts["extractor_args"].get("youtube")
+        if isinstance(yt_in, dict) and "player_client" in yt_in:
+            passed_client = yt_in["player_client"]
+
+    if passed_client:
+        if "extractor_args" not in opts or not isinstance(opts["extractor_args"], dict):
+            opts["extractor_args"] = {}
+        opts["extractor_args"]["youtube"] = {"player_client": passed_client}
+        if cookie_path and os.path.exists(cookie_path):
+            opts["cookiefile"] = cookie_path
+        else:
+            opts.pop("cookiefile", None)
+    elif cookie_path and os.path.exists(cookie_path):
         opts["cookiefile"] = cookie_path
         if "extractor_args" in opts and isinstance(opts["extractor_args"], dict):
             new_ext_args = {k: (v.copy() if isinstance(v, dict) else v) for k, v in opts["extractor_args"].items()}
@@ -240,7 +255,22 @@ def get_quality_stream_url(video_id: str, quality_id: str, ydl_opts: dict = None
     opts.pop("format", None)
     opts.pop("format_sort", None)
 
-    if cookie_path and os.path.exists(cookie_path):
+    # Hormati player_client yang dikirim secara eksplisit oleh Frontend
+    passed_client = None
+    if ydl_opts and isinstance(ydl_opts, dict) and "extractor_args" in ydl_opts:
+        yt_in = ydl_opts["extractor_args"].get("youtube")
+        if isinstance(yt_in, dict) and "player_client" in yt_in:
+            passed_client = yt_in["player_client"]
+
+    if passed_client:
+        if "extractor_args" not in opts or not isinstance(opts["extractor_args"], dict):
+            opts["extractor_args"] = {}
+        opts["extractor_args"]["youtube"] = {"player_client": passed_client}
+        if cookie_path and os.path.exists(cookie_path):
+            opts["cookiefile"] = cookie_path
+        else:
+            opts.pop("cookiefile", None)
+    elif cookie_path and os.path.exists(cookie_path):
         opts["cookiefile"] = cookie_path
         if "extractor_args" in opts and isinstance(opts["extractor_args"], dict):
             new_ext_args = {k: (v.copy() if isinstance(v, dict) else v) for k, v in opts["extractor_args"].items()}
@@ -288,7 +318,7 @@ def get_quality_stream_url(video_id: str, quality_id: str, ydl_opts: dict = None
                     return {"is_dash": False, "url": single_url, "quality_id": quality_id}, None, None
                 return None, "STREAM_NOT_FOUND", "Daftar stream formats kosong."
 
-            # 1. Cari video format yang cocok dengan target_h dan target_fps
+            # 1. Cari video format yang cocok dengan target_h dan target_fps secara KETAT (NO AUTO-DOWNGRADE)
             best_v_fmt = None
             best_v_score = -1
 
@@ -301,12 +331,27 @@ def get_quality_stream_url(video_id: str, quality_id: str, ydl_opts: dict = None
                     continue
 
                 raw_fps = f.get("fps") or 30
-                fps = 60 if raw_fps >= 55 else (30 if raw_fps >= 28 else 24)
+                fps = 60 if raw_fps >= 50 else (30 if raw_fps >= 28 else 24)
 
-                diff_h = abs(h - target_h)
-                diff_fps = abs(fps - target_fps)
+                # Validasi ketat: Jangan otomatis diturunkan atau diganti jika resolusi/fps tidak sesuai
+                if target_h == 1080:
+                    if abs(h - 1080) > 30 or fps < 50:
+                        continue
+                elif target_h == 720:
+                    if abs(h - 720) > 30:
+                        continue
+                    if target_fps >= 50 and fps < 50:
+                        continue
+                elif target_h <= 360:
+                    if abs(h - 360) > 30:
+                        continue
+                else:
+                    if abs(h - target_h) > 30:
+                        continue
+                    if target_fps >= 50 and fps < 50:
+                        continue
 
-                score = 1000 - (diff_h * 10) - (diff_fps * 5)
+                score = 1000
                 ext = f.get("ext") or "mp4"
                 if "avc1" in vcodec.lower() or "h264" in vcodec.lower():
                     score += 50
@@ -314,17 +359,14 @@ def get_quality_stream_url(video_id: str, quality_id: str, ydl_opts: dict = None
                     score += 20
                 acodec = f.get("acodec")
                 if acodec and acodec != "none":
-                    score += 10  # progressive bonus
+                    score += 100  # Prioritaskan format progressive jika ada (e.g. Format 18)
 
                 if score > best_v_score and f.get("url"):
                     best_v_score = score
                     best_v_fmt = f
 
             if not best_v_fmt:
-                fallback_url = info.get("url")
-                if fallback_url:
-                    return {"is_dash": False, "url": fallback_url, "quality_id": quality_id}, None, None
-                return None, "FORMAT_NOT_MATCHED", f"Format video untuk kualitas {quality_id} tidak ditemukan."
+                return None, "FORMAT_NOT_MATCHED", f"Resolusi {quality_id} tidak tersedia pada video ini."
 
             # Cek apakah best_v_fmt sudah memiliki audio (Progressive)
             v_acodec = best_v_fmt.get("acodec")
