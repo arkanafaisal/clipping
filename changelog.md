@@ -14,7 +14,15 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Refactor Monolithic api.ts into Clean Modular Services with Facade Barrel Export
+## [Unreleased] - Generalize Rule 31 into Enduring User-Error Workflow Constraint
+- **Konteks Struktural**:
+  - Penyempurnaan Kaidah Learned Rules ([GEMINI.md](file:///d:/projects/clipping/GEMINI.md)):
+    - **Penyebab & Kebutuhan**: Formulasi Rule 31 sebelumnya terlalu sempit dan spesifik kasus (hanya menyebut path resolution dan file placement), menyalahi prinsip bahwa Learned Rules harus bersifat generik, abadi (enduring habits), dan bukan aturan sekali pakai.
+    - **Solusi**: Mengubah Rule 31 menjadi prinsip generik yang melarang pembuatan sistem pencegahan/fallback spekulatif untuk kesalahan simpel di sisi user tanpa bertanya terlebih dahulu, serta selalu memberi tahu kesalahan tersebut secara langsung kepada pengguna dan menanyakan preferensi sebelum mengimplementasikan fallback.
+- **Perubahan Kode Penting**:
+  - `GEMINI.md`: Mengubah Rule 31 `[PROCESS]` menjadi panduan alur kerja penanganan kesalahan pengguna yang generik dan berjangka panjang.
+
+## [4be1479] - Refactor Monolithic api.ts into Clean Modular Services with Facade Barrel Export
 - **Konteks Struktural**:
   - Dekomposisi Layanan API Monolitik ([api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts), [mobile/src/services/api/](file:///d:/projects/clipping/mobile/src/services/api/)):
     - **Penyebab & Kebutuhan**: File `mobile/src/services/api.ts` membengkak hingga lebih dari 2.720 baris dengan tanggung jawab majemuk (error handling, client ping, penamaan file, disk resolution, cookies, YouTube stream extraction, caching, downloader, subtitle parser & CRUD, template config, dan FFmpeg burner). Hal ini menyulitkan pemeliharaan dan debugging.
