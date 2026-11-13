@@ -14,7 +14,15 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Add Strict No-Edit Processing Rule with Scope Isolation and Analytical Mode
+## [Unreleased] - Fix Syntax Error Caused by Duplicate Bracket in api.ts
+- **Konteks Struktural**:
+  - Perbaikan Sintaksis Handler Stream Cache ([api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts)):
+    - **Penyebab & Kebutuhan**: Duplikasi blok penutup `catch` dan kurung kurawal pada fungsi `fetchStreamUrl` baris 577-579 memicu `SyntaxError: Unexpected token (579:2)` saat bundling React Native / Expo.
+    - **Solusi**: Menghapus 3 baris duplikat tersebut secara presisi tanpa merusak format spasi atau enter di bagian file lainnya.
+- **Perubahan Kode Penting**:
+  - `mobile/src/services/api.ts`: Menghapus sisa duplikasi blok `} catch (e) { // Abaikan file read error } }` pada `fetchStreamUrl`.
+
+## [da6ed0c] - Add Strict No-Edit Processing Rule with Scope Isolation and Analytical Mode
 - **Konteks Struktural**:
   - Penambahan Rule Pembatasan Mutasi Kode & Mode Analisis Murni ([GEMINI.md](file:///d:/projects/clipping/GEMINI.md)):
     - **Penyebab & Kebutuhan**: Pengguna meminta agar instruksi yang mengandung frasa "no edit" (atau "jangan diedit", "tanpa edit") benar-benar ditaati dengan zero-mutation (tanpa menyentuh atau memodifikasi file kode). Jika frasa tersebut berada di tengah-tengah prompt yang berisi beberapa perintah, perintah sebelum frasa diperbolehkan melakukan perubahan, namun seluruh perintah setelahnya strictly dilarang memodifikasi kode dan wajib beralih ke analisis mendalam (analisis error, audit arsitektur, riset referensi web, atau perancangan implementasi).

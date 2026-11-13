@@ -574,9 +574,6 @@ export async function fetchStreamUrl(
       // Abaikan file read error
     }
   }
-      // Abaikan file read error
-    }
-  }
 
   // 3. Tier 3: Eksekusi Skrip Python Langsung (Jika memori dan file fisik kosong, atau saat force refresh)
   try {
