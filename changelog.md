@@ -14,7 +14,21 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Fix Stream to 360p Progressive, Remove DASH Video Player Dual-Sync, and Restrict Quality Selection to Downloads
+## [Unreleased] - Bump Python Scripts and Expected Frontend Version to v1.0.2
+- **Konteks Struktural**:
+  - Sinkronisasi Versi Skrip Python & Penegakan Rule 33 ([mobile/scripts/utils/version.py](file:///d:/projects/clipping/mobile/scripts/utils/version.py), [mobile/src/services/api/types.ts](file:///d:/projects/clipping/mobile/src/services/api/types.ts), [GEMINI.md](file:///d:/projects/clipping/GEMINI.md)):
+    - **Penyebab & Kebutuhan**:
+      1. Terdapat modifikasi kode substansial pada skrip Python backend [mobile/scripts/utils/stream_extractor.py](file:///d:/projects/clipping/mobile/scripts/utils/stream_extractor.py) (pemberlakuan strict format matching dan penghapusan fungsi metadata versi), namun konstanta `SCRIPTS_VERSION` pada `version.py` dan `EXPECTED_SCRIPTS_VERSION` pada frontend belum dinaikkan (masih `1.0.1`).
+      2. Akibatnya, `SettingsModal` pada aplikasi mobile tidak mendeteksi kebutuhan transfer skrip baru, sehingga pengguna tidak mengetahui bahwa file Python di shared storage (`/storage/emulated/0/clipping/scripts/`) harus diperbarui.
+    - **Solusi**:
+      1. Menambahkan Rule 33 pada `GEMINI.md` yang mewajibkan bump versi serempak setiap kali file di dalam `mobile/scripts/` dimodifikasi.
+      2. Menaikkan versi skrip Python dan frontend menjadi `1.0.2`.
+- **Perubahan Kode Penting**:
+  - `mobile/scripts/utils/version.py`: Menaikkan `SCRIPTS_VERSION` menjadi `"1.0.2"`.
+  - `mobile/src/services/api/types.ts`: Menaikkan `EXPECTED_SCRIPTS_VERSION` menjadi `'1.0.2'`.
+  - `GEMINI.md`: Menambahkan Rule 33.
+
+## [c6004b5] - Fix Stream to 360p Progressive, Remove DASH Video Player Dual-Sync, and Restrict Quality Selection to Downloads
 - **Konteks Struktural**:
   - Penyeragaman Stream Pemutar Video ke 360p Progressive & Pembersihan Logika Dual-Player DASH ([mobile/src/hooks/useClipPlayer.ts](file:///d:/projects/clipping/mobile/src/hooks/useClipPlayer.ts), [mobile/src/services/api/youtubeStream.ts](file:///d:/projects/clipping/mobile/src/services/api/youtubeStream.ts), [mobile/src/components/Dashboard.tsx](file:///d:/projects/clipping/mobile/src/components/Dashboard.tsx), [mobile/src/components/WorkshopCard.tsx](file:///d:/projects/clipping/mobile/src/components/WorkshopCard.tsx), [mobile/scripts/utils/stream_extractor.py](file:///d:/projects/clipping/mobile/scripts/utils/stream_extractor.py)):
     - **Penyebab & Kebutuhan**:
