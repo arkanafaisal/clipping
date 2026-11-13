@@ -14,7 +14,15 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Generalize Rule 31 into Enduring User-Error Workflow Constraint
+## [Unreleased] - Fix Metro Require Cycle by Removing Duplicate api.ts Barrel File
+- **Konteks Struktural**:
+  - Eliminasi Siklus Require Bundler Metro ([mobile/src/services/api.ts](file:///d:/projects/clipping/mobile/src/services/api.ts)):
+    - **Penyebab & Kebutuhan**: Keberadaan file `mobile/src/services/api.ts` yang berisi `export * from './api'` bersamaan dengan direktori `mobile/src/services/api/index.ts` menyebabkan Metro Bundler mengalami siklus require (`api.ts` me-resolve `./api` ke dirinya sendiri). Akibatnya, seluruh modul yang diimpor dari `services/api` bernilai `undefined`, memicu error `[TypeError: undefined is not a function]` saat memanggil fungsi seperti `checkFullVideoExists`.
+    - **Solusi**: Menghapus file `mobile/src/services/api.ts` sehingga import dari `../services/api` langsung di-resolve secara bersih oleh bundler ke `mobile/src/services/api/index.ts` tanpa siklus require.
+- **Perubahan Kode Penting**:
+  - `mobile/src/services/api.ts`: Dihapus untuk membiarkan direktori modular `mobile/src/services/api/index.ts` bertindak sebagai entry point tunggal.
+
+## [95b6d29] - Generalize Rule 31 into Enduring User-Error Workflow Constraint
 - **Konteks Struktural**:
   - Penyempurnaan Kaidah Learned Rules ([GEMINI.md](file:///d:/projects/clipping/GEMINI.md)):
     - **Penyebab & Kebutuhan**: Formulasi Rule 31 sebelumnya terlalu sempit dan spesifik kasus (hanya menyebut path resolution dan file placement), menyalahi prinsip bahwa Learned Rules harus bersifat generik, abadi (enduring habits), dan bukan aturan sekali pakai.
