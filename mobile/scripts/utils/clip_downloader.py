@@ -779,9 +779,6 @@ def download_full_video_direct(
             "logger": yt_logger,
             "progress_hooks": [ytdl_hook],
             "nocheckcertificate": True,
-            "postprocessor_args": {
-                "merger": ["-c:v", "copy", "-c:a", "aac", "-b:a", "128k"],
-            },
         }
         if use_cookie and cookies_available:
             run_opts["cookiefile"] = cookie_path

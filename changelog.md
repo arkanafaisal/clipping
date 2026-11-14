@@ -14,7 +14,23 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Fix Full Video Download Format Resolution and FFmpeg Audio Muxing for 720p and 1080p
+## [Unreleased] - Restore Fast Stream Copy for Full Video Merger and Bump to v1.0.4
+- **Konteks Struktural**:
+  - Restorasi Kecepatan FFmpeg Merger Salin Mentah (-c copy) ([mobile/scripts/utils/clip_downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/clip_downloader.py)):
+    - **Penyebab & Kebutuhan**:
+      1. Penambahan argumen merger `-c:a aac` sebelumnya menyebabkan FFmpeg melakukan re-encoding audio secara software di CPU perangkat Android, sehingga penulisan file `full.temp.mp4` melambat drastis (hanya 1-3 MB/detik) dan memakan waktu beberapa menit.
+      2. Karena filter format yt-dlp kini sudah secara ketat menjamin pengunduhan trek audio AAC M4A (`format 140`) dan video H.264 MP4 (`format 298` pada 720p dan `format 299` pada 1080p), kedua file sudah merupakan format native MP4. Re-encoding audio sama sekali tidak diperlukan lagi.
+    - **Solusi**:
+      1. Menghapus `postprocessor_args` merger dari `run_opts`, mengembalikan penggabungan ke mekanisme `-c copy` murni bawaan yt-dlp.
+      2. Penggabungan video dan audio kembali super cepat (puluhan hingga ratusan MB/detik sesuai kecepatan I/O storage) dan bebas beban CPU, baik untuk 720p maupun 1080p.
+  - Sinkronisasi Versi Skrip Python (v1.0.4) & Penegakan Rule 33 ([mobile/scripts/utils/version.py](file:///d:/projects/clipping/mobile/scripts/utils/version.py), [mobile/src/services/api/types.ts](file:///d:/projects/clipping/mobile/src/services/api/types.ts)):
+    - Menaikkan `SCRIPTS_VERSION` dan `EXPECTED_SCRIPTS_VERSION` menjadi `1.0.4`.
+- **Perubahan Kode Penting**:
+  - `mobile/scripts/utils/clip_downloader.py`: Menghapus `postprocessor_args` pada `run_opts` untuk mengembalikan merger `-c copy` murni.
+  - `mobile/scripts/utils/version.py`: Menaikkan `SCRIPTS_VERSION` ke `"1.0.4"`.
+  - `mobile/src/services/api/types.ts`: Menaikkan `EXPECTED_SCRIPTS_VERSION` ke `'1.0.4'`.
+
+## [31b05c6] - Fix Full Video Download Format Resolution and FFmpeg Audio Muxing for 720p and 1080p
 - **Konteks Struktural**:
   - Perbaikan Resolusi Format & Muxing FFmpeg Download Video Utuh ([mobile/scripts/utils/clip_downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/clip_downloader.py), [mobile/src/services/api/downloader.ts](file:///d:/projects/clipping/mobile/src/services/api/downloader.ts), [mobile/src/components/Dashboard.tsx](file:///d:/projects/clipping/mobile/src/components/Dashboard.tsx), [mobile/src/constants/ytdlp.ts](file:///d:/projects/clipping/mobile/src/constants/ytdlp.ts)):
     - **Penyebab & Kebutuhan**:
