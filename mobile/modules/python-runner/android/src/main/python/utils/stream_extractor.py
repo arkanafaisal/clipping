@@ -62,3 +62,197 @@ def extract_stream_url(video_id: str, ydl_opts: dict = None, cookie_path: str = 
         "stream_url": url
     }
 
+
+def get_quality_stream_url(video_id: str, quality_id: str, ydl_opts: dict = None, cookie_path: str = None) -> tuple:
+    """
+    Mengekstrak direct URL untuk kualitas video tertentu (misal '720p60', '1080p60', '720p30', '480p30').
+    - Jika Progressive (video + audio menyatu): mengembalikan {"is_dash": False, "url": "https://..."}
+    - Jika DASH (video dan audio terpisah): mengembalikan {"is_dash": True, "video_url": "https://...", "audio_url": "https://..."}
+    """
+    if not video_id:
+        return None, "VIDEO_ID_REQUIRED", "Parameter 'video_id' wajib diisi."
+    if not quality_id:
+        return None, "QUALITY_ID_REQUIRED", "Parameter 'quality_id' (misal '720p60') wajib diisi."
+
+    url = f"https://www.youtube.com/watch?v={video_id}"
+    opts = (ydl_opts or {}).copy()
+    opts["skip_download"] = True
+    opts["extract_flat"] = False
+    opts["quiet"] = True
+    opts["no_warnings"] = True
+    opts.pop("format", None)
+    opts.pop("format_sort", None)
+
+    # Hormati player_client yang dikirim secara eksplisit oleh Frontend
+    passed_client = None
+    if ydl_opts and isinstance(ydl_opts, dict) and "extractor_args" in ydl_opts:
+        yt_in = ydl_opts["extractor_args"].get("youtube")
+        if isinstance(yt_in, dict) and "player_client" in yt_in:
+            passed_client = yt_in["player_client"]
+
+    if passed_client:
+        if "extractor_args" not in opts or not isinstance(opts["extractor_args"], dict):
+            opts["extractor_args"] = {}
+        opts["extractor_args"]["youtube"] = {"player_client": passed_client}
+        if cookie_path and os.path.exists(cookie_path):
+            opts["cookiefile"] = cookie_path
+        else:
+            opts.pop("cookiefile", None)
+    elif cookie_path and os.path.exists(cookie_path):
+        opts["cookiefile"] = cookie_path
+        if "extractor_args" in opts and isinstance(opts["extractor_args"], dict):
+            new_ext_args = {k: (v.copy() if isinstance(v, dict) else v) for k, v in opts["extractor_args"].items()}
+            if "youtube" in new_ext_args and isinstance(new_ext_args["youtube"], dict):
+                yt_args = new_ext_args["youtube"].copy()
+                yt_args["player_client"] = ["web", "mweb"]
+                new_ext_args["youtube"] = yt_args
+            opts["extractor_args"] = new_ext_args
+    else:
+        opts.pop("cookiefile", None)
+        # Jika mode anonim tanpa cookies, jangan batasi player_client ke mobile-only agar semua resolusi terbaca
+        if "extractor_args" in opts and isinstance(opts["extractor_args"], dict):
+            if "youtube" in opts["extractor_args"] and isinstance(opts["extractor_args"]["youtube"], dict):
+                new_ext_args = {k: (v.copy() if isinstance(v, dict) else v) for k, v in opts["extractor_args"].items()}
+                new_yt = new_ext_args["youtube"].copy()
+                new_yt.pop("player_client", None)
+                new_ext_args["youtube"] = new_yt
+                opts["extractor_args"] = new_ext_args
+
+    try:
+        # Parsing target height & fps dari quality_id, misal "720p60" -> 720, 60
+        target_h = 720
+        target_fps = 30
+        if "p" in quality_id:
+            parts = quality_id.split("p")
+            try:
+                target_h = int(parts[0])
+            except ValueError:
+                target_h = 720
+            if len(parts) > 1 and parts[1]:
+                try:
+                    target_fps = int(parts[1])
+                except ValueError:
+                    target_fps = 30
+
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+            if not info:
+                return None, "STREAM_NOT_FOUND", "Metadata video YouTube tidak ditemukan."
+
+            formats = info.get("formats") or []
+            if not formats:
+                single_url = info.get("url")
+                if single_url:
+                    return {"is_dash": False, "url": single_url, "quality_id": quality_id}, None, None
+                return None, "STREAM_NOT_FOUND", "Daftar stream formats kosong."
+
+            # 1. Cari video format yang cocok dengan target_h dan target_fps secara KETAT (NO AUTO-DOWNGRADE)
+            best_v_fmt = None
+            best_v_score = -1
+
+            for f in formats:
+                h = f.get("height")
+                if not h:
+                    continue
+                vcodec = f.get("vcodec") or ""
+                if not vcodec or vcodec == "none":
+                    continue
+
+                raw_fps = f.get("fps") or 30
+                fps = 60 if raw_fps >= 50 else (30 if raw_fps >= 28 else 24)
+
+                # Validasi ketat: Jangan otomatis diturunkan atau diganti jika resolusi/fps tidak sesuai
+                if target_h == 1080:
+                    if abs(h - 1080) > 30 or fps < 50:
+                        continue
+                elif target_h == 720:
+                    if abs(h - 720) > 30:
+                        continue
+                    if target_fps >= 50 and fps < 50:
+                        continue
+                elif target_h <= 360:
+                    if abs(h - 360) > 30:
+                        continue
+                else:
+                    if abs(h - target_h) > 30:
+                        continue
+                    if target_fps >= 50 and fps < 50:
+                        continue
+
+                score = 1000
+                ext = f.get("ext") or "mp4"
+                if "avc1" in vcodec.lower() or "h264" in vcodec.lower():
+                    score += 50
+                if ext == "mp4":
+                    score += 20
+                acodec = f.get("acodec")
+                if acodec and acodec != "none":
+                    score += 100  # Prioritaskan format progressive jika ada (e.g. Format 18)
+
+                if score > best_v_score and f.get("url"):
+                    best_v_score = score
+                    best_v_fmt = f
+
+            if not best_v_fmt:
+                return None, "FORMAT_NOT_MATCHED", f"Resolusi {quality_id} tidak tersedia pada video ini."
+
+            # Cek apakah best_v_fmt sudah memiliki audio (Progressive)
+            v_acodec = best_v_fmt.get("acodec")
+            if v_acodec and v_acodec != "none" and v_acodec != "unknown":
+                return {
+                    "is_dash": False,
+                    "url": best_v_fmt["url"],
+                    "quality_id": quality_id,
+                    "format_id": best_v_fmt.get("format_id")
+                }, None, None
+
+            # 2. Jika DASH (video-only), cari audio format terbaik (m4a / aac)
+            best_a_fmt = None
+            best_a_score = -1
+            for f in formats:
+                acodec = f.get("acodec") or ""
+                if not acodec or acodec == "none":
+                    continue
+                vcodec = f.get("vcodec") or ""
+                if vcodec and vcodec != "none":
+                    continue  # Jangan ambil video stream sebagai audio
+
+                ext = f.get("ext") or ""
+                abr = f.get("abr") or 0
+                score = abr
+                if "mp4a" in acodec.lower() or ext == "m4a":
+                    score += 100  # Prioritaskan M4A/AAC untuk Android compatibility
+
+                if score > best_a_score and f.get("url"):
+                    best_a_score = score
+                    best_a_fmt = f
+
+            return {
+                "is_dash": True,
+                "video_url": best_v_fmt["url"],
+                "audio_url": best_a_fmt["url"] if best_a_fmt else None,
+                "quality_id": quality_id,
+                "video_format_id": best_v_fmt.get("format_id"),
+                "audio_format_id": best_a_fmt.get("format_id") if best_a_fmt else None
+            }, None, None
+
+    except Exception as e:
+        return None, "QUALITY_URL_ERROR", str(e)
+
+
+def extract_quality_url(video_id: str, quality_id: str, ydl_opts: dict = None, cookie_path: str = None) -> dict:
+    """
+    Wrapper fungsi skrip untuk dipanggil oleh runner.py / Native Module.
+    """
+    res, code, err = get_quality_stream_url(video_id, quality_id, ydl_opts, cookie_path)
+    if code or err:
+        return {
+            "status": "error",
+            "code": code or "QUALITY_URL_ERROR",
+            "error": err or str(code)
+        }
+    return {
+        "status": "success",
+        **res
+    }
+

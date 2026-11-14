@@ -6,11 +6,17 @@ def sanitize_filename(name):
     return re.sub(r'[\\/*?:"<>|]', "", name).strip()
 
 def format_time_filename(seconds):
-    hours = int(seconds // 3600)
-    mins = int((seconds % 3600) // 60)
-    secs = int(seconds % 60)
+    total_ms = max(0, int(round(seconds * 1000)))
+    total_secs = total_ms // 1000
+    ms = total_ms % 1000
+    hours = int(total_secs // 3600)
+    mins = int((total_secs % 3600) // 60)
+    secs = int(total_secs % 60)
     # Menggunakan titik (.) karena titik dua (:) ilegal di nama file Windows
-    return f"{hours:02d}.{mins:02d}.{secs:02d}"
+    if hours > 0:
+        return f"{hours:02d}.{mins:02d}.{secs:02d}.{ms:03d}"
+    return f"{mins:02d}.{secs:02d}.{ms:03d}"
+
 
 def get_output_filename(folder, rank, start_time, end_time, base_ext='.mp4'):
     start_str = format_time_filename(start_time)

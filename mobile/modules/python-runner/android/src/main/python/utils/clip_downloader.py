@@ -40,7 +40,8 @@ def download_clip_direct(
     cookie_path: str = None,
     ydl_opts: dict = None,
     progress_path: str = None,
-    source_video_path: str = None
+    source_video_path: str = None,
+    quality_id: str = None
 ) -> dict:
     """
     Mendownload satu klip video YouTube secara mandiri menggunakan metode 2-tahap:
@@ -361,7 +362,7 @@ def download_clip_direct(
         run_opts["no_warnings"] = True
         run_opts["logger"] = yt_logger
         run_opts.pop("download_ranges", None)
-        run_opts.pop("external_downloader", None)
+        run_opts["format_sort"] = opts.get("format_sort") or ["lang", "format_note:original", "quality", "res", "fps", "abr"]
 
         if use_cookie and cookies_available:
             cookies_attempted = True
@@ -389,20 +390,76 @@ def download_clip_direct(
                 raise Exception("Metadata video tidak dapat diekstrak dari YouTube.")
 
             formats = info.get("formats", [])
+            video_lang = (info.get("language") or "").lower()
 
-            # 1. Prioritas Utama: Format HLS 1080p / 720p 60fps (MPEG-TS Native Segments)
+            def get_audio_score(f):
+                note = str(f.get("format_note") or "").lower()
+                lang = str(f.get("language") or "").lower()
+                fid = str(f.get("format_id") or "").lower()
+                lang_pref = f.get("language_preference")
+
+                # Penalti berat untuk audio dubbing / auto-dubbed YouTube AI
+                is_dubbed = ("dubbed" in note or "auto" in note or "translated" in note)
+                is_original = ("original" in note or "orig" in lang or "orig" in fid)
+
+                score = 0
+                if is_original:
+                    score += 1000
+                if is_dubbed:
+                    score -= 1000
+
+                if lang_pref is not None:
+                    try:
+                        score += int(lang_pref) * 10
+                    except (ValueError, TypeError):
+                        pass
+
+                if video_lang and lang:
+                    if lang == video_lang or lang.startswith(video_lang):
+                        score += 500
+
+                if fid.endswith("-orig") or fid.endswith("-0"):
+                    score += 100
+                elif any(fid.endswith(f"-{i}") for i in range(1, 10)):
+                    score -= 100
+
+                return score
+
+            # 1. Prioritas Utama: Format HLS (MPEG-TS Native Segments) sesuai target quality_id
+            target_quality = quality_id or opts.get("quality_id")
+            target_h = 720
+            target_fps = 30
+            if target_quality and "p" in str(target_quality):
+                parts = str(target_quality).split("p")
+                try:
+                    target_h = int(parts[0])
+                except ValueError:
+                    target_h = 720
+                if len(parts) > 1 and parts[1]:
+                    try:
+                        target_fps = int(parts[1])
+                    except ValueError:
+                        target_fps = 30
+
+            def v_fmt_score(f):
+                h = f.get("height") or 0
+                fps = f.get("fps") or 30
+                diff_h = abs(h - target_h)
+                diff_fps = abs(fps - target_fps)
+                return -(diff_h * 10 + diff_fps * 5)
+
             hls_v_formats = [
                 f for f in formats
-                if f.get("protocol") in ("m3u8", "m3u8_native") and f.get("vcodec") != "none" and (f.get("height") or 0) <= 1080
+                if f.get("protocol") in ("m3u8", "m3u8_native") and f.get("vcodec") != "none" and (f.get("height") or 0) <= max(1080, target_h)
             ]
-            hls_v_formats.sort(key=lambda f: (f.get("height") or 0, f.get("fps") or 0), reverse=True)
+            hls_v_formats.sort(key=v_fmt_score, reverse=True)
             v_fmt = hls_v_formats[0] if hls_v_formats else None
 
             hls_a_formats = [
                 f for f in formats
                 if f.get("protocol") in ("m3u8", "m3u8_native") and (f.get("acodec") != "none" or f.get("vcodec") == "none")
             ]
-            hls_a_formats.sort(key=lambda f: f.get("abr") or 0, reverse=True)
+            hls_a_formats.sort(key=lambda f: (get_audio_score(f), f.get("abr") or 0), reverse=True)
             a_fmt = hls_a_formats[0] if hls_a_formats else None
 
             if v_fmt and a_fmt:
@@ -440,6 +497,7 @@ def download_clip_direct(
                 f for f in formats
                 if f.get("url") and f.get("vcodec") != "none" and f.get("acodec") != "none" and f.get("ext") == "mp4"
             ]
+            prog_formats.sort(key=lambda f: (get_audio_score(f), f.get("height") or 0, f.get("tbr") or 0), reverse=True)
             if prog_formats:
                 prog_fmt = prog_formats[0]
                 req = make_urllib_request(prog_fmt["url"], prog_fmt.get("http_headers", {}), active_cookie)
@@ -617,7 +675,8 @@ def download_full_video_direct(
     ydl_opts: dict = None,
     progress_path: str = None,
     proxy_output_path: str = None,
-    proxy_ydl_opts: dict = None
+    proxy_ydl_opts: dict = None,
+    quality_id: str = None
 ) -> dict:
     """
     Mendownload satu video YouTube utuh secara mandiri menggunakan yt-dlp ke shared storage.
@@ -668,6 +727,33 @@ def download_full_video_direct(
     cookies_available = bool(cookie_path and os.path.exists(cookie_path))
     captured_errors = []
 
+    target_quality = quality_id or opts.get("quality_id")
+    target_h = 1080
+    target_fps = 60
+    if target_quality:
+        t_str = str(target_quality).lower()
+        if "720" in t_str:
+            target_h = 720
+        elif "1080" in t_str:
+            target_h = 1080
+        elif "480" in t_str:
+            target_h = 480
+        elif "360" in t_str:
+            target_h = 360
+        if "30" in t_str and "60" not in t_str:
+            target_fps = 30
+        elif "60" in t_str:
+            target_fps = 60
+
+    # Format string yang memprioritaskan H.264 (avc1) + AAC (m4a) agar 100% kompatibel dengan MP4 container & Android player
+    audio_pref = "(bestaudio[format_note*=original][ext=m4a]/bestaudio[ext=m4a]/bestaudio[acodec^=mp4a]/bestaudio)"
+    default_format_str = (
+        f"bestvideo[height<={target_h}][vcodec^=avc1]+{audio_pref}/"
+        f"bestvideo[height<={target_h}][ext=mp4]+{audio_pref}/"
+        f"bestvideo[height<={target_h}]+bestaudio/"
+        f"best[height<={target_h}][ext=mp4]/best[height<={target_h}]/best"
+    )
+
     def ytdl_hook(d):
         if d.get("status") == "downloading":
             total = d.get("total_bytes") or d.get("total_bytes_estimate") or 0
@@ -679,8 +765,11 @@ def download_full_video_direct(
 
     def run_full_download(use_cookie: bool) -> bool:
         yt_logger = YtLogger()
+        format_str = default_format_str if (target_quality or not opts.get("format")) else opts.get("format")
+        format_sort_list = opts.get("format_sort") or ["lang", "format_note:original", "quality", "res", "fps", "abr"]
         run_opts = {
-            "format": "bestvideo[ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+            "format": format_str,
+            "format_sort": format_sort_list,
             "outtmpl": output_path,
             "merge_output_format": "mp4",
             "ffmpeg_location": ffmpeg_bin,
@@ -690,10 +779,6 @@ def download_full_video_direct(
             "logger": yt_logger,
             "progress_hooks": [ytdl_hook],
             "nocheckcertificate": True,
-            "postprocessors": [{
-                "key": "FFmpegVideoConvertor",
-                "preferedformat": "mp4",
-            }],
         }
         if use_cookie and cookies_available:
             run_opts["cookiefile"] = cookie_path
@@ -748,6 +833,7 @@ def download_full_video_direct(
             write_progress("STAGE_PROXY", "DOWNLOADING_PROXY_PREVIEW", 98)
             p_opts = {
                 "format": "best[height<=480][ext=mp4]/best[ext=mp4]",
+                "format_sort": ["lang", "format_note:original", "quality", "res", "fps", "abr"],
                 "outtmpl": proxy_output_path,
                 "continuedl": True,
                 "quiet": True,
@@ -788,7 +874,8 @@ def download_youtube_clip_range(
     stream_url: str = None,
     cookie_path: str = None,
     progress_path: str = None,
-    source_video_path: str = None
+    source_video_path: str = None,
+    quality_id: str = None
 ):
     """
     Backward compatibility wrapper yang mendelegasikan pemanggilan ke download_clip_direct.
@@ -802,7 +889,8 @@ def download_youtube_clip_range(
         cookie_path=cookie_path,
         ydl_opts=ydl_opts,
         progress_path=progress_path,
-        source_video_path=source_video_path
+        source_video_path=source_video_path,
+        quality_id=quality_id
     )
     if res.get("status") == "success":
         return res.get("output_path"), res.get("stream_url"), None, None, res

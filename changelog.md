@@ -14,7 +14,19 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Restore Fast Stream Copy for Full Video Merger and Bump to v1.0.4
+## [Unreleased] - Sync Python Scripts to Native Bundled Directory for Production APK Build
+- **Konteks Struktural**:
+  - Sinkronisasi Skrip Python ke Direktori Bundled Native Module ([mobile/modules/python-runner/android/src/main/python/utils/](file:///d:/projects/clipping/mobile/modules/python-runner/android/src/main/python/utils/)):
+    - **Penyebab & Kebutuhan**:
+      1. Berdasarkan Rule 22, selama pengembangan fitur dan perbaikan bug, seluruh skrip Python hanya dimodifikasi pada satu Single Source of Truth (`mobile/scripts/utils/`).
+      2. Pengguna meminta persiapan build APK rilis produksi (*production standalone APK*). Agar bundle Chaquopy di dalam APK langsung menyertakan perbaikan terbaru (v1.0.4) tanpa ketergantungan pada file shared storage eksternal, direktori bundled native module harus disinkronkan.
+    - **Solusi**:
+      1. Menyinkronkan seluruh berkas skrip Python dari `mobile/scripts/utils/` ke `mobile/modules/python-runner/android/src/main/python/utils/`, termasuk `clip_downloader.py` (v1.0.4), `version.py`, `stream_extractor.py`, `downloader.py`, `file_utils.py`, dan `cookies.txt`.
+      2. Membersihkan artefak cache bytecode lama (`__pycache__`) dari direktori bundled.
+- **Perubahan Kode Penting**:
+  - `mobile/modules/python-runner/android/src/main/python/utils/`: Menyinkronkan berkas skrip Python ke versi v1.0.4 untuk persiapan kompilasi APK mandiri.
+
+## [c4a3962] - Restore Fast Stream Copy for Full Video Merger and Bump to v1.0.4
 - **Konteks Struktural**:
   - Restorasi Kecepatan FFmpeg Merger Salin Mentah (-c copy) ([mobile/scripts/utils/clip_downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/clip_downloader.py)):
     - **Penyebab & Kebutuhan**:

@@ -113,7 +113,8 @@ def download_single_clip(video_url, output_dir, clip, i=0, total_clips=1, force_
     print(f"Menyimpan ke: {filepath}")
     
     ydl_opts = {
-        'format': 'bestvideo+bestaudio/best',
+        'format': 'bestvideo+(bestaudio[format_note*=original]/bestaudio[format_note!*=dubbed]/bestaudio)/best',
+        'format_sort': ['lang', 'format_note:original', 'quality', 'res', 'fps', 'abr'],
         'outtmpl': filepath,
         'download_ranges': download_range_func(None, [(start_time, end_time)]),
         'force_keyframes_at_cuts': True,
@@ -183,7 +184,8 @@ def download_full_video_robust(video_url, full_video_path, cancel_check=None, ex
         hooks.extend(extra_hooks)
             
     ydl_opts = {
-        'format': 'bestvideo+bestaudio/best',
+        'format': 'bestvideo+(bestaudio[format_note*=original]/bestaudio[format_note!*=dubbed]/bestaudio)/best',
+        'format_sort': ['lang', 'format_note:original', 'quality', 'res', 'fps', 'abr'],
         'outtmpl': full_video_path,
         'quiet': False,
         'no_warnings': True,
