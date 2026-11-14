@@ -259,7 +259,8 @@ export async function downloadClip(
  */
 export async function downloadFullVideo(
   videoId: string,
-  onProgress?: (info: { stage: string; code: string; percent: number }) => void
+  onProgress?: (info: { stage: string; code: string; percent: number }) => void,
+  qualityId?: string
 ): Promise<{ status: string; output_path: string; fileUri: string; proxy_output_path?: string; proxyFileUri?: string }> {
   const { fileUri, nativePath } = getFullVideoFilePath(videoId);
   const { fileUri: proxyFileUri, nativePath: proxyNativePath } = getFullVideoProxyFilePath(videoId);
@@ -283,6 +284,7 @@ export async function downloadFullVideo(
     ...PRIME_CLIP_DOWNLOAD_OPTS,
     writeinfojson: false,
     ...(nativeFfmpeg ? { ffmpeg_location: nativeFfmpeg } : {}),
+    ...(qualityId ? { quality_id: qualityId } : {}),
   };
 
   let isPolling = true;
@@ -318,6 +320,7 @@ export async function downloadFullVideo(
         progress_path: nativeProgressPath,
         proxy_output_path: proxyNativePath,
         proxy_ydl_opts: PROXY_FULL_VIDEO_YTDL_OPTS,
+        quality_id: qualityId || undefined,
       });
     } else {
       const response = await fetch(`${DEV_API_BASE_URL}/api/download-full-video`, {
@@ -331,6 +334,7 @@ export async function downloadFullVideo(
           progress_path: nativeProgressPath,
           proxy_output_path: proxyNativePath,
           proxy_ydl_opts: PROXY_FULL_VIDEO_YTDL_OPTS,
+          quality_id: qualityId || undefined,
         }),
         signal: controller.signal,
       });

@@ -14,7 +14,28 @@ Format Entri:
 
 <!-- Entri commit mendatang akan dicatat di bawah ini (urutan terbaru di atas) -->
 
-## [Unreleased] - Restore Original Progressive Stream URL Extraction for Video Player
+## [Unreleased] - Fix Full Video Download Format Resolution and FFmpeg Audio Muxing for 720p and 1080p
+- **Konteks Struktural**:
+  - Perbaikan Resolusi Format & Muxing FFmpeg Download Video Utuh ([mobile/scripts/utils/clip_downloader.py](file:///d:/projects/clipping/mobile/scripts/utils/clip_downloader.py), [mobile/src/services/api/downloader.ts](file:///d:/projects/clipping/mobile/src/services/api/downloader.ts), [mobile/src/components/Dashboard.tsx](file:///d:/projects/clipping/mobile/src/components/Dashboard.tsx), [mobile/src/constants/ytdlp.ts](file:///d:/projects/clipping/mobile/src/constants/ytdlp.ts)):
+    - **Penyebab & Kebutuhan**:
+      1. Pengunduhan video utuh (`downloadFullVideo`) sempat mengalami kegagalan postprocessing FFmpeg (`[Anonim] ERROR: Postprocessing: Stream #1:0 -> #0:1 (copy)`) pada video YouTube tertentu (seperti `fj5nUTKFLsY`) karena yt-dlp secara default memilih trek audio WebM Opus (format 251) dengan bitrate lebih tinggi, yang kemudian ditolak saat disalin mentah (`-c copy`) ke dalam kontainer MP4 oleh muxer FFmpeg bawaan Android.
+      2. Pada `mobile/scripts/utils/clip_downloader.py`, fungsi `download_full_video_direct` belum menerima parameter `quality_id`, sehingga pengunduhan video utuh selalu mengambil resolusi default tertinggi (1080p) tanpa mempedulikan opsi kualitas yang dipilih pengguna (misal 720p60 vs 1080p60).
+      3. Terdapat postprocessor redundan `FFmpegVideoConvertor` pada `run_opts` yang mengeksekusi konversi pass kedua yang tidak diperlukan dan memicu crash saat stream tag berbeda.
+    - **Solusi**:
+      1. Menambahkan parameter `quality_id` pada `download_full_video_direct` dan memforwardnya dari `Dashboard.tsx` -> `downloader.ts` -> skrip Python.
+      2. Merumuskan filter format dinamis berbasis `quality_id` yang memprioritaskan video H.264 (`vcodec^=avc1`) dan audio AAC (`ext=m4a` / `acodec^=mp4a`), menjamin kedua stream kompatibel 100% secara native dengan kontainer MP4.
+      3. Menghapus postprocessor redundan `FFmpegVideoConvertor` dan menambahkan parameter merger `postprocessor_args: {"merger": ["-c:v", "copy", "-c:a", "aac", "-b:a", "128k"]}` sehingga jika yt-dlp terpaksa mengambil trek audio non-AAC (misal Opus), FFmpeg secara aman mentranskode audio ke AAC tanpa error stream copy.
+  - Sinkronisasi Versi Skrip Python (v1.0.3) & Penegakan Rule 33 ([mobile/scripts/utils/version.py](file:///d:/projects/clipping/mobile/scripts/utils/version.py), [mobile/src/services/api/types.ts](file:///d:/projects/clipping/mobile/src/services/api/types.ts)):
+    - Menaikkan `SCRIPTS_VERSION` dan `EXPECTED_SCRIPTS_VERSION` menjadi `1.0.3` agar aplikasi mendeteksi pembaruan skrip untuk transfer ke penyimpanan bersama.
+- **Perubahan Kode Penting**:
+  - `mobile/scripts/utils/clip_downloader.py`: Menambahkan parameter `quality_id` pada `download_full_video_direct`, resolusi format dinamis H.264/AAC, merger args aman, dan menghapus `FFmpegVideoConvertor`.
+  - `mobile/scripts/utils/version.py`: Menaikkan `SCRIPTS_VERSION` ke `"1.0.3"`.
+  - `mobile/src/services/api/types.ts`: Menaikkan `EXPECTED_SCRIPTS_VERSION` ke `'1.0.3'`.
+  - `mobile/src/services/api/downloader.ts`: Meneruskan parameter `qualityId` pada `downloadFullVideo` ke runner Python dan endpoint fallback.
+  - `mobile/src/components/Dashboard.tsx`: Mengirim `dlQuality` ke pemanggilan `downloadFullVideo`.
+  - `mobile/src/constants/ytdlp.ts`: Memperbarui `PRIME_CLIP_DOWNLOAD_OPTS.format` agar memprioritaskan audio M4A/AAC.
+
+## [5767a23] - Restore Original Progressive Stream URL Extraction for Video Player
 - **Konteks Struktural**:
   - Restorasi Ekstraksi URL Stream Progressive Pemutar Video ([mobile/src/services/api/youtubeStream.ts](file:///d:/projects/clipping/mobile/src/services/api/youtubeStream.ts)):
     - **Penyebab & Kebutuhan**:

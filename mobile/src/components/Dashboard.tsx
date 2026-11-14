@@ -368,16 +368,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenWorkshop }) => {
     }));
 
     try {
-      await downloadFullVideo(videoId, (info) => {
-        setFullVideoStatus((prev) => ({
-          ...prev,
-          [videoId]: {
-            ...prev[videoId],
-            percent: info.percent || 0,
-            isDownloading: true,
-          },
-        }));
-      });
+      await downloadFullVideo(
+        videoId,
+        (info) => {
+          setFullVideoStatus((prev) => ({
+            ...prev,
+            [videoId]: {
+              ...prev[videoId],
+              percent: info.percent || 0,
+              isDownloading: true,
+            },
+          }));
+        },
+        dlQuality
+      );
 
       setFullVideoStatus((prev) => ({
         ...prev,

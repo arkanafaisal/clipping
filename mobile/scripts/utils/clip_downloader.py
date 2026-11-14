@@ -675,7 +675,8 @@ def download_full_video_direct(
     ydl_opts: dict = None,
     progress_path: str = None,
     proxy_output_path: str = None,
-    proxy_ydl_opts: dict = None
+    proxy_ydl_opts: dict = None,
+    quality_id: str = None
 ) -> dict:
     """
     Mendownload satu video YouTube utuh secara mandiri menggunakan yt-dlp ke shared storage.
@@ -726,6 +727,33 @@ def download_full_video_direct(
     cookies_available = bool(cookie_path and os.path.exists(cookie_path))
     captured_errors = []
 
+    target_quality = quality_id or opts.get("quality_id")
+    target_h = 1080
+    target_fps = 60
+    if target_quality:
+        t_str = str(target_quality).lower()
+        if "720" in t_str:
+            target_h = 720
+        elif "1080" in t_str:
+            target_h = 1080
+        elif "480" in t_str:
+            target_h = 480
+        elif "360" in t_str:
+            target_h = 360
+        if "30" in t_str and "60" not in t_str:
+            target_fps = 30
+        elif "60" in t_str:
+            target_fps = 60
+
+    # Format string yang memprioritaskan H.264 (avc1) + AAC (m4a) agar 100% kompatibel dengan MP4 container & Android player
+    audio_pref = "(bestaudio[format_note*=original][ext=m4a]/bestaudio[ext=m4a]/bestaudio[acodec^=mp4a]/bestaudio)"
+    default_format_str = (
+        f"bestvideo[height<={target_h}][vcodec^=avc1]+{audio_pref}/"
+        f"bestvideo[height<={target_h}][ext=mp4]+{audio_pref}/"
+        f"bestvideo[height<={target_h}]+bestaudio/"
+        f"best[height<={target_h}][ext=mp4]/best[height<={target_h}]/best"
+    )
+
     def ytdl_hook(d):
         if d.get("status") == "downloading":
             total = d.get("total_bytes") or d.get("total_bytes_estimate") or 0
@@ -737,7 +765,7 @@ def download_full_video_direct(
 
     def run_full_download(use_cookie: bool) -> bool:
         yt_logger = YtLogger()
-        format_str = opts.get("format") or "bestvideo[ext=mp4][vcodec^=avc1]+(bestaudio[format_note*=original][ext=m4a]/bestaudio[format_note!*=dubbed][ext=m4a]/bestaudio[ext=m4a])/bestvideo[ext=mp4]+(bestaudio[format_note*=original][ext=m4a]/bestaudio[format_note!*=dubbed][ext=m4a]/bestaudio[ext=m4a])/best[ext=mp4]/best"
+        format_str = default_format_str if (target_quality or not opts.get("format")) else opts.get("format")
         format_sort_list = opts.get("format_sort") or ["lang", "format_note:original", "quality", "res", "fps", "abr"]
         run_opts = {
             "format": format_str,
@@ -751,10 +779,9 @@ def download_full_video_direct(
             "logger": yt_logger,
             "progress_hooks": [ytdl_hook],
             "nocheckcertificate": True,
-            "postprocessors": [{
-                "key": "FFmpegVideoConvertor",
-                "preferedformat": "mp4",
-            }],
+            "postprocessor_args": {
+                "merger": ["-c:v", "copy", "-c:a", "aac", "-b:a", "128k"],
+            },
         }
         if use_cookie and cookies_available:
             run_opts["cookiefile"] = cookie_path

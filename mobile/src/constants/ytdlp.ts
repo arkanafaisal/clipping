@@ -119,7 +119,7 @@ export const PROXY_FULL_VIDEO_YTDL_OPTS: YtdlOpts = {
  * - Retry: 15x retry untuk fragment & socket timeout 60s
  */
 export const PRIME_CLIP_DOWNLOAD_OPTS: YtdlOpts = {
-  format: 'bestvideo+(bestaudio[format_note*=original]/bestaudio[format_note!*=dubbed]/bestaudio)/best',
+  format: 'bestvideo[ext=mp4]+(bestaudio[format_note*=original][ext=m4a]/bestaudio[format_note!*=dubbed][ext=m4a]/bestaudio[ext=m4a]/bestaudio[acodec^=mp4a])/bestvideo+bestaudio/best',
   format_sort: ['lang', 'format_note:original', 'quality', 'res', 'fps', 'abr'],
   merge_output_format: 'mp4',
   quiet: false,
